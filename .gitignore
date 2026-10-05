@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.turbo/
+.firebase/
+.emulator-data/
+private/
+.env
+.env.*
+!.env.example
+*-firebase-adminsdk-*.json
+*.log
