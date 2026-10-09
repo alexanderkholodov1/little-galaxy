@@ -1,8 +1,21 @@
 # AGENTS.md — the contract every agent obeys in this repo
 
-> **galaxy** is *Collective Galaxy*: a live, collective 3D galaxy built by visitors from their phones,
-> served at `alexanderkholodov.web.app/galaxy` and first shown at USFQ's BAD Day 2026. The plan of
-> record lives in the portfolio repo: `docs/plan/` (start at `README.md`, implement `06-roadmap.md`).
+> **galaxy** is the independent game currently called *Collective Galaxy*, intended for BAD Day
+> 2026. Its memorable public name and final path under `alexanderkholodov.web.app` will be chosen
+> in the dedicated design session. This repository owns its plan: start at `docs/plan/README.md`.
+
+## Current M0 decisions
+
+- Fair QR → game directly → visitor name → galaxy viewing/exploration and other actions →
+  optional creation. Never require visiting the portfolio or creating an object to enter.
+- Galaxy first, portfolio second. Portfolio hosts many independent projects; its content and
+  hosting plan belong to its own repository. Keep game design and implementation here.
+- Interaction sketches are provisional, open and non-exhaustive. Do not settle their semantics
+  before the dedicated design session. Game name, visitor-name policy and public route remain open.
+- The assistant is entirely excluded, including investigation, spikes, scaffolding and dependencies.
+  Its historical archive is inactive and cannot authorize work.
+- Current instruction is M0 documentation and separate documentation commits only. M1 implementation is
+  the next boundary. Define milestones by outcomes without assigning calendar days.
 
 ## Non-negotiables
 
@@ -25,8 +38,9 @@
 9. **Never reserve a public name without asking.**
 10. **Live-safety is a requirement:** any deploy must survive phones mid-edit and the screen running
     (see plan `05-live-deploys-and-ops.md`).
-11. Light/dark UI; DESIGN-DOCTRINE (`C:\My Files\AKLabs\CASPIAN\governance\DESIGN-DOCTRINE.md`) on every UI.
-    Expected local checkout: `C:\My Files\AKLabs\Fawns\galaxy` (sibling of `portfolio`).
+11. Light/dark UI. Use the operator's visual brief and any supplied DESIGN-DOCTRINE for UI work.
+    The historical CASPIAN path was absent on Hearth; do not claim it was read. Use repository-relative
+    paths; the current checkouts are siblings under `E:\repos\BAD`.
 12. **The plan is living, not absolute truth.** Improve it with your judgment and the operator's
     in-the-moment instructions, following "How this plan changes" in the plan's `README.md`
     (implementation-level → edit + log; scope/product/architecture/decided items → propose first
