@@ -1,0 +1,21 @@
+{
+  "name": "little-galaxy",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.2",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "eslint": "^10.12.0",
+    "firebase": "^13.0.0",
+    "firebase-tools": "^15.33.0",
+    "globals": "^17.13.0",
+    "turbo": "^2.11.8",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.4"
+  }
+}
