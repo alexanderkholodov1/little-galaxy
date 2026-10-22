@@ -79,8 +79,9 @@ it('rejects v1 rich keys and non-planets, and handles names as own properties', 
 it('keeps Spanish names grammatical and avoids redundant solar and lunar pairs', () => {
   expect(objectName('n28-07', 'es')).toBe('Sol estival');
   expect(objectName('n29-08', 'es')).toBe('Rayo nocturno');
+  for (const [key, value] of [['n13-35', 'Glaciar templado'], ['n14-07', 'Sol de invierno'], ['n27-35', 'Glaciar polar'], ['n29-07', 'Sol de medianoche'], ['n30-07', 'Sol del alba']]) expect(objectName(key, 'es')).toBe(value);
   for (const value of Object.values(names)) {
-    expect(value.es).not.toMatch(/lunar lunar|Sol soleado|Cielo celeste|Universo cósmico/);
+    expect(value.es).not.toMatch(/lunar lunar|Sol soleado|Cielo celeste|Universo cósmico|Sol fresco|Sol estelar|Glaciar helado|Glaciar cálido/);
     expect(value.es).not.toMatch(/undefined/);
   }
 });
