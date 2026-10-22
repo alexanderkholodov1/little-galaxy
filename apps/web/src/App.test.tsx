@@ -130,3 +130,10 @@ it('keeps scene messages outside image semantics', async () => {
   expect(container.querySelector('.sky-view')?.getAttribute('role')).toBeNull();
   expect(container.querySelector('figure')?.getAttribute('aria-label')).toBeNull();
 });
+
+it.each([
+  ['en', 'Make a planet on your phone.'], ['es', 'Crea un planeta en tu teléfono.'],
+])('describes the current home experience in %s', async (language, sentence) => {
+  await render(`/galaxy/?lang=${language}`);
+  expect(container.querySelector('.intro')?.textContent).toContain(sentence);
+});

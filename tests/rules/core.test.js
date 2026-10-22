@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInAnonymously } from 'firebase/auth';
@@ -31,6 +31,7 @@ import {
 import { initializeApp as adminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app';
 import { getFirestore as adminFirestore } from 'firebase-admin/firestore';
 import { startSnapshotWriter } from '../../apps/stand/src/snapshots.ts';
+vi.mock('../../apps/web/src/firebase.ts', () => ({ anonymousUid: vi.fn().mockResolvedValue('screen') }));
 let env;
 let admin;
 const projectId = 'demo-little-galaxy';
@@ -46,7 +47,6 @@ const flags = {
   shootingStars: true,
   assistantPublic: false,
   screenScene: 'galaxy',
-  ownerUid: 'operator',
 };
 const db = (uid = 'alice') => env.authenticatedContext(uid).firestore();
 async function bypass(callback) {
@@ -341,11 +341,17 @@ it('keeps public reads minimal and all client admin writes denied', async () => 
   await ageUser();
   await launchPlanet(db(), 'alice', draft, orbit());
   const publicDb = env.unauthenticatedContext().firestore();
-  await assertSucceeds(getDocs(query(collection(publicDb, 'objects'), where('status', '==', 'active'))));
+  await assertFails(getDocs(query(collection(publicDb, 'objects'), where('status', '==', 'active'))));
+  await assertSucceeds(getDocs(query(collection(db('screen'), 'objects'), where('status', '==', 'active'))));
+  await assertSucceeds(getDocs(query(collection(db(), 'objects'), where('ownerUid', '==', 'alice'))));
+  await assertFails(getDocs(collection(db('screen'), 'objects')));
+  await assertFails(getDoc(doc(db('bob'), 'objects', id)));
+  await assertFails(getDocs(query(collection(db('bob'), 'objects'), where('ownerUid', '==', 'alice'))));
   await assertFails(getDocs(collection(publicDb, 'objects')));
   await assertFails(getDoc(doc(publicDb, 'objects', id)));
   await assertSucceeds(getDoc(doc(db(), 'objects', id)));
-  await assertSucceeds(getDoc(doc(publicDb, 'config', 'live')));
+  await assertFails(getDoc(doc(publicDb, 'config', 'live')));
+  await assertSucceeds(getDoc(doc(db(), 'config', 'live')));
   await bypass((database) => setDoc(doc(database, 'snapshots', 'live'), { schemaVersion: 1 }));
   await assertSucceeds(getDoc(doc(publicDb, 'snapshots', 'live')));
   for (const path of [
@@ -406,7 +412,7 @@ it('two real anonymous Auth clients launch; a third screen listener receives bot
       connectAuthEmulator(auth, `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`, {
         disableWarnings: true,
       });
-      if (i < 2) await signInAnonymously(auth);
+      await signInAnonymously(auth);
       clients.push({ database, auth });
     }
     let ready;
@@ -633,7 +639,7 @@ it('the live screen receives owner edits and both hangar transitions through pro
   const { listenActive } = await import('../../apps/web/src/galaxy-data.ts');
   let objects = [];
   const stop = listenActive(
-    env.unauthenticatedContext().firestore(),
+    db('screen'),
     (value) => {
       objects = value;
     },
@@ -667,4 +673,121 @@ it('the live screen receives owner edits and both hangar transitions through pro
   } finally {
     stop();
   }
+});
+
+it.each([
+  { a: 20.1 }, { a: 3.4 }, { e: 0.76 }, { a: 20, e: 0.755 },
+  { inclination: 0.351 }, { omega: 3.142 }, { meanAnomaly: 3.142 },
+  { epoch: Date.now() - 180000 }, { epoch: Date.now() + 180000 },
+])('rejects orbit bounds outside the generated envelope: %j', async (patch) => {
+  await assertFails((await launchBatch(db(), { object: { orbit: { ...orbit(), ...patch } } })).commit());
+});
+it.each([-90000, 90000])('accepts new epochs within two minutes (%s ms)', async (offset) => {
+  await assertSucceeds((await launchBatch(db(), { object: { orbit: { ...orbit(), epoch: Date.now() + offset } } })).commit());
+});
+async function launchTyped(database, uid, type) {
+  let hostId = 'central';
+  if (type === 'moon') {
+    hostId = 'review-host';
+    await bypass(async (d) => {
+      const ref = doc(d, 'objects', hostId);
+      if (!(await getDoc(ref)).exists()) await setDoc(ref, {
+        schemaVersion: 1, ownerUid: '', type: 'planet', ...draft,
+        orbit: { ...orbit(), epoch: Date.now() - 86400000 }, status: 'active',
+        createdAt: Timestamp.now(), updatedAt: Timestamp.now(), season: SEASON,
+      });
+    });
+  }
+  return launchPlanet(database, uid, { type, nameKey: 'quiet-aurora', params: presets[type][0] }, { ...orbit(), hostId });
+}
+it.each(['planet', 'star', 'moon'].flatMap((type) => ['orbit', 'params', 'event'].map((invalid) => [type, invalid])))('rejects invalid %s edit %s with an otherwise complete batch', async (type, invalid) => {
+  const database = db();
+  const id = await launchTyped(database, 'alice', type); await ageUser();
+  const old = (await getDoc(doc(database, 'objects', id))).data();
+  const at = serverTimestamp();
+  const object = { ...old, nameKey: 'bright-tide', updatedAt: at,
+    ...(invalid === 'orbit' ? { orbit: { ...old.orbit, a: 7 } } : {}),
+    ...(invalid === 'params' ? { params: { ...old.params, size: 5 } } : {}) };
+  const batch = writeBatch(database);
+  batch.set(doc(database, 'objects', id), object);
+  batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'bad-edit', lastWriteAt: at });
+  batch.set(doc(database, 'events', 'bad-edit'), { schemaVersion: 1, uid: 'alice', type: 'edit', at, objectId: id,
+    payload: invalid === 'event' ? { ...object, nameKey: 'distant-garden' } : object });
+  await assertFails(batch.commit());
+});
+it.each(['planet', 'star', 'moon'].flatMap((type) => ['counter', 'crumble', 'owner'].map((invalid) => [type, invalid])))('rejects invalid %s relaunch %s with an otherwise complete batch', async (type, invalid) => {
+  const database = db();
+  const first = await launchTyped(database, 'alice', type); await ageUser();
+  const second = await launchPlanet(database, 'alice', draft, orbit()); await ageUser();
+  if (invalid === 'owner') await bypass((d) => updateDoc(doc(d, 'objects', first), { ownerUid: 'bob' }));
+  const old = await bypass(async (d) => (await getDoc(doc(d, 'objects', first))).data());
+  const current = (await getDoc(doc(database, 'objects', second))).data();
+  const at = serverTimestamp();
+  const batch = writeBatch(database);
+  const active = { ...old, status: 'active', updatedAt: at };
+  const archived = { ...current, status: 'hangar', updatedAt: at };
+  batch.set(doc(database, 'objects', first), active);
+  batch.set(doc(database, 'objects', second), archived);
+  batch.update(doc(database, 'users', 'alice'), { action: 'relaunch', writeId: 'bad-return', activeObjectId: first,
+    launchesToday: invalid === 'counter' ? 2 : 3, lastWriteAt: at });
+  batch.set(doc(database, 'events', 'bad-return'), { schemaVersion: 1, uid: 'alice', type: 'relaunch', at, objectId: first, payload: active });
+  if (invalid !== 'crumble') batch.set(doc(database, 'events', 'bad-return-crumble'), { schemaVersion: 1, uid: 'alice', type: 'crumble', at, objectId: second, payload: archived });
+  await assertFails(batch.commit());
+});
+it('rejects writing another user activeObjectId and selecting another owner active object', async () => {
+  await launchPlanet(db(), 'alice', draft, orbit());
+  const bob = await launchPlanet(db('bob'), 'bob', draft, orbit()); await ageUser();
+  await assertFails(updateDoc(doc(db(), 'users', 'bob'), { activeObjectId: 'stolen' }));
+  await assertFails((await interaction('edit', {}, { account: { activeObjectId: bob } })).commit());
+});
+it('allows an unchanged historical orbit to be archived, edited and relaunched', async () => {
+  const database = db();
+  const first = await launchPlanet(database, 'alice', draft, orbit()); await ageUser();
+  await bypass((d) => updateDoc(doc(d, 'objects', first), { 'orbit.epoch': Date.now() - 86400000 }));
+  const old = (await getDoc(doc(database, 'objects', first))).data();
+  const at = serverTimestamp();
+  const batch = writeBatch(database);
+  const object = { ...old, nameKey: 'bright-tide', updatedAt: at };
+  batch.set(doc(database, 'objects', first), object);
+  batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'historic-edit', lastWriteAt: at });
+  batch.set(doc(database, 'events', 'historic-edit'), { schemaVersion: 1, uid: 'alice', type: 'edit', at, objectId: first, payload: object });
+  await assertSucceeds(batch.commit()); await ageUser();
+  const second = await launchPlanet(database, 'alice', draft, orbit()); await ageUser();
+  const current = (await getDoc(doc(database, 'objects', second))).data();
+  const relaunch = writeBatch(database);
+  relaunch.update(doc(database, 'objects', first), { status: 'active', updatedAt: at });
+  relaunch.update(doc(database, 'objects', second), { status: 'hangar', updatedAt: at });
+  relaunch.update(doc(database, 'users', 'alice'), { action: 'relaunch', writeId: 'historic-return', activeObjectId: first, launchesToday: 3, lastWriteAt: at });
+  for (const [key, type, objectId, payload] of [['historic-return', 'relaunch', first, { ...object, status: 'active', updatedAt: at }], ['historic-return-crumble', 'crumble', second, { ...current, status: 'hangar', updatedAt: at }]]) {
+    relaunch.set(doc(database, 'events', key), { schemaVersion: 1, uid: 'alice', type, at, objectId, payload });
+  }
+  await assertSucceeds(relaunch.commit());
+});
+
+it.each(['planet', 'star', 'moon'])('applies generated orbit bounds and epoch checks to %s', async (type) => {
+  await launchTyped(db(), 'alice', type); await ageUser();
+  const current = (await getDoc(doc(db(), 'users', 'alice'))).data().activeObjectId;
+  const original = (await getDoc(doc(db(), 'objects', current))).data();
+  const base = { schemaVersion: 2, type, nameKey: original.nameKey, params: original.params,
+    ...(original.hostOrbit ? { hostOrbit: original.hostOrbit } : {}) };
+  for (const invalid of [{ a: 30 }, { e: 0.8 }, { meanAnomaly: 4 }, { epoch: Date.now() + 180000 }]) {
+    await assertFails((await launchBatch(db(), { object: { ...base, orbit: { ...orbit(), hostId: original.orbit.hostId, ...invalid } } })).commit());
+  }
+  if (type === 'moon') {
+    await assertFails((await launchBatch(db(), { object: { ...base, orbit: original.orbit, hostOrbit: { ...original.hostOrbit, a: 30 } } })).commit());
+  }
+});
+it('supports largest hosted replacement/relaunch batches and preserves an old moon host epoch', async () => {
+  const database = db();
+  await launchTyped(database, 'alice', 'star'); await ageUser();
+  const moon = await launchTyped(database, 'alice', 'moon'); await ageUser();
+  const old = (await getDoc(doc(database, 'objects', moon))).data();
+  const star = await launchTyped(db('bob'), 'bob', 'star');
+  await launchPlanet(database, 'alice', draft, { ...orbit(), hostId: star }); await ageUser();
+  await relaunchObject(database, 'alice', moon); await ageUser();
+  await editObject(database, 'alice', { type: 'moon', nameKey: 'n01-01', params: presets.moon[1] });
+  const changed = (await getDoc(doc(database, 'objects', moon))).data();
+  expect(changed.hostOrbit).toEqual(old.hostOrbit);
+  expect(changed.orbit).toEqual(old.orbit);
+  expect(changed.hostOrbit.epoch).toBeLessThan(Date.now() - 120000);
 });

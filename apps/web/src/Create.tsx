@@ -178,7 +178,8 @@ export default function Create({ language }: { language: Language }) {
       setEditState('saved');
       setMessage(orbit.isComet ? 'comet' : 'orbit');
     } catch (error) {
-      setMessage(error instanceof LaunchError ? error.reason : 'rejected');
+      setMessage(error instanceof LaunchError ? error.reason :
+        error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied' ? 'restricted' : 'rejected');
     } finally {
       window.clearTimeout(timeout);
       lock.current = false;
@@ -443,7 +444,8 @@ export default function Create({ language }: { language: Language }) {
                           await refresh(uid);
                         })
                         .catch((error) =>
-                          setMessage(error instanceof LaunchError ? error.reason : 'rejected'),
+                          setMessage(error instanceof LaunchError ? error.reason :
+        error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied' ? 'restricted' : 'rejected'),
                         )
                         .finally(() => {
                           lock.current = false;

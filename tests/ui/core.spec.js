@@ -117,3 +117,16 @@ test('500 synthetic objects render with bounded draw calls and report software f
   expect(writes).toEqual([]);
   if (artifact) await page.screenshot({ path: `${artifact}/synthetic-500-1440.png`, fullPage: true });
 });
+
+test('join QR scales for a booth TV and stays in the corner at phone width', async ({ page }) => {
+  await page.goto('/galaxy/screen');
+  const qr = page.locator('.join-qr');
+  const phone = await qr.boundingBox();
+  expect(phone.width).toBeGreaterThanOrEqual(132);
+  expect(phone.x + phone.width).toBeLessThanOrEqual(375);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const tv = await qr.boundingBox();
+  expect(tv.width).toBeGreaterThanOrEqual(400);
+  const field = await page.locator('.galaxy-field').boundingBox();
+  expect(tv.x + tv.width).toBeCloseTo(field.x + field.width - 16, 0);
+});

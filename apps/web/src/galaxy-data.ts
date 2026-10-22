@@ -10,6 +10,7 @@ import {
   Timestamp,
   where,
 } from 'firebase/firestore';
+import { anonymousUid } from './firebase';
 import type { Firestore } from 'firebase/firestore';
 import {
   MAX_LAUNCHES_PER_DAY,
@@ -120,20 +121,20 @@ export function listenActive(
   next: (objects: RenderObject[], fromCache: boolean) => void,
   error: () => void,
 ) {
-  return onSnapshot(
-    query(collection(database, 'objects'), where('status', '==', 'active')),
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      next(
-        snapshot.docs.flatMap((document) => {
-          const data = readObject(document.data());
-          return data ? [renderObject(document.id, data)] : [];
-        }),
-        snapshot.metadata.fromCache,
-      );
-    },
-    error,
-  );
+  let stopped = false;
+  let unsubscribe: (() => void) | undefined;
+  void anonymousUid().then(() => {
+    if (stopped) return;
+    unsubscribe = onSnapshot(
+      query(collection(database, 'objects'), where('status', '==', 'active')),
+      { includeMetadataChanges: true },
+      (snapshot) => next(snapshot.docs.flatMap((document) => {
+        const data = readObject(document.data());
+        return data ? [renderObject(document.id, data)] : [];
+      }), snapshot.metadata.fromCache), error,
+    );
+  }).catch(() => { if (!stopped) error(); });
+  return () => { stopped = true; unsubscribe?.(); };
 }
 
 export function renderObject(id: string, data: GalaxyObject): RenderObject {

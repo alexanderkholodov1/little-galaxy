@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { syntheticObjects } from '@little-galaxy/shared';
 import type { Language, RenderObject } from '@little-galaxy/shared';
@@ -18,9 +18,10 @@ export default function Screen({ language }: { language: Language }) {
   const [state, setState] = useState<'loading' | 'live' | 'failed'>('loading');
   const [attempt, setAttempt] = useState(0);
   const join = new URL('/galaxy/create', window.location.origin).href;
-  const qr = qrcode(0, 'M');
-  qr.addData(join);
-  qr.make();
+  const qrSvg = useMemo(() => {
+    const qr = qrcode(0, 'M'); qr.addData(join); qr.make();
+    return qr.createSvgTag({ cellSize: 3, margin: 12, scalable: true });
+  }, [join]);
   useEffect(() => {
     if (!firestore || synthetic) return;
     const timeout = window.setTimeout(() => setState('failed'), 8000);
@@ -76,7 +77,7 @@ export default function Screen({ language }: { language: Language }) {
         <a className="join-qr" href={join}>
           <span
             className="qr-image"
-            dangerouslySetInnerHTML={{ __html: qr.createSvgTag({ cellSize: 3, margin: 12, scalable: true }) }}
+            dangerouslySetInnerHTML={{ __html: qrSvg }}
           />
           <span>{text.join}</span>
         </a>

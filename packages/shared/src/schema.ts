@@ -84,7 +84,6 @@ export interface LiveConfig {
   schemaVersion: 1;
   appVersion: string;
   seasonOpen: boolean;
-  ownerUid: string;
   launches: boolean;
   comets: boolean;
   shake: boolean;
@@ -143,14 +142,15 @@ export function validOrbit(value: unknown): value is Orbit {
     /^[A-Za-z0-9_-]{1,100}$/.test(o.hostId) &&
     typeof o.isComet === 'boolean' &&
     [o.a, o.e, o.inclination, o.omega, o.meanAnomaly, o.epoch].every(Number.isFinite) &&
-    o.a >= 2 &&
-    o.a <= 30 &&
+    o.a >= 3.5 &&
+    o.a <= 20.05 &&
     o.e >= 0 &&
-    o.e <= 0.8 &&
+    o.e <= 0.755 &&
+    o.a * (1 + o.e) <= 34.1 &&
     o.a * (1 - o.e) > 1 &&
     Math.abs(o.inclination) <= 0.35 &&
     Math.abs(o.omega) <= Math.PI &&
-    Math.abs(o.meanAnomaly) <= Math.PI * 2 &&
+    Math.abs(o.meanAnomaly) <= Math.PI &&
     o.epoch >= 0 &&
     o.epoch <= 4102444800000 &&
     [1, -1].includes(o.direction)

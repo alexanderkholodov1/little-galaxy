@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { cometTailPosition } from './comet-tail';
 import { useFrame } from '@react-three/fiber';
 import { Color, DynamicDrawUsage, InstancedBufferAttribute, Object3D, ShaderMaterial, Vector3 } from 'three';
 import type { InstancedMesh } from 'three';
@@ -221,7 +222,7 @@ export default function RichBodies({
         for (let i = 1; i <= 3; i++)
           put(
             3,
-            worldPosition(o, now - i * 150),
+            cometTailPosition(o, now, radius * i * 0.8),
             radius * (1 - i * 0.16),
             s,
             [0, 0, 0.45, 1],

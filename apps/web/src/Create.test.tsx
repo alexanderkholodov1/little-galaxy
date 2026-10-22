@@ -72,7 +72,7 @@ it('blocks an offline launch and never discards a corrupted draft into the UI', 
   expect(launchPlanet).not.toHaveBeenCalled();
   expect(container.textContent).toContain('You are offline');
 });
-it('maps a fast pointer swipe to a returning comet and confirms only after the write', async () => {
+it('maps an extreme pointer swipe to a returning comet and confirms only after the write', async () => {
   await act(async () => root.render(<Create language="en" />));
   const window = container.querySelector<HTMLDivElement>('.swipe-window')!;
   window.setPointerCapture = vi.fn();
@@ -87,7 +87,7 @@ it('maps a fast pointer swipe to a returning comet and confirms only after the w
     await act(async () => {
       pointer('pointerdown', 20);
       now = 1100;
-      pointer('pointerup', 270);
+      pointer('pointerup', 520);
     });
     expect(launchPlanet).toHaveBeenCalledOnce();
     expect(launchPlanet).toHaveBeenCalledWith(
@@ -158,4 +158,13 @@ it('restores the active object, edits live, starts a private design and reassemb
     vi.useRealTimers();
     vi.mocked(ownObjects).mockResolvedValue([]);
   }
+});
+
+it.each(['en', 'es'] as const)('explains permission-denied as cooldown/limit in %s', async (language) => {
+  vi.mocked(launchPlanet).mockRejectedValue({ code: 'permission-denied', message: 'SDK internals' });
+  await act(async () => root.render(<Create language={language}/>));
+  await act(async () => container.querySelector<HTMLButtonElement>('.launch-desk button')!.click());
+  expect(container.querySelector('.launch-feedback')?.textContent).toContain(language === 'en' ? 'Wait two seconds' : 'Espera dos segundos');
+  expect(container.textContent).not.toContain('SDK internals');
+  expect(container.querySelector('.launch-feedback')?.textContent).not.toContain(language === 'en' ? 'connection' : 'conexión');
 });

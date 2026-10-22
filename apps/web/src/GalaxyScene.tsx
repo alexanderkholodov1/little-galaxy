@@ -1,15 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { worldPosition } from '@little-galaxy/shared';
+import { chartRadius } from './chart-fit';
 import type { RenderObject } from '@little-galaxy/shared';
 import RichBodies from './RichBodies';
 function FitChart({ objects }: { objects: RenderObject[] }) {
   const { camera, size } = useThree();
   useEffect(() => {
-    const radius = Math.max(
-      9,
-      ...objects.map((o) => Math.hypot(...worldPosition(o, Date.now())) + o.orbit.a),
-    );
+    const radius = chartRadius(objects);
     const distance = radius * 1.8 * Math.max(1, size.height / size.width);
     camera.position.set(0, -distance * 0.4, distance);
     camera.lookAt(0, 0, 0);
