@@ -1,8 +1,9 @@
-# Little Galaxy · G v0.2.0
+# Little Galaxy · G v0.3.0
 
-Galaxy core: a shared 3D sky around a central star, a phone planet workshop, swipe launches,
-returning comets, atomic Firestore rules and a stand snapshot writer.
-See [the v0.2.0 handoff](docs/galaxy-core-status.md) for contracts, verification and open device acceptance.
+Rich procedural planets, stars and moons; generated bilingual names; live owner edits; a permanent
+hangar with crumble/reassembly; and an instanced galaxy renderer with distance LOD.
+See [the v0.3.0 handoff](docs/rich-objects-status.md) for schemas, hosts, D6 rules, performance,
+verification and open device acceptance. [G v0.2.0](docs/galaxy-core-status.md) records the core contracts.
 
 The plan of record is at `../portfolio/docs/plan/README.md` (the `main` branch).
 See [the local foundation handoff](docs/foundations-status.md) for G v0.1.0 evidence and outstanding setup.
@@ -29,6 +30,10 @@ pnpm run test:rules
 pnpm run build:rehearsal
 pnpm run privacy:rehearsal
 ```
+
+For a write-free development load test, open `/galaxy/screen?synthetic=500`. The screen shows fps;
+production ignores this query. This machine measured **16.75 fps under SwiftShader software
+rendering**, with four draw calls. The booth laptop and real-phone hangar acceptance remain unmeasured.
 
 Open `/galaxy/`. Routes also include `/galaxy/screen`, `/galaxy/create`, `/galaxy/talk` and
 `/galaxy/o/:id` (the home, talk and object pages retain their foundation stubs). English is the
@@ -137,5 +142,8 @@ The design artifact is an observatory finding chart. Spectral 400 is the display
 Font License 1.1, with Georgia and Trebuchet MS as later fallbacks. The interface keeps a dark reference
 field, printed-chart typography and compact marginal annotations while preserving light and dark UI chrome.
 
-Preview and real-phone verification are required before claiming deployed behavior. The workshop saves its validated draft continuously and reads its own active object after reload.
+Preview and real-phone verification are required before claiming deployed behavior. The workshop saves its validated draft and design/edit mode continuously and recovers its own inventory
+after reload. Active-object edits appear live; launching another object archives the previous one, and
+hangar relaunches reassemble it. Both count toward the rules-enforced five launches/relaunches per UTC day.
+Moons can orbit your own planets or operator-seeded unclaimed planets; details are in the v0.3.0 handoff.
 Complete live deploy recovery belongs to G v0.7.0. Two real phones and deployed acceptance remain open.
