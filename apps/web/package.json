@@ -3,6 +3,14 @@
   "private": true,
   "type": "module",
   "version": "0.1.0",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src *.js",
+    "test": "vitest run"
+  },
   "dependencies": {
     "@little-galaxy/shared": "workspace:*",
     "@react-three/fiber": "^9.8.1",

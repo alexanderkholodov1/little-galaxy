@@ -6,6 +6,16 @@
   "engines": {
     "node": ">=22.18.0"
   },
+  "scripts": {
+    "build": "turbo run build && node scripts/privacy-check",
+    "build:rehearsal": "node scripts/with-example-env.js pnpm run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint && eslint eslint.config.js vitest.config.js scripts tests apps/web/vite.config.js apps/web/eslint.web.js scripts/privacy-check",
+    "test": "turbo run test && vitest run",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-little-galaxy \"pnpm exec vitest run --config tests/rules/vitest.config.js\"",
+    "privacy": "node scripts/privacy-check",
+    "privacy:rehearsal": "node scripts/with-example-env.js pnpm run privacy"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@firebase/rules-unit-testing": "^6.0.0",

@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+import { fileURLToPath } from 'node:url';
+import { checkPrivacy } from './privacy-lib.js';
+
+try {
+  const count = await checkPrivacy(fileURLToPath(new URL('../', import.meta.url)));
+  console.log(`Privacy gate passed (${count} build files scanned).`);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : 'Privacy gate failed.');
+  process.exitCode = 1;
+}

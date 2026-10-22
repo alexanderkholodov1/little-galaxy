@@ -1,0 +1,64 @@
+name: Galaxy checks and preview
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  preview:
+    needs: checks
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: preview
+    permissions:
+      contents: read
+    concurrency:
+      group: galaxy-preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      PREVIEW_ENABLED: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ALEXANDERKHOLODOV != '' }}
+    steps:
+      - name: Download checked galaxy build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: galaxy-dist
+          path: deploy/galaxy
+      - name: Write preview-only Hosting configuration
+        shell: bash
+        run: |
+          cat > deploy/firebase.json <<'JSON'
+          {
+            "hosting": {
+              "public": ".",
+              "rewrites": [
+                { "source": "/galaxy{,/**}", "destination": "/galaxy/index.html" }
+              ],
+              "headers": [
+                { "source": "**/*.@(html|json)", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+                { "source": "**/assets/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }
+              ]
+            }
+          }
+          JSON
+      - name: Preview unavailable
+        if: env.PREVIEW_ENABLED != 'true'
+        run: echo '::notice::Firebase preview skipped. The preview environment secret is unavailable.'
+      - name: Deploy galaxy preview channel
+        if: env.PREVIEW_ENABLED == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0.11.0
+        with:
+          entryPoint: deploy
+          projectId: alexanderkholodov
+          channelId: pr-${{ github.event.pull_request.number }}
+          expires: 7d
+          # The action fetches firebase-tools at run time and hands it the credential: the locked version, never latest.
+          firebaseToolsVersion: 15.33.0
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ALEXANDERKHOLODOV }}

@@ -1,0 +1,13 @@
+export const supportedLanguages = ['en', 'es'] as const;
+export type Language = (typeof supportedLanguages)[number];
+export const defaultLanguage: Language = 'en';
+
+export function isLanguage(value: unknown): value is Language {
+  return supportedLanguages.some((language) => language === value);
+}
+
+export interface VersionFile {
+  version: string;
+  commit: string | null;
+  builtAt: string;
+}
