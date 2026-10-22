@@ -1,6 +1,6 @@
 # G v0.4.0 — Sound
 
-Local implementation on 2026-10-22, branch `v0.4.0-sound`, stacked on v0.3.0.
+Local implementation and review-fix merge on 2026-10-22, branch `v0.4.0-sound`.
 This handoff records automated/local evidence. Physical Android/iPhone audio unlock and
 booth-speaker listening remain operator acceptance. This task does not authorize deployment.
 
@@ -71,23 +71,25 @@ spectral distance was **0.99374**; materials at the same register differed by **
 Preset spectral centroids were **394.30 / 296.21 Hz**. These are automated measurements,
 not a claim of physical-speaker listening acceptance.
 
-## Bundle cost (before review-fix merge)
+## Merged bundle cost
 
-The figures in this section describe the original sound branch. Updated merged-build evidence is
-recorded below after verification; the immediate phone preview now defers Three/R3F until inspection.
+The merged rehearsal build reports the following decimal KB estimates. These are Vite asset sizes,
+not Hosting wire measurements or a measured first-load transfer. The SVG preview is in main JS;
+opening the 3D inspector loads its entry, the shared renderer and the Three/R3F runtime.
 
-Against the clean stacked checkout's rehearsal build, main JavaScript changed from **270.39 to
-272.62 KB gzip** (**+2.23 KB**, +6.20 KB raw). CSS changed from **2.81 to 2.93 KB gzip**
-(**+0.12 KB**). The already-lazy phone preview/shared rich renderer adds another **0.16 KB gzip**.
-Tone plus the audio engine is a separate **248.49 KB raw / 61.75 KB gzip** chunk fetched only on
-unlock; the Three/R3F chunk stays **241.18 KB gzip**. Therefore audio adds about **2.51 KB gzip**
-to the phone's initial JS/CSS/preview transfer and **61.75 KB gzip after the gesture**. Notices are
-additional payload files, not automatically fetched resources. Sizes are Vite decimal KB estimates,
-not Hosting wire measurements. Existing large-chunk and mixed Firebase import warnings remain.
+| Chunk | Raw KB | Gzip KB | Loading |
+| --- | ---: | ---: | --- |
+| Main JavaScript | 884.14 | 274.34 | Initial phone path |
+| CSS | 10.57 | 3.00 | Initial phone path |
+| Audio engine and Tone | 248.49 | 61.75 | After an unmuted trusted gesture |
+| Three/R3F runtime | 910.17 | 241.19 | 3D inspection or galaxy scene |
+| Shared rich renderer | 10.70 | 4.23 | 3D inspection or galaxy scene |
+| Phone 3D entry | 0.91 | 0.59 | Explicit inspection |
+| Galaxy scene entry | 4.74 | 2.15 | Screen route |
 
-A production-build smoke test on loopback port 4178 confirmed **zero audio-chunk requests before a
-gesture, exactly one after unlock, zero page errors**, and successful cleanup/re-unlock through an
-internal phone → screen route change. External backend requests were blocked during this test.
+The browser tests verify no Three/preview/renderer request before inspection and no audio-engine
+request before the first gesture, including saved-mute petting after reload. License notices remain
+separate payload files. Existing large-chunk and mixed Firebase import warnings remain.
 
 ## Reproducing verification
 
@@ -97,7 +99,7 @@ From the checkout, run sequentially (one heavy process at a time):
 pnpm install --frozen-lockfile
 TURBO_FORCE=true pnpm run typecheck
 TURBO_FORCE=true pnpm run lint
-TURBO_FORCE=true PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.3.0/browsers GALAXY_SCREENSHOTS=/home/alexamaze/bad/work/g-v0.4.0 pnpm run test
+TURBO_FORCE=true PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.3.0/browsers GALAXY_SCREENSHOTS=/home/alexamaze/bad/work/merge-g-v0.4.0 pnpm run test
 TURBO_FORCE=true pnpm run test:rules
 TURBO_FORCE=true pnpm run build:rehearsal
 ```
@@ -105,32 +107,10 @@ TURBO_FORCE=true pnpm run build:rehearsal
 The browser path is a preinstalled local Chromium; other machines can use their normal Playwright
 installation. `pnpm run test:sound` repeats just the three audio browser checks and offline evidence.
 Set `GALAXY_SCREENSHOTS` to an existing scratch directory to save screenshots and measurement JSON.
-The development synthetic mode uses no live galaxy subscription. Full test logs and inspected 375px
-phone/screen screenshots are under `~/bad/work/g-v0.4.0/`; progress is in
-`~/bad/checkpoints/g-v0.4.0.md`.
-
-Final results: frozen install passed; all three packages passed uncached typecheck/lint; **24 shared,
-8 stand, 71 web, 26 script and 8 Chromium tests passed**; **93 Auth/Firestore rules tests passed**
-against `demo-little-galaxy`; both rehearsal build tasks were uncached and the privacy gate passed
-(**25 files**). All workspace versions and built `version.json` report **0.4.0**. The existing
-500-object regression reported **9.2 fps / four draw calls under SwiftShader** on this shared machine;
-this does not establish booth GPU speed. Reviewed phone and focused-screen images at 375px, plus the
-existing EN/ES/light/dark browser coverage. There was no horizontal overflow. The local production
-smoke command was:
-
-```sh
-PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.3.0/browsers node /home/alexamaze/bad/work/g-v0.4.0/production-smoke.mjs
-```
-
-The scratch script starts no server; it used `pnpm --filter @little-galaxy/web preview --port 4178
---strictPort`. Automated test servers and emulators stopped (ports 4177, 8080 and 9099). The additional
-preview on **4178** survived its closed command session. Command shells have isolated PID namespaces,
-so a subsequent shell cannot see or signal that listener. **Host cleanup remains open**: run
-`python3 ~/bad/work/g-v0.4.0/stop-preview.py` from the host terminal. The helper checks both the
-listening socket and its process working directory, and signals only this checkout's listener.
-The captain was asked to run it; cleanup has not been confirmed. This is an execution-environment
-limitation, not an audio test failure. No live services, credentials or assistant features were used.
-No branch was merged, pushed or tagged.
+The development synthetic mode uses no live galaxy subscription. Merged-run logs, screenshots
+and offline measurements are under `~/bad/work/merge-g-v0.4.0/`; progress is in
+`~/bad/checkpoints/merge-g-v0.4.0.md`. Verification results are recorded in the review-fix merge
+section below. This supersedes the original sound-branch verification and cleanup handoff.
 
 ## Operator acceptance remaining
 
@@ -157,3 +137,35 @@ D6 moon hosts remain visible without inflating creator counts. Phone first paint
 specimen; tapping it pets/unlocks audio without loading Three. Explicit 3D inspection preserves
 petting and the lazy audio engine remains gesture-only. Fingerprints, eight-voice allocation,
 volume, mute persistence and unlock/retry behavior are unchanged.
+
+### Merged verification results
+
+All six commands above passed locally, sequentially, with Turbo force execution and zero cached
+tasks. Install was already up to date. Typecheck/lint passed in all three packages; unit tests
+passed **26 shared / 9 stand / 81 web / 26 script**, plus **9 Chromium tests**. Auth/Firestore
+passed **116 tests** against `demo-little-galaxy`. Rehearsal build passed both build tasks and the
+privacy gate (**25 build files**). All three workspace versions and built `version.json` are **0.4.0**.
+The tested code is `c0ee55e` (merge `b85db6d` plus TV layout correction); the handoff update is docs only.
+All five requested review commits are ancestors of the merged branch.
+
+The 500-object test reported **15.2125 FPS mean** (13.5–16.8) and **six draw calls** at 1920×1080,
+DPR 1, Chromium SwiftShader. This reports software rendering on the shared machine; booth GPU/TV
+performance remains unmeasured. Shader-error and synthetic backend-traffic assertions passed.
+Offline production-graph evidence again selects **eight voices from 50 objects**, with left/right
+peaks **0.14450 / 0.16640**, **zero clipping**, preset spectral distance **0.99374** and same-register
+material distance **0.07526**. Physical-device and booth-speaker acceptance remain as listed above.
+
+Inspected fresh test-run screenshots:
+
+- `workshop-375-es-dark.png`: observing log with immediate specimen, pet/audio/3D actions, aligned
+  controls, names/hosts and designed offline/history states; no overlapping controls.
+- `synthetic-500-1920.png`: busiest-system finding chart, faint LOD orbit lines, legible body colours,
+  and full corner QR/caption inside the viewport beneath the sound controls.
+- `sound-screen-focus-1920.png`: volume, mute, focus and pet actions remain aligned above the dark
+  chart. The focused-screen and normal TV QR bounds pass; 375px and 1920px overflow assertions pass.
+
+The Playwright server and Auth/Firestore emulators shut down. Final `ss -ltn` inspection of ports
+**4177, 4178, 8080 and 9099** found no listeners; there is no outstanding preview cleanup.
+No deployment, push, PR, tag, read-only plan edit or assistant feature was performed.
+Captain work remains: portfolio plan/changelog update, remote CI/deployed verification when
+appropriate, physical Android/iPhone unlock/hangar round trips, booth GPU/TV measurement and listening.
