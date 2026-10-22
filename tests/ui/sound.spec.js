@@ -51,6 +51,8 @@ test('screen can focus and pet an object, control volume, and return to the gala
   if (artifact) await page.screenshot({ path: `${artifact}/sound-screen-focus-375.png`, fullPage: true });
   await page.setViewportSize({ width: 1920, height: 1080 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const qr = await page.locator('.join-qr').boundingBox();
+  expect(qr.y + qr.height).toBeLessThanOrEqual(1080);
   if (artifact) await page.screenshot({ path: `${artifact}/sound-screen-focus-1920.png` });
   await page.getByLabel('Focus object', { exact: true }).selectOption('');
   await expect(page.getByRole('button', { name: 'Pet focused object', exact: true })).toHaveCount(0);

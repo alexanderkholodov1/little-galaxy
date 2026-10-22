@@ -201,5 +201,5 @@ button:disabled { opacity: .6; cursor: wait; }
 .specimen-drawing:focus-visible { outline: 3px solid var(--action); outline-offset: 3px; }
 .planet-specimen > button { margin: 8px 0; }
 
-/* Reserve the existing masthead/title bands so the TV chart and join QR fit in one view. */
-@media (min-width: 721px) { .galaxy-field { height: min(75vh, calc(100dvh - 24rem)); } }
+/* Reserve masthead, title and sound controls so the TV chart and join QR fit in one view. */
+@media (min-width: 721px) { .galaxy-field { height: min(75vh, calc(100dvh - 28rem)); } }
