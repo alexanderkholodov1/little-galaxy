@@ -25,6 +25,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
   localStorage.clear();
+  sessionStorage.clear();
   vi.mocked(launchPlanet).mockReset().mockResolvedValue('planet');
   container = document.createElement('div');
   document.body.append(container);
@@ -167,4 +168,81 @@ it.each(['en', 'es'] as const)('explains permission-denied as cooldown/limit in 
   expect(container.querySelector('.launch-feedback')?.textContent).toContain(language === 'en' ? 'Wait two seconds' : 'Espera dos segundos');
   expect(container.textContent).not.toContain('SDK internals');
   expect(container.querySelector('.launch-feedback')?.textContent).not.toContain(language === 'en' ? 'connection' : 'conexión');
+});
+it('launches a moon around the same default planet shown in the select', async () => {
+  const { ownObjects, availableHosts } = await import('./galaxy-data');
+  const { presets, orbitFromVelocity } = await import('@little-galaxy/shared');
+  const planet = { schemaVersion: 2 as const, id: 'own', ownerUid: 'visitor', type: 'planet' as const, nameKey: 'quiet-aurora', params: presets.planet[0], orbit: orbitFromVelocity(0, 2.58, 0, 0), status: 'hangar' as const, createdAt: 0, updatedAt: 0, season: 'bad-2026' as const };
+  vi.mocked(ownObjects).mockResolvedValue([planet]);
+  vi.mocked(availableHosts).mockResolvedValue([{ ...planet, id: 'unclaimed', unclaimed: true }]);
+  try {
+    await act(async () => root.render(<Create language="en"/>));
+    await act(async () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Moon')!.click());
+    const host = container.querySelector<HTMLSelectElement>('select[aria-label="Orbit host"]')!;
+    expect(host.value).toBe('unclaimed');
+    await act(async () => container.querySelector<HTMLButtonElement>('.launch-desk button')!.click());
+    expect(launchPlanet).toHaveBeenCalledWith({}, 'visitor', expect.anything(), expect.objectContaining({ hostId: host.value }));
+  } finally { vi.mocked(ownObjects).mockResolvedValue([]); vi.mocked(availableHosts).mockResolvedValue([]); }
+});
+it('keeps every session name available after rolling another name', async () => {
+  const random = vi.spyOn(Math, 'random');
+  await act(async () => root.render(<Create language="en"/>));
+  const roll = () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'New name')!.click();
+  random.mockReturnValue(.1); await act(async () => roll());
+  const first = container.querySelector('select')!.value;
+  random.mockReturnValue(.8); await act(async () => roll());
+  await act(async () => root.render(<Create key="reload" language="en"/>));
+  const select = container.querySelector('select')!;
+  expect(select.value).not.toBe(first);
+  expect([...select.options].map((o) => o.value)).toContain(first);
+  await act(async () => { select.value = first; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  expect(select.value).toBe(first);
+  random.mockRestore();
+});
+it('coalesces edits made during a save while keeping the focused controls enabled', async () => {
+  const { ownObjects, editObject } = await import('./galaxy-data');
+  const { presets, orbitFromVelocity } = await import('@little-galaxy/shared');
+  vi.mocked(ownObjects).mockResolvedValue([{ schemaVersion: 2, id: 'active', ownerUid: 'visitor', type: 'planet', nameKey: 'quiet-aurora', params: presets.planet[0], orbit: orbitFromVelocity(0, 2.58, 0, 0), status: 'active', createdAt: 0, updatedAt: 0, season: 'bad-2026' }]);
+  vi.mocked(editObject).mockClear();
+  let resolve!: () => void;
+  vi.mocked(editObject).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+  vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Create language="en"/>));
+    const input = container.querySelector('input')!;
+    input.focus();
+    const preset = () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Preset 2')!.click();
+    await act(async () => preset());
+    await act(async () => vi.advanceTimersByTimeAsync(2201));
+    expect(editObject).toHaveBeenCalledOnce();
+    expect(container.querySelector('fieldset')!.disabled).toBe(false);
+    expect(document.activeElement).toBe(input);
+    for (let i = 0; i < 4; i++) await act(async () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'New name')!.click());
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(editObject).toHaveBeenCalledOnce();
+    await act(async () => resolve());
+    await act(async () => vi.advanceTimersByTimeAsync(2201));
+    expect(editObject).toHaveBeenCalledTimes(2);
+    expect(editObject).toHaveBeenLastCalledWith({}, 'visitor', expect.objectContaining({ nameKey: container.querySelector('select')!.value }));
+    expect(document.activeElement).toBe(input);
+  } finally { vi.useRealTimers(); vi.mocked(ownObjects).mockResolvedValue([]); vi.mocked(editObject).mockResolvedValue(undefined); }
+});
+it('explains the edit budget and keeps subsequent changes local after exhaustion', async () => {
+  const { ownObjects, editObject } = await import('./galaxy-data');
+  const { presets, orbitFromVelocity } = await import('@little-galaxy/shared');
+  vi.mocked(ownObjects).mockResolvedValue([{ schemaVersion: 2, id: 'active', ownerUid: 'visitor', type: 'planet', nameKey: 'quiet-aurora', params: presets.planet[0], orbit: orbitFromVelocity(0, 2.58, 0, 0), status: 'active', createdAt: 0, updatedAt: 0, season: 'bad-2026' }]);
+  vi.mocked(editObject).mockClear().mockRejectedValue(new LaunchError('editLimit'));
+  vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Create language="en"/>));
+    const roll = () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'New name')!.click();
+    await act(async () => roll());
+    await act(async () => vi.advanceTimersByTimeAsync(2201));
+    expect(container.textContent).toContain('100 live edits');
+    await act(async () => roll());
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(editObject).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('100 live edits');
+    expect(container.querySelector('fieldset')!.disabled).toBe(false);
+  } finally { vi.useRealTimers(); vi.mocked(ownObjects).mockResolvedValue([]); vi.mocked(editObject).mockResolvedValue(undefined); }
 });

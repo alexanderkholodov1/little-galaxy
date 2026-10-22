@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
-  nameKeys,
   objectName,
   orbitFromSwipe,
   orbitFromVelocity,
@@ -10,6 +9,7 @@ import {
   leastCrowdedHost,
   newName,
   presets,
+  utcDay,
 } from '@little-galaxy/shared';
 import type { GalaxyObject, Language, ObjectParams, Orbit, RenderObject } from '@little-galaxy/shared';
 import { anonymousUid, firestore } from './firebase';
@@ -28,6 +28,8 @@ import { copy } from './copy';
 import SessionLine from './SessionLine';
 import ErrorBoundary from './ErrorBoundary';
 import { richCopy } from './rich-copy';
+import Specimen from './Specimen';
+import { loadNameHistory, saveNameHistory } from './name-history';
 const Preview = lazy(() => import('./ObjectPreview'));
 function remember(mode: string, objectId?: string) {
   try {
@@ -55,7 +57,11 @@ export default function Create({ language }: { language: Language }) {
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [catalog, setCatalog] = useState<RenderObject[]>([]);
   const [editing, setEditing] = useState(false);
-  const [editState, setEditState] = useState<'saved' | 'pending' | 'failed'>('saved');
+  const [editState, setEditState] = useState<'saved' | 'pending' | 'failed' | 'limited'>('saved');
+  const [editSaving, setEditSaving] = useState(false);
+  const exhaustedDay = useRef('');
+  const [rolledNames, setRolledNames] = useState(loadNameHistory);
+  const [inspect3D, setInspect3D] = useState(false);
   const [specimen, setSpecimen] = useState('draft');
   const [departed, setDeparted] = useState<RenderObject[]>([]);
   const [retry, setRetry] = useState(0);
@@ -65,6 +71,7 @@ export default function Create({ language }: { language: Language }) {
   const lock = useRef(false);
   const start = useRef<{ x: number; y: number; t: number; pointer: number } | null>(null);
   const [trace, setTrace] = useState<[number, number] | null>(null);
+  useEffect(() => { saveNameHistory(rolledNames); }, [rolledNames]);
   useEffect(() => {
     saveDraft(draft);
   }, [draft]);
@@ -114,6 +121,8 @@ export default function Create({ language }: { language: Language }) {
       !editing ||
       !firestore ||
       busy ||
+      editSaving ||
+      exhaustedDay.current === utcDay(Date.now()) ||
       editState === 'failed' ||
       JSON.stringify(draft) === baseline.current
     )
@@ -122,7 +131,7 @@ export default function Create({ language }: { language: Language }) {
       if (lock.current) return;
       lock.current = true;
       setEditState('pending');
-      setBusy(true);
+      setEditSaving(true);
       void anonymousUid()
         .then((uid) => editObject(firestore!, uid, draft))
         .then(() => {
@@ -134,14 +143,19 @@ export default function Create({ language }: { language: Language }) {
             ),
           );
         })
-        .catch(() => setEditState('failed'))
+        .catch((error) => {
+          if (error instanceof LaunchError && error.reason === 'editLimit') {
+            exhaustedDay.current = utcDay(Date.now());
+            setEditState('limited');
+          } else setEditState('failed');
+        })
         .finally(() => {
           lock.current = false;
-          setBusy(false);
+          setEditSaving(false);
         });
     }, 2200);
     return () => window.clearTimeout(timer);
-  }, [draft, editing, busy, retry, editState]);
+  }, [draft, editing, busy, editSaving, retry, editState]);
   async function refresh(uid: string) {
     const all = await ownObjects(firestore!, uid);
     setInventory(all);
@@ -163,10 +177,7 @@ export default function Create({ language }: { language: Language }) {
       const hostId =
         draft.type === 'star'
           ? 'central'
-          : (draft.hostId ??
-            (draft.type === 'moon'
-              ? [...inventory, ...catalog.filter((o) => o.unclaimed)].find((o) => o.type === 'planet')?.id
-              : leastCrowdedHost(catalog)));
+          : selectedHost;
       if (!hostId) throw new Error('No eligible host');
       const id = await launchPlanet(firestore, uid, draft, { ...orbit, hostId });
       setDeparted(inventory.filter((o) => o.status === 'active').map((o) => renderObject(o.id, o)));
@@ -194,15 +205,15 @@ export default function Create({ language }: { language: Language }) {
       : kind === 'star'
         ? ['size', 'temperature', 'corona']
         : ['size', 'craters'];
-  const hosts =
-    kind === 'moon'
-      ? [...catalog.filter((o) => o.unclaimed), ...inventory.filter((o) => o.type === 'planet')].filter(
-          (o, i, all) => o.type === 'planet' && all.findIndex((v) => v.id === o.id) === i,
-        )
-      : catalog.filter((o) => o.type === 'star');
+  const eligible = kind === 'moon'
+    ? [...catalog.filter((o) => o.unclaimed), ...inventory].filter((o) => o.type === 'planet')
+    : catalog.filter((o) => o.type === 'star');
+  const hosts = [...new Map(eligible.map((o) => [o.id, o])).values()];
+  const selectedHost = draft.hostId ?? (kind === 'moon' ? hosts[0]?.id : leastCrowdedHost(catalog));
   function updateDraft(next: typeof draft) {
     touched.current = true;
-    setEditState('pending');
+    setEditState((state) => state === 'limited' ? 'limited' : 'pending');
+    setRolledNames((keys) => new Set([...keys, draft.nameKey, next.nameKey]));
     setDraft(next);
   }
   function change(field: string, value: number) {
@@ -216,12 +227,13 @@ export default function Create({ language }: { language: Language }) {
         <h1>{text.create}</h1>
       </div>
       <figure className="planet-specimen" aria-label={objectName(draft.nameKey, language)}>
-        <ErrorBoundary fallback={<p className="scene-message">{text.unavailable}</p>}>
+        {inspect3D ? <ErrorBoundary fallback={<p className="scene-message">{text.unavailable}</p>}>
           <Suspense fallback={<p>{text.loading}</p>}>
             <Preview draft={draft} identity={specimen} departed={departed} />
           </Suspense>
-        </ErrorBoundary>
+        </ErrorBoundary> : <Specimen draft={draft} />}
         <figcaption>{editing ? rich.editing : text.preview}</figcaption>
+        {!inspect3D && <button onClick={() => setInspect3D(true)}>{rich.inspect3D}</button>}
       </figure>
       <fieldset disabled={busy} className="planet-controls">
         <legend>{rich.material}</legend>
@@ -278,7 +290,7 @@ export default function Create({ language }: { language: Language }) {
         <label>
           {text.name}
           <select value={draft.nameKey} onChange={(e) => updateDraft({ ...draft, nameKey: e.target.value })}>
-            {[...new Set([...nameKeys.slice(0, 4), draft.nameKey])].map((key) => (
+            {[...new Set([...rolledNames, draft.nameKey])].map((key) => (
               <option key={key} value={key}>
                 {objectName(key, language)}
               </option>
@@ -291,7 +303,7 @@ export default function Create({ language }: { language: Language }) {
             {rich.host}
             <select
               aria-label={rich.host}
-              value={draft.hostId ?? (kind === 'moon' ? (hosts[0]?.id ?? '') : leastCrowdedHost(catalog))}
+              value={selectedHost ?? ''}
               onChange={(e) => updateDraft({ ...draft, hostId: e.target.value })}
             >
               {kind === 'planet' && <option value="central">{rich.central}</option>}
@@ -312,7 +324,7 @@ export default function Create({ language }: { language: Language }) {
         {editing && (
           <>
             <p role="status">
-              {editState === 'saved' ? rich.saved : editState === 'failed' ? rich.editFailed : rich.pending}
+              {editState === 'saved' ? rich.saved : editState === 'limited' ? text.editLimit : editState === 'failed' ? rich.editFailed : rich.pending}
             </p>
             {editState === 'failed' && (
               <button

@@ -1,5 +1,6 @@
 export const richCopy = {
   en: {
+    inspect3D: 'Inspect in 3D',
     noHost: 'No eligible planet yet. Launch a planet first, or choose another type.',
     historyFailed: 'Your history could not be read. Your saved draft is still here.',
     material: 'Object measurements',
@@ -34,6 +35,7 @@ export const richCopy = {
       'Moons can orbit your own planets or unclaimed planets. Unclaimed means a planet seeded by the operator with no visitor owner. Other visitors’ planets cannot host your moon.',
   },
   es: {
+    inspect3D: 'Examinar en 3D',
     noHost: 'Todavía no hay un planeta disponible. Lanza un planeta primero o elige otro tipo.',
     historyFailed: 'No se pudo leer tu historial. Tu diseño sigue guardado aquí.',
     material: 'Medidas del objeto',
