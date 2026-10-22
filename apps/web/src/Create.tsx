@@ -28,6 +28,8 @@ import { copy } from './copy';
 import SessionLine from './SessionLine';
 import ErrorBoundary from './ErrorBoundary';
 import { richCopy } from './rich-copy';
+import { useSound } from './use-sound';
+import SoundControls from './SoundControls';
 const Preview = lazy(() => import('./ObjectPreview'));
 function remember(mode: string, objectId?: string) {
   try {
@@ -58,6 +60,15 @@ export default function Create({ language }: { language: Language }) {
   const [editState, setEditState] = useState<'saved' | 'pending' | 'failed'>('saved');
   const [specimen, setSpecimen] = useState('draft');
   const [departed, setDeparted] = useState<RenderObject[]>([]);
+  const sound = useSound(1);
+  const [pet, setPet] = useState<{ id: string; at: number }>();
+  const updateSound = sound.update;
+  useEffect(() => {
+    updateSound([{ id: specimen, type: draft.type ?? 'planet', nameKey: draft.nameKey,
+      params: draft.params, orbit: orbitFromVelocity(0, 2.58, 0, 0) }],
+      [{ id: specimen, visible: true, distance: 0, focused: true }]);
+  }, [draft, specimen, updateSound]);
+  function petSpecimen() { setPet({ id: specimen, at: Date.now() }); sound.pet(specimen); }
   const [retry, setRetry] = useState(0);
   const baseline = useRef('');
   const touched = useRef(false);
@@ -218,11 +229,15 @@ export default function Create({ language }: { language: Language }) {
       <figure className="planet-specimen" aria-label={objectName(draft.nameKey, language)}>
         <ErrorBoundary fallback={<p className="scene-message">{text.unavailable}</p>}>
           <Suspense fallback={<p>{text.loading}</p>}>
-            <Preview draft={draft} identity={specimen} departed={departed} />
+            <Preview draft={draft} identity={specimen} departed={departed} pet={pet} onPet={petSpecimen} />
           </Suspense>
         </ErrorBoundary>
         <figcaption>{editing ? rich.editing : text.preview}</figcaption>
       </figure>
+      <div className="specimen-sound">
+        <button onClick={petSpecimen}>{language === 'es' ? 'Acariciar tu objeto' : 'Pet your object'}</button>
+        <SoundControls sound={sound} language={language}/>
+      </div>
       <fieldset disabled={busy} className="planet-controls">
         <legend>{rich.material}</legend>
         <div className="type-choices">

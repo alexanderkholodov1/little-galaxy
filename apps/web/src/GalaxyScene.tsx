@@ -1,17 +1,54 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { chartRadius } from './chart-fit';
-import type { RenderObject } from '@little-galaxy/shared';
+import { worldPosition } from '@little-galaxy/shared';
+import type { RenderObject, SoundCandidate } from '@little-galaxy/shared';
+import { Vector3 } from 'three';
 import RichBodies from './RichBodies';
-function FitChart({ objects }: { objects: RenderObject[] }) {
+function FitChart({ objects, focused }: { objects: RenderObject[]; focused?: string }) {
   const { camera, size } = useThree();
   useEffect(() => {
+    if (focused) return;
     const radius = chartRadius(objects);
     const distance = radius * 1.8 * Math.max(1, size.height / size.width);
     camera.position.set(0, -distance * 0.4, distance);
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
-  }, [camera, objects, size]);
+  }, [camera, objects, size, focused]);
+  useFrame((_, delta) => {
+    const object = objects.find((o) => o.id === focused);
+    if (!object) return;
+    const pos = new Vector3(...worldPosition(object, Date.now()));
+    const distance = Math.max(4, object.params.size * 9) * Math.max(1, size.height / size.width);
+    camera.position.lerp(pos.clone().add(new Vector3(0, -distance * 0.3, distance)), 1 - Math.exp(-delta * 5));
+    camera.lookAt(pos);
+  });
+  return null;
+}
+function SoundSelection({ objects, focused, pet, onUpdate }: {
+  objects: RenderObject[]; focused?: string; pet?: { id: string; at: number };
+  onUpdate?: (objects: RenderObject[], candidates: SoundCandidate[]) => void;
+}) {
+  const last = useRef(-1), births = useRef(new Map<string, number>());
+  const point = useMemo(() => new Vector3(), []);
+  useFrame(({ camera, clock }) => {
+    if (clock.elapsedTime - last.current < 0.5) return;
+    last.current = clock.elapsedTime;
+    const now = Date.now();
+    const ids = new Set(objects.map((o) => o.id));
+    for (const id of births.current.keys()) if (!ids.has(id)) births.current.delete(id);
+    const candidates = objects.map((o) => {
+      if (!births.current.has(o.id)) births.current.set(o.id, now);
+      point.set(...worldPosition(o, now));
+      const distance = point.distanceTo(camera.position);
+      point.project(camera);
+      return { id: o.id, distance, visible: Math.abs(point.x) <= 1 && Math.abs(point.y) <= 1 && point.z >= -1 && point.z <= 1,
+        focused: o.id === focused, newUntil: births.current.get(o.id)! + 6000,
+        pettedUntil: pet?.id === o.id ? pet.at + 3000 : 0 };
+    });
+    onUpdate?.(objects, candidates);
+  });
+  useEffect(() => () => onUpdate?.([], []), [onUpdate]);
   return null;
 }
 function Meter({ onFps }: { onFps?: (fps: number) => void }) {
@@ -32,11 +69,16 @@ export default function GalaxyScene({
   label,
   unavailable,
   onFps,
+  focused, pet, onPick, onSoundCandidates,
 }: {
   objects: RenderObject[];
   label: string;
   unavailable: string;
   onFps?: (fps: number) => void;
+  focused?: string;
+  pet?: { id: string; at: number };
+  onPick?: (id: string) => void;
+  onSoundCandidates?: (objects: RenderObject[], candidates: SoundCandidate[]) => void;
 }) {
   return (
     <Canvas
@@ -54,8 +96,9 @@ export default function GalaxyScene({
         <sphereGeometry args={[1, 24, 16]} />
         <meshBasicMaterial color="#fff0c3" />
       </mesh>
-      <RichBodies objects={objects} />
-      <FitChart objects={objects} />
+      <RichBodies objects={objects} pet={pet} onPick={onPick} />
+      <FitChart objects={objects} focused={focused} />
+      <SoundSelection objects={objects} focused={focused} pet={pet} onUpdate={onSoundCandidates} />
       <Meter onFps={onFps} />
     </Canvas>
   );

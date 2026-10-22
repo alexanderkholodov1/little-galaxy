@@ -22,6 +22,10 @@ export default defineConfig(({ command, mode }) => {
         }
         this.emitFile({ type: 'asset', fileName: 'licenses/MIT-qrcode-generator.txt',
           source: readFileSync(new URL('./src/assets/licenses/MIT-qrcode-generator.txt', import.meta.url), 'utf8') });
+        for (const name of ['MIT-babel-runtime.txt', 'MIT-Tone.txt', 'MIT-standardized-audio-context.txt', 'MIT-automation-events.txt', '0BSD-tslib.txt', 'Copyright-tslib.txt']) {
+          this.emitFile({ type: 'asset', fileName: `licenses/${name}`,
+            source: readFileSync(new URL(`./src/assets/licenses/${name}`, import.meta.url), 'utf8') });
+        }
         const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
         const metadata = createVersionFile(pkg, env, () => execFileSync('git', ['rev-parse', 'HEAD'], {
           encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],

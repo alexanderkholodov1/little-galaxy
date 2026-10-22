@@ -1,11 +1,13 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
-import { syntheticObjects } from '@little-galaxy/shared';
+import { objectName, syntheticObjects } from '@little-galaxy/shared';
 import type { Language, RenderObject } from '@little-galaxy/shared';
 import { firestore } from './firebase';
 import { listenActive } from './galaxy-data';
 import { coreCopy } from './core-copy';
 import ErrorBoundary from './ErrorBoundary';
+import { useSound } from './use-sound';
+import SoundControls from './SoundControls';
 const Scene = lazy(() => import('./GalaxyScene'));
 export default function Screen({ language }: { language: Language }) {
   const text = coreCopy[language];
@@ -13,6 +15,14 @@ export default function Screen({ language }: { language: Language }) {
     import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('synthetic')) || 0 : 0,
   );
   const [objects, setObjects] = useState<RenderObject[]>(() => syntheticObjects(synthetic));
+  const sound = useSound(8);
+  const [focused, setFocused] = useState<string>();
+  const [pet, setPet] = useState<{ id: string; at: number }>();
+  const focusObject = objects.find((o) => o.id === focused);
+  function pick(id: string) {
+    if (id !== focused) { setFocused(id); return; }
+    setPet({ id, at: Date.now() }); sound.pet(id);
+  }
   const [fps, setFps] = useState(0);
   const [known, setKnown] = useState(synthetic > 0);
   const [state, setState] = useState<'loading' | 'live' | 'failed'>('loading');
@@ -52,6 +62,17 @@ export default function Screen({ language }: { language: Language }) {
         <p className="eyebrow">Collective Galaxy / 2026</p>
         <h1>{text.screen}</h1>
       </div>
+      <div className="screen-sound">
+        <SoundControls sound={sound} language={language} screen/>
+        <label>{language === 'es' ? 'Enfocar objeto' : 'Focus object'}
+          <select aria-label={language === 'es' ? 'Enfocar objeto' : 'Focus object'} value={focusObject?.id ?? ''}
+            onChange={(e) => setFocused(e.target.value || undefined)}>
+            <option value="">{language === 'es' ? 'Vista de galaxia' : 'Galaxy view'}</option>
+            {objects.map((o) => <option key={o.id} value={o.id}>{objectName(o.nameKey, language)} · {o.id.slice(-6)}</option>)}
+          </select>
+        </label>
+        {focusObject && <button onClick={() => pick(focusObject.id)}>{language === 'es' ? 'Acariciar objeto enfocado' : 'Pet focused object'}</button>}
+      </div>
       <div className="galaxy-field">
         <ErrorBoundary
           fallback={
@@ -62,7 +83,7 @@ export default function Screen({ language }: { language: Language }) {
           }
         >
           <Suspense fallback={<p className="scene-message">{text.loading}</p>}>
-            <Scene objects={objects} label={text.scene} unavailable={text.unavailable} onFps={setFps} />
+            <Scene objects={objects} label={text.scene} unavailable={text.unavailable} onFps={setFps} focused={focusObject?.id} pet={pet} onPick={pick} onSoundCandidates={sound.update} />
           </Suspense>
         </ErrorBoundary>
         <output className="fps-reading" data-fps={fps.toFixed(1)}>

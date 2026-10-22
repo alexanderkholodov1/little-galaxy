@@ -3,7 +3,7 @@ import { cometTailPosition } from './comet-tail';
 import { useFrame } from '@react-three/fiber';
 import { Color, DynamicDrawUsage, InstancedBufferAttribute, Object3D, ShaderMaterial, Vector3 } from 'three';
 import type { InstancedMesh } from 'three';
-import { palette, planetDefaults, starPosition, worldPosition } from '@little-galaxy/shared';
+import { palette, petScale, planetDefaults, starPosition, worldPosition } from '@little-galaxy/shared';
 import type { MoonParams, PlanetParams, RenderObject, StarParams } from '@little-galaxy/shared';
 const vertex = `
 uniform float cheap; uniform vec3 starPositions[32]; uniform vec3 starColours[32]; attribute float lightIndex;
@@ -43,16 +43,21 @@ export default function RichBodies({
   objects,
   preview = false,
   departed,
+  pet,
+  onPick,
 }: {
   objects: RenderObject[];
   preview?: boolean;
   departed?: RenderObject[];
+  pet?: { id: string; at: number };
+  onPick?: (id: string) => void;
 }) {
   const near = useRef<InstancedMesh>(null),
     far = useRef<InstancedMesh>(null),
     rings = useRef<InstancedMesh>(null),
     corona = useRef<InstancedMesh>(null),
     debris = useRef<InstancedMesh>(null);
+  const instanceIds = useRef<string[][]>([[], [], [], [], []]);
   const previous = useRef<RenderObject[]>([]),
     rocks = useRef<Rock[]>([]),
     births = useRef(new Map<string, number>());
@@ -127,6 +132,7 @@ export default function RichBodies({
         material.uniforms.starColours.value[i + 1].set(c.r, c.g, c.b);
       });
     }
+    let currentId = '';
     function put(
       group: number,
       position: number[],
@@ -143,8 +149,10 @@ export default function RichBodies({
         index = counts[group];
       if (index >= 8000) return;
       counts[group]++;
+      instanceIds.current[group][index] = currentId;
       scratch.position.set(position[0], position[1], position[2]);
-      scratch.scale.setScalar(scale);
+      const stretch = pet?.id === currentId ? petScale((now - pet.at) / 1000) : [1, 1, 1];
+      scratch.scale.set(scale * stretch[0], scale * stretch[1], scale * stretch[2]);
       scratch.rotation.set(0.15, 0, rotation);
       scratch.updateMatrix();
       mesh.setMatrixAt(index, scratch.matrix);
@@ -161,6 +169,7 @@ export default function RichBodies({
       }
     }
     for (const o of objects) {
+      currentId = o.id;
       const pos = preview ? [0, 0, 0] : worldPosition(o, now),
         type = o.type ?? 'planet';
       const p = o.params,
@@ -233,6 +242,7 @@ export default function RichBodies({
       }
       if (star?.corona) put(3, pos, radius * (1.2 + star.corona * 0.7), s, d, colour, light, lc);
     }
+    currentId = '';
     rocks.current = rocks.current.filter((r) => now - r.at < 120000);
     for (const r of rocks.current) {
       const age = (now - r.at) / 1000,
@@ -270,6 +280,10 @@ export default function RichBodies({
   return (
     <>
       <instancedMesh
+        onClick={(event) => {
+          const id = instanceIds.current[0][event.instanceId ?? -1];
+          if (id && onPick) { event.stopPropagation(); onPick(id); }
+        }}
         ref={near}
         args={[undefined, undefined, 8000]}
         material={materials[0]}
@@ -278,6 +292,10 @@ export default function RichBodies({
         <sphereGeometry args={[1, 24, 16]} />
       </instancedMesh>
       <instancedMesh
+        onClick={(event) => {
+          const id = instanceIds.current[1][event.instanceId ?? -1];
+          if (id && onPick) { event.stopPropagation(); onPick(id); }
+        }}
         ref={far}
         args={[undefined, undefined, 8000]}
         material={materials[1]}
@@ -286,6 +304,10 @@ export default function RichBodies({
         <sphereGeometry args={[1, 8, 6]} />
       </instancedMesh>
       <instancedMesh
+        onClick={(event) => {
+          const id = instanceIds.current[2][event.instanceId ?? -1];
+          if (id && onPick) { event.stopPropagation(); onPick(id); }
+        }}
         ref={rings}
         args={[undefined, undefined, 8000]}
         material={materials[2]}
@@ -294,6 +316,10 @@ export default function RichBodies({
         <ringGeometry args={[0.65, 1, 48]} />
       </instancedMesh>
       <instancedMesh
+        onClick={(event) => {
+          const id = instanceIds.current[3][event.instanceId ?? -1];
+          if (id && onPick) { event.stopPropagation(); onPick(id); }
+        }}
         ref={corona}
         args={[undefined, undefined, 8000]}
         material={materials[3]}
