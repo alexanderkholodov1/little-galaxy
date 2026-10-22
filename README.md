@@ -66,7 +66,10 @@ the laptop. Rules tests use the same isolated demo project and start only Firest
 live data.
 
 The stand starts without credentials. If `GOOGLE_APPLICATION_CREDENTIALS` is set, firebase-admin uses
-that file through application-default credentials. Keep it outside public source and output; never put
+that file through application-default credentials and requires `FIREBASE_PROJECT_ID` to be exported.
+Use the exact data-project ID from `VITE_FIREBASE_PROJECT_ID`, not an assumed display name. The rules
+release job reads that same repository variable and fails closed if it is missing.
+Keep the credential file outside public source and output; never put
 key contents in an environment variable or browser config. No stand data jobs run yet.
 
 ## Build and delivery

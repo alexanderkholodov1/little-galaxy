@@ -84,6 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: little-galaxy-rules
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
     permissions:
       contents: read
     steps:
@@ -108,13 +110,14 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY }}
         run: |
+          : "${FIREBASE_PROJECT_ID:?Set the data-project VITE_FIREBASE_PROJECT_ID repository variable}"
           umask 177
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY" > "$RUNNER_TEMP/little-galaxy-rules.json"
           chmod 600 "$RUNNER_TEMP/little-galaxy-rules.json"
       - name: Deploy Firestore rules
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-rules.json
-        run: pnpm exec firebase deploy --only firestore:rules --project little-galaxy --non-interactive
+        run: pnpm exec firebase deploy --only firestore:rules --project "${FIREBASE_PROJECT_ID:?Missing data-project ID}" --non-interactive
       - name: Remove data-project credentials
         if: always()
         shell: bash

@@ -32,6 +32,9 @@ to verify setup during the Beacon night session.
 - TODO stand: export `GOOGLE_APPLICATION_CREDENTIALS` using an actual local file
   path only if initializing the optional admin SDK. The stand example contains
   a placeholder path; starting the foundation without credentials is supported.
+  Credentialed startup also requires `FIREBASE_PROJECT_ID`; use the same exact ID
+  as `VITE_FIREBASE_PROJECT_ID` for the web build and rules workflow. Confirm
+  that ID with the operator; no project lookup or credential inspection was made.
 - TODO portfolio: supply approved profile content and theme tokens through the
   documented runtime schema. Unknown public links or text must remain pending
   in portfolio work, without adding fictional profile data to this game.
