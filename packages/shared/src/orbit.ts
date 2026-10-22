@@ -44,10 +44,16 @@ export function orbitFromVelocity(radial: number, tangent: number, inclination: 
   return { hostId: 'central', a, e, inclination: clamp(inclination, -0.35, 0.35), omega,
     meanAnomaly: eccentric - e * Math.sin(eccentric), epoch, direction: tangent < 0 ? -1 : 1, isComet };
 }
-/** Screen pixels and seconds; rightward swipes are prograde, vertical motion is radial. */
+/** Pixels and seconds. A normal flick adds tangential motion in every direction;
+ * speed sets energy, vertical motion tilts the plane and adds a small radial component.
+ * Stalls and clearly extreme flicks retain the physical fall/escape comet path. */
 export function orbitFromSwipe(dx: number, dy: number, seconds: number, epoch: number): Orbit {
-  const duration = Math.max(0.12, seconds);
-  const scale = Math.sqrt(GRAVITY / LAUNCH_RADIUS) / 700;
-  return orbitFromVelocity(clamp(-dy / duration, -2500, 2500) * scale,
-    clamp(dx / duration, -2500, 2500) * scale, clamp(dy / 900, -0.35, 0.35), epoch);
+  if (![dx, dy, seconds, epoch].every(Number.isFinite)) throw new Error('Finite launch values required');
+  const length = Math.hypot(dx, dy);
+  const speed = length / Math.max(0.05, seconds);
+  const circular = Math.sqrt(GRAVITY / LAUNCH_RADIUS);
+  const inclination = clamp(dy / 900, -0.35, 0.35);
+  if (speed < 80 - 1e-9 || speed > 3500 + 1e-9) return orbitFromVelocity(0, speed < 80 ? 0 : circular * 2, inclination, epoch);
+  return orbitFromVelocity(-dy / length * circular * 0.1,
+    (dx < 0 ? -1 : 1) * circular * (0.6 + 0.7 * Math.min(speed / 3000, 1)), inclination, epoch);
 }

@@ -37,3 +37,25 @@ it('validates schema bounds and reads missing-version legacy documents', () => {
   expect(validParams({ ...d.params, text: 'x' })).toBe(false);
   expect(validOrbit({ ...d.orbit, a: Infinity })).toBe(false);
 });
+
+it('makes 250px phone flicks planets in every direction from 0.1 through 0.6 seconds', () => {
+  for (const seconds of [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]) {
+    for (let degrees = 0; degrees < 360; degrees += 15) {
+      const angle = degrees * Math.PI / 180;
+      const o = orbitFromSwipe(250 * Math.cos(angle), 250 * Math.sin(angle), seconds, epoch);
+      expect(o.isComet).toBe(false);
+      expect(validOrbit(o)).toBe(true);
+      expect(o.a * (1 - o.e)).toBeGreaterThan(1);
+    }
+  }
+});
+it('keeps the full swipe envelope within the shared bounds, including extreme/fall comets', () => {
+  for (const speed of [0, 79, 80, 100, 416, 2500, 3000, 3500, 3501, 10000]) {
+    for (let degrees = 0; degrees < 360; degrees += 10) {
+      const angle = degrees * Math.PI / 180;
+      const o = orbitFromSwipe(speed * Math.cos(angle), speed * Math.sin(angle), 1, epoch);
+      expect(validOrbit(o)).toBe(true);
+      expect(o.isComet).toBe(speed < 80 || speed > 3500);
+    }
+  }
+});

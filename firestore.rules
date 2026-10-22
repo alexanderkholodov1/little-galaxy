@@ -18,11 +18,14 @@ service cloud.firestore {
     function orbit(o) {
       return o.keys().hasAll(['hostId','a','e','inclination','omega','meanAnomaly','epoch','direction','isComet'])
         && o.keys().hasOnly(['hostId','a','e','inclination','omega','meanAnomaly','epoch','direction','isComet'])
-        && o.hostId == 'central' && numberIn(o.a, 2, 30) && numberIn(o.e, 0, 0.8)
-        && o.a * (1 - o.e) > 1 && numberIn(o.inclination, -0.35, 0.35)
+        && o.hostId == 'central' && numberIn(o.a, 3.5, 20.05) && numberIn(o.e, 0, 0.755)
+        && o.a * (1 - o.e) > 1 && o.a * (1 + o.e) <= 34.1 && numberIn(o.inclination, -0.35, 0.35)
         && numberIn(o.omega, -3.141592653589793, 3.141592653589793)
-        && numberIn(o.meanAnomaly, -6.283185307179586, 6.283185307179586)
+        && numberIn(o.meanAnomaly, -3.141592653589793, 3.141592653589793)
         && numberIn(o.epoch, 0, 4102444800000) && o.direction in [-1,1] && o.isComet is bool;
+    }
+    function freshOrbit(o) {
+      return numberIn(o.epoch, request.time.toMillis() - 120000, request.time.toMillis() + 120000);
     }
     function objectSchema(d) {
       return d.keys().hasAll(['schemaVersion','ownerUid','type','nameKey','params','orbit','status','createdAt','updatedAt','season'])
@@ -32,7 +35,6 @@ service cloud.firestore {
         && params(d.params) && orbit(d.orbit) && d.status in ['active','hangar']
         && d.createdAt is timestamp && d.updatedAt == request.time && d.season == 'bad-2026';
     }
-    function freshBatch() { return afterUser().lastWriteAt == request.time; }
     function launchAction(a) { return a in ['launch','relaunch']; }
     function pad(n) { return n < 10 ? '0' + string(n) : string(n); }
     function today() { return string(request.time.year()) + '-' + pad(request.time.month()) + '-' + pad(request.time.day()); }
@@ -40,14 +42,17 @@ service cloud.firestore {
       let e = getAfter(eventPath(eventId)).data;
       return e.at == request.time && e.uid == request.auth.uid && e.type == type && e.objectId == objectId;
     }
+    function archivedMatches(oldId, writeId) {
+      let old = getAfter(objectPath(oldId)).data;
+      return old.status == 'hangar' && old.updatedAt == request.time
+        && eventMatches(writeId + '-crumble', 'crumble', oldId);
+    }
     function activeTransition(d, oldId) {
       let o = getAfter(objectPath(d.activeObjectId)).data;
       return o.ownerUid == request.auth.uid && o.status == 'active' && o.updatedAt == request.time
         && eventMatches(d.writeId, d.action, d.activeObjectId)
         && (oldId == '' || (oldId != d.activeObjectId
-          && getAfter(objectPath(oldId)).data.status == 'hangar'
-          && getAfter(objectPath(oldId)).data.updatedAt == request.time
-          && eventMatches(d.writeId + '-crumble', 'crumble', oldId)));
+          && archivedMatches(oldId, d.writeId)));
     }
     function userSchema(d) {
       return d.keys().hasAll(['schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
@@ -64,27 +69,36 @@ service cloud.firestore {
         && (d.action == 'shootingStar' ? d.lastStarAt == request.time && request.time >= old.lastStarAt + duration.value(20,'s') : d.lastStarAt == old.lastStarAt);
     }
     match /objects/{objectId} {
-      // Public screen queries MUST constrain status == active; hangar is owner-only.
-      allow read: if resource.data.status == 'active' || own(resource.data.ownerUid);
-      allow create: if signed() && objectSchema(request.resource.data) && freshBatch()
-        && config().seasonOpen && config().launches
-        && request.resource.data.createdAt == request.time && request.resource.data.status == 'active'
-        && afterUser().activeObjectId == objectId && afterUser().action == 'launch'
-        && eventMatches(afterUser().writeId + '-create', 'create', objectId);
-      allow update: if own(resource.data.ownerUid) && objectSchema(request.resource.data) && freshBatch()
-        && config().seasonOpen
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.type == resource.data.type && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.season == resource.data.season
-        && (request.resource.data.status == 'hangar'
-          ? resource.data.status == 'active' && launchAction(afterUser().action)
-            && get(userPath()).data.activeObjectId == objectId && afterUser().activeObjectId != objectId
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
-          : afterUser().activeObjectId == objectId
-            && ((afterUser().action == 'edit' && resource.data.status == 'active'
-                && request.resource.data.orbit == resource.data.orbit)
-              || (afterUser().action == 'relaunch' && resource.data.status == 'hangar' && config().launches)));
+      // Signed screen: active query. Owner: own active/hangar query or document.
+      allow read: if signed() && (resource.data.status == 'active' || own(resource.data.ownerUid));
+      allow create: if signed() && createObject(request.resource.data, objectId);
+      allow update: if own(resource.data.ownerUid) && updateObject(request.resource.data, resource.data, objectId);
     }
+    function createObject(d, objectId) {
+      let u = afterUser();
+      let flags = config();
+      return objectSchema(d) && freshOrbit(d.orbit) && u.lastWriteAt == request.time
+        && flags.seasonOpen && flags.launches
+        && d.createdAt == request.time && d.status == 'active'
+        && u.activeObjectId == objectId && u.action == 'launch'
+        && eventMatches(u.writeId + '-create', 'create', objectId);
+    }
+    function updateObject(d, old, objectId) {
+      let u = afterUser();
+      let flags = config();
+      return objectSchema(d) && u.lastWriteAt == request.time && flags.seasonOpen
+        && (d.orbit == old.orbit || freshOrbit(d.orbit))
+        && d.ownerUid == old.ownerUid && d.type == old.type && d.createdAt == old.createdAt
+        && d.season == old.season
+        && (d.status == 'hangar'
+          ? old.status == 'active' && launchAction(u.action)
+            && get(userPath()).data.activeObjectId == objectId && u.activeObjectId != objectId
+            && d.diff(old).affectedKeys().hasOnly(['status','updatedAt'])
+          : u.activeObjectId == objectId
+            && ((u.action == 'edit' && old.status == 'active' && d.orbit == old.orbit)
+              || (u.action == 'relaunch' && old.status == 'hangar' && flags.launches)));
+    }
+
     match /users/{uid} {
       allow get: if own(uid);
       allow create: if own(uid) && userSchema(request.resource.data) && request.resource.data.action == 'launch'
@@ -106,32 +120,38 @@ service cloud.firestore {
             && eventMatches(request.resource.data.writeId, request.resource.data.action, resource.data.activeObjectId));
     }
     function objectPayload(d) { return d.payload == getAfter(objectPath(d.objectId)).data; }
-    function allowedEvent(d, eventId) {
-      let u = afterUser();
+    function allowedEvent(d, eventId, u) {
       return (d.type == 'create' && eventId == u.writeId + '-create' && u.action == 'launch'
-          && d.objectId == u.activeObjectId && !exists(objectPath(d.objectId)) && objectPayload(d))
+          && d.objectId == u.activeObjectId && objectPayload(d))
         || (d.type == 'crumble' && eventId == u.writeId + '-crumble' && launchAction(u.action)
           && d.objectId == get(userPath()).data.activeObjectId && objectPayload(d))
         || (eventId == u.writeId && d.type == u.action && d.objectId == u.activeObjectId
           && ((d.type in ['launch','relaunch','edit'] && objectPayload(d)
-              && getAfter(objectPath(d.objectId)).data.updatedAt == request.time
-              && (d.type != 'launch' || !exists(objectPath(d.objectId))))
-            || (d.type == 'shake' && config().shake && d.payload.keys().size() == 0)
-            || (d.type == 'comet' && config().comets && d.payload.keys().hasAll(['dx','dy']) && d.payload.keys().hasOnly(['dx','dy'])
+              && d.payload.updatedAt == request.time)
+            || (d.type == 'shake' && interactionEnabled('shake') && d.payload.keys().size() == 0)
+            || (d.type == 'comet' && interactionEnabled('comets') && d.payload.keys().hasAll(['dx','dy']) && d.payload.keys().hasOnly(['dx','dy'])
                 && numberIn(d.payload.dx,-1,1) && numberIn(d.payload.dy,-1,1))
-            || (d.type == 'shootingStar' && config().shootingStars && d.payload.keys().hasAll(['messageKey'])
+            || (d.type == 'shootingStar' && interactionEnabled('shootingStars') && d.payload.keys().hasAll(['messageKey'])
                 && d.payload.keys().hasOnly(['messageKey']) && d.payload.messageKey in ['hello','together','wonder'])));
     }
+    function interactionEnabled(flag) {
+      let flags = config();
+      return flags.seasonOpen && flags[flag];
+    }
+    function validEvent(d, eventId) {
+      let u = afterUser();
+      return u.lastWriteAt == request.time
+        && d.keys().hasAll(['schemaVersion','type','objectId','uid','at','payload'])
+        && d.keys().hasOnly(['schemaVersion','type','objectId','uid','at','payload'])
+        && d.schemaVersion == 1 && d.uid == request.auth.uid
+        && d.at == request.time && id(d.objectId)
+        && d.payload is map && allowedEvent(d, eventId, u);
+    }
     match /events/{eventId} {
-      allow create: if signed() && config().seasonOpen && freshBatch()
-        && request.resource.data.keys().hasAll(['schemaVersion','type','objectId','uid','at','payload'])
-        && request.resource.data.keys().hasOnly(['schemaVersion','type','objectId','uid','at','payload'])
-        && request.resource.data.schemaVersion == 1 && request.resource.data.uid == request.auth.uid
-        && request.resource.data.at == request.time && id(request.resource.data.objectId)
-        && request.resource.data.payload is map && allowedEvent(request.resource.data, eventId);
+      allow create: if signed() && validEvent(request.resource.data, eventId);
     }
     match /snapshots/{snapshotId} { allow get: if snapshotId == 'live'; }
-    match /config/{configId} { allow get: if configId == 'live'; }
+    match /config/{configId} { allow get: if signed() && configId == 'live'; }
     // Assistant remains unavailable in this milestone; clients cannot create inbox/outbox docs.
     match /{document=**} { allow read, write: if false; }
   }

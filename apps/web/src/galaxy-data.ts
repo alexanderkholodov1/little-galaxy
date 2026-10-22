@@ -1,4 +1,5 @@
 import { collection, doc, getDoc, onSnapshot, query, runTransaction, serverTimestamp, Timestamp, where } from 'firebase/firestore';
+import { anonymousUid } from './firebase';
 import type { Firestore } from 'firebase/firestore';
 import { MAX_LAUNCHES_PER_DAY, readObject, SCHEMA_VERSION, SEASON, utcDay } from '@little-galaxy/shared';
 import type { GalaxyObject, GalaxyUser, NameKey, Orbit, PlanetParams, RenderObject } from '@little-galaxy/shared';
@@ -50,10 +51,16 @@ export async function ownActive(database: Firestore, uid: string): Promise<Galax
   return readObject(active.data());
 }
 export function listenActive(database: Firestore, next: (objects: RenderObject[], fromCache: boolean) => void, error: () => void) {
-  return onSnapshot(query(collection(database, 'objects'), where('status', '==', 'active')), { includeMetadataChanges: true }, (snapshot) => {
+  let stopped = false;
+  let unsubscribe: (() => void) | undefined;
+  void anonymousUid().then(() => {
+    if (stopped) return;
+    unsubscribe = onSnapshot(query(collection(database, 'objects'), where('status', '==', 'active')), { includeMetadataChanges: true }, (snapshot) => {
     next(snapshot.docs.flatMap((document) => {
       const data = readObject(document.data());
       return data ? [{ id: document.id, nameKey: data.nameKey, params: data.params, orbit: data.orbit }] : [];
     }), snapshot.metadata.fromCache);
   }, error);
+  }).catch(() => { if (!stopped) error(); });
+  return () => { stopped = true; unsubscribe?.(); };
 }

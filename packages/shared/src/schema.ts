@@ -27,7 +27,7 @@ export interface GalaxyEvent<T = unknown> {
   objectId: string; at: T; payload: Record<string, unknown>;
 }
 export interface LiveConfig {
-  schemaVersion: 1; appVersion: string; seasonOpen: boolean; ownerUid: string;
+  schemaVersion: 1; appVersion: string; seasonOpen: boolean;
   launches: boolean; comets: boolean; shake: boolean; shootingStars: boolean; assistantPublic: boolean;
   screenScene: 'galaxy' | 'qr';
 }
@@ -47,8 +47,8 @@ export function validOrbit(value: unknown): value is Orbit {
   const o = value as Orbit;
   return Object.keys(o).length === 9 && o.hostId === 'central' && typeof o.isComet === 'boolean' &&
     [o.a, o.e, o.inclination, o.omega, o.meanAnomaly, o.epoch].every(Number.isFinite) &&
-    o.a >= 2 && o.a <= 30 && o.e >= 0 && o.e <= 0.8 && o.a * (1 - o.e) > 1 &&
-    Math.abs(o.inclination) <= 0.35 && Math.abs(o.omega) <= Math.PI && Math.abs(o.meanAnomaly) <= Math.PI * 2 &&
+    o.a >= 3.5 && o.a <= 20.05 && o.e >= 0 && o.e <= 0.755 && o.a * (1 - o.e) > 1 && o.a * (1 + o.e) <= 34.1 &&
+    Math.abs(o.inclination) <= 0.35 && Math.abs(o.omega) <= Math.PI && Math.abs(o.meanAnomaly) <= Math.PI &&
     o.epoch >= 0 && o.epoch <= 4102444800000 && [1, -1].includes(o.direction);
 }
 /** v0.1 wrote no domain docs. Missing version means v1; unknown future versions are skipped safely. */
