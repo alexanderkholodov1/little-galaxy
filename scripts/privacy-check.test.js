@@ -120,4 +120,3 @@ it('rejects private output paths', async () => {
   await writeFile(path.join(output, 'private/anything.txt'), 'safe content');
   await expect(checkPrivacy(root, {})).rejects.toThrow('rule: private-path');
 });
-
