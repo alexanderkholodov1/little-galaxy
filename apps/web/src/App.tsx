@@ -8,6 +8,8 @@ import { copy } from './copy';
 import { applyTheme, resolveTheme, savedTheme, themeQuery } from './theme';
 import ReferenceSky from './ReferenceSky';
 import SessionLine from './SessionLine';
+import Create from './Create';
+import Screen from './Screen';
 
 type Page = 'home' | 'screen' | 'create' | 'talk' | 'object' | 'missing';
 
@@ -107,8 +109,8 @@ export default function App() {
       <main id="content">
         <Routes>
           <Route index element={<PageContent page="home" text={text} />} />
-          <Route path="screen" element={<PageContent page="screen" text={text} />} />
-          <Route path="create" element={<PageContent page="create" text={text} />} />
+          <Route path="screen" element={<Screen language={language} />} />
+          <Route path="create" element={<Create language={language} />} />
           <Route path="talk" element={<PageContent page="talk" text={text} />} />
           <Route path="o/:id" element={<PageContent page="object" text={text} />} />
           <Route path="*" element={<PageContent page="missing" text={text} />} />

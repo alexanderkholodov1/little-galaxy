@@ -6,7 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from './App';
 import { startAnonymousSession } from './firebase';
 
-vi.mock('./firebase', () => ({ sessionConfigured: true, startAnonymousSession: vi.fn() }));
+vi.mock('./firebase', () => ({ firestore: null, anonymousUid: vi.fn(), sessionConfigured: true, startAnonymousSession: vi.fn() }));
+vi.mock('./GalaxyScene', () => ({ default: () => <canvas role="img" aria-label="Live galaxy" /> }));
 vi.mock('./Scene', () => ({ default: () => <canvas role="img" aria-label="Reference sky" /> }));
 
 let root: Root;
