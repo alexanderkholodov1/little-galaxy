@@ -31,9 +31,11 @@ pnpm run build:rehearsal
 pnpm run privacy:rehearsal
 ```
 
-For a write-free development load test, open `/galaxy/screen?synthetic=500`. The screen shows fps;
-production ignores this query. This machine measured **16.75 fps under SwiftShader software
-rendering**, with four draw calls. The booth laptop and real-phone hangar acceptance remain unmeasured.
+For a write-free development load test, open `/galaxy/screen?synthetic=500&debug=1`. The fps readout is dev-only or enabled explicitly by `?debug=1`;
+production ignores synthetic fixtures. Current review-fix evidence, software fps and phone first-load
+weights are in [the review-fix handoff](docs/confirmed-review-fixes.md). The booth laptop and real-phone
+hangar acceptance remain unmeasured. The phone shows an immediate specimen; its 3D inspector loads
+only when opened.
 
 Open `/galaxy/`. Routes also include `/galaxy/screen`, `/galaxy/create`, `/galaxy/talk` and
 `/galaxy/o/:id` (the home, talk and object pages retain their foundation stubs). English is the
