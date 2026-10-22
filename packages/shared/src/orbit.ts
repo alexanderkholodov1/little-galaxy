@@ -9,7 +9,7 @@ export interface Orbit {
 const TAU = Math.PI * 2;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 export function orbitalPeriod(orbit: Orbit): number { return TAU * Math.sqrt(orbit.a ** 3 / GRAVITY); }
-export function positionAt(orbit: Orbit, time: number): [number, number, number] {
+export function positionAt(orbit: Orbit, time: number, target: [number, number, number] = [0, 0, 0]): [number, number, number] {
   const mean = ((orbit.meanAnomaly + (time - orbit.epoch) / 1000 * Math.sqrt(GRAVITY / orbit.a ** 3)) % TAU + TAU) % TAU;
   let eccentric = mean;
   for (let i = 0; i < 16; i++) eccentric -= (eccentric - orbit.e * Math.sin(eccentric) - mean) / (1 - orbit.e * Math.cos(eccentric));
@@ -17,7 +17,8 @@ export function positionAt(orbit: Orbit, time: number): [number, number, number]
   const y = orbit.a * Math.sqrt(1 - orbit.e ** 2) * Math.sin(eccentric);
   const px = x * Math.cos(orbit.omega) - y * Math.sin(orbit.omega);
   const py = (x * Math.sin(orbit.omega) + y * Math.cos(orbit.omega)) * orbit.direction;
-  return [px, py * Math.cos(orbit.inclination), py * Math.sin(orbit.inclination)];
+  target[0] = px; target[1] = py * Math.cos(orbit.inclination); target[2] = py * Math.sin(orbit.inclination);
+  return target;
 }
 /** Analytic energy/angular-momentum conversion in the launch plane, then readable element bounds. */
 export function orbitFromVelocity(radial: number, tangent: number, inclination: number, epoch: number): Orbit {

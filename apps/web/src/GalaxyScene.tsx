@@ -1,15 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { chartRadius } from './chart-fit';
+import OrbitTrails from './OrbitTrails';
+import { chartFrame } from './chart-fit';
 import type { RenderObject } from '@little-galaxy/shared';
 import RichBodies from './RichBodies';
 function FitChart({ objects }: { objects: RenderObject[] }) {
   const { camera, size } = useThree();
   useEffect(() => {
-    const radius = chartRadius(objects);
+    const { radius, center } = chartFrame(objects);
     const distance = radius * 1.8 * Math.max(1, size.height / size.width);
-    camera.position.set(0, -distance * 0.4, distance);
-    camera.lookAt(0, 0, 0);
+    camera.position.set(center[0], center[1] - distance * .4, center[2] + distance);
+    camera.lookAt(...center);
     camera.updateProjectionMatrix();
   }, [camera, objects, size]);
   return null;
@@ -22,7 +23,7 @@ function Meter({ onFps }: { onFps?: (fps: number) => void }) {
     if (elapsed >= 1) {
       onFps?.(sample.current.frames / elapsed);
       gl.domElement.dataset.drawCalls = String(gl.info.render.calls);
-      sample.current = { time: clock.elapsedTime, frames: 0 };
+      sample.current.time = clock.elapsedTime; sample.current.frames = 0;
     }
   });
   return null;
@@ -54,6 +55,7 @@ export default function GalaxyScene({
         <sphereGeometry args={[1, 24, 16]} />
         <meshBasicMaterial color="#fff0c3" />
       </mesh>
+      <OrbitTrails objects={objects} />
       <RichBodies objects={objects} />
       <FitChart objects={objects} />
       <Meter onFps={onFps} />

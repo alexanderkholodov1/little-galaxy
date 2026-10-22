@@ -19,3 +19,13 @@ it('fits hosted planets and moons using bounded parent paths and fixed visitor s
   expect(chartRadius([star, planet, moon])).toBeLessThanOrEqual(72);
   expect(chartRadius([{ ...moon, hostOrbit: { ...planet.orbit, a: 10000 } }])).toBe(72);
 });
+it('frames the busiest region at 500 objects and keeps normal bodies legible on a TV', async () => {
+  const { chartFrame } = await import('./chart-fit');
+  const { syntheticObjects } = await import('@little-galaxy/shared');
+  const objects = syntheticObjects(500), fit = chartFrame(objects);
+  expect(fit.radius).toBeLessThan(20);
+  const fieldHeight = 760, distance = fit.radius * 1.8;
+  const diameterPixels = .8 * fieldHeight / (2 * Math.tan(Math.PI / 6) * distance);
+  expect(diameterPixels).toBeGreaterThan(12);
+  expect(fit.radius).toBeLessThan(chartRadius(objects) / 2);
+});

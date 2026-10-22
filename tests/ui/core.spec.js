@@ -7,7 +7,7 @@ test('phone workshop at 375px: draft, theme, Spanish, pointer swipe and offline 
 }) => {
   await page.goto('/galaxy/create');
   await expect(page.locator('h1')).toHaveText('Your place in the sky.');
-  await expect(page.locator('.planet-specimen canvas')).toBeVisible();
+  await expect(page.locator('.specimen-drawing')).toBeVisible();
   await page.locator('select').first().selectOption('bright-tide');
   const radius = page.locator('input[type=range]').first();
   await radius.focus();
@@ -51,6 +51,7 @@ test('screen keeps its current-origin SVG join QR and truthful connection state 
 
 test('rich controls stay bounded at 375px and never offer a text input', async ({ page }) => {
   await page.goto('/galaxy/create');
+  await page.getByRole('button', { name: 'Inspect in 3D', exact: true }).click();
   await expect(page.locator('.planet-specimen canvas')).toBeVisible();
   for (const type of ['Star', 'Moon', 'Planet']) {
     await page.getByRole('button', { name: type, exact: true }).click();
@@ -68,11 +69,13 @@ test('rich controls stay bounded at 375px and never offer a text input', async (
   expect(name).toMatch(/^n[0-3][0-9]-[0-3][0-9]$/);
   await page.reload();
   await expect(page.locator('select').first()).toHaveValue(name);
+  await page.getByRole('button', { name: 'Inspect in 3D', exact: true }).click();
   await expect(page.locator('.planet-specimen canvas')).toBeVisible();
   await page.waitForTimeout(1500);
   if (artifact) await page.screenshot({ path: `${artifact}/rich-workshop-375.png`, fullPage: true });
 });
 test('500 synthetic objects render with bounded draw calls and report software fps', async ({ page }) => {
+  test.setTimeout(60000);
   const shaderErrors = [];
   const writes = [];
   page.on('request', (request) => {
@@ -82,8 +85,8 @@ test('500 synthetic objects render with bounded draw calls and report software f
   page.on('console', (m) => {
     if (/THREE.WebGLProgram|VALIDATE_STATUS|shader error/i.test(m.text())) shaderErrors.push(m.text());
   });
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/galaxy/screen?synthetic=500');
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto('/galaxy/screen?synthetic=500&debug=1');
   await expect(page.locator('.creator-count')).toHaveText('500');
   await expect(page.locator('.fps-reading')).toContainText('500 synthetic');
   await expect
@@ -105,7 +108,7 @@ test('500 synthetic objects render with bounded draw calls and report software f
   console.log(
     JSON.stringify({
       synthetic: 500,
-      viewport: '1440x900',
+      viewport: '1920x1080',
       dpr: 1,
       renderer,
       fps: samples,
@@ -113,9 +116,12 @@ test('500 synthetic objects render with bounded draw calls and report software f
       drawCalls: calls,
     }),
   );
+  // Shared-runner SwiftShader timings vary with CPU contention; retain a reported
+  // measurement, not an unstable CI fps floor. Liveness and bounded draw calls gate this test.
+  test.info().annotations.push({ type: 'software-fps', description: samples.join(', ') });
   expect(shaderErrors).toEqual([]);
   expect(writes).toEqual([]);
-  if (artifact) await page.screenshot({ path: `${artifact}/synthetic-500-1440.png`, fullPage: true });
+  if (artifact) await page.screenshot({ path: `${artifact}/synthetic-500-1920.png` });
 });
 
 test('join QR scales for a booth TV and stays in the corner at phone width', async ({ page }) => {
@@ -127,6 +133,19 @@ test('join QR scales for a booth TV and stays in the corner at phone width', asy
   await page.setViewportSize({ width: 1920, height: 1080 });
   const tv = await qr.boundingBox();
   expect(tv.width).toBeGreaterThanOrEqual(400);
+  expect(tv.y + tv.height).toBeLessThanOrEqual(1080);
   const field = await page.locator('.galaxy-field').boundingBox();
   expect(tv.x + tv.width).toBeCloseTo(field.x + field.width - 16, 0);
+});
+
+test('phone first load leaves the 3D runtime unloaded until inspection is opened', async ({ page }) => {
+  const resources = [];
+  page.on('request', (request) => resources.push(request.url()));
+  await page.goto('/galaxy/create');
+  await expect(page.locator('.specimen-drawing')).toBeVisible();
+  await expect(page.locator('.planet-specimen canvas')).toHaveCount(0);
+  expect(resources.some((url) => /three|ObjectPreview|RichBodies/.test(url))).toBe(false);
+  await page.getByRole('button', { name: 'Inspect in 3D', exact: true }).click();
+  await expect(page.locator('.planet-specimen canvas')).toBeVisible();
+  expect(resources.some((url) => /ObjectPreview/.test(url))).toBe(true);
 });
