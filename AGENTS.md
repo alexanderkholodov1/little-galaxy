@@ -6,8 +6,9 @@
 
 ## Non-negotiables
 
-1. **Branch + PR per version** (`vX.Y.Z: <what it delivers>`) for history and CI previews. Only the operator merges
-   pull requests; no agent merges, even with green CI.
+1. **Branch + PR per version** (`vX.Y.Z: <what it delivers>`) for history and CI previews. There is
+   no "never touch `main`" rule: the operator decides in the moment who merges (default: the agent
+   merges once CI is green, unless he says otherwise).
 2. Every PR is a milestone titled **`vX.Y.Z: <what it delivers>`**. Releases are tags `vX.Y.Z` with
    the build artifact `galaxy-dist-vX.Y.Z.tar.gz` attached.
 3. **Commits authored as the operator; no AI co-author trailers.** History states what the change
@@ -24,9 +25,8 @@
 9. **Never reserve a public name without asking.**
 10. **Live-safety is a requirement:** any deploy must survive phones mid-edit and the screen running
     (see plan `05-live-deploys-and-ops.md`).
-11. Light/dark UI; DESIGN-DOCTRINE (`C:\My Files\AKLabs\Commons\fawns-plans\DESIGN-DOCTRINE.md`) on every UI.
-    Expected local checkout: `C:\My Files\AKLabs\Fawns\little-galaxy` (sibling of `portfolio`).
-    Design artifact: observatory finding chart.
+11. Light/dark UI; DESIGN-DOCTRINE (`C:\My Files\AKLabs\CASPIAN\governance\DESIGN-DOCTRINE.md`) on every UI.
+    Expected local checkout: `C:\My Files\AKLabs\Fawns\galaxy` (sibling of `portfolio`).
 12. **The plan is living, not absolute truth.** Improve it with your judgment and the operator's
     in-the-moment instructions, following "How this plan changes" in the plan's `README.md`
     (implementation-level → edit + log; scope/product/architecture/decided items → propose first
