@@ -32,3 +32,10 @@
     (implementation-level → edit + log; scope/product/architecture/decided items → propose first
     unless the operator instructs). Log every change in the plan's `CHANGELOG.md`.
 13. **Verify on a deployed preview URL and on real phones** before claiming anything works.
+
+## Galaxy core design artifact
+
+The screen borrows an observatory finding chart; the phone workshop borrows its observing log:
+a large specimen, numbered marginal instructions, and aligned measurement scales. Spectral gives
+the chart its printed identity; Archivo Narrow keeps readings compact. Use 8px within readings,
+24px between controls, and 48px around headings. Colour identifies material, actions and status.

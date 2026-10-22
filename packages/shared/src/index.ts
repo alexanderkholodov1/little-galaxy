@@ -11,3 +11,5 @@ export interface VersionFile {
   commit: string | null;
   builtAt: string;
 }
+export * from './orbit.js';
+export * from './schema.js';
