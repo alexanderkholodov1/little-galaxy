@@ -54,6 +54,11 @@ test('rich controls stay bounded at 375px and never offer a text input', async (
   await expect(page.locator('.planet-specimen canvas')).toBeVisible();
   for (const type of ['Star', 'Moon', 'Planet']) {
     await page.getByRole('button', { name: type, exact: true }).click();
+    await page.getByRole('button', { name: 'Preset 2', exact: true }).click();
+    if (artifact) {
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: `${artifact}/preview-${type.toLowerCase()}-375.png`, fullPage: true });
+    }
     await expect(page.locator('input:not([type="range"])')).toHaveCount(0);
     await expect(page.locator('textarea,[contenteditable="true"]')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
