@@ -167,3 +167,16 @@ button:disabled { opacity: .6; cursor: wait; }
   .galaxy-field { height: 65vh; }
 }
 .scene-loading { position: absolute; top: 7rem; left: 0; font-size: .8125rem; }
+
+/* The observing log: specimen left, calibrated measurements right, history below. */
+.planet-specimen { min-width: 0; }
+.planet-specimen > div { height: 300px !important; background: #050c16; }
+.type-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 8px 24px; }
+.type-choices button[aria-pressed="true"] { color: var(--paper); background: var(--ink); }
+.planet-controls > button { margin-block: 8px 24px; }
+.hangar { grid-column: 1 / -1; border-top: 1px solid var(--rule); padding-block: 32px; }
+.hangar h2 { font: 400 2rem var(--font-display); margin-block: 8px 24px; }
+.hangar ul { list-style: none; padding: 0; }
+.hangar li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 16px; border-bottom: 1px solid var(--rule); }
+.hangar small { display: block; }
+.fps-reading { position: absolute; top: 16px; right: 16px; color: #b9d7e8; font-variant-numeric: tabular-nums; }
