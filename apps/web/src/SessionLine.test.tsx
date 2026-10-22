@@ -12,7 +12,7 @@ it('shows the designed unconfigured state without starting authentication', asyn
   const container = document.createElement('div');
   const root = createRoot(container);
   await act(async () => root.render(<SessionLine text={copy.en} />));
-  expect(container.textContent).toContain('Session not configured');
+  expect(container.textContent).toContain('Anonymous sessions are not configured');
   expect(signIn).not.toHaveBeenCalled();
   await act(async () => root.unmount());
   vi.unstubAllGlobals();

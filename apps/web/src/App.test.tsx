@@ -102,10 +102,10 @@ it('follows OS changes without persisting them, then persists only an explicit c
 it('shows a recoverable failure and retries on the online event', async () => {
   vi.mocked(startAnonymousSession).mockRejectedValueOnce(new Error('Sensitive SDK detail'));
   await render('/galaxy/talk');
-  expect(container.querySelector('footer')?.textContent).toContain('Saving is unavailable right now');
+  expect(container.querySelector('footer')?.textContent).toContain('Your session could not connect');
   expect(container.textContent).not.toContain('Sensitive SDK detail');
   await act(async () => window.dispatchEvent(new Event('online')));
-  expect(container.querySelector('footer')?.textContent).toContain('Ready to save your object');
+  expect(container.querySelector('footer')?.textContent).toContain('Anonymous session connected');
   expect(startAnonymousSession).toHaveBeenCalledTimes(2);
 });
 
@@ -113,7 +113,7 @@ it('retries using the visible connection control', async () => {
   vi.mocked(startAnonymousSession).mockRejectedValueOnce(new Error('offline'));
   await render('/galaxy/create');
   await act(async () => container.querySelector<HTMLButtonElement>('footer button')!.click());
-  expect(container.querySelector('footer')?.textContent).toContain('Ready to save your object');
+  expect(container.querySelector('footer')?.textContent).toContain('Anonymous session connected');
 });
 
 it('removes the session and its online handler when leaving a writing route', async () => {
