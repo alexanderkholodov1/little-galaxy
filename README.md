@@ -3,7 +3,8 @@
 Galaxy foundations: five route stubs, a reference sky, anonymous identity, and a deny-all data boundary.
 No visitor objects, live subscriptions, voice, or creation flow are implemented in this milestone.
 
-The read-only plan of record is at `../portfolio/docs/plan/README.md`.
+The plan of record is at `../portfolio/docs/plan/README.md` (the `main` branch).
+See [the local foundation handoff](docs/foundations-status.md) for G v0.1.0 evidence and outstanding setup.
 
 ## Local development
 
@@ -69,6 +70,7 @@ key contents in an environment variable or browser config. No stand data jobs ru
 ## Build and delivery
 
 `apps/web/dist` is the release payload: unpack its contents under the portfolio's `dist/galaxy/`.
+The payload includes the bundled fonts' copyright and license notices in `licenses/`.
 Vite fixes asset URLs to `/galaxy/`. Generated `version.json` contains `version`, `commit` (nullable
 outside a git checkout), and `builtAt` (UTC ISO timestamp). Build caching is disabled so this metadata
 describes that invocation.

@@ -1,9 +1,9 @@
 # Portfolio runtime contract
 
 The portfolio publishes `/tokens.css` and `/profile.json` at the same origin as
-`/galaxy/`. This document is the handoff for coordinated P v0.1.0; the external
-plan is read-only in this workspace. Its architecture and CHANGELOG must record
-this contract in the portfolio PR.
+`/galaxy/`. This document is the handoff for coordinated P v0.1.0. The plan of
+record remains `../portfolio/docs/plan/` on `main`; its architecture and CHANGELOG
+should record this implementation contract in the coordinated portfolio change.
 
 ## Theme tokens
 
