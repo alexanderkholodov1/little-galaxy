@@ -15,34 +15,24 @@ to verify setup during the Beacon night session.
 | Build metadata | Vite emits `version.json` with package version, commit and UTC build time. | None locally; production build still requires G3 values. |
 | Release served through portfolio | Payload layout and runtime schema documented in `portfolio-contract.md`; archive packaging can be rehearsed locally. | Release `v0.1.0`, P v0.1.0 assembly/pin, CI Hosting deploy and URL/device verification. |
 
-## Configuration checklist for the operator
+## Configuration state (checked 2026-10-22 with `gh`)
 
-- TODO G2: confirm Firestore and Anonymous Auth are enabled in `little-galaxy`,
-  with the intended immutable database region and appropriate authorized domains.
-  The plan records this as previously completed; no repeat creation is required.
-- TODO G3: provide the six **public** web config values in
-  `apps/web/.env.example` through the build environment and matching GitHub
-  repository variables. Keep rehearsal placeholders for local checks only.
-  Do not copy a service-account document into web configuration.
-- TODO G4: configure `FIREBASE_SERVICE_ACCOUNT_ALEXANDERKHOLODOV` in the `preview`
-  environment for Hosting previews and `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY`
-  in the `little-galaxy-rules` environment for rules. Require operator review on
-  the rules environment before any tag can deploy rules. No environment's
-  existence or protection has been verified here.
-- TODO stand: export `GOOGLE_APPLICATION_CREDENTIALS` using an actual local file
-  path only if initializing the optional admin SDK. The stand example contains
-  a placeholder path; starting the foundation without credentials is supported.
-  Credentialed startup also requires `FIREBASE_PROJECT_ID`; use the same exact ID
-  as `VITE_FIREBASE_PROJECT_ID` for the web build and rules workflow. Confirm
-  that ID with the operator; no project lookup or credential inspection was made.
-- TODO portfolio: supply approved profile content and theme tokens through the
-  documented runtime schema. Unknown public links or text must remain pending
-  in portfolio work, without adding fictional profile data to this game.
-- TODO design: supply the referenced `DESIGN-DOCTRINE.md` on Beacon or confirm
-  the existing finding-chart design against it. The Windows path in the plan
-  is unavailable here; full design compliance cannot be claimed.
-- TODO delivery: after review and authorization, run CI, create the approved
-  release, assemble it in P v0.1.0, and verify the deployed URL on real phones.
+- G2/G3: the data project is `little-galaxy`. The six public web config values
+  are repository variables (`VITE_FIREBASE_*`, project ID `little-galaxy`), so
+  the ordinary build and the release workflow use the real configuration.
+- G4: environment `preview` holds `FIREBASE_SERVICE_ACCOUNT_ALEXANDERKHOLODOV`
+  for Hosting previews; environment `little-galaxy-rules` holds
+  `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY` and only accepts `v*` tags. It has no
+  required reviewer, so the rules deploy on a release tag is approved by merging
+  the pull request that changes `firestore.rules`.
+- Local replay of every `run:` step of `checks.yml` with the real variables and
+  Turbo caching bypassed: install, typecheck, lint, unit tests, rules tests and
+  build with the privacy gate all pass.
+- Still open: a tagged release, P v0.1.0 assembly and the deployed URL checked
+  on real phones. `apps/stand` needs `GOOGLE_APPLICATION_CREDENTIALS` and
+  `FIREBASE_PROJECT_ID=little-galaxy` only when it starts with credentials.
+- The design doctrine the plan cites is available to agents on Beacon at
+  `~/bad/ref/DESIGN-DOCTRINE.md`.
 
 ## Local technical choices
 
