@@ -1,0 +1,57 @@
+{
+  "sampleRate": 44100,
+  "duration": 12,
+  "activeObjects": 50,
+  "voices": 8,
+  "selected": [
+    "synthetic-0",
+    "synthetic-1",
+    "synthetic-10",
+    "synthetic-11",
+    "synthetic-12",
+    "synthetic-13",
+    "synthetic-14",
+    "synthetic-15"
+  ],
+  "mix": [
+    {
+      "peak": 0.1444973200559616,
+      "rms": 0.01285618468830653,
+      "peakDbfs": -16.802804150979217,
+      "rmsDbfs": -37.8177579449685,
+      "clipped": 0
+    },
+    {
+      "peak": 0.16640180349349976,
+      "rms": 0.013015617528586067,
+      "peakDbfs": -15.576839421118567,
+      "rmsDbfs": -37.71070443754117,
+      "clipped": 0
+    }
+  ],
+  "difference": {
+    "sameRegisterSpectralDistance": 0.0752646791349676,
+    "cosineSimilarity": 0.006263335038449224,
+    "spectralDistance": 0.9937366649615508,
+    "centroidHz": [
+      394.3025572548687,
+      296.2149895549585
+    ],
+    "levels": [
+      {
+        "peak": 0.023309729993343353,
+        "rms": 0.005079424463848892,
+        "peakDbfs": -32.64925514141189,
+        "rmsDbfs": -45.883709873749716,
+        "clipped": 0
+      },
+      {
+        "peak": 0.0186238344758749,
+        "rms": 0.0034167031662053035,
+        "peakDbfs": -34.59861793834209,
+        "rmsDbfs": -49.32785499750284,
+        "clipped": 0
+      }
+    ]
+  }
+}
