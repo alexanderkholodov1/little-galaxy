@@ -27,3 +27,17 @@ it('uses the configured project ID without assuming the project display name', (
   expect(applicationDefault).toHaveBeenCalledOnce();
   expect(initializeApp).toHaveBeenCalledWith({ credential: undefined, projectId: 'demo-galaxy-suffix' });
 });
+
+it('uses the demo emulator without loading application-default credentials', () => {
+  vi.stubEnv('FIRESTORE_EMULATOR_HOST', '127.0.0.1:8080');
+  vi.stubEnv('FIREBASE_PROJECT_ID', 'demo-little-galaxy');
+  startStand('0.2.0');
+  expect(applicationDefault).not.toHaveBeenCalled();
+  expect(initializeApp).toHaveBeenCalledWith({ projectId: 'demo-little-galaxy' });
+});
+it('refuses a non-demo project in emulator mode', () => {
+  vi.stubEnv('FIRESTORE_EMULATOR_HOST', '127.0.0.1:8080');
+  vi.stubEnv('FIREBASE_PROJECT_ID', 'production-like');
+  expect(() => startStand('0.2.0')).toThrow('demo-');
+  expect(initializeApp).not.toHaveBeenCalled();
+});
