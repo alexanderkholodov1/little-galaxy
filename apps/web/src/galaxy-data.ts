@@ -14,6 +14,7 @@ import { anonymousUid } from './firebase';
 import type { Firestore } from 'firebase/firestore';
 import {
   MAX_LAUNCHES_PER_DAY,
+  MAX_EDITS_PER_DAY,
   OBJECT_SCHEMA_VERSION,
   planetDefaults,
   readObject,
@@ -38,7 +39,7 @@ export interface Draft {
   hostId?: string;
 }
 export class LaunchError extends Error {
-  constructor(public reason: 'limit' | 'cooldown' | 'closed') {
+  constructor(public reason: 'limit' | 'cooldown' | 'closed' | 'editLimit') {
     super(reason);
   }
 }
@@ -85,6 +86,8 @@ export async function launchPlanet(
       activeObjectId: target.id,
       launchesToday: count,
       launchDay: day,
+      editDay: day,
+      editsToday: old?.editDay === day ? (old.editsToday ?? 0) : 0,
       lastWriteAt: at,
       lastShakeAt: old?.lastShakeAt ?? Timestamp.fromMillis(0),
       lastCometAt: old?.lastCometAt ?? Timestamp.fromMillis(0),
@@ -122,19 +125,38 @@ export function listenActive(
   error: () => void,
 ) {
   let stopped = false;
+  let generation = 0;
+  const hosts = new Map<string, RenderObject>();
   let unsubscribe: (() => void) | undefined;
   void anonymousUid().then(() => {
     if (stopped) return;
     unsubscribe = onSnapshot(
       query(collection(database, 'objects'), where('status', '==', 'active')),
       { includeMetadataChanges: true },
-      (snapshot) => next(snapshot.docs.flatMap((document) => {
-        const data = readObject(document.data());
-        return data ? [renderObject(document.id, data)] : [];
-      }), snapshot.metadata.fromCache), error,
+      (snapshot) => {
+        const current = ++generation;
+        const active = snapshot.docs.flatMap((document) => {
+          const data = readObject(document.data());
+          return data ? [renderObject(document.id, data)] : [];
+        });
+        const ids = new Set(active.map((o) => o.id));
+        const missing = new Set(active.filter((o) => o.type === 'moon' && !ids.has(o.orbit.hostId)).map((o) => o.orbit.hostId));
+        for (const id of hosts.keys()) if (!missing.has(id)) hosts.delete(id);
+        void Promise.all([...missing].map(async (id) => {
+          if (hosts.has(id)) return hosts.get(id)!;
+          const document = await getDoc(doc(database, 'objects', id));
+          const data = readObject(document.data());
+          if (!data || data.type !== 'planet') throw new Error('Moon host unavailable');
+          const host = { ...renderObject(id, data), moonHost: true };
+          if (!stopped && current === generation) hosts.set(id, host);
+          return host;
+        })).then((parents) => {
+          if (!stopped && current === generation) next([...active, ...parents], snapshot.metadata.fromCache);
+        }).catch(() => { if (!stopped && current === generation) error(); });
+      }, () => { generation++; if (!stopped) error(); },
     );
   }).catch(() => { if (!stopped) error(); });
-  return () => { stopped = true; unsubscribe?.(); };
+  return () => { stopped = true; generation++; hosts.clear(); unsubscribe?.(); };
 }
 
 export function renderObject(id: string, data: GalaxyObject): RenderObject {
@@ -180,18 +202,21 @@ export async function editObject(database: Firestore, uid: string, draft: Draft)
       current = await tx.get(target);
     if (Date.now() - u.lastWriteAt.toMillis() < 2000) throw new LaunchError('cooldown');
     if (draft.type && draft.type !== current.data()?.type) throw new Error('Immutable type');
+    const day = utcDay(Date.now());
+    const editsToday = u.editDay === day ? (u.editsToday ?? 0) + 1 : 1;
+    if (editsToday > MAX_EDITS_PER_DAY) throw new LaunchError('editLimit');
     const at = serverTimestamp();
     const body = {
       ...current.data(),
       schemaVersion: OBJECT_SCHEMA_VERSION,
-      params: draft.params,
+      params: (!draft.type || draft.type === 'planet') ? planetDefaults(draft.params as PlanetParams) : draft.params,
       nameKey: draft.nameKey,
       updatedAt: at,
     };
-    tx.update(userRef, { action: 'edit', writeId: event.id, lastWriteAt: at });
+    tx.update(userRef, { action: 'edit', writeId: event.id, lastWriteAt: at, editDay: day, editsToday });
     tx.update(target, {
       schemaVersion: OBJECT_SCHEMA_VERSION,
-      params: draft.params,
+      params: (!draft.type || draft.type === 'planet') ? planetDefaults(draft.params as PlanetParams) : draft.params,
       nameKey: draft.nameKey,
       updatedAt: at,
     });

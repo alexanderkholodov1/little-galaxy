@@ -15,7 +15,7 @@ service cloud.firestore {
       return p is map && numberIn(p.size, 0.2, 0.7) && (
         (type == 'planet'
           && p.keys().hasAll(version == 1 ? ['size','palette','oceans'] : ['size','palette','oceans','mountains','clouds','rings','atmosphere'])
-          && p.keys().hasOnly(['size','palette','oceans','mountains','clouds','rings','atmosphere'])
+          && p.keys().hasOnly(version == 1 ? ['size','palette','oceans'] : ['size','palette','oceans','mountains','clouds','rings','atmosphere'])
           && paletteIndex(p.palette) && numberIn(p.oceans,0,1)
           && numberIn(p.get('mountains',0.3),0,1) && numberIn(p.get('clouds',0.3),0,1)
           && numberIn(p.get('rings',0),0,1) && paletteIndex(p.get('atmosphere',0)))
@@ -25,8 +25,8 @@ service cloud.firestore {
           && p.keys().hasOnly(['size','craters','colour']) && numberIn(p.craters,0,1) && paletteIndex(p.colour)));
     }
     function hostMatches(d) {
-      let host = get(objectPath(d.orbit.hostId)).data;
-      return d.type == 'planet' ? host.type == 'star'
+      let host = getAfter(objectPath(d.orbit.hostId)).data;
+      return d.type == 'planet' ? host.type == 'star' && host.status == 'active'
         : host.type == 'planet' && host.ownerUid in [request.auth.uid, ''] && d.hostOrbit == host.orbit;
     }
     function validHost(d) {
@@ -75,12 +75,21 @@ service cloud.firestore {
     }
     function userSchema(d) {
       return d.keys().hasAll(['schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
-        && d.keys().hasOnly(['schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
+        && d.keys().hasOnly(['editsToday','editDay','schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
         && d.schemaVersion == 1 && id(d.activeObjectId) && id(d.writeId)
         && d.launchesToday is int && d.launchesToday >= 1 && d.launchesToday <= 5
         && d.launchDay is string && d.lastWriteAt == request.time
         && d.lastShakeAt is timestamp && d.lastCometAt is timestamp && d.lastStarAt is timestamp
         && d.action in ['launch','relaunch','edit','shake','comet','shootingStar'];
+    }
+    function editBudget(d, old) {
+      return d.action == 'edit'
+        ? d.get('editDay','') == today()
+          && d.get('editsToday',0) is int
+          && d.editsToday == (old.get('editDay','') == today() ? old.get('editsToday',0) + 1 : 1)
+          && d.editsToday <= 100
+        : (d.get('editDay','') == old.get('editDay','') && d.get('editsToday',0) == old.get('editsToday',0))
+          || (old.get('editDay','') != today() && d.get('editDay','') == today() && d.get('editsToday',0) == 0);
     }
     function cooldowns(d, old) {
       return (d.action == 'shake' ? d.lastShakeAt == request.time && request.time >= old.lastShakeAt + duration.value(10,'s') : d.lastShakeAt == old.lastShakeAt)
@@ -89,7 +98,9 @@ service cloud.firestore {
     }
     match /objects/{objectId} {
       // Signed screen: active query. Owner: own active/hangar query or document.
-      allow read: if signed() && (resource.data.status == 'active' || own(resource.data.ownerUid));
+      allow list: if signed() && (resource.data.status == 'active' || own(resource.data.ownerUid));
+      // D6: signed screens fetch moon host planets by ID; no public collection access.
+      allow get: if signed() && (resource.data.type == 'planet' || resource.data.status == 'active' || own(resource.data.ownerUid));
       allow create: if signed() && createObject(request.resource.data, objectId);
       allow update: if own(resource.data.ownerUid) && updateObject(request.resource.data, resource.data, objectId);
     }
@@ -125,6 +136,8 @@ service cloud.firestore {
       allow get: if own(uid);
       allow create: if own(uid) && userSchema(request.resource.data) && request.resource.data.action == 'launch'
         && request.resource.data.launchesToday == 1 && request.resource.data.launchDay == today()
+        && request.resource.data.get('editsToday',0) == 0
+        && request.resource.data.get('editDay',today()) == today()
         && request.resource.data.lastShakeAt == timestamp.value(0)
         && request.resource.data.lastCometAt == timestamp.value(0) && request.resource.data.lastStarAt == timestamp.value(0)
         && activeTransition(request.resource.data, '');
@@ -132,6 +145,7 @@ service cloud.firestore {
         && request.time >= resource.data.lastWriteAt + duration.value(2,'s')
         && request.resource.data.writeId != resource.data.writeId
         && cooldowns(request.resource.data, resource.data)
+        && editBudget(request.resource.data, resource.data)
         && (launchAction(request.resource.data.action)
           ? request.resource.data.launchDay == today() && request.resource.data.launchDay >= resource.data.launchDay
             && request.resource.data.launchesToday == (resource.data.launchDay == today() ? resource.data.launchesToday + 1 : 1)

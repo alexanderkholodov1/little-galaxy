@@ -69,3 +69,18 @@ it('places stars deterministically on spiral arms, balances hosts and preserves 
   );
   expect(worldPosition(moon, 1000)).toEqual(point);
 });
+it('rejects v1 rich keys and non-planets, and handles names as own properties', () => {
+  expect(validParams(presets.planet[0], 'planet', 1)).toBe(false);
+  expect(validParams(presets.star[0], 'star', 1)).toBe(false);
+  const body = { schemaVersion: 2, ownerUid: 'visitor', type: 'planet', params: presets.planet[0], orbit: orbitFromSwipe(200, 0, .3, 0), status: 'active', season: SEASON };
+  for (const nameKey of ['__proto__', 'constructor', 'toString', 'n40-00']) expect(readObject({ ...body, nameKey })).toBeNull();
+  expect(readObject({ ...body, nameKey: 'n39-39' })).not.toBeNull();
+});
+it('keeps Spanish names grammatical and avoids redundant solar and lunar pairs', () => {
+  expect(objectName('n28-07', 'es')).toBe('Sol estival');
+  expect(objectName('n29-08', 'es')).toBe('Rayo nocturno');
+  for (const value of Object.values(names)) {
+    expect(value.es).not.toMatch(/lunar lunar|Sol soleado|Cielo celeste|Universo cósmico/);
+    expect(value.es).not.toMatch(/undefined/);
+  }
+});

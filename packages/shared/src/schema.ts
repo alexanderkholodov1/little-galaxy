@@ -2,8 +2,9 @@ import type { Orbit } from './orbit.js';
 export const SCHEMA_VERSION = 1;
 export const SEASON = 'bad-2026';
 export const MAX_LAUNCHES_PER_DAY = 5;
+export const MAX_EDITS_PER_DAY = 100;
 export { names, nameKeys, objectName, newName } from './names.js';
-import { nameKeys } from './names.js';
+import { names } from './names.js';
 import type { NameKey } from './names.js';
 export type { NameKey } from './names.js';
 export const OBJECT_SCHEMA_VERSION = 2;
@@ -65,6 +66,8 @@ export interface GalaxyUser<T = unknown> {
   activeObjectId: string;
   launchesToday: number;
   launchDay: string;
+  editsToday?: number;
+  editDay?: string;
   lastWriteAt: T;
   lastShakeAt: T;
   lastCometAt: T;
@@ -100,6 +103,8 @@ export interface RenderObject {
   hostOrbit?: Orbit;
   updatedAt?: number;
   unclaimed?: boolean;
+  /** A hangared planet retained only while an active moon uses it. */
+  moonHost?: boolean;
 }
 export interface LiveSnapshot<T = unknown> {
   schemaVersion: 1;
@@ -110,10 +115,11 @@ export interface LiveSnapshot<T = unknown> {
 }
 export function validParams(value: unknown, type: ObjectType = 'planet', version = 1): value is ObjectParams {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (version === 1 && type !== 'planet') return false;
   const p = value as Record<string, unknown>;
   const fields =
     type === 'planet'
-      ? ['size', 'palette', 'oceans', 'mountains', 'clouds', 'rings', 'atmosphere']
+      ? version === 1 ? ['size', 'palette', 'oceans'] : ['size', 'palette', 'oceans', 'mountains', 'clouds', 'rings', 'atmosphere']
       : type === 'star'
         ? ['size', 'temperature', 'corona']
         : ['size', 'craters', 'colour'];
@@ -163,7 +169,7 @@ export function readObject(value: unknown): GalaxyObject | null {
   if (
     ![1, 2].includes(d.schemaVersion ?? 1) ||
     !['planet', 'star', 'moon'].includes(d.type) ||
-    !nameKeys.includes(d.nameKey) ||
+    !Object.hasOwn(names, d.nameKey) ||
     !validParams(d.params, d.type, d.schemaVersion ?? 1) ||
     !validOrbit(d.orbit) ||
     !['active', 'hangar'].includes(d.status) ||
