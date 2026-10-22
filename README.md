@@ -61,9 +61,19 @@ pnpm exec firebase emulators:start --only firestore,auth --project demo-little-g
 
 Set `VITE_USE_EMULATORS=1` in the web development process before starting Vite. The application then
 uses project `demo-little-galaxy`; production builds reject `VITE_USE_EMULATORS` whenever it is set.
-Both emulators use the page hostname (ports 8080 and 9099), permitting a phone on the same LAN to reach
-the laptop. Rules tests use the same isolated demo project and start only Firestore; they do not access
-live data.
+Vite, preview and the default emulators bind to loopback. For an intentional phone test on a trusted
+LAN, start the emulator configuration and web server with these explicit opt-ins instead:
+
+```sh
+pnpm run emulators:lan
+VITE_USE_EMULATORS=1 pnpm --filter @little-galaxy/web run dev:lan
+```
+
+`firebase.lan.json` changes only the Auth/Firestore listener hosts to `0.0.0.0`; it retains the demo
+project selected by the script, deny-all rules and ports 8080/9099. Both SDKs use the page hostname,
+so a phone can reach the laptop through its LAN address. Stop both processes after the test. Rules
+tests use the loopback configuration and isolated demo project, start only Firestore, and do not
+access live data.
 
 The stand starts without credentials. If `GOOGLE_APPLICATION_CREDENTIALS` is set, firebase-admin uses
 that file through application-default credentials and requires `FIREBASE_PROJECT_ID` to be exported.

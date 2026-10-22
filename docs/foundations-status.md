@@ -46,6 +46,11 @@ to verify setup during the Beacon night session.
 
 ## Local technical choices
 
+- Default development, preview and emulator listeners to loopback. Explicit
+  `dev:lan` and `emulators:lan` commands preserve phone testing on a deliberately
+  selected LAN without exposing local services on every ordinary startup. This
+  is a reversible development default; it changes no deployed data rules or
+  roadmap behavior. The LAN config differs only in the two listener hosts.
 - Preserve the missing-config build failure. Automatically substituting example
   Firebase values would turn an absent external setup into a misleading release.
   Use `build:rehearsal` for an explicitly synthetic payload.

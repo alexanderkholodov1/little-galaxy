@@ -14,7 +14,8 @@
     "test": "turbo run test && vitest run",
     "test:rules": "firebase emulators:exec --only firestore --project demo-little-galaxy \"pnpm exec vitest run --config tests/rules/vitest.config.js\"",
     "privacy": "node scripts/privacy-check",
-    "privacy:rehearsal": "node scripts/with-example-env.js pnpm run privacy"
+    "privacy:rehearsal": "node scripts/with-example-env.js pnpm run privacy",
+    "emulators:lan": "firebase emulators:start --config firebase.lan.json --only firestore,auth --project demo-little-galaxy"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

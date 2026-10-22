@@ -4,12 +4,13 @@
   "type": "module",
   "version": "0.1.0",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0",
+    "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src *.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:lan": "vite --host 0.0.0.0"
   },
   "dependencies": {
     "@little-galaxy/shared": "workspace:*",
