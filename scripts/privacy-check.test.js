@@ -2,7 +2,7 @@ import { gzipSync } from 'node:zlib';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { checkPrivacy } from './privacy-lib.js';
 
 let root;
@@ -15,7 +15,21 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
+});
+
+it('loads the production Vite env files for the public-key allowlist', async () => {
+  vi.stubEnv('VITE_FIREBASE_API_KEY', undefined);
+  const key = `AIza${'C'.repeat(35)}`;
+  await writeFile(path.join(root, 'apps/web/.env'), `VITE_FIREBASE_API_KEY=AIza${'A'.repeat(35)}\n`);
+  await writeFile(path.join(root, 'apps/web/.env.production.local'), `VITE_FIREBASE_API_KEY=${key}\n`);
+  await writeFile(path.join(output, 'app.js'), key);
+  await expect(checkPrivacy(root)).resolves.toBe(1);
+  vi.stubEnv('VITE_FIREBASE_API_KEY', `AIza${'B'.repeat(35)}`);
+  await expect(checkPrivacy(root)).rejects.toThrow('rule: firebase-api-key');
+  await writeFile(path.join(output, 'app.js'), `AIza${'B'.repeat(35)}`);
+  await expect(checkPrivacy(root)).resolves.toBe(1);
 });
 
 it('allows only the configured public Firebase API key', async () => {

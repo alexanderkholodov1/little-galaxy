@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { assertProductionEnv, createVersionFile } from './build-config.js';
+import { loadBuildEnv } from './build-env.js';
 
 export default defineConfig(({ command, mode }) => {
-  const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
+  const env = loadBuildEnv(process.cwd(), mode);
   assertProductionEnv(command, mode, env);
   return {
     base: '/galaxy/',

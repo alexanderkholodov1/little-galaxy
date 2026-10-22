@@ -2,6 +2,7 @@ import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { gunzip } from 'node:zlib';
+import { loadBuildEnv } from '../apps/web/build-env.js';
 
 const gunzipAsync = promisify(gunzip);
 const ignoredDirectories = new Set(['node_modules', '.git', '.turbo', '.firebase', 'dist']);
@@ -130,7 +131,7 @@ function scanBytes(bytes, configuredApiKey, privateContents) {
   return undefined;
 }
 
-export async function checkPrivacy(root, env = process.env) {
+export async function checkPrivacy(root, env) {
   const output = path.join(root, 'apps/web/dist');
 
   try {
@@ -140,7 +141,7 @@ export async function checkPrivacy(root, env = process.env) {
     const privateFiles = await findPrivateFiles(root);
     const privateContents = (await Promise.all(privateFiles.map((file) => readFile(file))))
       .filter((content) => content.length >= 32);
-    const configuredApiKey = env.VITE_FIREBASE_API_KEY;
+    const configuredApiKey = (env ?? loadBuildEnv(path.join(root, 'apps/web'))).VITE_FIREBASE_API_KEY;
 
     for (const file of outputFiles) {
       const relative = path.relative(output, file);

@@ -49,7 +49,9 @@ The six public Vite variables are documented with rehearsal placeholders in `app
 
 GitHub builds read the same names from repository variables (`vars.*`), not secrets. A production build
 fails if any value is absent or empty. `pnpm run build:rehearsal` loads the committed placeholders; use
-`pnpm run build` when the real values are already in the environment.
+`pnpm run build` when the real values are in the environment or Vite's
+`apps/web/.env*` production files. The privacy gate uses the same production-file
+precedence and process-environment overrides as the default Vite build.
 
 Emulator mode is development-only. Start local Firebase services against the isolated demo project:
 
