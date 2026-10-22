@@ -6,10 +6,28 @@ import type { LiveSnapshot, RenderObject } from '@little-galaxy/shared';
 export function compactSnapshot(documents: { id: string; data(): unknown }[]): Omit<LiveSnapshot, 'at'> {
   const objects: RenderObject[] = documents.flatMap((document) => {
     const object = readObject(document.data());
-    return object?.status === 'active' ? [{ id: document.id, nameKey: object.nameKey, params: object.params, orbit: object.orbit }] : [];
+    return object?.status === 'active'
+      ? [
+          {
+            id: document.id,
+            nameKey: object.nameKey,
+            type: object.type,
+            ...(object.type === 'planet' && object.ownerUid === '' ? { unclaimed: true } : {}),
+            params: object.params,
+            orbit: object.orbit,
+            ...(object.hostOrbit ? { hostOrbit: object.hostOrbit } : {}),
+          },
+        ]
+      : [];
   });
-  const snapshot: Omit<LiveSnapshot, 'at'> = { schemaVersion: SCHEMA_VERSION, objects, creators: objects.length, activeCount: objects.length };
-  if (Buffer.byteLength(JSON.stringify(snapshot)) > 900_000) throw new Error('Snapshot needs sharding before the next write');
+  const snapshot: Omit<LiveSnapshot, 'at'> = {
+    schemaVersion: SCHEMA_VERSION,
+    objects,
+    creators: objects.filter((object) => !object.unclaimed).length,
+    activeCount: objects.length,
+  };
+  if (Buffer.byteLength(JSON.stringify(snapshot)) > 900_000)
+    throw new Error('Snapshot needs sharding before the next write');
   return snapshot;
 }
 /** Keeps one active-object listener; avoids rereading the galaxy every thirty seconds. */
@@ -21,14 +39,31 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
   async function flush() {
     if (stopped || !latest || pending) return;
     const state = latest;
-    pending = database.doc('snapshots/live').set({ ...state, at: FieldValue.serverTimestamp() }).then(() => undefined).catch(onError);
+    pending = database
+      .doc('snapshots/live')
+      .set({ ...state, at: FieldValue.serverTimestamp() })
+      .then(() => undefined)
+      .catch(onError);
     await pending;
     pending = undefined;
   }
-  const unsubscribe = database.collection('objects').where('status', '==', 'active').onSnapshot((snapshot) => {
-    try { latest = compactSnapshot(snapshot.docs); } catch { onError(); return; }
-    if (!timer && !stopped) { void flush(); timer = setInterval(() => { void flush(); }, interval); }
-  }, onError);
+  const unsubscribe = database
+    .collection('objects')
+    .where('status', '==', 'active')
+    .onSnapshot((snapshot) => {
+      try {
+        latest = compactSnapshot(snapshot.docs);
+      } catch {
+        onError();
+        return;
+      }
+      if (!timer && !stopped) {
+        void flush();
+        timer = setInterval(() => {
+          void flush();
+        }, interval);
+      }
+    }, onError);
   return async () => {
     stopped = true;
     if (timer) clearInterval(timer);

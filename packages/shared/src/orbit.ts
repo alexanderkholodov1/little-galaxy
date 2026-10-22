@@ -3,7 +3,7 @@ export const GRAVITY = 40;
 export const LAUNCH_RADIUS = 6;
 export const STAR_RADIUS = 1;
 export interface Orbit {
-  hostId: 'central'; a: number; e: number; inclination: number; omega: number;
+  hostId: string; a: number; e: number; inclination: number; omega: number;
   meanAnomaly: number; epoch: number; direction: 1 | -1; isComet: boolean;
 }
 const TAU = Math.PI * 2;

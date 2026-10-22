@@ -10,15 +10,32 @@ service cloud.firestore {
     function afterUser() { return getAfter(userPath()).data; }
     function numberIn(n, low, high) { return n is number && n >= low && n <= high; }
     function id(s) { return s is string && s.matches('^[A-Za-z0-9_-]{1,100}$'); }
-    function params(p) {
-      return p.keys().hasAll(['size','palette','oceans']) && p.keys().hasOnly(['size','palette','oceans'])
-        && numberIn(p.size, 0.2, 0.7) && p.palette is int && p.palette >= 0 && p.palette <= 3
-        && numberIn(p.oceans, 0, 1);
+    function paletteIndex(n) { return n is int && n >= 0 && n <= 3; }
+    function params(p, type, version) {
+      return p is map && numberIn(p.size, 0.2, 0.7) && (
+        (type == 'planet'
+          && p.keys().hasAll(version == 1 ? ['size','palette','oceans'] : ['size','palette','oceans','mountains','clouds','rings','atmosphere'])
+          && p.keys().hasOnly(['size','palette','oceans','mountains','clouds','rings','atmosphere'])
+          && paletteIndex(p.palette) && numberIn(p.oceans,0,1)
+          && numberIn(p.get('mountains',0.3),0,1) && numberIn(p.get('clouds',0.3),0,1)
+          && numberIn(p.get('rings',0),0,1) && paletteIndex(p.get('atmosphere',0)))
+        || (version == 2 && type == 'star' && p.keys().hasAll(['size','temperature','corona'])
+          && p.keys().hasOnly(['size','temperature','corona']) && numberIn(p.temperature,0,1) && numberIn(p.corona,0,1))
+        || (version == 2 && type == 'moon' && p.keys().hasAll(['size','craters','colour'])
+          && p.keys().hasOnly(['size','craters','colour']) && numberIn(p.craters,0,1) && paletteIndex(p.colour)));
+    }
+    function validHost(d) {
+      return d.type == 'star' ? d.orbit.hostId == 'central'
+        : d.type == 'planet' ? (d.orbit.hostId == 'central' || get(objectPath(d.orbit.hostId)).data.type == 'star')
+        : d.orbit.hostId != 'central'
+          && get(objectPath(d.orbit.hostId)).data.type == 'planet'
+          && get(objectPath(d.orbit.hostId)).data.ownerUid in [request.auth.uid, '']
+          && d.hostOrbit == get(objectPath(d.orbit.hostId)).data.orbit;
     }
     function orbit(o) {
       return o.keys().hasAll(['hostId','a','e','inclination','omega','meanAnomaly','epoch','direction','isComet'])
         && o.keys().hasOnly(['hostId','a','e','inclination','omega','meanAnomaly','epoch','direction','isComet'])
-        && o.hostId == 'central' && numberIn(o.a, 2, 30) && numberIn(o.e, 0, 0.8)
+        && id(o.hostId) && numberIn(o.a, 2, 30) && numberIn(o.e, 0, 0.8)
         && o.a * (1 - o.e) > 1 && numberIn(o.inclination, -0.35, 0.35)
         && numberIn(o.omega, -3.141592653589793, 3.141592653589793)
         && numberIn(o.meanAnomaly, -6.283185307179586, 6.283185307179586)
@@ -26,10 +43,11 @@ service cloud.firestore {
     }
     function objectSchema(d) {
       return d.keys().hasAll(['schemaVersion','ownerUid','type','nameKey','params','orbit','status','createdAt','updatedAt','season'])
-        && d.keys().hasOnly(['schemaVersion','ownerUid','type','nameKey','params','orbit','status','createdAt','updatedAt','season'])
-        && d.schemaVersion == 1 && d.ownerUid == request.auth.uid && d.type == 'planet'
-        && d.nameKey in ['quiet-aurora','bright-tide','gentle-horizon','distant-garden']
-        && params(d.params) && orbit(d.orbit) && d.status in ['active','hangar']
+        && d.keys().hasOnly(['schemaVersion','ownerUid','type','nameKey','params','orbit','hostOrbit','status','createdAt','updatedAt','season'])
+        && d.schemaVersion in [1,2] && d.ownerUid == request.auth.uid && d.type in ['planet','star','moon']
+        && (d.nameKey in ['quiet-aurora','bright-tide','gentle-horizon','distant-garden'] || (d.nameKey is string && d.nameKey.matches('^n[0-3][0-9]-[0-3][0-9]$')))
+        && params(d.params,d.type,d.schemaVersion) && orbit(d.orbit)
+        && (d.type == 'moon' ? orbit(d.hostOrbit) : !('hostOrbit' in d)) && d.status in ['active','hangar']
         && d.createdAt is timestamp && d.updatedAt == request.time && d.season == 'bad-2026';
     }
     function freshBatch() { return afterUser().lastWriteAt == request.time; }
@@ -68,6 +86,7 @@ service cloud.firestore {
       allow read: if resource.data.status == 'active' || own(resource.data.ownerUid);
       allow create: if signed() && objectSchema(request.resource.data) && freshBatch()
         && config().seasonOpen && config().launches
+        && validHost(request.resource.data)
         && request.resource.data.createdAt == request.time && request.resource.data.status == 'active'
         && afterUser().activeObjectId == objectId && afterUser().action == 'launch'
         && eventMatches(afterUser().writeId + '-create', 'create', objectId);
@@ -76,6 +95,8 @@ service cloud.firestore {
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.type == resource.data.type && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.season == resource.data.season
+        && request.resource.data.schemaVersion >= resource.data.schemaVersion
+        && request.resource.data.get('hostOrbit',null) == resource.data.get('hostOrbit',null)
         && (request.resource.data.status == 'hangar'
           ? resource.data.status == 'active' && launchAction(afterUser().action)
             && get(userPath()).data.activeObjectId == objectId && afterUser().activeObjectId != objectId
@@ -83,7 +104,8 @@ service cloud.firestore {
           : afterUser().activeObjectId == objectId
             && ((afterUser().action == 'edit' && resource.data.status == 'active'
                 && request.resource.data.orbit == resource.data.orbit)
-              || (afterUser().action == 'relaunch' && resource.data.status == 'hangar' && config().launches)));
+              || (afterUser().action == 'relaunch' && resource.data.status == 'hangar' && config().launches
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt']) && validHost(request.resource.data))));
     }
     match /users/{uid} {
       allow get: if own(uid);
