@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import type { Language, RenderObject } from '@little-galaxy/shared';
 import { firestore } from './firebase';
@@ -13,7 +13,10 @@ export default function Screen({ language }: { language: Language }) {
   const [state, setState] = useState<'loading' | 'live' | 'failed'>('loading');
   const [attempt, setAttempt] = useState(0);
   const join = new URL('/galaxy/create', window.location.origin).href;
-  const qr = qrcode(0, 'M'); qr.addData(join); qr.make();
+  const qrSvg = useMemo(() => {
+    const qr = qrcode(0, 'M'); qr.addData(join); qr.make();
+    return qr.createSvgTag({ cellSize: 3, margin: 12, scalable: true });
+  }, [join]);
   useEffect(() => {
     if (!firestore) return;
     const timeout = window.setTimeout(() => setState('failed'), 8000);
@@ -33,7 +36,7 @@ export default function Screen({ language }: { language: Language }) {
       <Suspense fallback={<p className="scene-message">{text.loading}</p>}><Scene objects={objects} label={text.scene} unavailable={text.unavailable}/></Suspense>
     </ErrorBoundary>
       <div className="screen-reading" aria-live="polite"><span className="creator-count">{known ? objects.length : '—'}</span> {text.creators}</div>
-      <a className="join-qr" href={join}><span className="qr-image" dangerouslySetInnerHTML={{ __html: qr.createSvgTag({ cellSize: 3, margin: 12, scalable: true }) }}/><span>{text.join}</span></a>
+      <a className="join-qr" href={join}><span className="qr-image" dangerouslySetInnerHTML={{ __html: qrSvg }}/><span>{text.join}</span></a>
       {(status !== 'live' || objects.length === 0) && <div className="field-status" role="status"><p>{status === 'loading' ? text.loading : status === 'failed' ? text.failed : text.empty}</p>{status === 'failed' && <button onClick={() => { setState('loading'); setAttempt((v) => v + 1); }}>{text.retry}</button>}</div>}
     </div>
   </section>;

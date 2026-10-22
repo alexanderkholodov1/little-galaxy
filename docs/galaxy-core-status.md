@@ -43,9 +43,9 @@ time, and enforce exact payload shapes; shake/comet/shooting-star cooldowns are 
 in addition to the two-second write cooldown. `meteorShower`, config and snapshots are admin-only.
 Client assistant paths stay denied: assistant/voice scope is deferred by the operator.
 
-Screen clients query only `objects where status == active`. Firestore cannot redact document
+Signed-in screen clients query only `objects where status == active`. Firestore cannot redact document
 fields, so that surface includes the active object's anonymous owner UID and schema fields.
-Hangar objects are owner-readable only; unrestricted collection queries, other users, event history,
+Unauthenticated object reads are denied. Hangar objects are owner-readable only; unrestricted collection queries, other users, event history,
 unknown paths and collection listings for config/snapshots are denied. Phones never subscribe to
 objects; they read their own records and `config/live`. Public snapshot consumers can get only
 `snapshots/live`; the home route remains its foundation reference view in this release.
@@ -80,8 +80,8 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-little-galaxy pn
 VITE_USE_EMULATORS=1 pnpm --filter @little-galaxy/web dev
 ```
 
-Open `/galaxy/screen` and `/galaxy/create`. A steady sideways swipe finds an orbit; a very fast or
-radial swipe returns as a comet. The button offers a circular launch for keyboard users. To use
+Open `/galaxy/screen` and `/galaxy/create`. A normal flick in any direction finds an orbit; an extreme or
+unusually slow flick returns as a comet. The button offers a circular launch for keyboard users. To use
 physical phones intentionally on a trusted LAN, use the README's `emulators:lan` and `dev:lan`
 commands instead of the loopback servers; the QR automatically uses that page's origin. Stop all
 processes after verification. Do not point emulator tests at a live project.
@@ -132,3 +132,5 @@ TURBO_FORCE=true pnpm run build:rehearsal
   sharing a now-statically-imported Firebase module; the 3D runtime remains outside the phone's
   initial bundle. Rehearsal uses the six committed placeholder public variables, not live config.
 - Servers/emulators are stopped after their checks. No preview, deployment, push, PR or tag.
+
+Review hardening and per-path rule access counts: [review-fixes.md](review-fixes.md).

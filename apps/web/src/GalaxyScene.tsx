@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { AdditiveBlending, BufferGeometry, Float32BufferAttribute } from 'three';
 import type { Mesh } from 'three';
+import { orientComet } from './comet-tail';
+import { chartRadius } from './chart-fit';
 import { orbitalPeriod, palette, positionAt } from '@little-galaxy/shared';
 import type { RenderObject } from '@little-galaxy/shared';
 function Body({ object }: { object: RenderObject }) {
@@ -12,16 +14,19 @@ function Body({ object }: { object: RenderObject }) {
     return new BufferGeometry().setAttribute('position', new Float32BufferAttribute(points, 3));
   }, [object.orbit]);
   useEffect(() => () => trail.dispose(), [trail]);
-  useFrame(() => { mesh.current?.position.set(...positionAt(object.orbit, Date.now())); });
+  useFrame(() => { if (mesh.current) {
+    mesh.current.position.set(...positionAt(object.orbit, Date.now()));
+    if (object.orbit.isComet) orientComet(mesh.current);
+  } });
   return <><lineLoop geometry={trail}><lineBasicMaterial color={object.orbit.isComet ? '#d5b675' : '#426681'} transparent opacity={0.45}/></lineLoop>
     <mesh ref={mesh}><sphereGeometry args={[object.params.size, 16, 12]}/><meshStandardMaterial color={palette[object.params.palette]} roughness={0.6}/>
-      {object.orbit.isComet && <mesh position={[-0.6, 0, 0]} rotation={[0, 0, -Math.PI / 2]}><coneGeometry args={[0.18, 1.6, 12]}/><meshBasicMaterial color="#d5b675" transparent opacity={0.45}/></mesh>}
+      {object.orbit.isComet && <mesh position={[0, 0.8, 0]} rotation={[0, 0, Math.PI]}><coneGeometry args={[0.18, 1.6, 12]}/><meshBasicMaterial color="#d5b675" transparent opacity={0.45}/></mesh>}
     </mesh></>;
 }
 function FitChart({ objects }: { objects: RenderObject[] }) {
   const { camera, size } = useThree();
   useEffect(() => {
-    const radius = Math.max(9, ...objects.map((object) => object.orbit.a * (1 + object.orbit.e)));
+    const radius = chartRadius(objects);
     const distance = radius * 1.9 * Math.max(1, size.height / size.width);
     camera.position.set(0, -distance * 0.4, distance); camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();

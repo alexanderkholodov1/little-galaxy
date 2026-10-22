@@ -2,6 +2,11 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Screen from './Screen';
+import qrcode from 'qrcode-generator';
+vi.mock('qrcode-generator', async (original) => {
+  const actual = await original<{ default: typeof qrcode }>();
+  return { default: vi.fn(actual.default) };
+});
 import { listenActive } from './galaxy-data';
 vi.mock('./firebase', () => ({ firestore: {} }));
 vi.mock('./galaxy-data', () => ({ listenActive: vi.fn() }));
@@ -36,4 +41,14 @@ it('shows a connection error with an unknown count and retries without losing it
   await act(async () => container.querySelector<HTMLButtonElement>('.field-status button')!.click());
   expect(stop).toHaveBeenCalledOnce();
   expect(container.querySelector('.join-qr svg')).not.toBeNull();
+});
+
+it('generates the QR once across server updates and language changes', async () => {
+  vi.mocked(qrcode).mockClear();
+  await act(async () => root.render(<Screen language="en"/>));
+  const svg = container.querySelector('.join-qr svg')?.outerHTML;
+  await act(async () => receive([], false));
+  await act(async () => root.render(<Screen language="es"/>));
+  expect(qrcode).toHaveBeenCalledOnce();
+  expect(container.querySelector('.join-qr svg')?.outerHTML).toBe(svg);
 });

@@ -34,7 +34,8 @@ export default function Create({ language }: { language: Language }) {
       const uid = await anonymousUid();
       await launchPlanet(firestore, uid, draft, orbit);
       setMessage(orbit.isComet ? 'comet' : 'orbit');
-    } catch (error) { setMessage(error instanceof LaunchError ? error.reason : 'rejected'); }
+    } catch (error) { setMessage(error instanceof LaunchError ? error.reason :
+      error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied' ? 'restricted' : 'rejected'); }
     finally { window.clearTimeout(timeout); lock.current = false; setBusy(false); }
   }
   return <section className="workshop">
