@@ -120,8 +120,14 @@ PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.3.0/browsers node /home/a
 ```
 
 The scratch script starts no server; it used `pnpm --filter @little-galaxy/web preview --port 4178
---strictPort`, which was stopped afterward. Browser servers and emulators were stopped at handoff.
-No live services, credentials or assistant features were used. No branch was merged, pushed or tagged.
+--strictPort`. Automated test servers and emulators stopped (ports 4177, 8080 and 9099). The additional
+preview on **4178** survived its closed command session. Command shells have isolated PID namespaces,
+so a subsequent shell cannot see or signal that listener. **Host cleanup remains open**: run
+`python3 ~/bad/work/g-v0.4.0/stop-preview.py` from the host terminal. The helper checks both the
+listening socket and its process working directory, and signals only this checkout's listener.
+The captain was asked to run it; cleanup has not been confirmed. This is an execution-environment
+limitation, not an audio test failure. No live services, credentials or assistant features were used.
+No branch was merged, pushed or tagged.
 
 ## Operator acceptance remaining
 
