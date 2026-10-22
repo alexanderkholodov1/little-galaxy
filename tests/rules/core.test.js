@@ -86,6 +86,8 @@ async function launchBatch(
     schemaVersion: SCHEMA_VERSION,
     activeObjectId: objectId,
     launchDay: day,
+    editDay: day,
+    editsToday: old?.editDay === day ? (old.editsToday ?? 0) : 0,
     launchesToday: old?.launchDay === day ? old.launchesToday + 1 : 1,
     lastWriteAt: at,
     lastShakeAt: old?.lastShakeAt ?? Timestamp.fromMillis(0),
@@ -130,6 +132,7 @@ async function interaction(
     writeId: id,
     lastWriteAt: at,
     ...(cooldown ? { [cooldown]: at } : {}),
+    ...(type === 'edit' ? { editDay: utcDay(Date.now()), editsToday: old.editDay === utcDay(Date.now()) ? (old.editsToday ?? 0) + 1 : 1 } : {}),
     ...account,
   });
   batch.set(doc(database, 'events', id), {
@@ -295,7 +298,7 @@ it('allows owner edits with exact event snapshots, and relaunches from hangar', 
   const at = serverTimestamp();
   const edited = { ...original, nameKey: 'bright-tide', updatedAt: at };
   const batch = writeBatch(database);
-  batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'edit', lastWriteAt: at });
+  batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'edit', lastWriteAt: at, editDay: utcDay(Date.now()), editsToday: 1 });
   batch.update(doc(database, 'objects', first), { nameKey: 'bright-tide', updatedAt: at });
   batch.set(doc(database, 'events', 'edit'), {
     schemaVersion: 1,
@@ -345,7 +348,7 @@ it('keeps public reads minimal and all client admin writes denied', async () => 
   await assertSucceeds(getDocs(query(collection(db('screen'), 'objects'), where('status', '==', 'active'))));
   await assertSucceeds(getDocs(query(collection(db(), 'objects'), where('ownerUid', '==', 'alice'))));
   await assertFails(getDocs(collection(db('screen'), 'objects')));
-  await assertFails(getDoc(doc(db('bob'), 'objects', id)));
+  await assertSucceeds(getDoc(doc(db('bob'), 'objects', id))); // D6 signed document lookup
   await assertFails(getDocs(query(collection(db('bob'), 'objects'), where('ownerUid', '==', 'alice'))));
   await assertFails(getDocs(collection(publicDb, 'objects')));
   await assertFails(getDoc(doc(publicDb, 'objects', id)));
@@ -700,22 +703,24 @@ async function launchTyped(database, uid, type) {
   }
   return launchPlanet(database, uid, { type, nameKey: 'quiet-aurora', params: presets[type][0] }, { ...orbit(), hostId });
 }
-it.each(['planet', 'star', 'moon'].flatMap((type) => ['orbit', 'params', 'event'].map((invalid) => [type, invalid])))('rejects invalid %s edit %s with an otherwise complete batch', async (type, invalid) => {
+it.each(['planet', 'star', 'moon'].flatMap((type) => ['orbit', 'params', 'event', 'schemaVersion', ...(type === 'moon' ? ['hostOrbit'] : [])].map((invalid) => [type, invalid])))('rejects invalid %s edit %s with an otherwise complete batch', async (type, invalid) => {
   const database = db();
   const id = await launchTyped(database, 'alice', type); await ageUser();
   const old = (await getDoc(doc(database, 'objects', id))).data();
   const at = serverTimestamp();
   const object = { ...old, nameKey: 'bright-tide', updatedAt: at,
     ...(invalid === 'orbit' ? { orbit: { ...old.orbit, a: 7 } } : {}),
-    ...(invalid === 'params' ? { params: { ...old.params, size: 5 } } : {}) };
+    ...(invalid === 'params' ? { params: { ...old.params, size: 5 } } : {}),
+    ...(invalid === 'schemaVersion' ? { schemaVersion: 1, ...(type === 'planet' ? { params: draft.params } : {}) } : {}),
+    ...(invalid === 'hostOrbit' ? { hostOrbit: { ...old.hostOrbit, a: 7 } } : {}) };
   const batch = writeBatch(database);
   batch.set(doc(database, 'objects', id), object);
-  batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'bad-edit', lastWriteAt: at });
+  batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'bad-edit', lastWriteAt: at, editDay: utcDay(Date.now()), editsToday: 1 });
   batch.set(doc(database, 'events', 'bad-edit'), { schemaVersion: 1, uid: 'alice', type: 'edit', at, objectId: id,
     payload: invalid === 'event' ? { ...object, nameKey: 'distant-garden' } : object });
   await assertFails(batch.commit());
 });
-it.each(['planet', 'star', 'moon'].flatMap((type) => ['counter', 'crumble', 'owner'].map((invalid) => [type, invalid])))('rejects invalid %s relaunch %s with an otherwise complete batch', async (type, invalid) => {
+it.each(['planet', 'star', 'moon'].flatMap((type) => ['counter', 'crumble', 'owner', 'params', 'nameKey'].map((invalid) => [type, invalid])))('rejects invalid %s relaunch %s with an otherwise complete batch', async (type, invalid) => {
   const database = db();
   const first = await launchTyped(database, 'alice', type); await ageUser();
   const second = await launchPlanet(database, 'alice', draft, orbit()); await ageUser();
@@ -724,7 +729,9 @@ it.each(['planet', 'star', 'moon'].flatMap((type) => ['counter', 'crumble', 'own
   const current = (await getDoc(doc(database, 'objects', second))).data();
   const at = serverTimestamp();
   const batch = writeBatch(database);
-  const active = { ...old, status: 'active', updatedAt: at };
+  const active = { ...old, status: 'active', updatedAt: at,
+    ...(invalid === 'params' ? { params: presets[type][1] } : {}),
+    ...(invalid === 'nameKey' ? { nameKey: 'n02-02' } : {}) };
   const archived = { ...current, status: 'hangar', updatedAt: at };
   batch.set(doc(database, 'objects', first), active);
   batch.set(doc(database, 'objects', second), archived);
@@ -749,7 +756,7 @@ it('allows an unchanged historical orbit to be archived, edited and relaunched',
   const batch = writeBatch(database);
   const object = { ...old, nameKey: 'bright-tide', updatedAt: at };
   batch.set(doc(database, 'objects', first), object);
-  batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'historic-edit', lastWriteAt: at });
+  batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'historic-edit', lastWriteAt: at, editDay: utcDay(Date.now()), editsToday: 1 });
   batch.set(doc(database, 'events', 'historic-edit'), { schemaVersion: 1, uid: 'alice', type: 'edit', at, objectId: first, payload: object });
   await assertSucceeds(batch.commit()); await ageUser();
   const second = await launchPlanet(database, 'alice', draft, orbit()); await ageUser();
@@ -790,4 +797,86 @@ it('supports largest hosted replacement/relaunch batches and preserves an old mo
   expect(changed.hostOrbit).toEqual(old.hostOrbit);
   expect(changed.orbit).toEqual(old.orbit);
   expect(changed.hostOrbit.epoch).toBeLessThan(Date.now() - 120000);
+});
+let editSequence = 0;
+async function editBatch({ user = {}, object = {} } = {}) {
+  const database = db();
+  const u = (await getDoc(doc(database, 'users', 'alice'))).data();
+  const old = (await getDoc(doc(database, 'objects', u.activeObjectId))).data();
+  const at = serverTimestamp();
+  const body = { ...old, updatedAt: at, nameKey: 'n01-01', ...object };
+  const writeId = `budget-edit-${++editSequence}`;
+  const batch = writeBatch(database);
+  batch.set(doc(database, 'objects', u.activeObjectId), body);
+  batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId, lastWriteAt: at,
+    editDay: utcDay(Date.now()), editsToday: u.editDay === utcDay(Date.now()) ? (u.editsToday ?? 0) + 1 : 1, ...user });
+  batch.set(doc(database, 'events', writeId), { schemaVersion: 1, uid: 'alice', type: 'edit', objectId: u.activeObjectId, at, payload: body });
+  return batch;
+}
+it('allows edit 100, denies edit 101 in rules and client, and resets at the UTC day', async () => {
+  await launchPlanet(db(), 'alice', draft, orbit());
+  await ageUser('alice', { editsToday: 99, editDay: utcDay(Date.now()) });
+  await assertSucceeds((await editBatch()).commit());
+  await ageUser();
+  await assertFails((await editBatch()).commit());
+  await expect(editObject(db(), 'alice', draft)).rejects.toThrow('editLimit');
+  await ageUser('alice', { editDay: '2020-01-01', editsToday: 100 });
+  await assertSucceeds(editObject(db(), 'alice', draft));
+  expect((await getDoc(doc(db(), 'users', 'alice'))).data()).toMatchObject({ editsToday: 1, editDay: utcDay(Date.now()) });
+});
+it.each([
+  { editsToday: 0 }, { editsToday: 100 }, { editsToday: -1 }, { editsToday: 1.5 },
+  { editsToday: '1' }, { editDay: '2099-01-01' }, { editDay: '2020-01-01' },
+])('denies a forged edit budget with an otherwise valid edit: %j', async (user) => {
+  await launchPlanet(db(), 'alice', draft, orbit()); await ageUser();
+  await assertFails((await editBatch({ user })).commit());
+});
+it('initializes legacy edit counters without allowing a reset by launch or relaunch', async () => {
+  const id = await launchPlanet(db(), 'alice', draft, orbit()); await ageUser();
+  const { deleteField } = await import('firebase/firestore');
+  await bypass((d) => updateDoc(doc(d, 'users', 'alice'), { editsToday: deleteField(), editDay: deleteField() }));
+  await editObject(db(), 'alice', draft); await ageUser();
+  expect((await getDoc(doc(db(), 'users', 'alice'))).data().editsToday).toBe(1);
+  await assertFails((await launchBatch(db(), { user: { editsToday: 0 } })).commit());
+  await launchPlanet(db(), 'alice', draft, orbit()); await ageUser();
+  await relaunchObject(db(), 'alice', id); await ageUser();
+  expect((await getDoc(doc(db(), 'users', 'alice'))).data().editsToday).toBe(1);
+});
+it('rejects v1 rich keys and v1 stars with complete launch batches', async () => {
+  await assertFails((await launchBatch(db(), { object: { params: presets.planet[0] } })).commit());
+  await assertFails((await launchBatch(db(), { object: { type: 'star', params: presets.star[0] } })).commit());
+});
+it('requires an active star for a new launch but preserves a previously launched orbit', async () => {
+  const star = await launchTyped(db('bob'), 'bob', 'star');
+  const planet = await launchPlanet(db(), 'alice', draft, { ...orbit(), hostId: star }); await ageUser();
+  await ageUser('bob'); await launchPlanet(db('bob'), 'bob', draft, orbit());
+  await assertFails(launchPlanet(db('carol'), 'carol', draft, { ...orbit(), hostId: star }));
+  await assertSucceeds(editObject(db(), 'alice', draft));
+  expect((await getDoc(doc(db(), 'objects', planet))).data().orbit.hostId).toBe(star);
+});
+it('signed screen fetches a hangared moon host by id and the stand snapshot includes it', async () => {
+  const { listenActive } = await import('../../apps/web/src/galaxy-data.ts');
+  const planet = await launchTyped(db(), 'alice', 'planet'); await ageUser();
+  const moon = await launchPlanet(db(), 'alice', { type: 'moon', nameKey: 'n00-00', params: presets.moon[0] }, { ...orbit(), hostId: planet });
+  await assertSucceeds(getDoc(doc(db('screen'), 'objects', planet)));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'objects', planet)));
+  await assertFails(getDocs(query(collection(db('screen'), 'objects'), where('status', '==', 'hangar'))));
+  let objects = [], failed = false;
+  const stop = listenActive(db('screen'), (value) => { objects = value; }, () => { failed = true; });
+  const stopWriter = startSnapshotWriter(adminFirestore(admin), () => { failed = true; }, 50);
+  try {
+    await expect.poll(() => objects.map((o) => o.id).sort()).toEqual([planet, moon].sort());
+    expect(objects.find((o) => o.id === planet).moonHost).toBe(true);
+    await expect.poll(async () => (await getDoc(doc(db('screen'), 'snapshots', 'live'))).data()?.objects.length).toBe(2);
+    const snapshot = (await getDoc(doc(db('screen'), 'snapshots', 'live'))).data();
+    expect(snapshot.creators).toBe(1); expect(snapshot.activeCount).toBe(1);
+    expect(JSON.stringify(snapshot)).not.toContain('ownerUid');
+    await ageUser(); await launchTyped(db(), 'alice', 'star');
+    await expect.poll(() => objects.length).toBe(1);
+    expect(failed).toBe(false);
+  } finally { stop(); await stopWriter(); }
+});
+it('rejects launching a planet while archiving its own star host in the same transaction', async () => {
+  const star = await launchTyped(db(), 'alice', 'star'); await ageUser();
+  await assertFails(launchPlanet(db(), 'alice', draft, { ...orbit(), hostId: star }));
 });

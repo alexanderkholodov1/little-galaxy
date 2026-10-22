@@ -1,26 +1,29 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { chartRadius } from './chart-fit';
+import OrbitTrails from './OrbitTrails';
+import { chartFrame } from './chart-fit';
 import { worldPosition } from '@little-galaxy/shared';
 import type { RenderObject, SoundCandidate } from '@little-galaxy/shared';
 import { Vector3 } from 'three';
 import RichBodies from './RichBodies';
 function FitChart({ objects, focused }: { objects: RenderObject[]; focused?: string }) {
   const { camera, size } = useThree();
+  const object = useMemo(() => objects.find((o) => o.id === focused), [objects, focused]);
+  const points = useMemo(() => ({ position: new Vector3(), target: new Vector3() }), []);
   useEffect(() => {
     if (focused) return;
-    const radius = chartRadius(objects);
+    const { radius, center } = chartFrame(objects);
     const distance = radius * 1.8 * Math.max(1, size.height / size.width);
-    camera.position.set(0, -distance * 0.4, distance);
-    camera.lookAt(0, 0, 0);
+    camera.position.set(center[0], center[1] - distance * .4, center[2] + distance);
+    camera.lookAt(...center);
     camera.updateProjectionMatrix();
   }, [camera, objects, size, focused]);
   useFrame((_, delta) => {
-    const object = objects.find((o) => o.id === focused);
     if (!object) return;
-    const pos = new Vector3(...worldPosition(object, Date.now()));
+    const pos = points.position.set(...worldPosition(object, Date.now()));
     const distance = Math.max(4, object.params.size * 9) * Math.max(1, size.height / size.width);
-    camera.position.lerp(pos.clone().add(new Vector3(0, -distance * 0.3, distance)), 1 - Math.exp(-delta * 5));
+    points.target.set(pos.x, pos.y - distance * .3, pos.z + distance);
+    camera.position.lerp(points.target, 1 - Math.exp(-delta * 5));
     camera.lookAt(pos);
   });
   return null;
@@ -59,7 +62,7 @@ function Meter({ onFps }: { onFps?: (fps: number) => void }) {
     if (elapsed >= 1) {
       onFps?.(sample.current.frames / elapsed);
       gl.domElement.dataset.drawCalls = String(gl.info.render.calls);
-      sample.current = { time: clock.elapsedTime, frames: 0 };
+      sample.current.time = clock.elapsedTime; sample.current.frames = 0;
     }
   });
   return null;
@@ -96,6 +99,7 @@ export default function GalaxyScene({
         <sphereGeometry args={[1, 24, 16]} />
         <meshBasicMaterial color="#fff0c3" />
       </mesh>
+      <OrbitTrails objects={objects} />
       <RichBodies objects={objects} pet={pet} onPick={onPick} />
       <FitChart objects={objects} focused={focused} />
       <SoundSelection objects={objects} focused={focused} pet={pet} onUpdate={onSoundCandidates} />

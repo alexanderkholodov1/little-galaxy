@@ -68,3 +68,17 @@ it('invalidates failed listeners, backs off and publishes only new listener stat
     expect(unsubscribe).toHaveBeenCalledTimes(3);
   } finally { await stop(); vi.useRealTimers(); }
 });
+it('includes a hangared moon host as a normal body without counting its owner twice', () => {
+  const object = { schemaVersion: 2, ownerUid: 'visitor', type: 'planet', nameKey: 'quiet-aurora', season: SEASON, params: { size: .4, palette: 0, oceans: .5, mountains: .3, clouds: .3, rings: 0, atmosphere: 0 }, orbit: orbitFromSwipe(200, 0, .3, 0), status: 'hangar' };
+  const docs = [
+    { id: 'parent', data: () => object },
+    { id: 'unrelated', data: () => object },
+    { id: 'moon', data: () => ({ ...object, type: 'moon', status: 'active', params: { size: .2, craters: .7, colour: 0 }, orbit: { ...object.orbit, hostId: 'parent' }, hostOrbit: object.orbit }) },
+  ];
+  const snapshot = compactSnapshot(docs);
+  expect(snapshot.objects.map((o) => o.id)).toEqual(['parent', 'moon']);
+  expect(snapshot.objects[0].moonHost).toBe(true);
+  expect(snapshot.activeCount).toBe(1); expect(snapshot.creators).toBe(1);
+  expect(JSON.stringify(snapshot)).not.toContain('visitor');
+  expect(compactSnapshot(docs.slice(0, 2)).objects).toEqual([]);
+});

@@ -1,4 +1,4 @@
-import { nameKeys, planetDefaults, presets, validParams } from '@little-galaxy/shared';
+import { names, planetDefaults, presets, validParams } from '@little-galaxy/shared';
 import type { Draft } from './galaxy-data';
 const key = 'galaxy.draft.v1';
 export const defaultDraft: Draft = {
@@ -13,8 +13,8 @@ export function loadDraft(): Draft {
       d &&
       (!d.type || ['planet', 'star', 'moon'].includes(d.type)) &&
       (!d.hostId || /^[A-Za-z0-9_-]{1,100}$/.test(d.hostId)) &&
-      nameKeys.includes(d.nameKey) &&
-      validParams(d.params, d.type ?? 'planet')
+      Object.hasOwn(names, d.nameKey) &&
+      (validParams(d.params, d.type ?? 'planet', 2) || validParams(d.params, d.type ?? 'planet', 1))
     )
       return {
         ...d,

@@ -23,16 +23,16 @@ export const adjectives = [
   ['Patient', 'paciente'],
   ['Calm', 'sereno'],
   ['Wild', 'salvaje'],
-  ['Round', 'redondo'],
+  ['Round', 'singular'],
   ['Deep', 'profundo'],
-  ['Tender', 'tierno'],
+  ['Tender', 'entrañable'],
   ['Radiant', 'radiante'],
   ['Misty', 'brumoso'],
   ['Icy', 'helado'],
-  ['Sunny', 'soleado'],
-  ['Lunar', 'lunar'],
+  ['Sunny', 'estival'],
+  ['Lunar', 'nocturno'],
   ['Stellar', 'estelar'],
-  ['Cosmic', 'cósmico'],
+  ['Cosmic', 'remoto'],
   ['Violet', 'violeta'],
   ['Copper', 'cobrizo'],
   ['Scarlet', 'escarlata'],
@@ -52,7 +52,7 @@ export const nouns = [
   ['Comet', 'Cometa'],
   ['Sky', 'Cielo'],
   ['Sun', 'Sol'],
-  ['Moonbeam', 'Rayo lunar'],
+  ['Moonbeam', 'Rayo'],
   ['Meadow', 'Prado'],
   ['Forest', 'Bosque'],
   ['Desert', 'Desierto'],
@@ -93,12 +93,22 @@ const legacyNames = {
 };
 export type NameKey = string;
 export const names: Record<string, { en: string; es: string }> = { ...legacyNames };
+// Pair-specific copy keeps the full matrix natural without changing persistent keys.
+const spanishPairs: Record<string, string> = {
+  'n13-35': 'Glaciar templado',
+  'n14-07': 'Sol de invierno',
+  'n27-35': 'Glaciar polar',
+  'n29-07': 'Sol de medianoche',
+  'n30-07': 'Sol del alba',
+};
 for (let a = 0; a < 40; a++)
-  for (let n = 0; n < 40; n++)
-    names[`n${String(a).padStart(2, '0')}-${String(n).padStart(2, '0')}`] = {
+  for (let n = 0; n < 40; n++) {
+    const key = `n${String(a).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
+    names[key] = {
       en: `${adjectives[a][0]} ${nouns[n][0]}`,
-      es: `${nouns[n][1]} ${adjectives[a][1]}`,
+      es: spanishPairs[key] ?? `${nouns[n][1]} ${adjectives[a][1]}`,
     };
+  }
 export const nameKeys = Object.keys(names);
 export function objectName(key: NameKey, language: Language): string {
   return names[key]?.[language] ?? '—';

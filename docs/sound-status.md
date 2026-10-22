@@ -7,7 +7,7 @@ booth-speaker listening remain operator acceptance. This task does not authorize
 | Roadmap bullet | State | Evidence |
 | --- | --- | --- |
 | Parametric Tone.js fingerprint, one scale | Done | `packages/shared/src/sound.ts`; D minor pentatonic, including the pet octave. Size lowers register and lengthens release; atmosphere changes the low-pass cutoff; mountains/craters change harmonic partials; oceans increase chorus; rings/corona feed reverb; temperature increases brightness; clouds soften attack; palette/moon colour change timbre. Every visual control reaches the audio graph. |
-| Phone and focused-screen petting | Done locally | The shared instanced renderer applies a damped, volume-preserving squash/stretch spring. Tap a phone specimen; select/tap a screen object to focus it, then tap again to pet. Equivalent labelled buttons support keyboard access. Pets use the fingerprint one octave up, a short envelope, and the existing voice slot. |
+| Phone and focused-screen petting | Done locally | The immediate SVG specimen and shared instanced renderer apply the same damped, volume-preserving squash/stretch spring. The 3D inspector loads only on explicit inspection; petting and audio unlock also work before opening it. Tap a phone specimen; select/tap a screen object to focus it, then tap again to pet. Equivalent labelled buttons support keyboard access. Pets use the fingerprint one octave up, a short envelope, and the existing voice slot. |
 | Eight-voice screen mix, global volume, phone mute, first-tap unlock | Partial acceptance | Eight monophonic slots; camera-frustum eligibility, distance bands and incumbent hysteresis; focused/petted/new objects take priority. Gentle staggered envelopes, shared reverb, master compressor and −6 dB limiter. Global volume/mute controls; phone mute persists with guarded storage. Native context resume and silent-buffer priming happen inside a trusted tap/key gesture before the lazy import. Chromium unlock/reload/failure tests pass; physical iPhone/Android unlock remains open. |
 | Different designs; 50 active objects avoid muddy mix | Done locally; listening open | Offline renders use the production graph and allocator. Eight voices from 50 objects, full user volume, simultaneous ambient/pet stress; measured peak/RMS, zero clipping and differing spectra below. The operator still needs to judge timbre and balance through the actual booth speakers. |
 
@@ -71,7 +71,10 @@ spectral distance was **0.99374**; materials at the same register differed by **
 Preset spectral centroids were **394.30 / 296.21 Hz**. These are automated measurements,
 not a claim of physical-speaker listening acceptance.
 
-## Bundle cost
+## Bundle cost (before review-fix merge)
+
+The figures in this section describe the original sound branch. Updated merged-build evidence is
+recorded below after verification; the immediate phone preview now defers Three/R3F until inspection.
 
 Against the clean stacked checkout's rehearsal build, main JavaScript changed from **270.39 to
 272.62 KB gzip** (**+2.23 KB**, +6.20 KB raw). CSS changed from **2.81 to 2.93 KB gzip**
@@ -137,5 +140,20 @@ stays silent before unmuting. Repeat after backgrounding, interruption and an in
 On the booth screen enable sound, focus/pet an object, adjust global volume/mute and listen with
 50 active objects through the intended speakers. Record OS/browser/output and the results. A device
 that remains suspended should offer Enable sound again. Check deployed behavior when the captain
-publishes a preview; this local task performs no deployment. Existing v0.3 hardware acceptance and
-parallel review fixes remain separate operator work.
+publishes a preview; this local task performs no deployment. The v0.3 review fixes are now integrated. Existing v0.3 hardware acceptance remains operator work.
+
+## Review-fix merge
+
+Merged `v0.3.0-objects` into `v0.4.0-sound` on 2026-10-22, retaining version 0.4.0.
+The confirmed review ledger in [confirmed-review-fixes.md](confirmed-review-fixes.md) applies here.
+The combined renderer retains pooled frame data/live upload ranges, Map/Set history with pruned births,
+spatial star lighting, merged LOD orbit trails and oblique double-sided rings alongside instance
+picking and the pet spring. Galaxy view frames the busiest system; focusing still follows an object
+and returning restores that chart framing. Production FPS state/readout require `?debug=1`.
+
+The workshop retains shared host selection, coalesced live saves with enabled controls, 100 edits
+per UTC day with EN/ES exhaustion feedback, session name history and corrected Spanish pairs.
+D6 moon hosts remain visible without inflating creator counts. Phone first paint uses the SVG
+specimen; tapping it pets/unlocks audio without loading Three. Explicit 3D inspection preserves
+petting and the lazy audio engine remains gesture-only. Fingerprints, eight-voice allocation,
+volume, mute persistence and unlock/retry behavior are unchanged.

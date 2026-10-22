@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { cometTailPosition } from './comet-tail';
+import { BodyHistory, StarIndex, markLiveRange, RING_TILT } from './rich-runtime';
 import { useFrame } from '@react-three/fiber';
-import { Color, DynamicDrawUsage, InstancedBufferAttribute, Object3D, ShaderMaterial, Vector3 } from 'three';
+import { Color, DynamicDrawUsage, InstancedBufferAttribute, DoubleSide, FrontSide, Object3D, ShaderMaterial, Vector3 } from 'three';
 import type { InstancedMesh } from 'three';
-import { palette, petScale, planetDefaults, starPosition, worldPosition } from '@little-galaxy/shared';
+import { palette, petScale, planetDefaults, positionAt, starPosition, worldPosition } from '@little-galaxy/shared';
 import type { MoonParams, PlanetParams, RenderObject, StarParams } from '@little-galaxy/shared';
 const vertex = `
-uniform float cheap; uniform vec3 starPositions[32]; uniform vec3 starColours[32]; attribute float lightIndex;
+uniform float cheap;
 attribute vec4 surface; attribute vec4 detail; attribute vec3 tint; attribute vec3 lamp; attribute vec3 lampColour;
 varying vec3 vNormal; varying vec3 vLocal; varying vec3 vWorld; varying vec4 vSurface; varying vec4 vDetail; varying vec3 vTint; varying vec3 vLamp; varying vec3 vLampColour;
-void main(){ float relief=surface.x<.5 && cheap<.5?sin(position.x*18.)*sin(position.y*21.)*sin(position.z*15.)*surface.z*.035:0.;vec4 world=modelMatrix*instanceMatrix*vec4(position*(1.+relief),1.); vNormal=normalize(mat3(modelMatrix*instanceMatrix)*normal); vLocal=position; vWorld=world.xyz; vSurface=surface; vDetail=detail; vTint=tint;vLamp=lightIndex>=0.?starPositions[int(lightIndex)]:lamp;vLampColour=lightIndex>=0.?starColours[int(lightIndex)]:lampColour;gl_Position=projectionMatrix*viewMatrix*world; }`;
+void main(){ float relief=surface.x<.5 && cheap<.5?sin(position.x*18.)*sin(position.y*21.)*sin(position.z*15.)*surface.z*.035:0.;vec4 world=modelMatrix*instanceMatrix*vec4(position*(1.+relief),1.); vNormal=normalize(mat3(modelMatrix*instanceMatrix)*normal); vLocal=position; vWorld=world.xyz; vSurface=surface; vDetail=detail; vTint=tint;vLamp=lamp;vLampColour=lampColour;gl_Position=projectionMatrix*viewMatrix*world; }`;
 const fragment = `
 precision highp float;
 uniform float clock; uniform float cheap; uniform float layer; uniform vec3 centralLight; uniform float lightStrength;
@@ -30,15 +30,41 @@ void main(){
  if(layer>2.5){alpha=vDetail.w;base=vTint*(.45+terrain*.5);}
  gl_FragColor=vec4(base,alpha);
 }`;
-function temperature(t: number) {
-  return new Color().setRGB(1 - t * 0.55, 0.35 + t * 0.3, 0.1 + t * 0.9);
+type Point = [number, number, number];
+function temperature(t: number): Point { return [1 - t * .55, .35 + t * .3, .1 + t * .9]; }
+function body(o: RenderObject) {
+  const type = o.type ?? 'planet';
+  const planet = type === 'planet' ? planetDefaults(o.params as PlanetParams) : null;
+  const star = type === 'star' ? o.params as StarParams : null;
+  const moon = type === 'moon' ? o.params as MoonParams : null;
+  const colour = new Color(palette[planet?.palette ?? moon?.colour ?? 0]);
+  return {
+    object: o, planet, star,
+    position: [0, 0, 0] as Point,
+    origin: starPosition(type === 'star' ? o.id : o.hostOrbit?.hostId ?? o.orbit.hostId),
+    colour: star ? temperature(star.temperature) : colour.toArray() as Point,
+    ringColour: new Color(palette[planet?.atmosphere ?? 0]).toArray() as Point,
+    surface: [star ? 1 : moon ? 2 : 0, star?.temperature ?? moon?.craters ?? planet?.oceans ?? 0, planet?.mountains ?? 0, planet?.clouds ?? 0],
+    detail: [planet ? planet.atmosphere + 1 : 0, planet?.rings ?? 0, star?.corona ?? 0, 1],
+  };
 }
-interface Rock {
-  object: RenderObject;
-  at: number;
-  position: [number, number, number];
+function placeBody(b: ReturnType<typeof body>, preview: boolean, now: number, scratch: Point) {
+  const o = b.object, pos = b.position;
+  if (preview) { pos[0] = 0; pos[1] = 0; pos[2] = 0; }
+  else if (b.star) { pos[0] = b.origin[0]; pos[1] = b.origin[1]; pos[2] = b.origin[2]; }
+  else {
+    positionAt(o.orbit, now, pos);
+    if (o.hostOrbit) positionAt(o.hostOrbit, now, scratch);
+    for (let i = 0; i < 3; i++) pos[i] = b.origin[i] + (o.hostOrbit ? scratch[i] + pos[i] * .2 : pos[i]);
+  }
 }
-/** Shared programs and two sphere geometries; no per-object React meshes or orbit polylines. */
+type Body = ReturnType<typeof body>;
+interface Rock { body: Body; at: number; position: Point }
+const attributes = [['surface', 4], ['detail', 4], ['tint', 3], ['lamp', 3], ['lampColour', 3]] as const;
+const zero: Point = [0, 0, 0], central: Point = [1, .94, .76], rockColour: Point = [.37, .33, .25], tailColour: Point = [.67, .47, .18];
+const fragmentSurface = [2, .5, 0, 0], fragmentDetail = [0, 0, 0, 1], tailDetail = [0, 0, .45, 1];
+const angles = Array.from({ length: 12 }, (_, i) => ({ x: Math.cos(i * 2.399), y: Math.sin(i * 2.399), z: Math.sin(i) * .5, rotation: i * 2.399 }));
+/** Five shared instance batches with pooled frame state and bounded uploads. */
 export default function RichBodies({
   objects,
   preview = false,
@@ -58,22 +84,17 @@ export default function RichBodies({
     corona = useRef<InstancedMesh>(null),
     debris = useRef<InstancedMesh>(null);
   const instanceIds = useRef<string[][]>([[], [], [], [], []]);
-  const previous = useRef<RenderObject[]>([]),
-    rocks = useRef<Rock[]>([]),
-    births = useRef(new Map<string, number>());
+  const history = useRef(new BodyHistory()), rocks = useRef<Rock[]>([]);
+  const bodies = useMemo(() => objects.map(body), [objects]);
+  const stars = useMemo(() => new StarIndex(bodies.filter((b) => b.star).map((b) => ({ id: b.object.id, position: b.origin, colour: b.colour }))), [bodies]);
   useEffect(() => {
-    const now = Date.now(),
-      ids = new Set(objects.map((o) => o.id));
-    for (const o of previous.current)
-      if (!preview && !ids.has(o.id))
-        rocks.current.push({ object: o, at: now, position: preview ? [0, 0, 0] : worldPosition(o, now) });
-    for (const o of objects) if (!previous.current.some((p) => p.id === o.id)) births.current.set(o.id, now);
-    rocks.current = rocks.current.filter((r) => now - r.at < 120000 && !ids.has(r.object.id)).slice(-500);
-    previous.current = objects;
+    const now = Date.now(), ids = new Set(objects.map((o) => o.id));
+    const removed = history.current.diff(objects, now);
+    if (!preview) for (const o of removed) rocks.current.push({ body: body(o), at: now, position: worldPosition(o, now) });
+    rocks.current = rocks.current.filter((r) => now - r.at < 120000 && !ids.has(r.body.object.id)).slice(-500);
   }, [objects, preview]);
   useEffect(() => {
-    if (departed)
-      for (const object of departed) rocks.current.push({ object, at: Date.now(), position: [0, 0, 0] });
+    if (departed) for (const object of departed) rocks.current.push({ body: body(object), at: Date.now(), position: [0, 0, 0] });
   }, [departed]);
   const materials = useMemo(
     () =>
@@ -83,14 +104,13 @@ export default function RichBodies({
             vertexShader: vertex,
             fragmentShader: fragment,
             uniforms: {
-              starPositions: { value: Array.from({ length: 32 }, () => new Vector3()) },
-              starColours: { value: Array.from({ length: 32 }, () => new Vector3(1, 1, 1)) },
               clock: { value: 0 },
               cheap: { value: i === 1 ? 1 : 0 },
               layer: { value: layer },
               centralLight: { value: new Vector3(preview ? -3 : 0, preview ? 4 : 0, preview ? 5 : 0) },
               lightStrength: { value: 0.55 },
             },
+            side: layer === 1 ? DoubleSide : FrontSide,
             transparent: layer > 0,
             depthWrite: layer === 0,
           }),
@@ -98,184 +118,98 @@ export default function RichBodies({
     [preview],
   );
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
-  const scratch = useMemo(() => new Object3D(), []);
+  const poolRef = useRef<{
+    currentId: string; petId?: string; stretch: Point;
+    scratch: Object3D; parent: Point; fragment: Point; counts: Uint16Array; meshes: InstancedMesh[];
+    ranges: { start: number; count: number }[][];
+  } | null>(null);
+  const materialsRef = useRef(materials);
+  useEffect(() => { materialsRef.current = materials; }, [materials]);
   useEffect(() => {
-    for (const ref of [near, far, rings, corona, debris])
-      if (ref.current) {
-        ref.current.instanceMatrix.setUsage(DynamicDrawUsage);
-        for (const [name, width] of [
-          ['surface', 4],
-          ['detail', 4],
-          ['tint', 3],
-          ['lamp', 3],
-          ['lampColour', 3],
-          ['lightIndex', 1],
-        ] as const)
-          ref.current.geometry.setAttribute(
-            name,
-            new InstancedBufferAttribute(new Float32Array(8000 * width), width).setUsage(DynamicDrawUsage),
-          );
-      }
+    const pool = poolRef.current ??= {
+      currentId: '', stretch: [1, 1, 1], scratch: new Object3D(), parent: [0, 0, 0], fragment: [0, 0, 0],
+      counts: new Uint16Array(5), meshes: [],
+      ranges: Array.from({ length: 5 }, () => Array.from({ length: 6 }, () => ({ start: 0, count: 0 }))),
+    };
+    pool.meshes = [near.current!, far.current!, rings.current!, corona.current!, debris.current!];
+    for (const mesh of pool.meshes) {
+      mesh.count = 0;
+      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+      for (const [name, width] of attributes) mesh.geometry.setAttribute(name, new InstancedBufferAttribute(new Float32Array(8000 * width), width).setUsage(DynamicDrawUsage));
+    }
+  }, []);
+  const put = useMemo(() => (group: number, pos: Point, scale: number, s: number[], d: number[], colour: Point, light: Point, lc: Point, rotation = 0, alpha = 1) => {
+    const pool = poolRef.current;
+    if (!pool) return;
+    const index = pool.counts[group], mesh = pool.meshes[group];
+    if (index >= 8000 || !mesh) return;
+    pool.counts[group]++;
+    instanceIds.current[group][index] = pool.currentId;
+    const scratch = pool.scratch;
+    scratch.position.set(pos[0], pos[1], pos[2]); scratch.scale.setScalar(scale);
+    if (pool.currentId && pool.currentId === pool.petId) scratch.scale.set(scale * pool.stretch[0], scale * pool.stretch[1], scale * pool.stretch[2]);
+    scratch.rotation.set(group === 2 ? RING_TILT : .15, 0, group === 2 ? .38 : rotation);
+    scratch.updateMatrix(); mesh.setMatrixAt(index, scratch.matrix);
+    (mesh.geometry.getAttribute('surface') as InstancedBufferAttribute).setXYZW(index, s[0], s[1], s[2], s[3]);
+    (mesh.geometry.getAttribute('detail') as InstancedBufferAttribute).setXYZW(index, d[0], d[1], d[2], alpha);
+    (mesh.geometry.getAttribute('tint') as InstancedBufferAttribute).setXYZ(index, colour[0], colour[1], colour[2]);
+    (mesh.geometry.getAttribute('lamp') as InstancedBufferAttribute).setXYZ(index, light[0], light[1], light[2]);
+    (mesh.geometry.getAttribute('lampColour') as InstancedBufferAttribute).setXYZ(index, lc[0], lc[1], lc[2]);
   }, []);
   useFrame(({ camera, clock }) => {
-    const now = Date.now(),
-      counts = [0, 0, 0, 0, 0],
-      meshes = [near.current, far.current, rings.current, corona.current, debris.current];
-    if (meshes.some((m) => !m)) return;
-    const stars = objects.filter((o) => o.type === 'star');
-    for (const material of materials) {
-      material.uniforms.starPositions.value[0].set(preview ? -3 : 0, preview ? 4 : 0, preview ? 5 : 0);
-      material.uniforms.starColours.value[0].set(1, 0.94, 0.76);
-      stars.slice(0, 31).forEach((star, i) => {
-        material.uniforms.starPositions.value[i + 1].set(...starPosition(star.id));
-        const c = temperature((star.params as StarParams).temperature);
-        material.uniforms.starColours.value[i + 1].set(c.r, c.g, c.b);
-      });
-    }
-    let currentId = '';
-    function put(
-      group: number,
-      position: number[],
-      scale: number,
-      s: number[],
-      d: number[],
-      c: Color,
-      light: number[],
-      lc: Color,
-      rotation = 0,
-      lightIndex = 0,
-    ) {
-      const mesh = meshes[group]!,
-        index = counts[group];
-      if (index >= 8000) return;
-      counts[group]++;
-      instanceIds.current[group][index] = currentId;
-      scratch.position.set(position[0], position[1], position[2]);
-      const stretch = pet?.id === currentId ? petScale((now - pet.at) / 1000) : [1, 1, 1];
-      scratch.scale.set(scale * stretch[0], scale * stretch[1], scale * stretch[2]);
-      scratch.rotation.set(0.15, 0, rotation);
-      scratch.updateMatrix();
-      mesh.setMatrixAt(index, scratch.matrix);
-      for (const [name, values] of [
-        ['surface', s],
-        ['detail', d],
-        ['tint', c.toArray()],
-        ['lamp', light],
-        ['lampColour', lc.toArray()],
-        ['lightIndex', [lightIndex]],
-      ] as const) {
-        const a = mesh.geometry.getAttribute(name) as InstancedBufferAttribute;
-        a.array.set(values, index * a.itemSize);
+    const pool = poolRef.current, materials = materialsRef.current;
+    if (!pool) return;
+    const now = Date.now();
+    pool.counts.fill(0);
+    pool.petId = pet?.id;
+    if (pet) petScale((now - pet.at) / 1000, pool.stretch);
+    if (!pool.meshes.length) return;
+    history.current.prune(now);
+    for (const b of bodies) {
+      const o = b.object, pos = b.position;
+      pool.currentId = o.id;
+      placeBody(b, preview, now, pool.parent);
+      const lamp = stars.nearest(pos, o.id), light = lamp?.position ?? (preview ? materials[0].uniforms.centralLight.value.toArray(pool.parent) : zero), lc = lamp?.colour ?? central;
+      const birth = history.current.births.get(o.id), age = birth === undefined ? 2 : (now - birth) / 1000;
+      const radius = o.params.size * (preview ? 3 : 1) * Math.min(1, .1 + age / 1.2);
+      if (age < 1.2) for (const a of angles) {
+        const spread = (1 - age / 1.2) * (preview ? 2 : 1);
+        pool.fragment[0] = pos[0] + a.x * spread; pool.fragment[1] = pos[1] + a.y * spread; pool.fragment[2] = pos[2] + a.z * spread;
+        put(4, pool.fragment, o.params.size * .16, fragmentSurface, fragmentDetail, b.colour, light, lc, 0, 1 - age / 1.2);
       }
-    }
-    for (const o of objects) {
-      currentId = o.id;
-      const pos = preview ? [0, 0, 0] : worldPosition(o, now),
-        type = o.type ?? 'planet';
-      const p = o.params,
-        planet = type === 'planet' ? planetDefaults(p as PlanetParams) : null,
-        star = type === 'star' ? (p as StarParams) : null,
-        moon = type === 'moon' ? (p as MoonParams) : null;
-      const colour = star
-        ? temperature(star.temperature)
-        : new Color(palette[planet?.palette ?? moon?.colour ?? 0]);
-      const s = [
-        star ? 1 : moon ? 2 : 0,
-        star?.temperature ?? moon?.craters ?? planet?.oceans ?? 0,
-        planet?.mountains ?? 0,
-        planet?.clouds ?? 0,
-      ];
-      const d = [planet ? planet.atmosphere + 1 : 0, planet?.rings ?? 0, star?.corona ?? 0, 1];
-      let light: [number, number, number] = preview ? [-3, 4, 5] : [0, 0, 0],
-        lc = new Color('#fff0c3'),
-        dist = Infinity,
-        lightIndex = 0;
-      for (const host of stars) {
-        const hp = starPosition(host.id),
-          r = Math.hypot(...hp.map((v, i) => v - pos[i]));
-        if (r < dist && host.id !== o.id) {
-          dist = r;
-          light = hp;
-          lc = temperature((host.params as StarParams).temperature);
-          const index = stars.indexOf(host);
-          lightIndex = index < 31 ? index + 1 : -1;
-        }
-      }
-      const age = (now - (births.current.get(o.id) ?? now)) / 1000,
-        assembly = Math.min(1, 0.1 + age / 1.2),
-        radius = p.size * (preview ? 3 : 1) * assembly;
-      if (age < 1.2) {
-        for (let i = 0; i < 12; i++) {
-          const angle = i * 2.399,
-            spread = (1 - age / 1.2) * (preview ? 2 : 1);
-          put(
-            4,
-            [
-              pos[0] + Math.cos(angle) * spread,
-              pos[1] + Math.sin(angle) * spread,
-              pos[2] + Math.sin(i) * spread * 0.5,
-            ],
-            p.size * 0.16,
-            [2, 0.5, 0, 0],
-            [0, 0, 0, 1 - age / 1.2],
-            colour,
-            light,
-            lc,
-          );
-        }
-      }
-      const group = preview || camera.position.distanceTo(new Vector3(...pos)) < 28 ? 0 : 1;
-      put(group, pos, radius, s, d, colour, light, lc, clock.elapsedTime * 0.04, lightIndex);
-      if (planet?.rings) put(2, pos, radius * 1.9, s, d, new Color(palette[planet.atmosphere]), light, lc);
+      const distance = (camera.position.x - pos[0]) ** 2 + (camera.position.y - pos[1]) ** 2 + (camera.position.z - pos[2]) ** 2;
+      put(preview || distance < 784 ? 0 : 1, pos, radius, b.surface, b.detail, b.colour, light, lc, clock.elapsedTime * .04);
+      if (b.planet?.rings) put(2, pos, radius * 1.9, b.surface, b.detail, b.ringColour, light, lc);
       if (o.orbit.isComet && !preview) {
-        for (let i = 1; i <= 3; i++)
-          put(
-            3,
-            cometTailPosition(o, now, radius * i * 0.8),
-            radius * (1 - i * 0.16),
-            s,
-            [0, 0, 0.45, 1],
-            new Color('#d5b675'),
-            light,
-            lc,
-          );
+        const dx = pos[0] - b.origin[0], dy = pos[1] - b.origin[1], dz = pos[2] - b.origin[2], length = Math.hypot(dx, dy, dz) || 1;
+        for (let i = 1; i <= 3; i++) {
+          const d = radius * i * .8 / length;
+          pool.fragment[0] = pos[0] + dx * d; pool.fragment[1] = pos[1] + dy * d; pool.fragment[2] = pos[2] + dz * d;
+          put(3, pool.fragment, radius * (1 - i * .16), b.surface, tailDetail, tailColour, light, lc);
+        }
       }
-      if (star?.corona) put(3, pos, radius * (1.2 + star.corona * 0.7), s, d, colour, light, lc);
+      if (b.star?.corona) put(3, pos, radius * (1.2 + b.star.corona * .7), b.surface, b.detail, b.colour, light, lc);
     }
-    currentId = '';
-    rocks.current = rocks.current.filter((r) => now - r.at < 120000);
+    pool.currentId = '';
+    // Compact in place; no filter/temporary arrays in the frame loop.
+    let live = 0;
     for (const r of rocks.current) {
-      const age = (now - r.at) / 1000,
-        fade = 1 - age / 120,
-        colour = new Color('#a49b87');
-      for (let i = 0; i < 12; i++) {
-        const angle = i * 2.399,
-          spread = Math.min(1, age / 1.2) * (preview ? 2 : 1);
-        put(
-          4,
-          [
-            r.position[0] + Math.cos(angle) * spread,
-            r.position[1] + Math.sin(angle) * spread,
-            r.position[2] + Math.sin(i) * spread * 0.5,
-          ],
-          r.object.params.size * 0.18,
-          [2, 0.5, 0, 0],
-          [0, 0, 0, fade],
-          colour,
-          [0, 0, 0],
-          colour,
-          angle + age * 0.1,
-        );
+      if (now - r.at >= 120000) continue;
+      rocks.current[live++] = r;
+      const age = (now - r.at) / 1000, spread = Math.min(1, age / 1.2) * (preview ? 2 : 1);
+      for (const a of angles) {
+        pool.fragment[0] = r.position[0] + a.x * spread; pool.fragment[1] = r.position[1] + a.y * spread; pool.fragment[2] = r.position[2] + a.z * spread;
+        put(4, pool.fragment, r.body.object.params.size * .18, fragmentSurface, fragmentDetail, rockColour, zero, rockColour, a.rotation + age * .1, 1 - age / 120);
       }
     }
-    meshes.forEach((mesh, i) => {
-      if (!mesh) return;
-      mesh.count = counts[i];
-      mesh.instanceMatrix.needsUpdate = true;
-      for (const name of ['surface', 'detail', 'tint', 'lamp', 'lampColour', 'lightIndex'])
-        (mesh.geometry.getAttribute(name) as InstancedBufferAttribute).needsUpdate = true;
+    rocks.current.length = live;
+    for (let i = 0; i < pool.meshes.length; i++) {
+      const mesh = pool.meshes[i], count = pool.counts[i];
+      mesh.count = count;
+      markLiveRange(mesh.instanceMatrix, count, pool.ranges[i][0]);
+      for (let j = 0; j < attributes.length; j++) markLiveRange(mesh.geometry.getAttribute(attributes[j][0]), count, pool.ranges[i][j + 1]);
       materials[i].uniforms.clock.value = clock.elapsedTime;
-    });
+    }
   });
   return (
     <>

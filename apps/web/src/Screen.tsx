@@ -23,6 +23,7 @@ export default function Screen({ language }: { language: Language }) {
     if (id !== focused) { setFocused(id); return; }
     setPet({ id, at: Date.now() }); sound.pet(id);
   }
+  const debug = import.meta.env.DEV || new URLSearchParams(location.search).get('debug') === '1';
   const [fps, setFps] = useState(0);
   const [known, setKnown] = useState(synthetic > 0);
   const [state, setState] = useState<'loading' | 'live' | 'failed'>('loading');
@@ -83,15 +84,15 @@ export default function Screen({ language }: { language: Language }) {
           }
         >
           <Suspense fallback={<p className="scene-message">{text.loading}</p>}>
-            <Scene objects={objects} label={text.scene} unavailable={text.unavailable} onFps={setFps} focused={focusObject?.id} pet={pet} onPick={pick} onSoundCandidates={sound.update} />
+            <Scene objects={objects} label={text.scene} unavailable={text.unavailable} onFps={debug ? setFps : undefined} focused={focusObject?.id} pet={pet} onPick={pick} onSoundCandidates={sound.update} />
           </Suspense>
         </ErrorBoundary>
-        <output className="fps-reading" data-fps={fps.toFixed(1)}>
+        {debug && <output className="fps-reading" data-fps={fps.toFixed(1)}>
           {fps.toFixed(1)} fps{synthetic > 0 ? ` · ${objects.length} synthetic` : ''}
-        </output>
+        </output>}
         <div className="screen-reading" aria-live="polite">
           <span className="creator-count">
-            {known ? objects.filter((object) => !object.unclaimed).length : '—'}
+            {known ? objects.filter((object) => !object.unclaimed && !object.moonHost).length : '—'}
           </span>{' '}
           {text.creators}
         </div>

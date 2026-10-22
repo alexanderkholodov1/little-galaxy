@@ -1,5 +1,8 @@
 # Galaxy review fixes
 
+Historical G v0.2.0 handoff. The [G v0.3.0 review fixes](confirmed-review-fixes.md) and
+[D6 contract](d6-and-write-budgets.md) supersede the host read surface and camera fit described below.
+
 ## Read surface
 
 Only `get snapshots/live` is public; it omits owner IDs. `config/live` requires a

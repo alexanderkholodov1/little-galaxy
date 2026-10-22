@@ -60,8 +60,9 @@ export function allocateVoices(candidates: SoundCandidate[], previous: string[],
 }
 
 /** Damped spring, volume-preserving stretch. Elapsed seconds; settled after ~1.5 s. */
-export function petScale(elapsed: number): [number, number, number] {
-  if (elapsed < 0 || elapsed > 1.5) return [1, 1, 1];
-  const y = 1 - 0.22 * Math.exp(-elapsed * 4.5) * Math.cos(elapsed * 17);
-  return [1 / Math.sqrt(y), y, 1 / Math.sqrt(y)];
+export function petScale(elapsed: number, out: [number, number, number] = [1, 1, 1]): [number, number, number] {
+  const y = elapsed < 0 || elapsed > 1.5 ? 1 : 1 - 0.22 * Math.exp(-elapsed * 4.5) * Math.cos(elapsed * 17);
+  out[0] = out[2] = 1 / Math.sqrt(y);
+  out[1] = y;
+  return out;
 }

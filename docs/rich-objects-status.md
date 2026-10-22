@@ -1,5 +1,9 @@
 # G v0.3.0 — Rich objects & hangar
 
+Historical implementation handoff. The [confirmed review fixes](confirmed-review-fixes.md) supersede
+the renderer, D6 visibility, edit-budget, phone-loading and verification details below.
+See [D6 and write budgets](d6-and-write-budgets.md) for the current contract.
+
 Implemented locally on 2026-10-22, branch `v0.3.0-objects`, on G v0.2.0.
 This is a local handoff, not deployed-preview, physical-phone or booth-laptop acceptance.
 No live services, credentials, deployments, pushes, PRs or tags were used.
