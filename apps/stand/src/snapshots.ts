@@ -12,12 +12,16 @@ export function compactSnapshot(documents: { id: string; data(): unknown }[]): O
   if (Buffer.byteLength(JSON.stringify(snapshot)) > 900_000) throw new Error('Snapshot needs sharding before the next write');
   return snapshot;
 }
-/** Keeps one active-object listener; avoids rereading the galaxy every thirty seconds. */
+/** Publish only a healthy listener's state; reconnect with bounded exponential backoff. */
 export function startSnapshotWriter(database: Firestore, onError: () => void, interval = 30_000) {
   let latest: Omit<LiveSnapshot, 'at'> | undefined;
   let pending: Promise<void> | undefined;
   let stopped = false;
+  let generation = 0;
+  let failures = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
+  let retry: ReturnType<typeof setTimeout> | undefined;
+  let unsubscribe: (() => void) | undefined;
   async function flush() {
     if (stopped || !latest || pending) return;
     const state = latest;
@@ -25,14 +29,33 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
     await pending;
     pending = undefined;
   }
-  const unsubscribe = database.collection('objects').where('status', '==', 'active').onSnapshot((snapshot) => {
-    try { latest = compactSnapshot(snapshot.docs); } catch { onError(); return; }
-    if (!timer && !stopped) { void flush(); timer = setInterval(() => { void flush(); }, interval); }
-  }, onError);
+  function connect() {
+    if (stopped) return;
+    const current = ++generation;
+    const failed = () => {
+      if (stopped || current !== generation) return;
+      generation++; latest = undefined;
+      if (timer) clearInterval(timer);
+      timer = undefined;
+      unsubscribe?.(); unsubscribe = undefined;
+      onError();
+      retry = setTimeout(connect, Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5)));
+    };
+    try {
+      unsubscribe = database.collection('objects').where('status', '==', 'active').onSnapshot((snapshot) => {
+        if (stopped || current !== generation) return;
+        try { latest = compactSnapshot(snapshot.docs); } catch { failed(); return; }
+        failures = 0;
+        if (!timer) { void flush(); timer = setInterval(() => { void flush(); }, interval); }
+      }, failed);
+    } catch { failed(); }
+  }
+  connect();
   return async () => {
-    stopped = true;
+    stopped = true; generation++; latest = undefined;
     if (timer) clearInterval(timer);
-    unsubscribe();
+    if (retry) clearTimeout(retry);
+    unsubscribe?.();
     await pending;
   };
 }
