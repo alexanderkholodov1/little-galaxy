@@ -17,12 +17,12 @@ function makeLayer(objects: RenderObject[], time: number) {
     }
     return { geometry, attribute, moons, point: [0, 0, 0] as [number, number, number] };
 }
-export default function OrbitTrails({ objects }: { objects: RenderObject[] }) {
+export default function OrbitTrails({ objects, historicalAt }: { objects: RenderObject[]; historicalAt?: number }) {
   const layer = useMemo(() => makeLayer(objects, 0), [objects]);
   const layerRef = useRef(layer);
   useEffect(() => { layerRef.current = layer; }, [layer]);
   useEffect(() => () => layer.geometry.dispose(), [layer]);
-  useFrame(() => advanceTrails(layerRef.current, Date.now()));
+  useFrame(() => advanceTrails(layerRef.current, historicalAt ?? Date.now()));
   return <lineSegments geometry={layer.geometry} frustumCulled={false}><lineBasicMaterial color="#7890aa" transparent opacity={.075} depthWrite={false}/></lineSegments>;
 }
 

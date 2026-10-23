@@ -6,12 +6,13 @@ import { loadProfile, profileHref } from './profile';
 import type { Profile } from './profile';
 import { copy } from './copy';
 import { applyTheme, resolveTheme, savedTheme, themeQuery } from './theme';
-import ReferenceSky from './ReferenceSky';
 import SessionLine from './SessionLine';
 import Create from './Create';
+const ObjectPage = lazy(() => import('./ObjectPage'));
+const Home = lazy(() => import('./Home'));
 const Screen = lazy(() => import('./Screen'));
 
-type Page = 'home' | 'talk' | 'object' | 'missing';
+type Page = 'talk' | 'missing';
 
 function PageContent({ page, text }: { page: Page; text: typeof copy.en | typeof copy.es }) {
   return (
@@ -20,14 +21,6 @@ function PageContent({ page, text }: { page: Page; text: typeof copy.en | typeof
         <h1>{text[`${page}Title`]}</h1>
         <p className="intro">{text[`${page}Text`]}</p>
       </section>
-      {page === 'home' && (
-        <figure className="sky-chart">
-          <div className="sky-view">
-            <ReferenceSky unavailable={text.unavailable} label={text.chart} loading={text.loadingSky} retry={text.retrySky} />
-          </div>
-          <figcaption><span className="chart-cross" aria-hidden="true">+</span>{text.chartNote}</figcaption>
-        </figure>
-      )}
       {page === 'talk' && <SessionLine text={text} />}
     </>
   );
@@ -108,11 +101,11 @@ export default function App() {
       </nav>
       <main id="content">
         <Routes>
-          <Route index element={<PageContent page="home" text={text} />} />
+          <Route index element={<Suspense fallback={<p>{text.loadingSky}</p>}><Home language={language}/></Suspense>} />
           <Route path="screen" element={<Suspense fallback={<p>{text.loadingSky}</p>}><Screen language={language} /></Suspense>} />
           <Route path="create" element={<Create language={language} />} />
           <Route path="talk" element={<PageContent page="talk" text={text} />} />
-          <Route path="o/:id" element={<PageContent page="object" text={text} />} />
+          <Route path="o/:id" element={<Suspense fallback={<p>{text.loadingSky}</p>}><ObjectPage language={language}/></Suspense>} />
           <Route path="*" element={<PageContent page="missing" text={text} />} />
         </Routes>
       </main>

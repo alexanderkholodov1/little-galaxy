@@ -71,8 +71,11 @@ export default function RichBodies({
   departed,
   pet,
   onPick,
+  historicalAt, births,
 }: {
   objects: RenderObject[];
+  historicalAt?: number;
+  births?: Map<string, number>;
   preview?: boolean;
   departed?: RenderObject[];
   pet?: { id: string; at: number };
@@ -88,14 +91,16 @@ export default function RichBodies({
   const bodies = useMemo(() => objects.map(body), [objects]);
   const stars = useMemo(() => new StarIndex(bodies.filter((b) => b.star).map((b) => ({ id: b.object.id, position: b.origin, colour: b.colour }))), [bodies]);
   useEffect(() => {
+    if (historicalAt !== undefined) return;
     const now = Date.now(), ids = new Set(objects.map((o) => o.id));
     const removed = history.current.diff(objects, now);
     if (!preview) for (const o of removed) rocks.current.push({ body: body(o), at: now, position: worldPosition(o, now) });
     rocks.current = rocks.current.filter((r) => now - r.at < 120000 && !ids.has(r.body.object.id)).slice(-500);
-  }, [objects, preview]);
+  }, [objects, preview, historicalAt]);
   useEffect(() => {
-    if (departed) for (const object of departed) rocks.current.push({ body: body(object), at: Date.now(), position: [0, 0, 0] });
-  }, [departed]);
+    if (historicalAt !== undefined) rocks.current = [];
+    if (departed) for (const object of departed) rocks.current.push({ body: body(object), at: historicalAt !== undefined ? object.updatedAt ?? historicalAt : Date.now(), position: historicalAt !== undefined ? worldPosition(object, object.updatedAt ?? historicalAt) : [0, 0, 0] });
+  }, [departed, historicalAt]);
   const materials = useMemo(
     () =>
       [0, 0, 1, 2, 3].map(
@@ -159,7 +164,7 @@ export default function RichBodies({
   useFrame(({ camera, clock }) => {
     const pool = poolRef.current, materials = materialsRef.current;
     if (!pool) return;
-    const now = Date.now();
+    const now = historicalAt ?? Date.now();
     pool.counts.fill(0);
     pool.petId = pet?.id;
     if (pet) petScale((now - pet.at) / 1000, pool.stretch);
@@ -170,7 +175,7 @@ export default function RichBodies({
       pool.currentId = o.id;
       placeBody(b, preview, now, pool.parent);
       const lamp = stars.nearest(pos, o.id), light = lamp?.position ?? (preview ? materials[0].uniforms.centralLight.value.toArray(pool.parent) : zero), lc = lamp?.colour ?? central;
-      const birth = history.current.births.get(o.id), age = birth === undefined ? 2 : (now - birth) / 1000;
+      const birth = historicalAt !== undefined ? births?.get(o.id) : history.current.births.get(o.id), age = birth === undefined ? 2 : (now - birth) / 1000;
       const radius = o.params.size * (preview ? 3 : 1) * Math.min(1, .1 + age / 1.2);
       if (age < 1.2) for (const a of angles) {
         const spread = (1 - age / 1.2) * (preview ? 2 : 1);
@@ -178,7 +183,7 @@ export default function RichBodies({
         put(4, pool.fragment, o.params.size * .16, fragmentSurface, fragmentDetail, b.colour, light, lc, 0, 1 - age / 1.2);
       }
       const distance = (camera.position.x - pos[0]) ** 2 + (camera.position.y - pos[1]) ** 2 + (camera.position.z - pos[2]) ** 2;
-      put(preview || distance < 784 ? 0 : 1, pos, radius, b.surface, b.detail, b.colour, light, lc, clock.elapsedTime * .04);
+      put(preview || distance < 784 ? 0 : 1, pos, radius, b.surface, b.detail, b.colour, light, lc, (historicalAt !== undefined ? now / 1000 : clock.elapsedTime) * .04);
       if (b.planet?.rings) put(2, pos, radius * 1.9, b.surface, b.detail, b.ringColour, light, lc);
       if (o.orbit.isComet && !preview) {
         const dx = pos[0] - b.origin[0], dy = pos[1] - b.origin[1], dz = pos[2] - b.origin[2], length = Math.hypot(dx, dy, dz) || 1;
@@ -211,7 +216,7 @@ export default function RichBodies({
       mesh.computeBoundingSphere();
       markLiveRange(mesh.instanceMatrix, count, pool.ranges[i][0]);
       for (let j = 0; j < attributes.length; j++) markLiveRange(mesh.geometry.getAttribute(attributes[j][0]), count, pool.ranges[i][j + 1]);
-      materials[i].uniforms.clock.value = clock.elapsedTime;
+      materials[i].uniforms.clock.value = historicalAt !== undefined ? now / 1000 : clock.elapsedTime;
     }
   });
   return (

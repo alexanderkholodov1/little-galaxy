@@ -11,6 +11,7 @@ import { useLiveConfig } from './use-live-config';
 import { listenRecentEvents } from './interaction-data';
 import { syntheticObjects } from '@little-galaxy/shared';
 import { listenActive } from './galaxy-data';
+vi.mock('./Timelapse', () => ({ default: ({ join }: { join?: import('react').ReactNode }) => <div className="memory-log">Season replay{join}</div> }));
 vi.mock('./firebase', () => ({ firestore: {} }));
 vi.mock('./galaxy-data', () => ({ listenActive: vi.fn() }));
 vi.mock('./GalaxyScene', () => ({ default: ({ focused, cinematic }: { focused?: string; cinematic?: boolean }) => <canvas aria-label="Live galaxy" data-focused={focused} data-cinematic={String(cinematic)}/> }));
@@ -91,6 +92,7 @@ it('follows live scenes, spotlights only new launches, returns to the chart and 
     for (const scene of ['bigQr', 'timelapse', 'galaxy'] as const) {
       vi.mocked(useLiveConfig).mockReturnValue({ ...live, config: { ...live.config, screenScene: scene } });
       await act(async () => root.render(<Screen language="es"/>));
+      if (scene === 'timelapse') { expect(container.querySelector('.memory-log')).not.toBeNull(); expect(container.querySelector('.replay-join svg')).not.toBeNull(); continue; }
       if (scene !== 'galaxy') expect(container.querySelector('.galaxy-field')?.getAttribute('data-scene')).toBe(scene);
       expect(container.querySelector('.join-qr svg')).not.toBeNull();
     }

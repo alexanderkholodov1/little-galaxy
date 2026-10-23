@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { messages } from '@little-galaxy/shared';
 import type { Language, MessageKey } from '@little-galaxy/shared';
 import type { SkyEffect } from './screen-effects';
-export default function SkyEffects({ effects, language }: { effects: SkyEffect[]; language: Language }) {
+export default function SkyEffects({ effects, language, now: historicalAt }: { effects: SkyEffect[]; language: Language; now?: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const element = canvas.current;
@@ -28,7 +28,7 @@ export default function SkyEffects({ effects, language }: { effects: SkyEffect[]
       const width = element!.clientWidth, height = element!.clientHeight;
       if (element!.width !== width || element!.height !== height) { element!.width = width; element!.height = height; }
       context!.clearRect(0, 0, width, height);
-      const now = Date.now();
+      const now = historicalAt ?? Date.now();
       for (const effect of effects) {
         const age = (now - effect.at) / 1000;
         if (age < 0 || age > 6) continue;
@@ -63,7 +63,7 @@ export default function SkyEffects({ effects, language }: { effects: SkyEffect[]
     }
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [effects]);
+  }, [effects, historicalAt]);
   const message = [...effects].reverse().find((e) => e.type === 'shootingStar');
   return <div className="sky-effects" data-effects={effects.map((e) => e.type).join(' ')} data-wave-strength={effects.find((e) => e.type === 'wave')?.strength ?? 0}>
     <canvas ref={canvas} aria-hidden="true"/>

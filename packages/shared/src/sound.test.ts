@@ -73,6 +73,12 @@ describe('voice allocator', () => {
     expect(allocateVoices([{ id: 'bad', visible: true, distance: NaN }], previous, 0)).toEqual([]);
     expect(allocateVoices([], previous, 0)).toEqual([]);
   });
+  it('breaks ties deterministically using code-point comparison', () => {
+    const c1 = { id: 'S-star', visible: true, distance: 10 };
+    const c2 = { id: 'i-star', visible: true, distance: 10 };
+    expect(allocateVoices([c2, c1], [], 0)).toEqual(['S-star', 'i-star']);
+    expect(allocateVoices([c1, c2], [], 0)).toEqual(['S-star', 'i-star']);
+  });
 });
 it('pet spring squashes tenderly, overshoots and settles without negative scale or volume change', () => {
   expect(petScale(0)[1]).toBeLessThan(1);

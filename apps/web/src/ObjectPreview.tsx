@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { useEffect, useMemo, useRef } from 'react';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import type { PlanetParams, RenderObject, StarParams } from '@little-galaxy/shared';
 import { orbitFromVelocity } from '@little-galaxy/shared';
 import type { Draft } from './galaxy-data';
@@ -26,14 +26,29 @@ function FitSpecimen({ draft }: { draft: Draft }) {
   }, [draft, camera, size]);
   return null;
 }
+function Capture({ ready }: { ready: (canvas: HTMLCanvasElement) => void }) {
+  const frames = useRef(0);
+  useFrame(({ gl, scene, camera }) => {
+    gl.render(scene, camera);
+    if (++frames.current === 4) {
+      const copy = document.createElement('canvas');
+      copy.width = gl.domElement.width; copy.height = gl.domElement.height;
+      copy.getContext('2d')!.drawImage(gl.domElement, 0, 0);
+      ready(copy);
+    }
+  }, 1);
+  return null;
+}
 export default function ObjectPreview({
   draft,
   identity,
   departed,
   pet,
   onPet,
+  onCapture,
 }: {
   draft: Draft;
+  onCapture?: (canvas: HTMLCanvasElement) => void;
   identity: string;
   departed: RenderObject[];
   pet?: { id: string; at: number };
@@ -52,8 +67,9 @@ export default function ObjectPreview({
     [draft, identity],
   );
   return (
-    <Canvas dpr={1} camera={{ position: [0, 0, 5], fov: 48 }}>
+    <Canvas dpr={1} gl={{ preserveDrawingBuffer: !!onCapture }} camera={{ position: [0, 0, 5], fov: 48 }}>
       <FitSpecimen draft={draft} />
+      {onCapture && <Capture ready={onCapture}/>}
       <color attach="background" args={['#050c16']} />
       <RichBodies objects={objects} departed={departed} preview pet={pet} onPick={onPet} />
     </Canvas>

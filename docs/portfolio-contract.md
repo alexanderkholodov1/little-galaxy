@@ -84,3 +84,13 @@ personal information is substituted.
 
 Implementation evidence: `apps/web/src/profile.ts`, `profile.test.ts`,
 `App.test.tsx`, and `styles.css`.
+
+
+## Memory / P v1.1.0
+
+G v0.6.0 adds the [format 1 season contract](memory-format.md). Serve the complete exported JSON
+directory at `/galaxy/season/bad-2026/` and retain the SPA rewrite for `/galaxy/o/**`. A complete
+static archive makes home replay and permanent pages work without Firestore or anonymous sign-in.
+The ordinary fair home reads one aggregate snapshot; opening replay reads the compact archive.
+Do not place Firebase credentials or owner UIDs in the public export. The emulator-only rehearsal
+CLI exports files without closing the season, modifying the portfolio or publishing anything.

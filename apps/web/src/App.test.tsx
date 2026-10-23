@@ -8,6 +8,7 @@ import { startAnonymousSession } from './firebase';
 
 vi.mock('./firebase', () => ({ firestore: null, anonymousUid: vi.fn(), sessionConfigured: true, startAnonymousSession: vi.fn() }));
 vi.mock('./GalaxyScene', () => ({ default: () => <canvas role="img" aria-label="Live galaxy" /> }));
+vi.mock('./season-data', () => ({ loadHome: vi.fn().mockResolvedValue({ frozen: true }), loadMemoryObject: vi.fn().mockResolvedValue(null), loadSeason: vi.fn().mockResolvedValue({ manifest: { start: 0, end: 0, eventCount: 0 }, chunks: [], frozen: true }) }));
 vi.mock('./Scene', () => ({ default: () => <canvas role="img" aria-label="Reference sky" /> }));
 
 let root: Root;
@@ -39,15 +40,16 @@ async function render(path: string) {
   await act(async () => {
     root.render(<BrowserRouter basename="/galaxy"><App /></BrowserRouter>);
     if (path.startsWith('/galaxy/screen')) await import('./Screen');
+    await import('./Home'); await import('./Timelapse'); await import('./ObjectPage');
   });
 }
 
 it.each([
-  ['/galaxy', 'A shared sky.', false],
+  ['/galaxy', 'The memory of this sky', false],
   ['/galaxy/screen', 'The observation screen.', false],
   ['/galaxy/create', 'Your place in the sky.', true],
   ['/galaxy/talk', 'A future conversation.', true],
-  ['/galaxy/o/example', 'An object’s story.', false],
+  ['/galaxy/o/example', 'Object not found', false],
   ['/galaxy/unknown', 'Outside the chart.', false],
 ])('renders %s and uses a session only on writing routes', async (path, title, session) => {
   await render(path as string);
@@ -130,13 +132,13 @@ it('removes the session and its online handler when leaving a writing route', as
 
 it('keeps scene messages outside image semantics', async () => {
   await render('/galaxy/');
-  expect(container.querySelector('.sky-view')?.getAttribute('role')).toBeNull();
-  expect(container.querySelector('figure')?.getAttribute('aria-label')).toBeNull();
+  expect(container.querySelector('.memory-log')?.getAttribute('role')).toBeNull();
+  expect(container.querySelector('[role="img"] [role="status"]')).toBeNull();
 });
 
 it.each([
-  ['en', 'Make a planet on your phone.'], ['es', 'Crea un planeta en tu teléfono.'],
+  ['en', 'The memory of this sky'], ['es', 'La memoria de este cielo'],
 ])('describes the current home experience in %s', async (language, sentence) => {
   await render(`/galaxy/?lang=${language}`);
-  expect(container.querySelector('.intro')?.textContent).toContain(sentence);
+  expect(container.querySelector('h1')?.textContent).toContain(sentence);
 });

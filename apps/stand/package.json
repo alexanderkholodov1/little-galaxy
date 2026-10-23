@@ -2,14 +2,15 @@
   "name": "@little-galaxy/stand",
   "private": true,
   "type": "module",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "scripts": {
     "start": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --pool=threads",
-    "control": "tsx src/index.ts control"
+    "control": "tsx src/index.ts control",
+    "freeze-season": "tsx src/index.ts freeze-season"
   },
   "dependencies": {
     "@little-galaxy/shared": "workspace:*",
