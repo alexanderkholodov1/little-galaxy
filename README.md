@@ -1,4 +1,14 @@
-# Little Galaxy · G v0.7.0
+# Little Galaxy · G v1.0.0
+
+Fair-ready milestone: 100-phone concurrent load testing against Firestore/Auth emulators verifying
+Spark free-tier quotas (50k reads, 20k writes/day) with quota capacity report in [quota report](docs/QUOTA-REPORT.md);
+automated failure-mode drills validating offline rendering, queued offline write sync, stand crash recovery,
+quota pressure kill switches, and hosting rollback verification in [drills report](docs/DRILLS.md); complete
+fair-day operational runbook with Spanish quick summary, hardware layout, startup order, pre-opening checklist,
+quota telemetry, stand CLI controls, failure responses, and dry-run evidence in [fair-day runbook](docs/RUNBOOK.md);
+booth screen TV kiosk mode at `/galaxy/screen` (no site header, one-click and 'F' key browser fullscreen,
+cursor auto-hidden when idle); unlisted Talk assistant stub (retained for CASPIAN); and Playwright 1080p screen
+backup recording script (`scripts/record-screen.mjs`) with documented OBS backup rehearsal steps.
 
 Live-safe deploys, chunk-load error recovery with single-reload loop guards, continuous state
 restoration across reloads (phone draft, workshop step, active object, hangar view; screen camera
@@ -61,6 +71,9 @@ pnpm run lint
 pnpm run test
 pnpm run test:live-safety
 pnpm run test:rules
+pnpm run test:drills
+pnpm run test:load
+node scripts/record-screen.mjs http://127.0.0.1:5173/galaxy/screen screen-backup.webm 10000
 pnpm run build:rehearsal
 pnpm run privacy:rehearsal
 ```
@@ -185,4 +198,5 @@ Preview and real-phone verification are required before claiming deployed behavi
 after reload. Active-object edits appear live; launching another object archives the previous one, and
 hangar relaunches reassemble it. Both count toward the rules-enforced five launches/relaunches per UTC day.
 Moons can orbit your own planets or operator-seeded unclaimed planets; details are in the v0.3.0 handoff.
-Live-safe deploy resilience, chunk-load recovery, and automated verification belong to G v0.7.0. Two real phones and deployed preview acceptance remain open.
+Live-safe deploy resilience, chunk-load recovery, and automated verification belong to G v0.7.0.
+Fair-day operational readiness, 100-phone load testing, failure-mode drills, runbook, booth screen kiosk presentation, and backup video recording belong to G v1.0.0. Physical booth laptop rehearsal and real-phone acceptance remain captain work.

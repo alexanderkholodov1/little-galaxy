@@ -51,7 +51,7 @@ export function useVersionWatcher({
 } = {}) {
   const [polledUpdate, setPolledUpdate] = useState(false);
   const current = useMemo(() => ({
-    version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.7.0',
+    version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0',
     commit: typeof __APP_COMMIT__ !== 'undefined' ? __APP_COMMIT__ : null,
   }), []);
 
