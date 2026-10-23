@@ -243,7 +243,8 @@ pnpm run deploy-local --galaxy ../galaxy-v1.0.0
 Read-only hosted smoke from Galaxy:
 
 ```sh
-BASE_URL=https://<preview-domain> pnpm exec playwright test --config tests/ui/playwright.config.js
+export BASE_URL='https://<preview-domain>' # replace with the approved preview URL
+pnpm exec playwright test --config tests/ui/playwright.config.js
 ```
 
 ---
@@ -358,3 +359,21 @@ pnpm --filter @little-galaxy/stand control scene galaxy
 ```
 
 Operator acceptance still required: open the screen using the laptop's actual LAN IP, scan its QR on a separate phone, launch, and record the observed TV receipt time. No campus Wi-Fi, physical phone/TV, Hosting rollback or production static publication is certified by this recipe. Stop E1, E2 and E0 with Ctrl+C after rehearsal. A screen opened on loopback produces a QR inaccessible from a separate phone.
+
+
+### Local command and recorder probe (2026-10-23)
+
+A clean-shell probe started the exact `pnpm run emulators:lan` package script, then ran the
+E1 seed/stand, E2 web and E3 control commands above with their own exported environments.
+A Chromium phone-sized browser joined through the laptop LAN address, launched, and showed
+“In orbit”. This is emulator/browser evidence, not a physical-phone receipt-time measurement.
+
+The recorder produced a three-second, 1920×1080 local probe at:
+`~/bad/work/fix3-g-v1.0.0/recordings/galaxy-rehearsal-2026-10-23T10-21-34-469Z.webm`.
+Chromium decoded its duration and dimensions. Its first and last frames were independently
+decoded with Playwright's bundled ffmpeg and visually inspected: full-frame dark kiosk,
+visitor planet at different orbital positions, LAN-origin QR, no startup/loading frames or
+gray capture padding. The retained PNGs are `decoded-first.png` and `decoded-last.png` in
+that scratch directory. This short probe is not the booth's long rehearsal backup. Actual
+campus/production backup recording, physical playback and QR scanning remain operator steps.
+All probe-started browsers, stand/web processes and emulators were stopped.

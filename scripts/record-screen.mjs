@@ -86,7 +86,7 @@ export const MIN_USABLE_BYTES = 50_000;
 export const LOADING_STATUS_REGEX = /loading|cargando|reading the sky|leyendo el cielo/i;
 export const FAILED_STATUS_REGEX = /failed|interrumpida|interrupted|live connection|conexi[oó]n.*interrumpida|unavailable|desconect|no pudo|could not open/i;
 
-export async function assertHealthyScreen(page, { requireKiosk }) {
+export async function assertHealthyScreen(page, { requireKiosk, requireVisitors = false }) {
   await page.waitForSelector('.galaxy-field canvas, .galaxy-field[data-scene]', { timeout: 20000 });
 
   const field = page.locator('.field-status');
@@ -107,6 +107,15 @@ export async function assertHealthyScreen(page, { requireKiosk }) {
   const canvasBox = await canvas.first().boundingBox().catch(() => null);
   if (canvasBox && (canvasBox.width === 0 || canvasBox.height === 0)) {
     throw new Error('Canvas has zero width or height. Refusing to certify a backup.');
+  }
+  if (requireVisitors && Number(await page.locator('.creator-count').textContent()) < 1) {
+    throw new Error('No visitor-created objects are present; refusing a reference-only rehearsal backup.');
+  }
+  if (requireKiosk) {
+    const viewport = page.viewportSize();
+    if (!canvasBox || !viewport || canvasBox.width < viewport.width * 0.95 || canvasBox.height < viewport.height * 0.95) {
+      throw new Error('Kiosk canvas does not fill the requested recording viewport.');
+    }
   }
   if (requireKiosk && !kiosk) {
     throw new Error('Kiosk presentation is not active (data-fullscreen != true).');
@@ -192,23 +201,32 @@ export async function recordScreen(options = {}) {
     let videoPath;
     let targetPath;
     try {
+      // CSS presentation fills the requested video viewport. DOM fullscreen in
+      // headless Chromium can instead resize the capture to its 800x600 display.
+      await context.addInitScript(() => {
+        try {
+          const key = 'galaxy.screen.context';
+          const saved = JSON.parse(localStorage.getItem(key) ?? '{}');
+          localStorage.setItem(key, JSON.stringify({ ...saved, kioskPresentation: true }));
+        } catch { /* the healthy/kiosk assertions below fail closed */ }
+      });
       const recordingStarted = Date.now();
       const page = await context.newPage();
       video = page.video();
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(2000);
-      await assertHealthyScreen(page, { requireKiosk: false });
+      await assertHealthyScreen(page, { requireKiosk: false, requireVisitors: mode === 'rehearsal' });
       const toggle = page.locator('.fullscreen-toggle');
       if (await toggle.count() && !/exit|salir/i.test(await toggle.textContent() ?? '')) await toggle.click();
       await page.waitForSelector('[data-fullscreen="true"]', { timeout: 5000 });
-      await assertHealthyScreen(page, { requireKiosk: true });
+      await assertHealthyScreen(page, { requireKiosk: true, requireVisitors: mode === 'rehearsal' });
       await assertDrawnMotion(page);
       // Video's first frame can start after newPage; a safety margin deliberately
       // discards extra live frames rather than retaining any navigation frames.
       const startSeconds = (Date.now() - recordingStarted) / 1000 + 2;
       console.log(`[record-screen] Healthy moving kiosk; trimming first ${startSeconds.toFixed(2)}s.`);
       await page.waitForTimeout((duration + 5) * 1000);
-      await assertHealthyScreen(page, { requireKiosk: true });
+      await assertHealthyScreen(page, { requireKiosk: true, requireVisitors: mode === 'rehearsal' });
       await assertDrawnMotion(page);
       video = page.video();
       await page.close();

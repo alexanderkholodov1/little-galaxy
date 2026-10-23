@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parseArgs, OBS_INSTRUCTIONS, LOADING_STATUS_REGEX, FAILED_STATUS_REGEX, recordScreen, assertDrawnMotion } from './record-screen.mjs';
+import { parseArgs, OBS_INSTRUCTIONS, LOADING_STATUS_REGEX, FAILED_STATUS_REGEX, recordScreen, assertDrawnMotion, assertHealthyScreen } from './record-screen.mjs';
 import { chromium } from '@playwright/test';
 
 describe('record-screen options', () => {
@@ -61,6 +61,18 @@ describe('record-screen options', () => {
     expect(FAILED_STATUS_REGEX.test('Desconectado')).toBe(true);
   });
 
+  it('rejects a headless fullscreen crop inside a larger video viewport', async () => {
+    let box = { width: 800, height: 600 };
+    const canvas = { count: async () => 1, first: () => ({ boundingBox: async () => box }) };
+    const page = {
+      waitForSelector: vi.fn(), viewportSize: () => ({ width: 1920, height: 1080 }),
+      locator: (selector) => selector === '.galaxy-field canvas' ? canvas : { count: async () => selector.includes('data-fullscreen') ? 1 : 0 },
+    };
+    await expect(assertHealthyScreen(page, { requireKiosk: true })).rejects.toThrow('does not fill');
+    box = { width: 1920, height: 1080 };
+    await expect(assertHealthyScreen(page, { requireKiosk: true })).resolves.toMatchObject({ kiosk: true });
+  });
+
   it('rejects identical drawn frames and accepts changing canvas pixels', async () => {
     const screenshot = vi.fn().mockResolvedValueOnce(Buffer.from('same')).mockResolvedValueOnce(Buffer.from('same'));
     const page = { waitForFunction: vi.fn(), waitForTimeout: vi.fn(), locator: () => ({ first: () => ({ screenshot }) }) };
@@ -74,6 +86,7 @@ describe('record-screen options', () => {
     const mockCloseWarm = vi.fn().mockResolvedValue(undefined);
     const mockLaunch = vi.spyOn(chromium, 'launch').mockResolvedValue({
       newContext: vi.fn().mockResolvedValue({
+        addInitScript: vi.fn().mockResolvedValue(undefined),
         newPage: vi.fn().mockResolvedValue({
           video: () => null,
           goto: vi.fn().mockRejectedValue(new Error('Navigation timeout during warm-up')),
