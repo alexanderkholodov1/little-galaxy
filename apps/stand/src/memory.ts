@@ -83,7 +83,7 @@ export async function readSeason(database: Firestore): Promise<SeasonData> {
     return buildSeason(objects.docs, events.docs);
   }, { readOnly: true });
 }
-export async function publishSeason(database: Firestore, season: SeasonData, observe?: (count: number) => void) {
+export async function publishSeason(database: Firestore, season: SeasonData, observe?: (count: number) => void, onWrite?: (count: number) => void) {
   // Only changed mutable shards are rewritten. Log chunks are immutable and reusable across revisions.
   const manifestRef = database.doc(`seasons/${SEASON}/meta/manifest`);
   observe?.(1);
@@ -99,16 +99,17 @@ export async function publishSeason(database: Firestore, season: SeasonData, obs
     if (writes > 450) throw new Error('Archive needs a larger publish strategy');
     batch.set(manifestRef, { ...season.manifest, manifest: season.manifest, hashes });
     await batch.commit();
+    onWrite?.(writes + 1);
   }
 }
 /** One cached listener per source; serialize/debounce publication and stop all work on shutdown. */
-export function startMemoryWriter(database: Firestore, onError: () => void, delay = 30_000, observe?: (count: number) => void) {
+export function startMemoryWriter(database: Firestore, onError: () => void, delay = 30_000, observe?: (count: number) => void, onWrite?: (count: number) => void) {
   let objects: Source[] | undefined, events: Source[] | undefined, timer: ReturnType<typeof setTimeout> | undefined;
   let pending = Promise.resolve(), stopped = false;
   const flush = () => {
     if (stopped || !objects || !events) return;
     const a = objects, b = events;
-    pending = pending.then(() => publishSeason(database, buildSeason(a, b), observe)).catch(onError);
+    pending = pending.then(() => publishSeason(database, buildSeason(a, b), observe, onWrite)).catch(onError);
   };
   const schedule = () => { if (!timer) timer = setTimeout(() => { timer = undefined; flush(); }, delay); };
   const a = database.collection('objects').onSnapshot((s) => { observe?.(s.docChanges().length || (s.empty ? 1 : 0)); objects = s.docs; schedule(); }, onError);

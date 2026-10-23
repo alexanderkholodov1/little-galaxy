@@ -33,7 +33,7 @@ export function compactSnapshot(documents: { id: string; data(): unknown }[]): O
   return snapshot;
 }
 /** Publish only a healthy listener's state; reconnect with bounded exponential backoff. */
-export function startSnapshotWriter(database: Firestore, onError: () => void, interval = 30_000, observe?: (count: number) => void) {
+export function startSnapshotWriter(database: Firestore, onError: () => void, interval = 30_000, observe?: (count: number) => void, onWrite?: (count: number) => void) {
   let latest: Omit<LiveSnapshot, 'at'> | undefined;
   let pending: Promise<void> | undefined;
   let stopped = false;
@@ -47,7 +47,7 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
   async function flush() {
     if (stopped || !latest || pending) return;
     const state = latest;
-    pending = database.doc('snapshots/live').set({ ...state, at: FieldValue.serverTimestamp() }).then(() => undefined).catch(onError);
+    pending = database.doc('snapshots/live').set({ ...state, at: FieldValue.serverTimestamp() }).then(() => { onWrite?.(1); }).catch(onError);
     await pending;
     pending = undefined;
   }
