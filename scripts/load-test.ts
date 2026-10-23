@@ -475,7 +475,9 @@ A proposed commit aborted before rule evaluation may overcount; denied/short-cir
 and backend caching cannot be measured by this SDK model. This is not a billing meter.
 
 Production screen subscriptions supply the actual counters, including their moving cursor
-and rebases. Stand counters cover snapshot active objects, memory all objects/events, archive
+and rebases. Each fresh server subscription counts its initial result set (or the empty-query
+minimum), even after a cache callback; subsequent metadata-only callbacks add nothing.
+Stand counters cover snapshot active objects, memory all objects/events, archive
 manifest reads, meteor config listener and meteor transaction attempts. Delivery counters
 include document updates and removals; bounded-query evictions can overestimate billed reads.
 Reconnect/cache/billing behavior is not established by emulator deliveries.

@@ -129,6 +129,7 @@ export function listenActive(
   let stopped = false;
   let generation = 0;
   const hosts = new Map<string, RenderObject>();
+  let receivedServer = false;
   let unsubscribe: (() => void) | undefined;
   void waitForAnonymousUid().then(() => {
     if (stopped) return;
@@ -136,7 +137,10 @@ export function listenActive(
       query(collection(database, 'objects'), where('status', '==', 'active')),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!snapshot.metadata.fromCache) observe?.(snapshot.docChanges().length);
+        if (!snapshot.metadata.fromCache) {
+          observe?.(receivedServer ? snapshot.docChanges().length : Math.max(1, snapshot.size));
+          receivedServer = true;
+        }
         const current = ++generation;
         const active = snapshot.docs.flatMap((document) => {
           const data = readObject(document.data());

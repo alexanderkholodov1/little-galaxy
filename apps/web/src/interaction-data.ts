@@ -53,10 +53,12 @@ export function listenRecentEvents(database: Firestore, next: (events: ScreenEve
       const floor = now - 60_000;
       const cursor = lastSeenAt !== undefined && lastSeenAt > floor ? lastSeenAt : floor;
       for (const [id, at] of seen) if (at < now - 120_000) seen.delete(id);
+      let receivedServer = false;
       unsubscribe = onSnapshot(query(collection(database, 'events'), where('at', '>', Timestamp.fromMillis(cursor)),
         orderBy('at'), limitToLast(100)), { includeMetadataChanges: true }, (snapshot) => {
         if (stopped || current !== generation || snapshot.metadata.fromCache) return;
-        observe?.(snapshot.docChanges().length || (snapshot.empty ? 1 : 0));
+        observe?.(receivedServer ? snapshot.docChanges().length : Math.max(1, snapshot.size));
+        receivedServer = true;
         const fresh: ScreenEvent[] = [];
         for (const document of snapshot.docs) {
           const data = document.data();
