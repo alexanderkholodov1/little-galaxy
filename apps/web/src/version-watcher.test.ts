@@ -38,7 +38,8 @@ it('uses Hosting as authority and remembers attempted upgrade and rollback targe
   const { useVersionWatcher } = await import('./version-watcher');
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   sessionStorage.clear();
-  let served = { version: '0.7.0', commit: null as string | null };
+  const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0';
+  let served = { version: currentVersion, commit: null as string | null };
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => served })));
   let watcher!: ReturnType<typeof useVersionWatcher>;
   function Probe() { watcher = useVersionWatcher({ appVersion: '0.6.0' }); return null; }
@@ -48,7 +49,7 @@ it('uses Hosting as authority and remembers attempted upgrade and rollback targe
     await act(async () => root.render(createElement(Probe)));
     expect(watcher.updateAvailable).toBe(false);
     await act(async () => root.unmount());
-    served = { version: '0.7.1', commit: 'b' };
+    served = { version: '1.0.1', commit: 'b' };
     root = createRoot(host);
     await act(async () => root.render(createElement(Probe)));
     expect(watcher.updateAvailable).toBe(true);
@@ -60,7 +61,7 @@ it('uses Hosting as authority and remembers attempted upgrade and rollback targe
     await act(async () => root.render(createElement(Probe)));
     expect(watcher.updateAvailable).toBe(false);
     await act(async () => root.unmount());
-    served = { version: '0.6.0', commit: 'rollback' };
+    served = { version: '0.7.0', commit: 'rollback' };
     root = createRoot(host);
     await act(async () => root.render(createElement(Probe)));
     expect(watcher.updateAvailable).toBe(true);
