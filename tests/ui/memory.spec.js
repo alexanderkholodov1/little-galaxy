@@ -1,6 +1,6 @@
 /* global document, innerWidth, window */
 import { expect, test } from '@playwright/test';
-import { object, start, staticMemory } from './memory-fixture.js';
+import { object, end, staticMemory } from './memory-fixture.js';
 const artifact = process.env.GALAXY_SCREENSHOTS;
 test('static timelapse scrubs exact historical state, supports keyboard and speed, and uses no backend', async ({ page }) => {
   await staticMemory(page);
@@ -17,14 +17,15 @@ test('static timelapse scrubs exact historical state, supports keyboard and spee
   await page.waitForTimeout(150);
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   const paused = await range.inputValue(); await page.waitForTimeout(100); expect(await range.inputValue()).toBe(paused);
+  // Server timestamps have fractional milliseconds; End must reach the final event exactly.
   await range.focus(); await page.keyboard.press('End');
-  await expect(range).toHaveValue(String(start + 3000));
+  await expect(range).toHaveValue(String(end));
   await expect(page.locator('.replay-controls output')).toContainText('0 objects');
   await page.getByLabel('Speed').selectOption('600');
   await range.focus(); await page.keyboard.press('Home');
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-  await expect(range).toHaveValue(String(start + 3000));
+  await expect(range).toHaveValue(String(end));
   await expect(page.getByText('Static archive · 4 events')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   if (artifact) await page.screenshot({ path: `${artifact}/memory-replay-375.png`, fullPage: true });

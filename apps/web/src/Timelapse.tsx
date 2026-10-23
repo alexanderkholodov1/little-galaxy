@@ -57,7 +57,7 @@ export default function Timelapse({ language, join }: { language: Language; join
         <div className="replay-controls">
           <button onClick={() => { if (at >= end) setAt(data.manifest.start); setPlaying(!playing || at >= end); }} aria-pressed={playing && at < end}>{playing && at < end ? (es ? 'Pausar' : 'Pause') : (es ? 'Reproducir' : 'Play')}</button>
           <label>{es ? 'Velocidad' : 'Speed'}<select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>{[1, 10, 60, 300, 600].map((s) => <option key={s} value={s}>{s}×</option>)}</select></label>
-          <label className="replay-scrubber">{es ? 'Momento de la temporada' : 'Season time'}<input type="range" min={data.manifest.start} max={end} step="1" value={at} onChange={(e) => { setPlaying(false); setAt(Number(e.target.value)); }} /></label>
+          <label className="replay-scrubber">{es ? 'Momento de la temporada' : 'Season time'}<input type="range" min={data.manifest.start} max={end} step="any" value={at} onChange={(e) => { setPlaying(false); setAt(Number(e.target.value)); }} /></label>
           <output>{new Date(at).toLocaleString(es ? 'es' : 'en', { timeZone: 'UTC' })} UTC · {objects.filter((o) => !o.moonHost).length} {es ? 'objetos' : 'objects'}</output>
         </div><p className="memory-source">{data.frozen ? (es ? 'Archivo estático' : 'Static archive') : (es ? 'Registro publicado por el stand' : 'Log published by the stand')} · {data.manifest.eventCount} {es ? 'eventos' : 'events'}</p>
       </>}
