@@ -12,25 +12,15 @@
 import { initializeApp as initClientApp, deleteApp as deleteClientApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInAnonymously } from 'firebase/auth';
 import {
-  collection,
   connectFirestoreEmulator,
-  doc,
-  getDoc,
   getFirestore,
-  runTransaction,
-  serverTimestamp,
-  Timestamp,
-  updateDoc,
 } from 'firebase/firestore';
 import { initializeApp as initAdminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore, FieldValue as AdminFieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import {
-  OBJECT_SCHEMA_VERSION,
   orbitFromVelocity,
-  planetDefaults,
   positionAt,
   SCHEMA_VERSION,
-  SEASON,
 } from '../packages/shared/src/index.js';
 import { launchPlanet } from '../apps/web/src/galaxy-data';
 import { sendInteraction } from '../apps/web/src/interaction-data';
@@ -129,7 +119,6 @@ export async function runAllDrills(): Promise<DrillResult[]> {
       nameKey: 'quiet-aurora' as const,
       params: { size: 0.45, palette: 1, oceans: 0.6 },
     };
-    const localStoreKey = 'galaxy.workshop.draft';
     const serializedDraft = JSON.stringify(draft);
 
     // Verify draft serialization & restoration
@@ -223,8 +212,9 @@ export async function runAllDrills(): Promise<DrillResult[]> {
     let shakeBlocked = false;
     try {
       await sendInteraction(db, uid, 'shake', {});
-    } catch (e: any) {
-      if (e?.reason === 'closed' || e?.code === 'permission-denied' || String(e).includes('closed')) {
+    } catch (e: unknown) {
+      const err = e as { reason?: string; code?: string } | null;
+      if (err?.reason === 'closed' || err?.code === 'permission-denied' || String(e).includes('closed')) {
         shakeBlocked = true;
       }
     }

@@ -31,7 +31,6 @@ import {
   OBJECT_SCHEMA_VERSION,
   orbitFromVelocity,
   planetDefaults,
-  presets,
   SCHEMA_VERSION,
   SEASON,
 } from '../packages/shared/src/index.js';
