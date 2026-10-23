@@ -21,9 +21,9 @@ try {
       await getFirestore().terminate();
       console.log('Season exported; live configuration unchanged.');
     } else if (control) {
-      await applyControl(getFirestore(), process.argv.slice(3));
+      const written = await applyControl(getFirestore(), process.argv.slice(3));
       await getFirestore().terminate();
-      console.log('Live controls updated.');
+      console.log(`${process.argv[3] === 'init' ? 'Created' : 'Updated'} config/live: ${JSON.stringify(written, null, 2)}`);
     } else {
       const stopMemory = startMemoryWriter(getFirestore(), () => console.error('Memory archive unavailable. Check source schema and capacity.'));
       const stopMeteors = startMeteorScheduler(getFirestore(), () => console.error('Meteor scheduler unavailable. Check connection and live timing.'));
@@ -38,7 +38,7 @@ try {
   if (process.argv[2] === 'freeze-season') {
     console.error('Usage: freeze-season <output-directory>');
   } else {
-    console.error('Controls: scene <galaxy|bigQr|spotlight|cinematic|timelapse>; flag <launches|edits|shake|comets|shootingStars|meteorShowers|soundOnScreen|spotlight|seasonOpen> <on|off>; timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
+    console.error('Controls: init (create config/live once, season closed); scene <galaxy|bigQr|spotlight|cinematic|timelapse>; flag <launches|edits|shake|comets|shootingStars|meteorShowers|soundOnScreen|spotlight|seasonOpen> <on|off>; timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
   }
   if (getApps().length) await getFirestore().terminate();
   process.exitCode = 1;

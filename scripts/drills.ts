@@ -58,7 +58,7 @@ export async function runAllDrills(): Promise<DrillResult[]> {
   // Ensure clean live config
   await adminDb.doc('config/live').set({
     schemaVersion: 1,
-    appVersion: '1.0.0',
+    appVersion: '1.0.1',
     seasonOpen: true,
     launches: true,
     edits: true,
@@ -313,7 +313,7 @@ export async function runAllDrills(): Promise<DrillResult[]> {
 export function generateDrillsMarkdown(results: DrillResult[]): string {
   const passed = results.filter((r) => r.status === 'PASSED').length;
   const failed = results.filter((r) => r.status === 'FAILED').length;
-  return `# Failure-Mode Drills · G v1.0.0
+  return `# Failure-Mode Drills · G v1.0.1
 
 The five automated drills are **building-block checks**, not completed outage acceptance.
 They run against Firestore/Auth emulators. Passing all five does not certify booth recovery.

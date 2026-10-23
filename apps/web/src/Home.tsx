@@ -19,10 +19,11 @@ export default function Home({ language }: { language: Language }) {
   return <section className="memory-log">
     <div className="memory-heading"><p className="eyebrow">Collective Galaxy / BAD 2026</p><h1>{es ? 'Un cielo compartido.' : 'A shared sky.'}</h1></div>
     <div className="memory-field"><ErrorBoundary fallback={<p>{es ? 'Vista 3D no disponible.' : '3D view unavailable.'}</p>}><Suspense fallback={<p>{es ? 'Preparando el cielo…' : 'Preparing the sky…'}</p>}>
-      {data && <Scene objects={data.objects ?? []} label={es ? 'Cielo de la feria' : 'Fair sky'} unavailable={es ? '3D no disponible' : '3D unavailable'}/>}
+      {data && !data.missing && <Scene objects={data.objects ?? []} label={es ? 'Cielo de la feria' : 'Fair sky'} unavailable={es ? '3D no disponible' : '3D unavailable'}/>}
     </Suspense></ErrorBoundary>
-    {!data && <p role="status">{failed ? (es ? 'Sin conexión. Reintenta para ver el cielo.' : 'No connection. Retry to see the sky.') : (es ? 'Leyendo la última observación…' : 'Reading the latest observation…')}</p>}</div>
-    <div className="replay-controls"><button onClick={() => { setFailed(false); setAttempt((n) => n + 1); }}>{es ? 'Actualizar cielo' : 'Refresh sky'}</button><button onClick={() => setReplay(true)}>{es ? 'Repetir la temporada' : 'Replay the season'}</button><Link className="memory-return" to={`/create?lang=${language}`}>{es ? 'Crear un objeto' : 'Make an object'}</Link></div>
-    {data && <p className="memory-source" role="status">{data.objects?.filter((o) => !o.moonHost).length} {es ? 'objetos' : 'objects'} · {es ? 'Última observación' : 'Last observation'}: {new Date(data.at!).toLocaleString(es ? 'es' : 'en', { timeZone: 'UTC' })} UTC{failed && (es ? ' · Sin conexión; se conserva la última observación.' : ' · Offline; keeping the last observation.')}</p>}
+    {data?.missing && !failed && <p className="memory-waiting" role="status">{es ? 'El cielo se abre cuando arranca el stand.' : 'The sky opens when the booth starts.'}</p>}
+    {(!data || (data.missing && failed)) && <p role="status">{failed ? (es ? 'Sin conexión. Reintenta para ver el cielo.' : 'No connection. Retry to see the sky.') : (es ? 'Leyendo la última observación…' : 'Reading the latest observation…')}</p>}</div>
+    <div className="replay-controls"><button onClick={() => { setFailed(false); setAttempt((n) => n + 1); }}>{failed ? (es ? 'Reintentar' : 'Retry') : (es ? 'Actualizar cielo' : 'Refresh sky')}</button><button onClick={() => setReplay(true)}>{es ? 'Repetir la temporada' : 'Replay the season'}</button><Link className="memory-return" to={`/create?lang=${language}`}>{es ? 'Crear un objeto' : 'Make an object'}</Link></div>
+    {data && !data.missing && <p className="memory-source" role="status">{data.objects?.filter((o) => !o.moonHost).length} {es ? 'objetos' : 'objects'} · {es ? 'Última observación' : 'Last observation'}: {new Date(data.at!).toLocaleString(es ? 'es' : 'en', { timeZone: 'UTC' })} UTC{failed && (es ? ' · Sin conexión; se conserva la última observación.' : ' · Offline; keeping the last observation.')}</p>}
   </section>;
 }

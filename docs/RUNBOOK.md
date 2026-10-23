@@ -1,4 +1,4 @@
-# Fair-Day Runbook · Collective Galaxy (G v1.0.0)
+# Fair-Day Runbook · Collective Galaxy (G v1.0.1)
 
 **Plan of record reference**: `portfolio/docs/plan/05-live-deploys-and-ops.md` § Fair-day runbook.
 
@@ -19,16 +19,16 @@ Este manual contiene las instrucciones operativas para **Galaxia Colectiva** en 
       export FIREBASE_PROJECT_ID=little-galaxy
       pnpm --filter @little-galaxy/stand start
       ```
-   2. En la TV: abrir `https://alexanderkholodov.web.app/galaxy/screen`, pulsar **F** para el modo quiosco (el cursor se oculta a los 2.5 s). Tras un reload, el layout quiosco se restaura automáticamente; pulsar **F** restaura de inmediato la pantalla completa del navegador.
-   3. Terminal B — controles (repetir exports; no hereda la Terminal A):
+   2. Terminal B — inicializar una sola vez y abrir explícitamente (repetir exports; no hereda la Terminal A):
       ```sh
       cd /ruta/al/checkout/galaxy
       export GOOGLE_APPLICATION_CREDENTIALS=/ruta/a/private/serviceAccountKey.json
       export FIREBASE_PROJECT_ID=little-galaxy
+      pnpm --filter @little-galaxy/stand control init
       pnpm --filter @little-galaxy/stand control flag seasonOpen on
-      pnpm --filter @little-galaxy/stand control flag launches on
       ```
-      `config/live` debe existir ya (producción). En ensayo local, arrancar emuladores, sembrar `config/live` y lanzar la web con `VITE_USE_EMULATORS=1` (sección 2).
+      `control init` crea `config/live` para `bad-2026`, imprime el documento y deja `seasonOpen` apagado. Todas las interacciones están habilitadas; el asistente sigue apagado. Si el documento ya existe, rechaza la operación sin modificarlo: omitir `init` en los siguientes arranques. El stand publica `snapshots/live` al recibir su primera lectura, incluso sin configuración ni objetos.
+   3. En la TV: abrir `https://alexanderkholodov.web.app/galaxy/screen`, pulsar **F** para el modo quiosco (el cursor se oculta a los 2.5 s). Tras un reload, el layout quiosco se restaura automáticamente; pulsar **F** restaura de inmediato la pantalla completa del navegador.
    4. Probar desde el teléfono: escanear el QR, lanzar un planeta y confirmar que aparece en la TV.
 3. **Durante el día**: escenas y kill switches vía `control`; monitorear cuota Spark; rollback desde el checkout de portfolio.
 4. **Cierre**: cerrar temporada con `seasonOpen off`. La exportación estática reproducible hoy es el ensayo `freeze-season` **solo contra emulador demo** (sección 10). La publicación de producción en `/galaxy/season/…` es un hito posterior; verificar el timelapse estático cuando ese camino exista.
@@ -65,15 +65,13 @@ pnpm install --frozen-lockfile
 export JAVA_TOOL_OPTIONS=-Xmx512m
 pnpm run emulators:lan
 
-# Terminal E1 — seed config/live (required before any control flag)
+# Terminal E1 — stand (no config required)
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
 export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
 export FIREBASE_PROJECT_ID=demo-little-galaxy
-pnpm run demo:seed
-
-# Terminal E1 — stand against emulators
 pnpm --filter @little-galaxy/stand start
 
+# Start E3 below to initialize and open the season before opening the screen.
 # Terminal E2 — web client configured for demo emulators
 # VITE_USE_EMULATORS=1 selects the demo project and emulator connections.
 # --host 0.0.0.0 allows real phones on the same Wi-Fi to scan the QR code and connect.
@@ -84,19 +82,19 @@ pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
 For screen testing on the booth laptop, open `http://127.0.0.1:4177/galaxy/screen` and press **F**.
 For real phone rehearsal across Wi-Fi, open `http://<laptop-lan-ip>:4177/galaxy/screen` (e.g. `192.168.1.50:4177`) so the on-screen join QR code encodes the reachable LAN IP.
 
-From a dedicated control terminal (Terminal E3) with the same emulator exports:
+After the stand starts, initialize once and open the season from a dedicated control terminal (Terminal E3). Then open the screen and test a phone:
 
 ```sh
 # Terminal E3 — controls (requires explicit emulator exports)
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
 export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
 export FIREBASE_PROJECT_ID=demo-little-galaxy
+pnpm --filter @little-galaxy/stand control init # first time only
 pnpm --filter @little-galaxy/stand control flag seasonOpen on
-pnpm --filter @little-galaxy/stand control flag launches on
 pnpm --filter @little-galaxy/stand control scene galaxy
 ```
 
-Controls never create `config/live`. Without `demo:seed` (or an existing production doc), `control flag …` fails with “Provision config/live first.”
+`control init` creates `config/live` transactionally only when missing; it refuses to overwrite any existing document. It prints the full document it wrote: schema version 1, season `bad-2026`, the stand app version, every interaction flag on, assistant off, galaxy scene, 60-second idle and 360–900-second meteor timings. The season stays closed until `control flag seasonOpen on`. On later starts, skip `init`; existing operator settings are preserved. The demo seed is optional test data, not a production provisioning step.
 
 ### Production booth — Step 1: Stand daemon
 
@@ -107,24 +105,24 @@ export FIREBASE_PROJECT_ID=little-galaxy
 pnpm --filter @little-galaxy/stand start
 ```
 
-Do not print or commit the key. Confirm `config/live` already exists in the data project before opening flags (production preflight).
+Do not print or commit the key. The stand immediately publishes `snapshots/live` after its first healthy object read, including an empty sky, independently of `config/live`. Before the booth starts, Home says “The sky opens when the booth starts.” A failed connection still offers Retry.
 
-### Step 2: Screen kiosk
-1. On the TV browser: `https://alexanderkholodov.web.app/galaxy/screen`
-2. Press **F** or click **Fullscreen / Pantalla completa**.
-3. Confirm portfolio header/nav are hidden and the cursor hides after 2.5s idle.
-4. After a version reload, immersive layout restores from `localStorage`; browser DOM fullscreen may need **F** again.
-
-### Step 3: Open season (secondary terminal)
+### Step 2: Initialize once, then open season (secondary terminal)
 
 ```sh
 cd /path/to/galaxy-checkout
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/private/serviceAccountKey.json
 export FIREBASE_PROJECT_ID=little-galaxy
+pnpm --filter @little-galaxy/stand control init # first time only
 pnpm --filter @little-galaxy/stand control flag seasonOpen on
-pnpm --filter @little-galaxy/stand control flag launches on
 pnpm --filter @little-galaxy/stand control scene galaxy
 ```
+
+### Step 3: Screen kiosk
+1. On the TV browser: `https://alexanderkholodov.web.app/galaxy/screen`
+2. Press **F** or click **Fullscreen / Pantalla completa**.
+3. Confirm portfolio header/nav are hidden and the cursor hides after 2.5s idle.
+4. After a version reload, immersive layout restores from `localStorage`; browser DOM fullscreen may need **F** again.
 
 ### Step 4: Phone join test
 1. Scan the on-screen QR → `/galaxy/create`.
@@ -212,7 +210,7 @@ export FIREBASE_PROJECT_ID=little-galaxy
 pnpm --filter @little-galaxy/stand start
 ```
 
-Expect a line like `Little Galaxy stand v1.0.0 | languages: en, es | default: en`. Snapshot writer resumes `snapshots/live`.
+Expect a line like `Little Galaxy stand v1.0.1 | languages: en, es | default: en`. Snapshot writer resumes `snapshots/live`.
 
 ---
 
@@ -237,7 +235,7 @@ Rollback restores the previous Hosting release pointer. It does not change `game
 
 ```sh
 cd /path/to/portfolio-checkout
-pnpm run deploy-local --galaxy ../galaxy-v1.0.0
+pnpm run deploy-local --galaxy ../galaxy-v1.0.1
 ```
 
 Read-only hosted smoke from Galaxy:
@@ -332,12 +330,11 @@ pnpm run emulators:lan
 ```
 
 ```sh
-# E1: seed once, then run stand
+# E1: start stand before provisioning
 cd /path/to/galaxy-checkout
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
 export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
 export FIREBASE_PROJECT_ID=demo-little-galaxy
-pnpm run demo:seed
 pnpm --filter @little-galaxy/stand start
 ```
 
@@ -349,11 +346,12 @@ pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
 ```
 
 ```sh
-# E3: independent control terminal
+# E3: initialize once, then explicitly open (before screen and phone test)
 cd /path/to/galaxy-checkout
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
 export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
 export FIREBASE_PROJECT_ID=demo-little-galaxy
+pnpm --filter @little-galaxy/stand control init # first time only
 pnpm --filter @little-galaxy/stand control flag seasonOpen on
 pnpm --filter @little-galaxy/stand control scene galaxy
 ```
@@ -361,10 +359,10 @@ pnpm --filter @little-galaxy/stand control scene galaxy
 Operator acceptance still required: open the screen using the laptop's actual LAN IP, scan its QR on a separate phone, launch, and record the observed TV receipt time. No campus Wi-Fi, physical phone/TV, Hosting rollback or production static publication is certified by this recipe. Stop E1, E2 and E0 with Ctrl+C after rehearsal. A screen opened on loopback produces a QR inaccessible from a separate phone.
 
 
-### Local command and recorder probe (2026-10-23)
+### Earlier v1.0.0 local command and recorder probe (2026-10-23)
 
 A clean-shell probe started the exact `pnpm run emulators:lan` package script, then ran the
-E1 seed/stand, E2 web and E3 control commands above with their own exported environments.
+then-current E1 demo seed/stand, E2 web and E3 control commands with their own exported environments.
 A Chromium phone-sized browser joined through the laptop LAN address, launched, and showed
 “In orbit”. This is emulator/browser evidence, not a physical-phone receipt-time measurement.
 

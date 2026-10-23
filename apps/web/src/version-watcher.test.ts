@@ -38,7 +38,7 @@ it('uses Hosting as authority and remembers attempted upgrade and rollback targe
   const { useVersionWatcher } = await import('./version-watcher');
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   sessionStorage.clear();
-  const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0';
+  const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.1';
   let served = { version: currentVersion, commit: null as string | null };
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => served })));
   let watcher!: ReturnType<typeof useVersionWatcher>;
