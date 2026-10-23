@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parseArgs, OBS_INSTRUCTIONS, LOADING_STATUS_REGEX, FAILED_STATUS_REGEX, recordScreen } from './record-screen.mjs';
+import { parseArgs, OBS_INSTRUCTIONS, LOADING_STATUS_REGEX, FAILED_STATUS_REGEX, recordScreen, assertDrawnMotion } from './record-screen.mjs';
 import { chromium } from '@playwright/test';
 
 describe('record-screen options', () => {
@@ -61,12 +61,21 @@ describe('record-screen options', () => {
     expect(FAILED_STATUS_REGEX.test('Desconectado')).toBe(true);
   });
 
-  it('terminates chromium when warm-up navigation fails', async () => {
+  it('rejects identical drawn frames and accepts changing canvas pixels', async () => {
+    const screenshot = vi.fn().mockResolvedValueOnce(Buffer.from('same')).mockResolvedValueOnce(Buffer.from('same'));
+    const page = { waitForFunction: vi.fn(), waitForTimeout: vi.fn(), locator: () => ({ first: () => ({ screenshot }) }) };
+    await expect(assertDrawnMotion(page)).rejects.toThrow('identical');
+    screenshot.mockResolvedValueOnce(Buffer.from('frame A')).mockResolvedValueOnce(Buffer.from('frame B'));
+    await expect(assertDrawnMotion(page)).resolves.toBeUndefined();
+  });
+
+  it('terminates chromium when navigation fails', async () => {
     const mockCloseBrowser = vi.fn().mockResolvedValue(undefined);
     const mockCloseWarm = vi.fn().mockResolvedValue(undefined);
     const mockLaunch = vi.spyOn(chromium, 'launch').mockResolvedValue({
       newContext: vi.fn().mockResolvedValue({
         newPage: vi.fn().mockResolvedValue({
+          video: () => null,
           goto: vi.fn().mockRejectedValue(new Error('Navigation timeout during warm-up')),
         }),
         close: mockCloseWarm,
@@ -75,7 +84,7 @@ describe('record-screen options', () => {
     });
 
     await expect(recordScreen({ mode: 'demo', duration: 1 })).rejects.toThrow('Navigation timeout during warm-up');
-    expect(mockCloseWarm).toHaveBeenCalledTimes(1);
+    expect(mockCloseWarm).toHaveBeenCalled();
     expect(mockCloseBrowser).toHaveBeenCalledTimes(1);
 
     mockLaunch.mockRestore();

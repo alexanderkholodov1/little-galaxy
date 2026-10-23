@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global document */
 /**
  * Record Galaxy Booth Screen with Playwright video.
  *
@@ -12,6 +13,7 @@
  */
 
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
@@ -112,6 +114,39 @@ export async function assertHealthyScreen(page, { requireKiosk }) {
   return { loading, failed, hasCanvas, kiosk, statusText: statusText.slice(0, 120) };
 }
 
+/** Playwright installs a small free ffmpeg build alongside Chromium. */
+export function bundledFfmpeg() {
+  if (process.env.GALAXY_FFMPEG) return process.env.GALAXY_FFMPEG;
+  const cache = path.resolve(path.dirname(chromium.executablePath()), '../..');
+  const executable = process.platform === 'win32' ? 'ffmpeg-win64.exe' : process.platform === 'darwin' ? 'ffmpeg-mac' : 'ffmpeg-linux';
+  const candidates = fs.readdirSync(cache).filter((name) => name.startsWith('ffmpeg-')).sort().reverse();
+  const found = candidates.map((name) => path.join(cache, name, executable)).find((file) => fs.existsSync(file));
+  if (!found) throw new Error('Playwright ffmpeg is required for startup trimming. Install Playwright Chromium or set GALAXY_FFMPEG.');
+  return found;
+}
+
+export function trimRecording(source, target, startSeconds, duration, executable = bundledFfmpeg()) {
+  return new Promise((resolve, reject) => {
+    const process = spawn(executable, ['-y', '-ss', String(startSeconds), '-i', source,
+      '-t', String(duration), '-an', '-c:v', 'libvpx-vp9', '-threads', '1',
+      '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '2500k', target], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let error = '';
+    process.stderr.on('data', (chunk) => { error = (error + chunk).slice(-3000); });
+    process.once('error', reject);
+    process.once('exit', (code) => code === 0 ? resolve() : reject(new Error(`Video trim failed (${code}): ${error}`)));
+  });
+}
+
+export async function assertDrawnMotion(page) {
+  const canvas = page.locator('.galaxy-field canvas').first();
+  await page.waitForFunction(() => Number(document.querySelector('.galaxy-field canvas')?.getAttribute('data-triangles')) > 0, undefined, { timeout: 20000 });
+  // Compare rasterized canvas content, excluding labels, QR and loading chrome.
+  const first = await canvas.screenshot();
+  await page.waitForTimeout(1500);
+  const second = await canvas.screenshot();
+  if (first.equals(second)) throw new Error('Galaxy canvas frames are identical; refusing a static/blank backup.');
+}
+
 export async function recordScreen(options = {}) {
   const {
     url = 'http://127.0.0.1:4177/galaxy/screen?synthetic=50&debug=0',
@@ -148,62 +183,52 @@ export async function recordScreen(options = {}) {
   });
 
   try {
-    // Phase 1: warm up without recording so startup/error frames are not kept.
-    const warm = await browser.newContext({ viewport: { width, height } });
-    try {
-      const warmPage = await warm.newPage();
-      console.log(`[record-screen] Warm-up navigation (not recorded)...`);
-      await warmPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await warmPage.waitForSelector('.galaxy-field', { timeout: 15000 });
-      await warmPage.waitForTimeout(2000);
-      await assertHealthyScreen(warmPage, { requireKiosk: false });
-      const toggle = warmPage.locator('.fullscreen-toggle');
-      if (await toggle.count()) {
-        await toggle.click();
-        await warmPage.waitForSelector('[data-fullscreen="true"]', { timeout: 5000 }).catch(() => {});
-      }
-      await assertHealthyScreen(warmPage, { requireKiosk: true });
-      console.log(`[record-screen] Warm-up healthy; kiosk presentation active.`);
-    } finally {
-      await warm.close().catch(() => {});
-    }
-
-    // Phase 2: record after reload so kiosk intent restores from localStorage.
+    // Record one context and trim everything before its healthy kiosk scene.
     const context = await browser.newContext({
       viewport: { width, height },
       recordVideo: { dir: outDir, size: { width, height } },
     });
     let video;
+    let videoPath;
+    let targetPath;
     try {
+      const recordingStarted = Date.now();
       const page = await context.newPage();
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(1500);
-      const toggle = page.locator('.fullscreen-toggle');
-      if (await toggle.count()) {
-        const label = await toggle.textContent();
-        if (!/exit|salir/i.test(label ?? '')) await toggle.click();
-      }
-      await assertHealthyScreen(page, { requireKiosk: true });
-      console.log(`[record-screen] Recording ${duration}s of healthy kiosk screen...`);
-      await page.waitForTimeout(duration * 1000);
-      await assertHealthyScreen(page, { requireKiosk: true });
-
       video = page.video();
-      await page.close().catch(() => {});
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(2000);
+      await assertHealthyScreen(page, { requireKiosk: false });
+      const toggle = page.locator('.fullscreen-toggle');
+      if (await toggle.count() && !/exit|salir/i.test(await toggle.textContent() ?? '')) await toggle.click();
+      await page.waitForSelector('[data-fullscreen="true"]', { timeout: 5000 });
+      await assertHealthyScreen(page, { requireKiosk: true });
+      await assertDrawnMotion(page);
+      // Video's first frame can start after newPage; a safety margin deliberately
+      // discards extra live frames rather than retaining any navigation frames.
+      const startSeconds = (Date.now() - recordingStarted) / 1000 + 2;
+      console.log(`[record-screen] Healthy moving kiosk; trimming first ${startSeconds.toFixed(2)}s.`);
+      await page.waitForTimeout((duration + 5) * 1000);
+      await assertHealthyScreen(page, { requireKiosk: true });
+      await assertDrawnMotion(page);
+      video = page.video();
+      await page.close();
+      await context.close();
+      if (!video) throw new Error('Playwright returned no video object.');
+      videoPath = await video.path();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const prefix = mode === 'rehearsal' ? 'galaxy-rehearsal' : 'galaxy-demo';
+      targetPath = path.join(outDir, `${prefix}-${timestamp}.webm`);
+      await trimRecording(videoPath, targetPath, startSeconds, duration);
+      fs.unlinkSync(videoPath);
+    } catch (error) {
+      await context.close().catch(() => {});
+      if (video) videoPath = await video.path().catch(() => undefined);
+      if (videoPath) fs.rmSync(videoPath, { force: true });
+      if (targetPath) fs.rmSync(targetPath, { force: true });
+      throw error;
     } finally {
       await context.close().catch(() => {});
     }
-
-    if (!video) {
-      throw new Error('Playwright returned no video object.');
-    }
-
-    const videoPath = await video.path();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const prefix = mode === 'rehearsal' ? 'galaxy-rehearsal' : 'galaxy-demo';
-    const targetName = `${prefix}-${timestamp}.webm`;
-    const targetPath = path.join(outDir, targetName);
-    fs.renameSync(videoPath, targetPath);
 
     const stats = fs.statSync(targetPath);
     if (stats.size < MIN_USABLE_BYTES) {

@@ -264,7 +264,9 @@ export GALAXY_LAN_HOST=192.168.1.50
 node scripts/record-screen.mjs --mode rehearsal --url "http://${GALAXY_LAN_HOST}:4177/galaxy/screen" --duration 30 --output records/
 ```
 
-The script refuses error/loading-only output, requires kiosk presentation, and labels demo vs rehearsal filenames. Play the file back before relying on it.
+The script uses one recording context, validates drawn canvas motion, then re-encodes only the healthy kiosk interval with Playwright's bundled ffmpeg (or `GALAXY_FFMPEG`). Startup/loading/kiosk-entry footage is discarded. It labels demo versus rehearsal clips. Play the output back, inspect its first and last frames, and scan the displayed QR from a separate phone before relying on it.
+
+Known limitation: no campus/production rehearsal backup or physical playback/QR reachability is certified by automated recorder checks. Record the actual artifact path and playback result here after operator acceptance; until then the usable fair backup remains pending.
 
 ### Option B: OBS Studio
 Follow the steps printed by `node scripts/record-screen.mjs --obs`. Press **F** for kiosk, record 5+ minutes, play back, keep the MP4 for VLC fullscreen loop.
