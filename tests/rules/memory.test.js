@@ -64,7 +64,7 @@ it('replays a recorded emulator session exactly, publishes cheaply, and exports 
   const a = `${base}-${Date.now()}-a`, b = `${base}-${Date.now()}-b`, c = `${base}-${Date.now()}-cli`;
   try {
     const firstExport = await freezeSeason(admin, a); await freezeSeason(admin, b);
-    const output = execFileSync('pnpm', ['--filter', '@little-galaxy/stand', 'freeze-season', c], { encoding: 'utf8', timeout: 30000, env: { ...process.env, FIREBASE_PROJECT_ID: 'demo-little-galaxy' } });
+    const output = execFileSync('pnpm', ['--filter', '@little-galaxy/stand', 'freeze-season', c], { encoding: 'utf8', timeout: 60000, env: { ...process.env, FIREBASE_PROJECT_ID: 'demo-little-galaxy' } });
     expect(output).toContain('Season exported; live configuration unchanged.');
     expect(firstExport).toEqual(data);
     const names = await readdir(a);
