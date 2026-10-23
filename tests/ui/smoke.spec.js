@@ -14,7 +14,7 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     await screen.goto('/galaxy/screen');
     await expect(screen.locator('.creator-count')).toHaveText('0');
     await expect(screen.locator('.galaxy-field canvas')).toBeVisible();
-    await expect(screen.locator('.galaxy-field canvas')).toHaveAttribute('data-triangles', /\d+/);
+    await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles'))).toBeGreaterThan(0);
     const trianglesBefore = Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles'));
     await phone.goto('/galaxy/create');
     const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
@@ -24,7 +24,7 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     const started = Date.now();
     await launch.click();
     await expect(screen.getByRole('option', { name: new RegExp(name) })).toHaveCount(1, { timeout: 2000 });
-    await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles')), { timeout: Math.max(1, 2000 - (Date.now() - started)) }).toBeGreaterThan(trianglesBefore);
+    await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles')), { timeout: Math.max(1, 2000 - (Date.now() - started)), intervals: [50] }).toBeGreaterThan(trianglesBefore);
     expect(Date.now() - started).toBeLessThanOrEqual(2000);
     await expect(phone.locator('.launch-feedback')).toContainText('In orbit');
     const firstId = await screen.getByRole('option', { name: new RegExp(name) }).getAttribute('value');

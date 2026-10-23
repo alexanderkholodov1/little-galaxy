@@ -119,12 +119,13 @@ function SoundSelection({ objects, focused, pet, onUpdate }: {
 function Meter({ onFps }: { onFps?: (fps: number) => void }) {
   const sample = useRef({ time: 0, frames: 0 });
   useFrame(({ clock, gl }) => {
+    // Previous frame's actual renderer output; independent of the one-second FPS window.
+    gl.domElement.dataset.triangles = String(gl.info.render.triangles);
     sample.current.frames++;
     const elapsed = clock.elapsedTime - sample.current.time;
     if (elapsed >= 1) {
       onFps?.(sample.current.frames / elapsed);
       gl.domElement.dataset.drawCalls = String(gl.info.render.calls);
-      gl.domElement.dataset.triangles = String(gl.info.render.triangles);
       sample.current.time = clock.elapsedTime; sample.current.frames = 0;
     }
   });
