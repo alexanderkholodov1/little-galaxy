@@ -124,3 +124,17 @@ it('restores automatic cinematic scene and focused object before fitting the cam
   expect(container.querySelector('[data-screen-scene]')?.getAttribute('data-screen-scene')).toBe('cinematic');
   expect(container.querySelector('select')?.value).toBe(objects[0].id);
 });
+
+it('restores a still-live spotlight and yields to later operator scene changes', async () => {
+  const objects = syntheticObjects(1);
+  localStorage.setItem('galaxy.screen.context', JSON.stringify({ configuredScene: 'galaxy', lastActivity: Date.now(), spotlight: { id: objects[0].id, until: Date.now() + 8000 } }));
+  await act(async () => root.render(<Screen language="en" />));
+  await act(async () => receive(objects, false));
+  expect(container.querySelector('[data-screen-scene]')?.getAttribute('data-screen-scene')).toBe('spotlight');
+  expect(container.querySelector('canvas')?.getAttribute('data-focused')).toBe(objects[0].id);
+  const live = vi.mocked(useLiveConfig).mock.results.at(-1)!.value;
+  vi.mocked(useLiveConfig).mockReturnValue({ ...live, config: { ...live.config, screenScene: 'bigQr' } });
+  await act(async () => root.render(<Screen language="en" />));
+  expect(container.querySelector('[data-screen-scene]')?.getAttribute('data-screen-scene')).toBe('bigQr');
+  expect(container.querySelector('canvas')?.getAttribute('data-focused')).toBeNull();
+});

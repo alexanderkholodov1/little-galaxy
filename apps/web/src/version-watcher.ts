@@ -36,7 +36,8 @@ export async function fetchServedVersion(
       signal: AbortSignal.timeout(10_000),
     });
     if (response.ok) {
-      return (await response.json()) as VersionInfo;
+      const value = await response.json();
+      return value && typeof value.version === 'string' && value.version && (value.commit == null || typeof value.commit === 'string') ? value as VersionInfo : null;
     }
   } catch {
     /* Fetch failed or offline. */
@@ -70,6 +71,12 @@ export function useVersionWatcher({
     let alive = true;
     const check = async () => {
       const served = await fetchServedVersion();
+      if (alive && served && !isNewerVersion(current, served)) {
+        // A successful arrival releases old attempt records, allowing future re-promotions after rollback.
+        try {
+          for (const key of Object.keys(sessionStorage)) if (key.startsWith('galaxy.update.')) sessionStorage.removeItem(key);
+        } catch { /* Automatic reload remains disabled when storage is unavailable. */ }
+      }
       if (alive) setTarget(served && isNewerVersion(current, served) ? served : null);
     };
     void check();

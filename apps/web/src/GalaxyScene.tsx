@@ -59,7 +59,7 @@ function FitChart({ objects, focused, cinematic, historicalAt, ready }: { object
     };
   }, [camera, points.look]);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, gl }, delta) => {
     if (!ready) return;
     const position = points.position;
     if (cinematic && !reduced) phase.current += delta * .035;
@@ -77,6 +77,8 @@ function FitChart({ objects, focused, cinematic, historicalAt, ready }: { object
     camera.position.lerp(points.target, blend);
     points.look.lerp(position, blend);
     camera.lookAt(points.look);
+    gl.domElement.dataset.camera = JSON.stringify(camera.position.toArray());
+    gl.domElement.dataset.look = JSON.stringify(points.look.toArray());
     if (clock.elapsedTime - lastSave.current > 0.5) {
       lastSave.current = clock.elapsedTime;
       try {
@@ -122,6 +124,7 @@ function Meter({ onFps }: { onFps?: (fps: number) => void }) {
     if (elapsed >= 1) {
       onFps?.(sample.current.frames / elapsed);
       gl.domElement.dataset.drawCalls = String(gl.info.render.calls);
+      gl.domElement.dataset.triangles = String(gl.info.render.triangles);
       sample.current.time = clock.elapsedTime; sample.current.frames = 0;
     }
   });

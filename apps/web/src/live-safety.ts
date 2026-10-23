@@ -36,12 +36,6 @@ export function handleChunkError(
 ): boolean {
   if (!isChunkError(error)) return false;
 
-  if (!resumed) {
-    const event = new CustomEvent('galaxy:before-reload', {
-      cancelable: true, detail: () => handleChunkError(error, storage, reload, true),
-    });
-    if (!window.dispatchEvent(event)) return true;
-  }
   const now = Date.now();
   try {
     const lastReload = Number(storage.getItem(RELOAD_GUARD_KEY) ?? '0');
@@ -49,6 +43,12 @@ export function handleChunkError(
       // Loop guard: already attempted reload within the window.
       // Do not reload in a loop; let ErrorBoundary render fallback.
       return false;
+    }
+    if (!resumed) {
+      const event = new CustomEvent('galaxy:before-reload', {
+        cancelable: true, detail: () => handleChunkError(error, storage, reload, true),
+      });
+      if (!window.dispatchEvent(event)) return true;
     }
     storage.setItem(RELOAD_GUARD_KEY, String(now));
   } catch {

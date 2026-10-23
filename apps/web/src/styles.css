@@ -238,9 +238,9 @@ button:disabled { opacity: .6; cursor: wait; }
   font-family: var(--font-body);
   font-size: 0.875rem;
   line-height: 1.3;
-  color: #5fccf3;
+  color: var(--action);
   padding: 8px 12px;
-  border-left: 2px solid #5fccf3;
+  border-left: 2px solid currentColor;
   margin: 16px 0;
 }
 
