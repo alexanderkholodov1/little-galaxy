@@ -11,23 +11,23 @@ the production writer SDK promises fulfill; shutdown awaits pending commits befo
 | Metric | Value |
 |---|---:|
 | Visitors | 100 / 100 (All completed) |
-| Journey duration, seconds | 39.6 |
-| Transaction callback attempts | 703 |
-| Completed callbacks / proposed commit requests | 703 |
-| Transaction get calls, all attempts | 1607 |
-| Modeled rules dependencies, all proposed requests | 2814 |
+| Journey duration, seconds | 40.7 |
+| Transaction callback attempts | 700 |
+| Completed callbacks / proposed commit requests | 700 |
+| Transaction get calls, all attempts | 1600 |
+| Modeled rules dependencies, all proposed requests | 2800 |
 | Screen active-object deliveries | 202 |
-| Screen moving-cursor event deliveries | 1903 |
-| Stand reads (source deliveries + manifest/config/meteor gets) | 1811 |
-| Combined observed reads + modeled dependencies | 8337 |
+| Screen moving-cursor event deliveries | 1904 |
+| Stand reads (source deliveries + manifest/config/meteor gets) | 1812 |
+| Combined observed reads + modeled dependencies | 8318 |
 | Committed visitor writes / completed visitor | 21 |
 | Visitor write structure | launch1: 4, edit: 3, shake: 2, comet: 2, star: 2, launch2+crumble: 6, shake2: 2 = 21 |
 | Stored visitor-created objects (excluding seed) | 200 |
 | Stored events (visitor and meteor, reconciled) | 1001 |
 | Stand snapshot writes | 7 |
-| Stand memory shard/chunk/manifest writes | 84 |
+| Stand memory shard/chunk/manifest writes | 80 |
 | Stand meteor writes | 1 |
-| Combined workload writes | 2192 |
+| Combined workload writes | 2188 |
 
 ## Explicit rules dependency model
 
@@ -69,16 +69,16 @@ Reconnect/cache/billing behavior is not established by emulator deliveries.
 
 | Visitors | Writes | Reads (estimate) | Memory writes | Screen reads | Stand reads |
 |---|---:|---:|---:|---:|---:|
-| 100 | 3,204 | 9,037 | 84 | 2745 | 1871 |
-| 200 | 5,388 | 17,374 | 168 | 4850 | 3682 |
-| 300 | 7,572 | 25,711 | 252 | 6955 | 5493 |
-| 500 | 11,940 | 42,385 | 420 | 11165 | 9115 |
-| 800 | 18,492 | 67,396 | 672 | 17480 | 14548 |
+| 100 | 3,200 | 9,018 | 80 | 2746 | 1872 |
+| 200 | 5,380 | 17,336 | 160 | 4852 | 3684 |
+| 300 | 7,560 | 25,654 | 240 | 6958 | 5496 |
+| 500 | 11,920 | 42,290 | 400 | 11170 | 9120 |
+| 800 | 18,460 | 67,244 | 640 | 17488 | 14556 |
 
 | Resource | Daily Spark limit | Target scenario | Model result |
 |---|---:|---:|---|
-| **Writes** | 20,000 | **7,572** | **PASS** |
-| **Reads** | 50,000 | **25,711** | **PASS** |
+| **Writes** | 20,000 | **7,560** | **PASS** |
+| **Reads** | 50,000 | **25,654** | **PASS** |
 
 Every row uses the same measured per-visitor write, attempt-read, dependency and listener
 ratios, scaled by completed visitors and rounded up. Snapshot allowance is 960 writes
@@ -102,9 +102,12 @@ star/moon host load, or load-test hangar relaunch is certified here.
 
 All production stand services run and errors fail the command. A meteor is explicitly
 written through its production transaction helper; the scheduler's natural first timer is
-not awaited. Screen content, snapshot output, event reconciliation and the archive manifest's
-final manifest and every referenced chunk are compared with the committed sources, including
-operator-seed baseline creation rows. Archive browser playback is not exercised by this command.
+not awaited. The screen must deliver the expected active-object count and recent events (counts
+only, not identities or payloads); the stand must commit at least one snapshot, but the
+`snapshots/live` payload is not compared with the final active objects. Stored events are
+reconciled one by one, and the archive's final manifest and every referenced chunk are compared
+with the committed sources, including operator-seed baseline creation rows. Archive browser
+playback is not exercised by this command.
 PASS means only that this scenario model fits the configured limits, not that the booth is
 capacity-certified. Physical phones, TV, campus Wi-Fi and production billing remain unverified.
 

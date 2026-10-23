@@ -504,9 +504,12 @@ star/moon host load, or load-test hangar relaunch is certified here.
 
 All production stand services run and errors fail the command. A meteor is explicitly
 written through its production transaction helper; the scheduler's natural first timer is
-not awaited. Screen content, snapshot output, event reconciliation and the archive manifest's
-final manifest and every referenced chunk are compared with the committed sources, including
-operator-seed baseline creation rows. Archive browser playback is not exercised by this command.
+not awaited. The screen must deliver the expected active-object count and recent events (counts
+only, not identities or payloads); the stand must commit at least one snapshot, but the
+`snapshots/live` payload is not compared with the final active objects. Stored events are
+reconciled one by one, and the archive's final manifest and every referenced chunk are compared
+with the committed sources, including operator-seed baseline creation rows. Archive browser
+playback is not exercised by this command.
 PASS means only that this scenario model fits the configured limits, not that the booth is
 capacity-certified. Physical phones, TV, campus Wi-Fi and production billing remain unverified.
 
