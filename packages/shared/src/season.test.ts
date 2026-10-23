@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { objectBucket, readManifest, readMemoryObject, readLog, replayScene } from './season.js';
+import { compareIds, objectBucket, readManifest, readMemoryObject, readLog, replayScene } from './season.js';
 import { orbitFromVelocity } from './orbit.js';
 import { presets } from './schema.js';
 const object = { schemaVersion: 2, id: 'parent', type: 'planet', nameKey: 'quiet-aurora', params: presets.planet[0], orbit: orbitFromVelocity(0, 2.58, 0, 0), status: 'hangar', createdAt: 1000, updatedAt: 2000, season: 'bad-2026' };
@@ -19,4 +19,11 @@ it('keeps a hangared moon parent in the historical scene without counting it as 
   expect(scene.find((o) => o.id === 'parent')?.moonHost).toBe(true);
   expect(scene.filter((o) => !o.moonHost)).toHaveLength(1);
   expect(objectBucket('memory-planet')).toBe('objects-4');
+});
+it('sorts identifiers by Unicode code point rather than locale collation', () => {
+  // Uppercase ASCII precedes lowercase ASCII in code-point order ('S' < 'i'),
+  // whereas default localeCompare collation often places 'i' before 'S'.
+  expect(compareIds('S7oMWT6DGvxzjGjcwbhe', 'iOyWRsK5gAiBhGN6Pdxw')).toBe(-1);
+  expect(compareIds('same', 'same')).toBe(0);
+  expect(compareIds('z', 'a')).toBe(1);
 });

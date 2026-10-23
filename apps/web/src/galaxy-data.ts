@@ -195,6 +195,8 @@ export async function availableHosts(database: Firestore): Promise<RenderObject[
 export async function editObject(database: Firestore, uid: string, draft: Draft): Promise<void> {
   const event = doc(collection(database, 'events'));
   await runTransaction(database, async (tx) => {
+    const flags = await tx.get(doc(database, 'config', 'live'));
+    if (!flags.exists() || !flags.data()?.seasonOpen) throw new LaunchError('closed');
     const userRef = doc(database, 'users', uid),
       user = await tx.get(userRef);
     if (!user.exists()) throw new LaunchError('closed');

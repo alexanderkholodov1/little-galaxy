@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { expect, it } from 'vitest';
 import { CHUNK_BYTES, objectBucket, orbitFromVelocity, presets, readLog, replay } from '@little-galaxy/shared';
 import { validateFreeze } from './freeze-season.js';
@@ -41,4 +42,17 @@ it('fails closed for unknown event or invalid source data', () => {
 it('refuses freeze without a loopback demo emulator before any admin connection', () => {
   expect(() => validateFreeze(['output'], { FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080', FIREBASE_PROJECT_ID: 'demo-little-galaxy' })).not.toThrow();
   for (const env of [{}, { FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080', FIREBASE_PROJECT_ID: 'not-demo' }, { FIRESTORE_EMULATOR_HOST: 'external:8080', FIREBASE_PROJECT_ID: 'demo-little-galaxy' }]) expect(() => validateFreeze(['output'], env)).toThrow();
+});
+
+it('reports specific freeze-season error messages and usage on CLI failure', () => {
+  try {
+    execFileSync('pnpm', ['--filter', '@little-galaxy/stand', 'freeze-season'], { encoding: 'utf8', stdio: 'pipe' });
+    expect.unreachable();
+  } catch (err: unknown) {
+    const error = err as { stderr?: string; stdout?: string; status?: number };
+    const output = `${error.stdout ?? ''}\n${error.stderr ?? ''}`;
+    expect(output).toContain('Stand command failed: Freeze rehearsal requires a loopback demo emulator and output directory');
+    expect(output).toContain('Usage: freeze-season <output-directory>');
+    expect(error.status).toBe(1);
+  }
 });

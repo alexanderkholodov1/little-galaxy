@@ -1,5 +1,6 @@
 import { planetDefaults } from './schema.js';
 import type { MoonParams, ObjectParams, ObjectType, PlanetParams, StarParams } from './schema.js';
+import { compareIds } from './season.js';
 
 /** D minor pentatonic, shared by ambient tones and pets. MIDI pitch classes. */
 export const SOUND_SCALE = [2, 5, 7, 9, 0] as const;
@@ -54,7 +55,7 @@ export function allocateVoices(candidates: SoundCandidate[], previous: string[],
   return candidates.filter((c) => c.visible && Number.isFinite(c.distance) && c.distance >= 0)
     .map((c) => ({ id: c.id, priority: (c.focused ? 10000 : 0) + ((c.pettedUntil ?? 0) > now ? 20000 : 0)
       + ((c.newUntil ?? 0) > now ? 1000 : 0), distance: c.distance * (retained.has(c.id) ? .9 : 1) }))
-    .sort((a, b) => b.priority - a.priority || a.distance - b.distance || a.id.localeCompare(b.id))
+    .sort((a, b) => b.priority - a.priority || a.distance - b.distance || compareIds(a.id, b.id))
     .filter((c, i, all) => all.findIndex((v) => v.id === c.id) === i)
     .slice(0, MAX_SOUND_VOICES).map((c) => c.id);
 }

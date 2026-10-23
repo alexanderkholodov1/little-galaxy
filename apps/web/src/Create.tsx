@@ -76,7 +76,7 @@ export default function Create({ language }: { language: Language }) {
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [catalog, setCatalog] = useState<RenderObject[]>([]);
   const [editing, setEditing] = useState(false);
-  const [editState, setEditState] = useState<'saved' | 'pending' | 'failed' | 'limited'>('saved');
+  const [editState, setEditState] = useState<'saved' | 'pending' | 'failed' | 'limited' | 'closed'>('saved');
   const [editSaving, setEditSaving] = useState(false);
   const exhaustedDay = useRef('');
   const [rolledNames, setRolledNames] = useState(loadNameHistory);
@@ -173,6 +173,7 @@ export default function Create({ language }: { language: Language }) {
       !firestore ||
       busy ||
       editSaving ||
+      !live.config.seasonOpen ||
       exhaustedDay.current === utcDay(Date.now()) ||
       editState === 'failed' ||
       JSON.stringify(draft) === baseline.current
@@ -202,6 +203,8 @@ export default function Create({ language }: { language: Language }) {
             // A shared-sky gesture may just have used this identity's write clock.
             setEditState('pending');
             setRetry((value) => value + 1);
+          } else if (error instanceof LaunchError && error.reason === 'closed') {
+            setEditState('closed');
           } else setEditState('failed');
         })
         .finally(() => {
@@ -210,7 +213,7 @@ export default function Create({ language }: { language: Language }) {
         });
     }, 2200);
     return () => window.clearTimeout(timer);
-  }, [draft, editing, busy, editSaving, retry, editState, editsOpen]);
+  }, [draft, editing, busy, editSaving, retry, editState, editsOpen, live.config.seasonOpen]);
 
   useEffect(() => {
     if (!updateAvailable) return;
@@ -413,8 +416,17 @@ export default function Create({ language }: { language: Language }) {
         {editing && (
           <>
             <p role="status">
-              {!editsOpen ? (language === 'es' ? 'Ediciones pausadas por el operador.' : 'Edits paused by operator.') :
-                editState === 'saved' ? rich.saved : editState === 'limited' ? text.editLimit : editState === 'failed' ? rich.editFailed : rich.pending}
+              {editState === 'closed' || !live.config.seasonOpen
+                ? text.closed
+                : !editsOpen
+                  ? (language === 'es' ? 'Ediciones pausadas por el operador.' : 'Edits paused by operator.')
+                  : editState === 'saved'
+                    ? rich.saved
+                    : editState === 'limited'
+                      ? text.editLimit
+                      : editState === 'failed'
+                        ? rich.editFailed
+                        : rich.pending}
             </p>
             {editState === 'failed' && (
               <button

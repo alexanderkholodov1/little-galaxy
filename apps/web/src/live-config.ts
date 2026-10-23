@@ -25,7 +25,11 @@ export function readConfig(data: Record<string, unknown> | undefined): LiveConfi
     soundOnScreen: seasonOpen && data.soundOnScreen !== false && data.sound !== false,
     sound: seasonOpen && data.soundOnScreen !== false && data.sound !== false,
     spotlight: seasonOpen && data.spotlight !== false,
-    screenScene: screenScenes.includes(data.screenScene as LiveConfig['screenScene']) ? data.screenScene as LiveConfig['screenScene'] : data.screenScene === 'qr' ? 'bigQr' : 'galaxy',
+    screenScene: typeof data.screenScene === 'string' && screenScenes.includes(data.screenScene as LiveConfig['screenScene'])
+      ? (data.screenScene as LiveConfig['screenScene'])
+      : data.screenScene === 'qr'
+        ? 'bigQr'
+        : 'galaxy',
     idleSeconds: seconds('idleSeconds', 60, 10, 3600),
   };
 }

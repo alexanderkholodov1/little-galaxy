@@ -9,7 +9,7 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { launchPlanet, editObject, relaunchObject } from '../../apps/web/src/galaxy-data.ts';
 import { buildSeason, publicObject, readSeason, startMemoryWriter } from '../../apps/stand/src/memory.ts';
 import { freezeSeason } from '../../apps/stand/src/freeze-season.ts';
-import { objectBucket, orbitFromVelocity, presets, readLog, replay, replayScene, worldPosition } from '../../packages/shared/src/index.ts';
+import { compareIds, objectBucket, orbitFromVelocity, presets, readLog, replay, replayScene, worldPosition } from '../../packages/shared/src/index.ts';
 let env, app, admin, publicLog;
 beforeAll(async () => {
   const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
@@ -26,7 +26,7 @@ it('replays a recorded emulator session exactly, publishes cheaply, and exports 
     const source = await admin.collection('objects').get();
     const events = await admin.collection('events').get();
     const at = Math.max(...events.docs.map((d) => d.data().at.toMillis()));
-    records.push({ at, state: source.docs.map((d) => publicObject(d.id, d.data())).sort((a, b) => a.id.localeCompare(b.id)) });
+    records.push({ at, state: source.docs.map((d) => publicObject(d.id, d.data())).sort((a, b) => compareIds(a.id, b.id)) });
   };
   const age = () => admin.doc('users/memory-visitor').update({ lastWriteAt: Timestamp.fromMillis(Date.now() - 3000) });
   const draft = { type: 'planet', nameKey: 'quiet-aurora', params: presets.planet[0] };
@@ -62,20 +62,25 @@ it('replays a recorded emulator session exactly, publishes cheaply, and exports 
   // CI uses its workspace scratch directory; local acceptance may opt into the designated task scratch.
   const base = process.env.GALAXY_MEMORY_EXPORT_DIR ?? join(process.cwd(), '.memory-test');
   const a = `${base}-${Date.now()}-a`, b = `${base}-${Date.now()}-b`, c = `${base}-${Date.now()}-cli`;
-  const firstExport = await freezeSeason(admin, a); await freezeSeason(admin, b);
-  const output = execFileSync('pnpm', ['--filter', '@little-galaxy/stand', 'freeze-season', c], { encoding: 'utf8', timeout: 30000, env: { ...process.env, FIREBASE_PROJECT_ID: 'demo-little-galaxy' } });
-  expect(output).toContain('Season exported; live configuration unchanged.');
-  expect(firstExport).toEqual(data);
-  const names = await readdir(a);
-  for (const name of names) {
-    expect(await readFile(join(a, name), 'utf8')).toBe(await readFile(join(b, name), 'utf8'));
-    expect(await readFile(join(a, name), 'utf8')).toBe(await readFile(join(c, name), 'utf8'));
+  try {
+    const firstExport = await freezeSeason(admin, a); await freezeSeason(admin, b);
+    const output = execFileSync('pnpm', ['--filter', '@little-galaxy/stand', 'freeze-season', c], { encoding: 'utf8', timeout: 30000, env: { ...process.env, FIREBASE_PROJECT_ID: 'demo-little-galaxy' } });
+    expect(output).toContain('Season exported; live configuration unchanged.');
+    expect(firstExport).toEqual(data);
+    const names = await readdir(a);
+    for (const name of names) {
+      expect(await readFile(join(a, name), 'utf8')).toBe(await readFile(join(b, name), 'utf8'));
+      expect(await readFile(join(a, name), 'utf8')).toBe(await readFile(join(c, name), 'utf8'));
+    }
+    expect(JSON.parse(await readFile(join(a, 'manifest.json'), 'utf8'))).toEqual(data.manifest);
+    expect((await admin.doc('config/live').get()).data().seasonOpen).toBe(true);
+    const objects = await admin.collection('objects').get(), events = await admin.collection('events').get();
+    expect(buildSeason(objects.docs, events.docs)).toEqual(data);
+  } finally {
+    await rm(a, { recursive: true, force: true });
+    await rm(b, { recursive: true, force: true });
+    await rm(c, { recursive: true, force: true });
   }
-  expect(JSON.parse(await readFile(join(a, 'manifest.json'), 'utf8'))).toEqual(data.manifest);
-  expect((await admin.doc('config/live').get()).data().seasonOpen).toBe(true);
-  const objects = await admin.collection('objects').get(), events = await admin.collection('events').get();
-  expect(buildSeason(objects.docs, events.docs)).toEqual(data);
-  await rm(a, { recursive: true }); await rm(b, { recursive: true }); await rm(c, { recursive: true });
 });
 it.each(['public', 'signed'])('%s season surface permits gets only and denies every client mutation', async (identity) => {
   const db = identity === 'public' ? env.unauthenticatedContext().firestore() : env.authenticatedContext('reader').firestore();

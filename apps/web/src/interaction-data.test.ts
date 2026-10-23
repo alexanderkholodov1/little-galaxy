@@ -23,6 +23,7 @@ it('rebases the limited recent query, deduplicates events, ignores stale/cache/i
   expect(next.mock.calls[0][0].map((e: { id: string }) => e.id)).toEqual(['wave']);
   await vi.advanceTimersByTimeAsync(45_000);
   expect(stops[0]).toHaveBeenCalledOnce(); expect(onSnapshot).toHaveBeenCalledTimes(2);
+  expect(where).toHaveBeenLastCalledWith('at', '>', Timestamp.fromMillis(Date.now() - 45_000));
   callbacks[0]({ metadata: { fromCache: false }, docs: [row('late-old-listener')] });
   callbacks[1]({ metadata: { fromCache: false }, docs: [row('wave'), row('fresh')] });
   expect(next.mock.calls[1][0].map((e: { id: string }) => e.id)).toEqual(['fresh']);
