@@ -103,19 +103,19 @@ and five-launch maxima are not a guarantee that every visitor can consume every 
 project's actual quota; disable interactions and launches if needed. Multiple stand processes, more
 visitors, edits, operator config changes and retries change this estimate.
 
-Screen events cost one read per new event plus rebase overlap (~60/45 = 1.34 extra reads/event),
-with at least one read per empty reattach (~1,920/day at continuous 24h uptime). Thus conservatively
-**2.34 × events + 1,920 reads/day**, bounded to 100 documents per attach. For 600 launch/create,
-900 edit, 3,000 interaction and ~137 meteor events: **~12,771 screen-event reads/day**. Additional
-screen/stand active-object listeners read initial objects and changes. Phone interactions read
-20 own/config docs at the daily cap; conservatively include 30 extra dependent rule reads. With
-launch/edit/initial-inventory/snapshot/config reads, the example is roughly **85 reads/visitor**,
-25,500 for 300. A single screen and stand, ~500 initial objects and ~1,200 changes each, meteors and
-rebases bring this to about **42,000 reads/day**, before public snapshot consumers, operator config
-updates, D6 host fetches, errors/retries and extra displays. A config change fans out to every connected
-phone/screen/stand; each extra display also duplicates listeners. These are estimates, not measured
-Spark billing or a guarantee. Run during booth hours, avoid gratuitous config changes, and monitor
-both 20k writes and 50k reads. Phones never listen to global events or objects.
+Screen events cost one read per new event; cursor-based rebasing from the latest seen event timestamp
+eliminates re-query overlap, with at least one read per empty reattach (~1,920/day at continuous 24h uptime).
+Thus conservatively **1.0 × events + 1,920 reads/day**, bounded to 100 documents per attach. For 600 launch/create,
+900 edit, 3,000 interaction and ~137 meteor events (4,637 total events): **~6,557 screen-event reads/day**
+(saving ~6,214 daily reads compared to overlapping re-queries). Additional screen/stand active-object listeners
+read initial objects and changes. Phone interactions read 20 own/config docs at the daily cap; conservatively
+include 30 extra dependent rule reads. With launch/edit/initial-inventory/snapshot/config reads, the example is
+roughly **85 reads/visitor**, 25,500 for 300. A single screen and stand, ~500 initial objects and ~1,200 changes each,
+meteors and rebases bring this to about **~35,800 reads/day**, safely under the Spark tier's 50,000 daily read ceiling
+(before public snapshot consumers, operator config updates, D6 host fetches, errors/retries and extra displays).
+A config change fans out to every connected phone/screen/stand; each extra display also duplicates listeners.
+These are estimates, not measured Spark billing or a guarantee. Run during booth hours, avoid gratuitous config
+changes, and monitor both 20k writes and 50k reads. Phones never listen to global events or objects.
 
 ## Operator commands (admin SDK only)
 
