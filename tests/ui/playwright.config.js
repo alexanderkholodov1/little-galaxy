@@ -5,7 +5,8 @@ const isPreview = Boolean(process.env.BASE_URL);
 
 export default defineConfig({
   testDir: '.',
-  testMatch: '*.spec.js',
+  testMatch: isPreview ? 'smoke-preview.spec.js' : process.env.EMULATOR_SMOKE ? 'smoke.spec.js' : '*.spec.js',
+  testIgnore: isPreview || process.env.EMULATOR_SMOKE ? [] : ['smoke.spec.js', 'smoke-preview.spec.js'],
   workers: 1,
   retries: 0,
   reporter: 'list',
@@ -19,6 +20,6 @@ export default defineConfig({
   webServer: isPreview ? undefined : {
     command: 'VITE_USE_EMULATORS=1 pnpm --filter @little-galaxy/web dev --port 4177 --strictPort',
     url: 'http://127.0.0.1:4177/galaxy/',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 });

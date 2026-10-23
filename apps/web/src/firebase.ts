@@ -9,7 +9,10 @@ const app = config ? initializeApp(config) : null;
 const auth = app ? getAuth(app) : null;
 export const firestore = app ? getFirestore(app) : null;
 
-if (emulators && auth && firestore) {
+const demoLoopback = config?.projectId === 'demo-little-galaxy' && ['127.0.0.1', 'localhost'].includes(window.location.hostname) && new URLSearchParams(window.location.search).get('emulators') === '1';
+export const isReadOnlySmoke = new URLSearchParams(window.location.search).get('smoke') === 'readonly';
+
+if ((emulators || demoLoopback) && auth && firestore) {
   // The page hostname also lets phones on the LAN reach the local emulators.
   const host = window.location.hostname;
   connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
@@ -18,6 +21,7 @@ if (emulators && auth && firestore) {
 
 let authentication: Promise<void> | undefined;
 export function startAnonymousSession(): Promise<void> {
+  if (isReadOnlySmoke) return Promise.reject(new Error('Read-only smoke: authentication and writes are disabled'));
   if (!auth) return Promise.reject(new Error('Session not configured'));
   authentication ??= auth.authStateReady().then(async () => {
     if (!auth.currentUser) await signInAnonymously(auth);

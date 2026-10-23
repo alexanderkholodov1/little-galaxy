@@ -18,7 +18,7 @@ beforeEach(() => {
   vi.stubEnv('VITE_USE_EMULATORS', '1');
   vi.stubEnv('DEV', true);
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); history.replaceState(null, '', '/'); });
 
 it('makes one sign-in across concurrent calls', async () => {
   const { startAnonymousSession } = await import('./firebase');
@@ -47,4 +47,24 @@ it('does not initialize Firebase when configuration is absent', async () => {
   expect(sessionConfigured).toBe(false);
   expect(mocks.initialize).not.toHaveBeenCalled();
   await expect(startAnonymousSession()).rejects.toThrow('Session not configured');
+});
+
+it('read-only smoke refuses identity creation and existing authenticated UIDs before any network call', async () => {
+  history.replaceState(null, '', '/galaxy/create?smoke=readonly');
+  mocks.auth.currentUser = { uid: 'existing' };
+  const { startAnonymousSession, anonymousUid } = await import('./firebase');
+  await expect(startAnonymousSession()).rejects.toThrow('Read-only smoke');
+  await expect(anonymousUid()).rejects.toThrow('Read-only smoke');
+  expect(mocks.signIn).not.toHaveBeenCalled();
+  expect(mocks.auth.authStateReady).not.toHaveBeenCalled();
+});
+it('production rehearsal may connect only the explicit demo project on loopback', async () => {
+  vi.stubEnv('DEV', false); vi.stubEnv('VITE_USE_EMULATORS', '');
+  for (const [key, value] of Object.entries({ VITE_FIREBASE_API_KEY: 'demo-key', VITE_FIREBASE_AUTH_DOMAIN: 'demo-little-galaxy.firebaseapp.com', VITE_FIREBASE_PROJECT_ID: 'demo-little-galaxy', VITE_FIREBASE_STORAGE_BUCKET: 'demo', VITE_FIREBASE_MESSAGING_SENDER_ID: '0', VITE_FIREBASE_APP_ID: 'demo' })) vi.stubEnv(key, value);
+  history.replaceState(null, '', '/galaxy/create?emulators=1');
+  await import('./firebase');
+  expect(mocks.connectAuth).toHaveBeenCalled(); expect(mocks.connectFirestore).toHaveBeenCalled();
+  vi.resetModules(); vi.clearAllMocks(); vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'real-project');
+  await import('./firebase');
+  expect(mocks.connectAuth).not.toHaveBeenCalled(); expect(mocks.connectFirestore).not.toHaveBeenCalled();
 });
