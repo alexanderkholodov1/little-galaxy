@@ -26,6 +26,13 @@ test('static timelapse scrubs exact historical state, supports keyboard and spee
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
   await expect(range).toHaveValue(String(end));
+  // At the end of the season playback stops (interval cleared); Home must not auto-play.
+  await range.focus(); await page.keyboard.press('Home');
+  const startValue = await range.inputValue();
+  expect(Number(startValue)).toBeLessThan(end);
+  await page.waitForTimeout(150);
+  await expect(range).toHaveValue(startValue);
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
   await expect(page.getByText('Static archive · 4 events')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   if (artifact) await page.screenshot({ path: `${artifact}/memory-replay-375.png`, fullPage: true });
