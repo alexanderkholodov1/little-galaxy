@@ -94,6 +94,6 @@ test('screen timelapse keeps its join QR inside the booth viewport', async ({ pa
   await expect(page.locator('.memory-field canvas').first()).toBeVisible();
   const qr = await page.locator('.replay-join').boundingBox();
   expect(qr.y).toBeGreaterThan(0); expect(qr.y + qr.height).toBeLessThanOrEqual(1080);
-  await expect(page.locator('.replay-join')).toHaveAttribute('href', 'http://127.0.0.1:4177/galaxy/create');
+  await expect(page.locator('.replay-join')).toHaveAttribute('href', new URL('/galaxy/create', page.url()).href);
   if (artifact) await page.screenshot({ path: `${artifact}/memory-screen-1920.png` });
 });

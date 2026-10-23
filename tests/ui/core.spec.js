@@ -36,7 +36,7 @@ test('screen keeps its current-origin SVG join QR and truthful connection state 
 }) => {
   await page.goto('/galaxy/screen');
   await expect(page.locator('.join-qr svg')).toBeVisible();
-  await expect(page.locator('.join-qr')).toHaveAttribute('href', 'http://127.0.0.1:4177/galaxy/create');
+  await expect(page.locator('.join-qr')).toHaveAttribute('href', new URL('/galaxy/create', page.url()).href);
   await expect(page.locator('.creator-count')).toHaveText('—');
   await expect(
     page.getByRole('img', { name: 'Live galaxy with a central star and visitor orbits' }),
@@ -69,7 +69,7 @@ test('rich controls stay bounded at 375px and never offer a text input', async (
   expect(name).toMatch(/^n[0-3][0-9]-[0-3][0-9]$/);
   await page.reload();
   await expect(page.locator('select').first()).toHaveValue(name);
-  await page.getByRole('button', { name: 'Inspect in 3D', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Inspect in 3D', exact: true })).toHaveCount(0);
   await expect(page.locator('.planet-specimen canvas')).toBeVisible();
   await page.waitForTimeout(1500);
   if (artifact) await page.screenshot({ path: `${artifact}/rich-workshop-375.png`, fullPage: true });

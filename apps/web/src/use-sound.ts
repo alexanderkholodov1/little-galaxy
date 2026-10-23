@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RenderObject, SoundCandidate } from '@little-galaxy/shared';
 import { createSoundController, savedSoundMute, savedSoundVolume } from './sound-controller';
 import type { AudioState } from './sound-controller';
-export function useSound(count: number) {
+export function useSound(count: number, allowed = true) {
   const controller = useRef<ReturnType<typeof createSoundController> | null>(null);
   const [state, setState] = useState<AudioState>('locked');
   const [muted, setMuted] = useState(savedSoundMute);
@@ -29,6 +29,7 @@ export function useSound(count: number) {
       sound.dispose(); controller.current = null;
     };
   }, [count]);
+  useEffect(() => { controller.current?.setAllowed(allowed); }, [allowed, count]);
   const update = useCallback((objects: RenderObject[], candidates: SoundCandidate[]) => {
     latest.current = { objects, candidates }; controller.current?.update(objects, candidates);
   }, []);

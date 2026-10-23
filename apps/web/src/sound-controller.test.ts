@@ -76,3 +76,28 @@ it('survives denied browser storage and absent audio support', async () => {
     expect(notify).toHaveBeenLastCalledWith('failed'); controller.dispose();
   } finally { read.mockRestore(); write.mockRestore(); }
 });
+
+it('operator suppression silences a running engine and blocks pets and unlocks without changing visitor preferences', async () => {
+  const controller = createSoundController(8, vi.fn());
+  await controller.unlock();
+  controller.setVolume(0.7);
+  controller.setAllowed(false);
+  expect(engine.setMix).toHaveBeenLastCalledWith(true, 0.7);
+  engine.pet.mockClear(); engine.update.mockClear(); resume.mockClear();
+  controller.pet('own'); controller.update([], []); await controller.unlock(); await Promise.resolve();
+  expect(engine.pet).not.toHaveBeenCalled();
+  expect(resume).not.toHaveBeenCalled();
+  expect(engine.update).toHaveBeenLastCalledWith([], []);
+  expect(savedSoundMute()).toBe(false); expect(savedSoundVolume()).toBe(0.7);
+  controller.setAllowed(true);
+  expect(engine.setMix).toHaveBeenLastCalledWith(false, 0.7);
+  controller.dispose();
+});
+it('operator suppression also wins a pending audio import', async () => {
+  let finish!: () => void;
+  resume.mockReturnValue(new Promise<void>((resolve) => { finish = resolve; }));
+  const controller = createSoundController(8, vi.fn());
+  const pending = controller.unlock(); controller.setAllowed(false); finish(); await pending;
+  expect(engine.setMix).toHaveBeenLastCalledWith(true, 0.32);
+  controller.dispose();
+});

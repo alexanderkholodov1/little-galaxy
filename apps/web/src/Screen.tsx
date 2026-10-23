@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { objectName, syntheticObjects } from '@little-galaxy/shared';
 import type { Language, RenderObject, ScreenScene } from '@little-galaxy/shared';
@@ -14,7 +14,6 @@ import { addEffects } from './screen-effects';
 import type { SkyEffect } from './screen-effects';
 import SkyEffects from './SkyEffects';
 import { useVersionWatcher } from './version-watcher';
-import { triggerStateSave } from './live-safety';
 const Timelapse = lazy(() => import('./Timelapse'));
 const Scene = lazy(() => import('./GalaxyScene'));
 export default function Screen({ language }: { language: Language }) {
@@ -25,17 +24,20 @@ export default function Screen({ language }: { language: Language }) {
   const [objects, setObjects] = useState<RenderObject[]>(() => syntheticObjects(synthetic));
   const [attempt, setAttempt] = useState(0);
   const live = useLiveConfig(synthetic > 0);
-  const { updateAvailable } = useVersionWatcher({ appVersion: live.config.appVersion });
+  const { updateAvailable, reload } = useVersionWatcher({ appVersion: live.config.appVersion });
   const [reloading, setReloading] = useState(false);
-  const soundAllowed = live.status === 'live' ? (live.config.soundOnScreen !== false && live.config.sound !== false) : true;
+  const soundAllowed = synthetic > 0 || (live.config.soundOnScreen !== false && live.config.sound !== false);
   const spotlightEnabled = live.status === 'live' ? live.config.spotlight !== false : true;
   const [now, setNow] = useState(Date.now);
-  const [lastActivity, setLastActivity] = useState(Date.now);
-  const [spotlight, setSpotlight] = useState<{ id: string; until: number }>();
+  const [restored] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('galaxy.screen.context') ?? JSON.stringify({ configuredScene: localStorage.getItem('galaxy.screen.scene') === 'cinematic' ? 'galaxy' : localStorage.getItem('galaxy.screen.scene') ?? undefined, lastActivity: localStorage.getItem('galaxy.screen.scene') === 'cinematic' ? 0 : undefined })) as { configuredScene?: string; lastActivity?: number; focused?: string; spotlight?: { id: string; until: number } }; } catch { return {}; }
+  });
+  const [lastActivity, setLastActivity] = useState(() => restored.lastActivity ?? Date.now());
+  const [spotlight, setSpotlight] = useState<{ id: string; until: number } | undefined>(restored.spotlight);
   const [effects, setEffects] = useState<SkyEffect[]>([]);
   const [eventsFailed, setEventsFailed] = useState(false);
   const configuredScene = synthetic && import.meta.env.DEV
-    ? new URLSearchParams(location.search).get('scene') ?? 'galaxy' : live.config.screenScene;
+    ? new URLSearchParams(location.search).get('scene') ?? 'galaxy' : live.status !== 'live' && restored.configuredScene ? restored.configuredScene : live.config.screenScene;
   const auto = configuredScene === 'galaxy' || configuredScene === 'spotlight';
   const spotlightObject = spotlightEnabled && auto && spotlight && spotlight.until > now ? objects.find((o) => o.id === spotlight.id) : undefined;
   const idle = now - lastActivity >= (live.config.idleSeconds ?? 60) * 1000;
@@ -47,21 +49,18 @@ export default function Screen({ language }: { language: Language }) {
     try { localStorage.setItem('galaxy.screen.scene', scene); } catch { /* Storage optional. */ }
   }, [scene]);
   useEffect(() => {
-    if (!updateAvailable || reloading) return;
+    if (!updateAvailable) return;
+    let fade: number | undefined;
     const checkQuiet = () => {
-      const time = Date.now();
-      const quiet = !spotlightObject && effects.length === 0 && (time - lastActivity >= 8000);
-      if (quiet) {
+      const quiet = !spotlightObject && effects.length === 0 && Date.now() - lastActivity >= 8000;
+      if (quiet && fade === undefined) {
         setReloading(true);
-        triggerStateSave();
-        window.setTimeout(() => {
-          window.location.reload();
-        }, 600);
+        fade = window.setTimeout(() => { reload(); }, 600);
       }
     };
     const timer = window.setInterval(checkQuiet, 1500);
-    return () => clearInterval(timer);
-  }, [updateAvailable, reloading, spotlightObject, effects.length, lastActivity]);
+    return () => { clearInterval(timer); clearTimeout(fade); setReloading(false); };
+  }, [updateAvailable, spotlightObject, effects.length, lastActivity, reload]);
   useEffect(() => {
     const timer = window.setInterval(() => {
       const time = Date.now(); setNow(time);
@@ -97,7 +96,7 @@ export default function Screen({ language }: { language: Language }) {
       if (launch && spotlightEnabled) setSpotlight({ id: launch.objectId, until: time + 8000 });
     }, () => setEventsFailed(true));
   }, [synthetic, attempt, replaying, spotlightEnabled]);
-  const sound = useSound(8);
+  const sound = useSound(8, soundAllowed);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mouseIdle, setMouseIdle] = useState(false);
 
@@ -155,7 +154,24 @@ export default function Screen({ language }: { language: Language }) {
       clearTimeout(timer);
     };
   }, []);
-  const [focused, setFocused] = useState<string>();
+
+  const [focused, setFocused] = useState<string | undefined>(restored.focused);
+  const previousConfig = useRef(restored.configuredScene);
+  useEffect(() => {
+    if (live.status !== 'live') return;
+    if (previousConfig.current !== undefined && previousConfig.current !== configuredScene) {
+      setLastActivity(Date.now()); setFocused(undefined); setSpotlight(undefined);
+    }
+    previousConfig.current = configuredScene;
+  }, [configuredScene, live.status]);
+  useEffect(() => {
+    if (live.status !== 'live') return;
+    const save = () => {
+      try { localStorage.setItem('galaxy.screen.context', JSON.stringify({ configuredScene, lastActivity, focused, spotlight })); } catch { /* Storage optional. */ }
+    };
+    save(); window.addEventListener('galaxy:save-state', save); window.addEventListener('beforeunload', save);
+    return () => { window.removeEventListener('galaxy:save-state', save); window.removeEventListener('beforeunload', save); };
+  }, [configuredScene, lastActivity, focused, spotlight, live.status]);
   const [pet, setPet] = useState<{ id: string; at: number }>();
   const focusObject = spotlightObject ?? objects.find((o) => o.id === focused);
   function pick(id: string) {
@@ -197,7 +213,7 @@ export default function Screen({ language }: { language: Language }) {
   }, [attempt, synthetic, replaying]);
   const visibleEffects = useMemo(() => effects.filter((e) => synthetic || (live.config.seasonOpen && (e.type === 'wave' ? live.config.shake : e.type === 'comet' ? live.config.comets : e.type === 'shootingStar' ? live.config.shootingStars : live.config.meteorShowers))), [effects, synthetic, live.config]);
   const status = synthetic ? 'live' : !firestore ? 'failed' : state;
-  if (scene === 'timelapse') return <section className="screen-replay" data-screen-scene="timelapse" data-fullscreen={isFullscreen ? 'true' : 'false'} data-mouse-idle={mouseIdle ? 'true' : 'false'}><Suspense fallback={<p>{text.loading}</p>}><Timelapse language={language} join={<a className="join-qr replay-join" href={join}><span className="qr-image" dangerouslySetInnerHTML={{ __html: qrSvg }}/><span>{text.join}</span></a>}/></Suspense></section>;
+  if (scene === 'timelapse') return <section className="screen-replay" data-screen-scene="timelapse" data-fullscreen={isFullscreen ? 'true' : 'false'} data-mouse-idle={mouseIdle ? 'true' : 'false'}>{reloading && <div className="version-crossfade" aria-hidden="true"/>}<Suspense fallback={<p>{text.loading}</p>}><Timelapse language={language} join={<a className="join-qr replay-join" href={join}><span className="qr-image" dangerouslySetInnerHTML={{ __html: qrSvg }}/><span>{text.join}</span></a>}/></Suspense></section>;
   return (
     <section className="live-screen" data-screen-scene={scene} data-fullscreen={isFullscreen ? 'true' : 'false'} data-mouse-idle={mouseIdle ? 'true' : 'false'}>
       <div className="screen-heading">
@@ -205,7 +221,7 @@ export default function Screen({ language }: { language: Language }) {
         <h1>{text.screen}</h1>
       </div>
       <div className="screen-sound">
-        <SoundControls sound={sound} language={language} screen disabled={!soundAllowed} disabledReason={language === 'es' ? 'Sonido desactivado por el operador' : 'Sound disabled by operator'}/>
+        <SoundControls sound={sound} language={language} screen disabled={!soundAllowed} disabledReason={live.status === 'live' ? (language === 'es' ? 'Sonido desactivado por el operador' : 'Sound disabled by operator') : (language === 'es' ? 'Sonido pausado hasta reconectar los controles' : 'Sound paused until live controls reconnect')}/>
         <label>{language === 'es' ? 'Enfocar objeto' : 'Focus object'}
           <select aria-label={language === 'es' ? 'Enfocar objeto' : 'Focus object'} value={focusObject?.id ?? ''}
             onChange={(e) => { setFocused(e.target.value || undefined); setSpotlight(undefined); setLastActivity(Date.now()); }}>
@@ -235,7 +251,7 @@ export default function Screen({ language }: { language: Language }) {
           }
         >
           <Suspense fallback={<p className="scene-message">{text.loading}</p>}>
-            <Scene objects={objects} label={text.scene} unavailable={text.unavailable} onFps={debug ? setFps : undefined} focused={scene === 'cinematic' ? undefined : focusObject?.id} pet={pet} onPick={pick} onSoundCandidates={sound.update} cinematic={scene === 'cinematic'} />
+            <Scene ready={known} objects={objects} label={text.scene} unavailable={text.unavailable} onFps={debug ? setFps : undefined} focused={scene === 'cinematic' ? undefined : focusObject?.id} pet={pet} onPick={pick} onSoundCandidates={sound.update} cinematic={scene === 'cinematic'} />
           </Suspense>
         </ErrorBoundary>
         {visibleEffects.length > 0 && <SkyEffects effects={visibleEffects} language={language}/>}

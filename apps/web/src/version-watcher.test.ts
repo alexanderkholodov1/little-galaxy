@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fetchServedVersion, isNewerVersion } from './version-watcher';
 
@@ -28,4 +29,42 @@ describe('version-watcher', () => {
     const info = await fetchServedVersion(fetchMock as unknown as typeof fetch, 'http://localhost:4177');
     expect(info).toBeNull();
   });
+});
+
+
+it('uses Hosting as authority and remembers attempted upgrade and rollback targets across reloads', async () => {
+  const { act } = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const { useVersionWatcher } = await import('./version-watcher');
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  sessionStorage.clear();
+  let served = { version: '0.7.0', commit: null as string | null };
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => served })));
+  let watcher!: ReturnType<typeof useVersionWatcher>;
+  function Probe() { watcher = useVersionWatcher({ appVersion: '0.6.0' }); return null; }
+  const host = document.createElement('div');
+  let root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(Probe)));
+    expect(watcher.updateAvailable).toBe(false);
+    await act(async () => root.unmount());
+    served = { version: '0.7.1', commit: 'b' };
+    root = createRoot(host);
+    await act(async () => root.render(createElement(Probe)));
+    expect(watcher.updateAvailable).toBe(true);
+    const reload = vi.fn();
+    watcher.reload(reload);
+    expect(reload).toHaveBeenCalledOnce();
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await act(async () => root.render(createElement(Probe)));
+    expect(watcher.updateAvailable).toBe(false);
+    await act(async () => root.unmount());
+    served = { version: '0.6.0', commit: 'rollback' };
+    root = createRoot(host);
+    await act(async () => root.render(createElement(Probe)));
+    expect(watcher.updateAvailable).toBe(true);
+    watcher.reload(reload);
+    expect(reload).toHaveBeenCalledTimes(2);
+  } finally { await act(async () => root.unmount()); vi.unstubAllGlobals(); }
 });

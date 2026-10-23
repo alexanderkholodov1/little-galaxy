@@ -32,7 +32,7 @@ Este manual contiene las instrucciones operativas completas para la exhibición 
    - **Cambio de escenas**: \`pnpm --filter @little-galaxy/stand control scene <galaxy|bigQr|spotlight|cinematic|timelapse>\`.
    - **Monitoreo de cuota gratuita**: Revisar en Firebase Console (límite Spark: 20,000 escrituras y 50,000 lecturas/día).
    - **Presión de cuota (surges)**: Apagar interacciones con \`pnpm --filter @little-galaxy/stand control flag shake off\` (ahorra ~25% de escrituras).
-   - **Rollback de emergencia**: Si un deploy falla, ejecutar \`node ../portfolio/scripts/rollback.mjs --yes\`.
+   - **Rollback de emergencia**: Si un deploy falla, desde \`~/Fauns/wt/portfolio-v0.3.0\` ejecutar \`pnpm run rollback\` (o con confirmación automática: \`node scripts/rollback.mjs --yes\`).
 4. **Cierre de la Feria**:
    1. Cerrar la temporada: \`pnpm --filter @little-galaxy/stand control flag seasonOpen off\`.
    2. Exportar la temporada estática: \`pnpm --filter @little-galaxy/stand freeze-season ./temporada-bad-2026\`.
@@ -194,9 +194,21 @@ pnpm --filter @little-galaxy/stand control flag edits off
 # Halt new launches (locks galaxy into read-only viewing mode)
 pnpm --filter @little-galaxy/stand control flag launches off
 
-# Re-enable any feature (e.g. restores shake)
+# Silence booth screen audio (operator suppression; sets both sound and soundOnScreen)
+pnpm --filter @little-galaxy/stand control flag sound off
+
+# Silence booth screen audio only (leaves phone audio intact)
+pnpm --filter @little-galaxy/stand control flag soundOnScreen off
+
+# Disable automatic spotlight camera zoom on new launches
+pnpm --filter @little-galaxy/stand control flag spotlight off
+
+# Re-enable any feature (e.g. restores shake or sound)
 pnpm --filter @little-galaxy/stand control flag shake on
+pnpm --filter @little-galaxy/stand control flag sound on
 \`\`\`
+
+The same \`flag <name> <on|off>\` syntax supports \`launches\`, \`edits\`, \`shake\`, \`comets\`, \`shootingStars\`, \`meteorShowers\`, \`soundOnScreen\`, \`sound\`, \`spotlight\`, and \`seasonOpen\`. \`sound\` sets both audio flags (\`sound\` and \`soundOnScreen\`).
 
 ### Timing Adjustments
 \`\`\`sh
@@ -237,14 +249,40 @@ If the stand process terminates or is accidentally closed:
 If a newly promoted version causes issues on visitor devices or the booth TV, rollback to the previous known-good release in a single command using the portfolio deploy tooling.
 
 ### Exact Rollback Command
-From the portfolio checkout:
+
+For the captain, from \`~/Fauns/wt/portfolio-v0.3.0\`:
+
 \`\`\`sh
-# 1. Preview the rollback target release
-node ../portfolio/scripts/rollback.mjs --dry-run
+# 1. Preview the rollback target release (dry run)
+pnpm run rollback -- --dry-run
+# (or directly: node scripts/rollback.mjs --dry-run)
 
 # 2. Execute instantaneous atomic rollback to previous Hosting release
-node ../portfolio/scripts/rollback.mjs --yes
+pnpm run rollback
+# (or with automatic confirmation: node scripts/rollback.mjs --yes)
 \`\`\`
+
+*(From the Galaxy worktree, the same script can be invoked directly: \`node ../portfolio-v0.3.0/scripts/rollback.mjs --dry-run\` or \`node ../portfolio-v0.3.0/scripts/rollback.mjs --yes\`).*
+
+Rollback creates a new live Hosting release of the previous version after revalidation and confirmation. It does not change \`games.json\`. Changing the pinned Git release for a future build is a separate captain-owned Git operation. Config \`appVersion\` does not need to match either direction for browsers to settle.
+
+### Pre-Deploy Verification & Hosted Smoke
+
+Before promoting a preview or during deployment rehearsal, verify the build and test against the preview URL:
+
+From \`~/Fauns/wt/portfolio-v0.3.0\`:
+\`\`\`sh
+# Deploy local Galaxy checkout to an isolated preview channel and smoke test
+pnpm run deploy-local -- --galaxy ../galaxy-v1.0.0
+\`\`\`
+
+From Galaxy (\`~/Fauns/wt/galaxy-v1.0.0\`):
+\`\`\`sh
+# Read-only smoke check against a deployed preview channel (blocks all writes/mutations)
+BASE_URL=https://<preview-domain> pnpm exec playwright test --config tests/ui/playwright.config.js
+\`\`\`
+
+\`BASE_URL\` selects only \`smoke-preview.spec.js\`. It installs a context route before opening any page and blocks every non-read request except Firebase's POST read/listen endpoints. Auth signup, Firestore commits, write channels and unknown POSTs are blocked before transmission. Service workers are blocked. Pages use \`?smoke=readonly\`, which rejects application authentication/UID acquisition before anonymous sign-up; normal authenticated live data is therefore unavailable in this fresh smoke context. The preview check asserts static workshop/screen surfaces and their graceful disconnected states, not a connected launch. Never run local mutation specs against a hosted URL. The connected test requires local demo emulators and fails before seeding otherwise.
 
 ### Expected Rollback Behavior
 - Firebase Hosting atomically updates the live site pointer to the previous release.

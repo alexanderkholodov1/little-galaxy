@@ -1,9 +1,10 @@
-/* global document, window */
+/* global document, window, getComputedStyle */
 import { expect, test } from '@playwright/test';
 
 test.describe('Live-safety deploy resilience', () => {
   test('chunk loading error triggers state save, soft reloads once with loop guard, and restores phone draft and screen state', async ({ page }) => {
     // 1. Phone workshop: customize draft and workshop state
+    await page.clock.install();
     await page.goto('/galaxy/create');
     await expect(page.locator('h1')).toBeVisible();
 
@@ -27,6 +28,7 @@ test.describe('Live-safety deploy resilience', () => {
       // Dispatch vite:preloadError as Vite does when a chunk fetch fails with 404
       window.dispatchEvent(new Event('vite:preloadError'));
     });
+    await page.clock.fastForward(21000);
     // Wait for reload to complete (the in-memory marker is cleared upon page reload)
     await page.waitForFunction(() => window.__before_reload === undefined, null, { timeout: 10_000 });
     await expect(page.locator('h1')).toBeVisible();
@@ -57,68 +59,71 @@ test.describe('Live-safety deploy resilience', () => {
     await expect(page.locator('.planet-specimen')).toBeVisible();
   });
 
-  test('screen restores camera position, scene, and volume after reload', async ({ page }) => {
-    // 1. Seed custom screen camera position, scene and volume in storage
+  test('screen restores rendered cinematic scene, camera trajectory and volume', async ({ page }) => {
     await page.goto('/galaxy/screen?synthetic=12');
-    await expect(page.locator('.galaxy-field')).toBeVisible();
-
     await page.evaluate(() => {
-      localStorage.setItem('galaxy.screen.camera', JSON.stringify([12.5, -8.0, 35.0]));
-      localStorage.setItem('galaxy.screen.look', JSON.stringify([0.5, 1.0, -2.0]));
-      localStorage.setItem('galaxy.screen.scene', 'galaxy');
+      localStorage.setItem('galaxy.screen.context', JSON.stringify({ configuredScene: 'galaxy', lastActivity: Date.now() - 120000 }));
       localStorage.setItem('galaxy.sound.volume', '0.75');
     });
-
-    // 2. Reload page (as occurs after version update crossfade or chunk recovery)
-    await page.reload({ waitUntil: 'load' });
-    await expect(page.locator('.galaxy-field')).toBeVisible();
-
-    // 3. Verify screen restored state without blank screens or crashes
-    const restoredCam = await page.evaluate(() => localStorage.getItem('galaxy.screen.camera'));
-    const restoredVol = await page.evaluate(() => localStorage.getItem('galaxy.sound.volume'));
-    const restoredScene = await page.evaluate(() => localStorage.getItem('galaxy.screen.scene'));
-    expect(restoredCam).toBeTruthy();
-    const camCoords = JSON.parse(restoredCam);
-    expect(camCoords).toHaveLength(3);
-    expect(camCoords.every((n) => typeof n === 'number' && !Number.isNaN(n))).toBe(true);
-    expect(restoredVol).toBe('0.75');
-    expect(restoredScene).toBe('galaxy');
-
-    // No blank screen
-    expect(await page.evaluate(() => document.getElementById('root')?.childElementCount ?? 0)).toBeGreaterThan(0);
+    await page.reload();
+    await expect(page.locator('[data-screen-scene]')).toHaveAttribute('data-screen-scene', 'cinematic');
+    const canvas = page.locator('.galaxy-field canvas');
+    await expect(canvas).toHaveAttribute('data-camera', /\[/);
+    await page.waitForTimeout(2500);
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('galaxy:save-state')));
+    const before = JSON.parse(await canvas.getAttribute('data-camera'));
+    await page.reload();
+    await expect(page.locator('[data-screen-scene]')).toHaveAttribute('data-screen-scene', 'cinematic');
+    await expect(canvas).toHaveAttribute('data-camera', /\[/);
+    const after = JSON.parse(await canvas.getAttribute('data-camera'));
+    expect(Math.hypot(...before.map((n, i) => n - after[i]))).toBeLessThan(3);
+    await expect(page.locator('.sound-controls input')).toHaveValue('0.75');
     await expect(page.locator('.join-qr')).toBeVisible();
   });
 
-  test('phone updates only at a safe moment and not mid-edit or mid-swipe', async ({ page }) => {
-    await page.goto('/galaxy/create');
-    await expect(page.locator('h1')).toBeVisible();
-
-    // Intercept version.json to announce a new version B is available
+  test('announced update waits through a held pointer and settles after one attempt', async ({ page }) => {
     await page.route('**/galaxy/version.json', (route) => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ version: '0.7.1', commit: 'new-version-b', builtAt: new Date().toISOString() }),
+      status: 200, contentType: 'application/json', body: JSON.stringify({ version: '0.7.1', commit: 'new-version-b' }),
     }));
-
-    // Trigger version poll
-    await page.evaluate(async () => {
-      const res = await fetch('/galaxy/version.json', { headers: { 'Cache-Control': 'no-cache' } });
-      return res.json();
-    });
-
-    // During active interaction (mid-edit), the phone must NOT reload
-    let reloadDuringEdit = false;
-    page.once('framenavigated', () => { reloadDuringEdit = true; });
-
-    // Touch and move slider
-    const slider = page.locator('input[type=range]').first();
-    await slider.focus();
-    await page.keyboard.press('ArrowRight');
-
-    await page.waitForTimeout(1000);
-    expect(reloadDuringEdit).toBe(false);
-
-    // Workshop remains responsive and active
-    expect(await page.evaluate(() => document.getElementById('root')?.childElementCount ?? 0)).toBeGreaterThan(0);
+    await page.clock.install();
+    await page.goto('/galaxy/create');
+    await expect(page.locator('.update-notice')).toBeVisible();
+    const slider = page.getByRole('slider', { name: 'Radius' });
+    await slider.scrollIntoViewIfNeeded();
+    const box = await slider.boundingBox();
+    await page.mouse.move(box.x + 10, box.y + 10); await page.mouse.down();
+    let reloads = 0;
+    page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) reloads++; });
+    await page.clock.fastForward(26000);
+    expect(reloads).toBe(0);
+    await page.mouse.up();
+    await page.clock.fastForward(22000);
+    await expect.poll(() => reloads).toBe(1);
+    await expect(page.locator('.planet-specimen')).toBeVisible();
+    await page.clock.fastForward(45000);
+    expect(reloads).toBe(1);
+  });
+  test('update notice meets AA contrast in both themes at 375px', async ({ page }) => {
+    await page.route('**/galaxy/version.json', (route) => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify({ version: '0.7.1', commit: 'new-version-b' }),
+    }));
+    await page.goto('/galaxy/create');
+    await expect(page.locator('.update-notice')).toBeVisible();
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      const contrast = await page.locator('.update-notice').evaluate((element) => {
+        const luminance = (colour) => {
+          const channels = colour.match(/[\d.]+/g).slice(0, 3).map((value) => {
+            const c = Number(value) / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4;
+          });
+          return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+        };
+        const ink = luminance(getComputedStyle(element).color);
+        const paper = luminance(getComputedStyle(document.documentElement).backgroundColor);
+        return (Math.max(ink, paper) + .05) / (Math.min(ink, paper) + .05);
+      });
+      expect(contrast).toBeGreaterThanOrEqual(4.5);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+    }
   });
 });

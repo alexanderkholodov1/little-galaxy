@@ -5,7 +5,8 @@
  * - Provides safe-moment checking for phones and quiet-moment checking for screen.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { triggerStateSave } from './live-safety';
 
 export interface VersionInfo {
   version: string;
@@ -30,16 +31,26 @@ export async function fetchServedVersion(
   try {
     const url = new URL('/galaxy/version.json', origin).href;
     const response = await fetchFn(url, {
+      cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' },
       signal: AbortSignal.timeout(10_000),
     });
     if (response.ok) {
-      return (await response.json()) as VersionInfo;
+      const value = await response.json();
+      return value && typeof value.version === 'string' && value.version && (value.commit == null || typeof value.commit === 'string') ? value as VersionInfo : null;
     }
   } catch {
     /* Fetch failed or offline. */
   }
   return null;
+}
+
+function attemptKey(current: VersionInfo, target: VersionInfo) {
+  return `galaxy.update.${JSON.stringify([current.version, current.commit ?? null])}>${JSON.stringify([target.version, target.commit ?? null])}`;
+}
+function attempted(current: VersionInfo, target: VersionInfo) {
+  try { return sessionStorage.getItem(attemptKey(current, target)) === 'attempted'; }
+  catch { return true; }
 }
 
 export function useVersionWatcher({
@@ -49,32 +60,37 @@ export function useVersionWatcher({
   appVersion?: string;
   checkIntervalMs?: number;
 } = {}) {
-  const [polledUpdate, setPolledUpdate] = useState(false);
+  const [target, setTarget] = useState<VersionInfo | null>(null);
   const current = useMemo(() => ({
     version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0',
     commit: typeof __APP_COMMIT__ !== 'undefined' ? __APP_COMMIT__ : null,
   }), []);
-
-  const configUpdate = Boolean(appVersion && appVersion !== current.version);
-  const updateAvailable = configUpdate || polledUpdate;
+  const updateAvailable = target !== null && !attempted(current, target);
 
   useEffect(() => {
     let alive = true;
     const check = async () => {
       const served = await fetchServedVersion();
-      if (!alive || !served) return;
-      if (isNewerVersion(current, served)) {
-        setPolledUpdate(true);
+      if (alive && served && !isNewerVersion(current, served)) {
+        // A successful arrival releases old attempt records, allowing future re-promotions after rollback.
+        try {
+          for (const key of Object.keys(sessionStorage)) if (key.startsWith('galaxy.update.')) sessionStorage.removeItem(key);
+        } catch { /* Automatic reload remains disabled when storage is unavailable. */ }
       }
+      if (alive) setTarget(served && isNewerVersion(current, served) ? served : null);
     };
-
     void check();
     const interval = setInterval(check, checkIntervalMs);
-    return () => {
-      alive = false;
-      clearInterval(interval);
-    };
-  }, [current, checkIntervalMs]);
+    return () => { alive = false; clearInterval(interval); };
+    // Config is only a prompt to recheck Hosting, including stale and rollback hints.
+  }, [current, checkIntervalMs, appVersion]);
 
-  return { updateAvailable, current };
+  const reload = useCallback((navigate: () => void = () => window.location.reload()) => {
+    if (!target || attempted(current, target)) return false;
+    try { sessionStorage.setItem(attemptKey(current, target), 'attempted'); } catch { return false; }
+    triggerStateSave();
+    navigate();
+    return true;
+  }, [target, current]);
+  return { updateAvailable, current, target, reload };
 }

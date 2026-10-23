@@ -48,3 +48,18 @@ describe('live-safety', () => {
     cleanup();
   });
 });
+
+it('guards repeated failures at detection time even when phone recovery is deferred', () => {
+  sessionStorage.clear();
+  let resume!: () => void;
+  const defer = vi.fn((event: Event) => { event.preventDefault(); resume = (event as CustomEvent<() => void>).detail; });
+  window.addEventListener('galaxy:before-reload', defer);
+  const reload = vi.fn();
+  try {
+    expect(handleChunkError('Loading chunk 42 failed', sessionStorage, reload)).toBe(true);
+    expect(reload).not.toHaveBeenCalled();
+    resume(); expect(reload).toHaveBeenCalledOnce();
+    expect(handleChunkError('Loading chunk 43 failed', sessionStorage, reload)).toBe(false);
+    expect(defer).toHaveBeenCalledOnce();
+  } finally { window.removeEventListener('galaxy:before-reload', defer); }
+});

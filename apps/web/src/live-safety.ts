@@ -32,6 +32,7 @@ export function handleChunkError(
   error: unknown,
   storage: Storage = sessionStorage,
   reload: () => void = () => window.location.reload(),
+  resumed = false,
 ): boolean {
   if (!isChunkError(error)) return false;
 
@@ -42,6 +43,12 @@ export function handleChunkError(
       // Loop guard: already attempted reload within the window.
       // Do not reload in a loop; let ErrorBoundary render fallback.
       return false;
+    }
+    if (!resumed) {
+      const event = new CustomEvent('galaxy:before-reload', {
+        cancelable: true, detail: () => handleChunkError(error, storage, reload, true),
+      });
+      if (!window.dispatchEvent(event)) return true;
     }
     storage.setItem(RELOAD_GUARD_KEY, String(now));
   } catch {

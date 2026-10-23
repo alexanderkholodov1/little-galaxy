@@ -18,10 +18,10 @@ export function savedSoundVolume(): number {
  * A silent one-frame buffer also primes iOS's audio output during that gesture. */
 export function createSoundController(count: number, notify: (state: AudioState) => void) {
   let context: AudioContext | undefined, engine: ReturnType<typeof createSoundEngine> | undefined;
-  let pending: Promise<void> | undefined, disposed = false, muted = savedSoundMute(), volume = savedSoundVolume();
+  let pending: Promise<void> | undefined, disposed = false, allowed = true, muted = savedSoundMute(), volume = savedSoundVolume();
   let objects: RenderObject[] = [], candidates: SoundCandidate[] = [];
   function unlock(): Promise<void> {
-    if (disposed || muted) return Promise.resolve();
+    if (disposed || muted || !allowed) return Promise.resolve();
     if (pending) {
       // A second trusted gesture can release a browser's still-pending resume request.
       if (context?.state === 'suspended') void context.resume().catch(() => {});
@@ -39,7 +39,7 @@ export function createSoundController(count: number, notify: (state: AudioState)
         if (disposed) return;
         if (context!.state !== 'running') throw new Error('Audio remains suspended');
         engine ??= module.createSoundEngine(context!, count);
-        engine.update(objects, candidates); engine.setMix(muted, volume);
+        engine.update(objects, allowed ? candidates : []); engine.setMix(muted || !allowed, volume);
         notify('ready');
       }).catch(() => { if (!disposed) notify('failed'); }).finally(() => { pending = undefined; });
       return pending;
@@ -47,14 +47,19 @@ export function createSoundController(count: number, notify: (state: AudioState)
   }
   return {
     unlock,
-    update(next: RenderObject[], eligible: SoundCandidate[]) {
-      objects = next; candidates = eligible; engine?.update(objects, candidates);
+    setAllowed(value: boolean) {
+      allowed = value;
+      engine?.setMix(muted || !allowed, volume);
+      engine?.update(objects, allowed ? candidates : []);
     },
-    pet(id: string) { void unlock().then(() => { if (!disposed) engine?.pet(id); }); },
+    update(next: RenderObject[], eligible: SoundCandidate[]) {
+      objects = next; candidates = eligible; engine?.update(objects, allowed ? candidates : []);
+    },
+    pet(id: string) { void unlock().then(() => { if (!disposed && allowed && !muted) engine?.pet(id); }); },
     setMute(value: boolean) {
       muted = value;
       try { localStorage.setItem('galaxy.sound.muted', String(value)); } catch { /* Storage optional. */ }
-      engine?.setMix(muted, volume);
+      engine?.setMix(muted || !allowed, volume);
       if (!muted) void unlock();
     },
     setVolume(value: number, persist = true) {
@@ -62,7 +67,7 @@ export function createSoundController(count: number, notify: (state: AudioState)
       if (persist) {
         try { localStorage.setItem('galaxy.sound.volume', String(value)); } catch { /* Storage optional. */ }
       }
-      engine?.setMix(muted, volume);
+      engine?.setMix(muted || !allowed, volume);
     },
     dispose() { disposed = true; engine?.dispose(); if (context) void context.close().catch(() => {}); },
   };

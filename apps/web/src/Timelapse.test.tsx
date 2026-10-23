@@ -17,7 +17,7 @@ let root: ReturnType<typeof createRoot>;
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  vi.useFakeTimers();
+  vi.useFakeTimers(); localStorage.clear();
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
@@ -95,4 +95,20 @@ it('stops playing and clears interval when reaching the end of the season, and H
 
   expect(range.value).toBe('1000');
   expect(button.textContent).toBe('Play');
+});
+
+it('restores playback, position and speed without advancing before the archive loads', async () => {
+  localStorage.setItem('galaxy.timelapse.at', '1500');
+  localStorage.setItem('galaxy.timelapse.speed', '1');
+  localStorage.setItem('galaxy.timelapse.playing', 'true');
+  let resolve!: (value: Awaited<ReturnType<typeof loadSeason>>) => void;
+  vi.mocked(loadSeason).mockReturnValue(new Promise((done) => { resolve = done; }));
+  await act(async () => root.render(<Timelapse language="en" />));
+  await act(async () => vi.advanceTimersByTimeAsync(500));
+  expect(localStorage.getItem('galaxy.timelapse.at')).toBe('1500');
+  await act(async () => resolve({ frozen: true, manifest: { format: 1, season: 'bad-2026', title: 'BAD 2026', start: 1000, end: 9000, log: [], objects: [], eventCount: 2 }, chunks: [] }));
+  expect(container.querySelector('.replay-controls button')?.textContent).toBe('Pause');
+  expect(container.querySelector<HTMLInputElement>('input')?.value).toBe('1500');
+  await act(async () => vi.advanceTimersByTimeAsync(100));
+  expect(Number(container.querySelector<HTMLInputElement>('input')?.value)).toBeGreaterThan(1500);
 });
