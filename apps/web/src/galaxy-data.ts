@@ -31,6 +31,7 @@ import type {
   PlanetParams,
   RenderObject,
 } from '@little-galaxy/shared';
+import { waitForAnonymousUid } from './session-uid';
 export interface Draft {
   type?: ObjectType;
   nameKey: NameKey;
@@ -128,7 +129,7 @@ export function listenActive(
   let generation = 0;
   const hosts = new Map<string, RenderObject>();
   let unsubscribe: (() => void) | undefined;
-  void import('./firebase').then(m => m.anonymousUid()).then(() => {
+  void waitForAnonymousUid().then(() => {
     if (stopped) return;
     unsubscribe = onSnapshot(
       query(collection(database, 'objects'), where('status', '==', 'active')),
