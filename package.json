@@ -18,6 +18,7 @@
     "emulators:lan": "firebase emulators:start --config firebase.lan.json --only firestore,auth --project demo-little-galaxy",
     "demo:seed": "pnpm --filter @little-galaxy/stand exec tsx src/seed-demo.ts",
     "test:live-safety": "node scripts/test-live-safety.mjs",
+    "test:drills": "firebase emulators:exec --only firestore,auth --project demo-little-galaxy \"pnpm --filter @little-galaxy/stand exec tsx ../../scripts/drills.ts\"",
     "test:load": "firebase emulators:exec --only firestore,auth --project demo-little-galaxy \"pnpm --filter @little-galaxy/stand exec tsx ../../scripts/load-test.ts\"",
     "test:sound": "playwright test --config tests/ui/playwright.config.js tests/ui/sound.spec.js",
     "test:ui": "playwright test --config tests/ui/playwright.config.js"
