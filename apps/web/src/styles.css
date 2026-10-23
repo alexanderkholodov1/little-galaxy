@@ -304,6 +304,14 @@ button:disabled { opacity: .6; cursor: wait; }
   height: 100vh;
   z-index: 1000;
   background: #050c16;
+  color: #e1eaf4;
+  --ink: #e1eaf4;
+  --paper: #050c16;
+  --action: #5fccf3;
+  --rule: #8fa6bc;
+  --warning: #e7bd70;
+  --confirmed: #82cda2;
+  --hairline: #8fa6bc;
   margin: 0;
   padding: 0;
   display: flex;
@@ -314,7 +322,8 @@ button:disabled { opacity: .6; cursor: wait; }
   display: none;
 }
 
-.live-screen[data-fullscreen="true"] .screen-sound {
+.live-screen[data-fullscreen="true"] .screen-sound,
+.screen-replay[data-fullscreen="true"] .screen-sound {
   position: absolute;
   top: 12px;
   right: 12px;
@@ -324,10 +333,20 @@ button:disabled { opacity: .6; cursor: wait; }
   padding: 6px 12px;
   border-radius: 4px;
   border: 1px solid var(--rule);
+  color: #e1eaf4;
   transition: opacity 300ms ease;
 }
 
-.live-screen[data-fullscreen="true"][data-mouse-idle="true"] .screen-sound {
+.live-screen[data-fullscreen="true"] .screen-sound label,
+.live-screen[data-fullscreen="true"] .screen-sound button,
+.live-screen[data-fullscreen="true"] .screen-sound select,
+.screen-replay[data-fullscreen="true"] .screen-sound button {
+  color: #e1eaf4;
+  border-color: var(--rule);
+}
+
+.live-screen[data-fullscreen="true"][data-mouse-idle="true"] .screen-sound,
+.screen-replay[data-fullscreen="true"][data-mouse-idle="true"] .screen-sound {
   opacity: 0;
   pointer-events: none;
 }
@@ -337,6 +356,13 @@ button:disabled { opacity: .6; cursor: wait; }
   height: 100%;
   min-height: 0;
   border: 0;
+}
+
+.screen-replay[data-fullscreen="true"] .memory-field {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .fullscreen-toggle {

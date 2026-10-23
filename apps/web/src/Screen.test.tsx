@@ -130,11 +130,13 @@ it('provides fullscreen toggle, keyboard shortcut, and tracks mouse idle', async
     await act(async () => fsBtn.click());
     expect(screenSection.getAttribute('data-fullscreen')).toBe('true');
     expect(fsBtn.textContent).toBe('Exit fullscreen');
+    expect(JSON.parse(localStorage.getItem('galaxy.screen.context')!).kioskPresentation).toBe(true);
 
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     });
     expect(screenSection.getAttribute('data-fullscreen')).toBe('false');
+    expect(JSON.parse(localStorage.getItem('galaxy.screen.context')!).kioskPresentation).toBe(false);
 
     await act(async () => {
       window.dispatchEvent(new MouseEvent('mousemove'));
@@ -145,6 +147,16 @@ it('provides fullscreen toggle, keyboard shortcut, and tracks mouse idle', async
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('restores kiosk presentation layout after reload without requiring DOM fullscreen', async () => {
+  localStorage.setItem('galaxy.screen.context', JSON.stringify({
+    configuredScene: 'galaxy', lastActivity: Date.now(), kioskPresentation: true,
+  }));
+  await act(async () => root.render(<Screen language="en"/>));
+  const screenSection = container.querySelector('.live-screen')!;
+  expect(screenSection.getAttribute('data-fullscreen')).toBe('true');
+  expect(container.querySelector('.fullscreen-toggle')?.textContent).toBe('Exit fullscreen');
 });
 
 it('restores automatic cinematic scene and focused object before fitting the camera', async () => {
