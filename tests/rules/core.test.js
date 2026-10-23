@@ -12,6 +12,9 @@ import {
   getDocs,
   getFirestore,
   onSnapshot,
+  orderBy,
+  limit,
+  limitToLast,
   query,
   serverTimestamp,
   setDoc,
@@ -20,7 +23,7 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import { editObject, launchPlanet, ownObjects, relaunchObject } from '../../apps/web/src/galaxy-data.ts';
+import { editObject, launchPlanet, ownActive, ownObjects, relaunchObject } from '../../apps/web/src/galaxy-data.ts';
 import {
   orbitFromVelocity,
   presets,
@@ -30,6 +33,10 @@ import {
 } from '../../packages/shared/src/index.ts';
 import { initializeApp as adminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app';
 import { getFirestore as adminFirestore } from 'firebase-admin/firestore';
+import { sendInteraction, listenRecentEvents } from '../../apps/web/src/interaction-data.ts';
+import { messageKeys } from '../../packages/shared/src/index.ts';
+import { applyControl } from '../../apps/stand/src/control.ts';
+import { startMeteorScheduler, writeMeteorShower } from '../../apps/stand/src/meteors.ts';
 import { startSnapshotWriter } from '../../apps/stand/src/snapshots.ts';
 vi.mock('../../apps/web/src/firebase.ts', () => ({ anonymousUid: vi.fn().mockResolvedValue('screen') }));
 let env;
@@ -88,6 +95,7 @@ async function launchBatch(
     launchDay: day,
     editDay: day,
     editsToday: old?.editDay === day ? (old.editsToday ?? 0) : 0,
+    ...(old?.interactionDay !== undefined ? { interactionDay: old.interactionDay, interactionsToday: old.interactionsToday } : {}),
     launchesToday: old?.launchDay === day ? old.launchesToday + 1 : 1,
     lastWriteAt: at,
     lastShakeAt: old?.lastShakeAt ?? Timestamp.fromMillis(0),
@@ -133,6 +141,7 @@ async function interaction(
     lastWriteAt: at,
     ...(cooldown ? { [cooldown]: at } : {}),
     ...(type === 'edit' ? { editDay: utcDay(Date.now()), editsToday: old.editDay === utcDay(Date.now()) ? (old.editsToday ?? 0) + 1 : 1 } : {}),
+    ...(cooldown ? { interactionDay: utcDay(Date.now()), interactionsToday: old.interactionDay === utcDay(Date.now()) ? (old.interactionsToday ?? 0) + 1 : 1 } : {}),
     ...account,
   });
   batch.set(doc(database, 'events', id), {
@@ -879,4 +888,149 @@ it('signed screen fetches a hangared moon host by id and the stand snapshot incl
 it('rejects launching a planet while archiving its own star host in the same transaction', async () => {
   const star = await launchTyped(db(), 'alice', 'star'); await ageUser();
   await assertFails(launchPlanet(db(), 'alice', draft, { ...orbit(), hostId: star }));
+});
+
+it.each([
+  ['shake', {}], ['comet', { dx: -1, dy: 1 }], ['shootingStar', { messageKey: 'thanks' }],
+])('production %s transaction supports pre-launch identities and preserves the budget through launch/edit/relaunch', async (type, payload) => {
+  await sendInteraction(db(), 'alice', type, payload);
+  let account = (await getDoc(doc(db(), 'users', 'alice'))).data();
+  expect(account.activeObjectId).toBe(''); expect(account.launchesToday).toBe(0);
+  expect(await ownActive(db(), 'alice')).toBeNull();
+  await expect(editObject(db(), 'alice', draft)).rejects.toThrow('closed');
+  expect(account.interactionsToday).toBe(1); expect(account.interactionDay).toBe(utcDay(Date.now()));
+  await expect(sendInteraction(db(), 'alice', type, payload)).rejects.toThrow('cooldown');
+  await ageUser();
+  const first = await launchPlanet(db(), 'alice', draft, orbit());
+  await ageUser(); await editObject(db(), 'alice', { ...draft, nameKey: 'bright-tide' });
+  await ageUser(); await launchPlanet(db(), 'alice', draft, orbit());
+  await ageUser(); await relaunchObject(db(), 'alice', first);
+  account = (await getDoc(doc(db(), 'users', 'alice'))).data();
+  expect(account.interactionsToday).toBe(1); expect(account.interactionDay).toBe(utcDay(Date.now()));
+  expect(account.launchesToday).toBe(3);
+});
+it.each(['shake','comet','shootingStar'])('enforces the global two-second cooldown on %s in rules', async (type) => {
+  await launchPlanet(db(), 'alice', draft, orbit());
+  const payload = type === 'comet' ? { dx: 1, dy: 0 } : type === 'shootingStar' ? { messageKey: 'hello' } : {};
+  // last type clock is epoch; only lastWriteAt can deny this complete valid batch.
+  await assertFails((await interaction(type, payload, { id: 'any-clock' })).commit());
+  await ageUser();
+  await assertSucceeds((await interaction(type, payload, { id: 'after-two-seconds' })).commit());
+});
+it.each(messageKeys)('allows the predefined shooting star key %s through rules', async (messageKey) => {
+  await launchPlanet(db(), 'alice', draft, orbit()); await ageUser();
+  await assertSucceeds((await interaction('shootingStar', { messageKey })).commit());
+});
+it.each([
+  ['shake', { count: 5 }], ['comet', { dx: 0, dy: 0 }], ['comet', { dx: 1.01, dy: 0 }],
+  ['comet', { dx: -1.01, dy: 0 }], ['comet', { dx: '1', dy: 0 }], ['comet', { dx: 1, dy: NaN }],
+  ['comet', { dx: 1, dy: Infinity }], ['comet', { dx: 1 }], ['comet', { dx: 1, dy: 0, text: 'text' }],
+  ['shootingStar', { messageKey: 'constructor' }], ['shootingStar', { messageKey: 'toString' }],
+  ['shootingStar', { messageKey: 1 }], ['shootingStar', {}], ['shootingStar', { messageKey: 'hello', text: 'text' }],
+])('denies malformed %s payload %j in complete batches', async (type, payload) => {
+  await launchPlanet(db(), 'alice', draft, orbit()); await ageUser();
+  await assertFails((await interaction(type, payload)).commit());
+});
+it('enforces interaction 10/11, day reset, migration and unforgeable counter increments', async () => {
+  await launchPlanet(db(), 'alice', draft, orbit());
+  await ageUser();
+  await assertSucceeds((await interaction('shake', {}, { id: 'legacy-budget' })).commit());
+  await ageUser('alice', { interactionDay: utcDay(Date.now()), interactionsToday: 9, lastShakeAt: Timestamp.fromMillis(0) });
+  await assertSucceeds((await interaction('shake', {}, { id: 'tenth' })).commit());
+  await ageUser('alice', { lastShakeAt: Timestamp.fromMillis(0) });
+  await assertFails((await interaction('shake', {}, { id: 'eleventh' })).commit());
+  for (const account of [{ interactionsToday: 1 }, { interactionDay: '2000-01-01', interactionsToday: 1 }, { interactionsToday: 9 }, { interactionsToday: 10.5 }, { interactionDay: '2099-01-01' }])
+    await assertFails((await interaction('shake', {}, { id: 'forged', account })).commit());
+  // A launch cannot erase the interaction budget.
+  await assertFails((await launchBatch(db(), { writeId: 'erase-budget', objectId: 'next', user: { interactionsToday: 0 } })).commit());
+  await ageUser('alice', { interactionDay: '2000-01-01', interactionsToday: 10 });
+  await assertSucceeds((await interaction('shake', {}, { id: 'new-day' })).commit());
+  expect((await getDoc(doc(db(), 'users', 'alice'))).data().interactionsToday).toBe(1);
+});
+it.each(['shake','comets','shootingStars','seasonOpen'])('denies initial interaction transactions when %s is off', async (flag) => {
+  await bypass((database) => updateDoc(doc(database, 'config', 'live'), { [flag]: false }));
+  const type = flag === 'comets' ? 'comet' : flag === 'shootingStars' ? 'shootingStar' : 'shake';
+  const payload = type === 'comet' ? { dx: 1, dy: 0 } : type === 'shootingStar' ? { messageKey: 'hello' } : {};
+  await expect(sendInteraction(db(), 'alice', type, payload)).rejects.toThrow('closed');
+  expect((await getDoc(doc(db(), 'users', 'alice'))).exists()).toBe(false);
+});
+it('allows only bounded recent ordered event queries, denies history, get, anonymous and oversized lists', async () => {
+  await launchPlanet(db(), 'alice', draft, orbit()); await ageUser();
+  await interaction('shake', {}).then((b) => b.commit());
+  const recent = (database, seconds = 60, count = 100) => query(collection(database, 'events'), where('at', '>', Timestamp.fromMillis(Date.now() - seconds * 1000)), orderBy('at'), limitToLast(count));
+  expect((await assertSucceeds(getDocs(recent(db('screen'))))).size).toBe(3);
+  await assertFails(getDocs(recent(env.unauthenticatedContext().firestore())));
+  await assertFails(getDocs(recent(db(), 180)));
+  await assertFails(getDocs(recent(db(), 60, 101)));
+  await assertFails(getDocs(query(collection(db(), 'events'), orderBy('at'), limit(100))));
+  await assertFails(getDocs(query(collection(db(), 'events'), where('at', '>', Timestamp.now()), orderBy('at'))));
+  await assertFails(getDoc(doc(db(), 'events', 'event-shake')));
+});
+it('production recent-event subscription receives one copy across changes and stops cleanly', async () => {
+  const seen = [], failures = [];
+  const stop = listenRecentEvents(db('screen'), (events) => seen.push(...events), () => failures.push(true));
+  try {
+    await sendInteraction(db(), 'alice', 'comet', { dx: -.7, dy: .4 });
+    await vi.waitFor(() => expect(seen.some((e) => e.type === 'comet')).toBe(true));
+    await sendInteraction(db('bob'), 'bob', 'shootingStar', { messageKey: 'wish' });
+    await vi.waitFor(() => expect(seen.filter((e) => e.type === 'shootingStar')).toHaveLength(1));
+    expect(seen.filter((e) => e.type === 'comet')).toHaveLength(1);
+    expect(failures).toEqual([]);
+  } finally { stop(); }
+});
+it('admin controls update only allowed settings; scheduled meteor events respect the live switch and shutdown', async () => {
+  const database = adminFirestore(admin);
+  await applyControl(database, ['scene', 'bigQr']);
+  expect((await database.doc('config/live').get()).data().screenScene).toBe('bigQr');
+  expect(await writeMeteorShower(database)).toBe(false);
+  await applyControl(database, ['flag', 'meteorShowers', 'on']);
+  let fire, delay, timer, scheduled = 0;
+  const stop = startMeteorScheduler(database, () => { throw new Error('Scheduler failed'); }, () => .5, {
+    setTimeout: (callback, ms) => { fire = callback; delay = ms; scheduled++; timer = setTimeout(() => {}, 1_000_000); return timer; },
+    clearTimeout: (handle) => clearTimeout(handle),
+  });
+  try {
+    await vi.waitFor(() => expect(fire).toBeTypeOf('function'));
+    expect(delay).toBe(630_000); fire();
+    await vi.waitFor(async () => expect((await database.collection('events').where('type', '==', 'meteorShower').get()).size).toBe(1));
+    await vi.waitFor(() => expect(scheduled).toBeGreaterThan(1));
+    await applyControl(database, ['flag', 'meteorShowers', 'off']);
+    expect(await writeMeteorShower(database)).toBe(false);
+    const event = (await database.collection('events').where('type', '==', 'meteorShower').get()).docs[0].data();
+    expect(event.at.toMillis()).toBeGreaterThan(Date.now() - 10_000); expect(event.payload.count).toBe(12);
+    await assertFails(setDoc(doc(db(), 'config', 'live'), flags));
+    await assertFails(setDoc(doc(db(), 'events', 'forged-meteor'), { ...event, uid: 'alice', at: serverTimestamp() }));
+    await expect(applyControl(database, ['scene', 'assistant'])).rejects.toThrow();
+    await expect(applyControl(database, ['timing', 'meteorMinSeconds', '1000'])).rejects.toThrow();
+  } finally { await stop(); clearTimeout(timer); }
+});
+
+async function firstInteractionBatch(type, payload, { user = {}, event = {}, omit = [] } = {}) {
+  const database = db(), at = serverTimestamp(), epoch = Timestamp.fromMillis(0), batch = writeBatch(database);
+  const field = { shake: 'lastShakeAt', comet: 'lastCometAt', shootingStar: 'lastStarAt' }[type];
+  const account = { schemaVersion: 1, activeObjectId: '', launchesToday: 0, launchDay: utcDay(Date.now()),
+    action: type, writeId: 'first-interaction', lastWriteAt: at, lastShakeAt: epoch, lastCometAt: epoch, lastStarAt: epoch,
+    [field]: at, interactionDay: utcDay(Date.now()), interactionsToday: 1, ...user };
+  if (!omit.includes('user')) batch.set(doc(database, 'users', 'alice'), account);
+  if (!omit.includes('event')) batch.set(doc(database, 'events', 'first-interaction'), { schemaVersion: 1, objectId: '', uid: 'alice', type, at, payload, ...event });
+  return batch;
+}
+it.each(['shake','comets','shootingStars','seasonOpen'])('rules deny a complete pre-launch interaction batch with %s disabled', async (flag) => {
+  await bypass((database) => updateDoc(doc(database, 'config', 'live'), { [flag]: false }));
+  const type = flag === 'comets' ? 'comet' : flag === 'shootingStars' ? 'shootingStar' : 'shake';
+  const payload = type === 'comet' ? { dx: 1, dy: 0 } : type === 'shootingStar' ? { messageKey: 'hello' } : {};
+  await assertFails((await firstInteractionBatch(type, payload)).commit());
+});
+it.each([
+  { omit: ['user'] }, { omit: ['event'] }, { user: { interactionsToday: 0 } }, { user: { interactionDay: '2000-01-01' } },
+  { user: { launchesToday: 1 } }, { user: { activeObjectId: 'fake' } }, { user: { lastCometAt: Timestamp.fromMillis(100) } },
+  { user: { lastShakeAt: Timestamp.fromMillis(0) } }, { event: { uid: 'bob' } }, { event: { schemaVersion: 2 } },
+  { event: { objectId: 'fake' } }, { event: { text: 'free text' } }, { event: { at: Timestamp.fromMillis(0) } },
+])('rejects invalid initial interaction batch %j', async (mutation) => {
+  await assertFails((await firstInteractionBatch('shake', {}, mutation)).commit());
+});
+it('does not permit signing out to write a valid interaction batch', async () => {
+  const database = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(database, 'users', 'alice'), { schemaVersion: 1, action: 'shake' }));
+  await assertFails(setDoc(doc(database, 'events', 'anonymous'), { schemaVersion: 1, uid: 'alice', objectId: '', at: serverTimestamp(), type: 'shake', payload: {} }));
 });
