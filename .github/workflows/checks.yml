@@ -9,7 +9,7 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,6 +37,14 @@ jobs:
         run: pnpm run test:live-safety
       - name: Firestore rules tests
         run: pnpm run test:rules
+      - name: Failure-mode drills
+        env:
+          JAVA_TOOL_OPTIONS: -Xmx512m
+        run: pnpm run test:drills
+      - name: Load test and quota report
+        env:
+          JAVA_TOOL_OPTIONS: -Xmx512m
+        run: pnpm run test:load
       - name: Build and run the privacy gate
         env:
           VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
