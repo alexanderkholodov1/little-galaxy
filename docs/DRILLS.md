@@ -1,77 +1,77 @@
-# Failure-Mode Drills & Observed Results · G v1.0.0
+# Failure-Mode Drills · G v1.0.0
 
-Verification of failure scenarios defined in portfolio plan `05-live-deploys-and-ops.md`.
-Automated drills are executed against the Firestore/Auth emulators and verified locally; hardware-dependent procedures
-are documented with exact operational instructions for the booth operator.
+Automated drills against Firestore/Auth emulators verifying key failure scenario building blocks.
+Hardware-dependent drills (network interruption, HDMI, power failover) are manual operator steps
+listed below and **not yet run**.
+
+**Results: 5 passed, 0 failed out of 5 automated drills.**
 
 ---
 
-## 1. Summary of Automated Drills
+## Automated Drill Results
 
-| Drill ID | Scenario | Status | Observed Behavior |
+| Drill | Scenario | Status | What was actually tested |
 |---|---|---|---|
-| **DRILL-01** | Screen offline deterministic orbit rendering | **PASSED** | Screen computes Three.js planet positions locally using deterministic Keplerian mechanics. When network drops, canvas continues animating without freezing or jumping. |
-| **DRILL-02** | Phone offline draft retention and sync on reconnect | **PASSED** | Visitor workshop drafts persist in localStorage. When Wi-Fi/cellular connection is restored, pending draft launches successfully and writes to Firestore. |
-| **DRILL-03** | Stand process crash and snapshot recovery | **PASSED** | When stand crashes, public viewer detects snapshot age > 60s and renders "Last updated X min ago" without crashing. Stand restart immediately restores active snapshot generation. |
-| **DRILL-04** | Quota pressure mitigation via instant stand kill switches | **PASSED** | Stand CLI control updates config/live instantly. Firestore rules enforce kill switches at the boundary, rejecting blocked requests immediately and saving writes. Re-enabling restores functionality instantly. |
-| **DRILL-05** | Bad deploy rollback command execution | **PASSED** | Portfolio rollback script (scripts/rollback.mjs) validates previous live Hosting release and confirms instant atomic one-command target restore. Client chunk loop guards protect active viewers. |
+| **DRILL-01** | Orbit position advances deterministically without network | **PASSED** | positionAt(orbit, t) computed two positions 201ms apart: delta=0.517944. Same timestamp reproduced identical coordinates: deterministic=true. No server call was made. |
+| **DRILL-02** | Draft JSON round-trip and launch from restored data | **PASSED** | Draft serialized to 74 bytes, restored, and launched as object ASlqdMTqjcLz1FvENh0z (status: active). Round-trip fidelity: true. This verifies the data path but does not exercise actual localStorage, offline network interruption, or browser reload. |
+| **DRILL-03** | Snapshot staleness detection and timestamp recovery | **PASSED** | Wrote snapshot with timestamp 95s ago (stale=true). Updated timestamp; new age 0s (recovered=true). This verifies Firestore timestamp mechanics but does not start/crash/restart an actual stand process or open a public viewer. |
+| **DRILL-04** | Kill switch config update and helper-level enforcement | **PASSED** | Set config/live shake=false via applyControl. sendInteraction threw "closed" (blocked=true). Re-enabled shake=true; sendInteraction succeeded (restored=true). The helper reads config/live and rejects before writing. Separate rules tests verify boundary enforcement; this drill verifies the config update propagates to the client helper. |
+| **DRILL-05** | Rollback dry-run verification | **PASSED** | Dry-run logged 5 steps including a prospective POST (using sibling portfolio rollback script). No actual Hosting API calls were made. This does not exercise a real release selection, browser chunk recovery, or live rollback. |
 
 ---
 
-## 2. Detailed Drill Findings
+## What These Drills Cover and Do Not Cover
 
-### DRILL-01: Screen Offline Deterministic Rendering
-- **Failure Trigger**: Event Wi-Fi or booth Ethernet drops while the observation screen is active.
-- **Observed Behavior**: The Three.js renderer does not halt, blank, or reset. Orbits are computed locally and deterministically via Keplerian orbital mechanics (`positionAt(orbit, t)`). As time advances, celestial bodies continue orbiting smoothly in real time.
-- **UI State**: An unobtrusive offline banner appears (`"Conexión en vivo interrumpida"`) offering a manual retry button without obstructing celestial viewing.
+### DRILL-01: Orbit Determinism
+- **Tests**: `positionAt(orbit, t)` produces advancing, reproducible coordinates from pure math.
+- **Does not test**: Actual browser canvas rendering, offline banner display, or network disconnection.
 
-### DRILL-02: Phone Writes Queue & Reconnect Sync
-- **Failure Trigger**: Visitor enters the planet workshop, begins modifying sliders, and cellular/Wi-Fi connection drops.
-- **Observed Behavior**: The phone continuously commits draft parameters, selected name keys, and workshop step to browser `localStorage` (`galaxy.workshop.draft`). Form inputs remain responsive. When connectivity is restored, the visitor taps "Launch" and the transaction successfully commits to Firestore without loss of progress.
+### DRILL-02: Draft Serialization and Launch
+- **Tests**: Draft JSON round-trips through serialization and launches successfully from restored data.
+- **Does not test**: Actual `localStorage` persistence, browser offline mode, reload, or reconnection.
 
-### DRILL-03: Stand Crash & Snapshot Staleness Recovery
-- **Failure Trigger**: The stand daemon process terminates unexpectedly due to OS process limits or power interruption.
-- **Observed Behavior**: The galaxy continues operating from existing active objects. When `snapshots/live` is not updated for > 60 seconds, public viewer components note the snapshot age. Upon executing the stand restart command (`pnpm --filter @little-galaxy/stand start`), the snapshot writer re-establishes the cached listener and rewrites `snapshots/live` within 2 seconds.
+### DRILL-03: Snapshot Staleness
+- **Tests**: A Firestore timestamp written 95s ago reads as stale (>60s); a fresh write reads as current.
+- **Does not test**: Actual stand process start/crash/restart, public viewer UI, or recovery timing.
 
-### DRILL-04: Quota Pressure Mitigation via Stand Kill Switches
-- **Failure Trigger**: Sudden crowd surge causes write velocity to approach the Firebase Spark 20,000 writes/day threshold.
-- **Observed Behavior**: The operator issues `pnpm --filter @little-galaxy/stand control flag shake off` (and optionally `comets`, `shootingStars`, `launches`). Firestore security rules instantly reject blocked interaction types with `permission-denied`, terminating write consumption. Phones observe the flag within 1 second and display friendly disabled badges. Re-enabling flags restores immediate operation without service restarts.
+### DRILL-04: Kill Switch Enforcement
+- **Tests**: `applyControl` updates `config/live`; the client helper reads the flag and rejects before writing; re-enabling restores the operation.
+- **Does not test**: Firestore security rules boundary enforcement directly (covered by `test:rules`), phone UI update latency, or disabled badges.
 
-### DRILL-05: Bad Deploy & Atomic Hosting Rollback
-- **Failure Trigger**: A newly promoted release exhibits an unexpected runtime bug on booth hardware.
-- **Observed Behavior**: The operator executes the portfolio rollback script (`node ../portfolio/scripts/rollback.mjs --yes`). Firebase Hosting atomically restores the previous version pointer. Client tabs encountering deleted chunks invoke the single-reload chunk guard (`galaxy.reload_guard` in `sessionStorage`) and recover with user draft and camera coordinates preserved.
+### DRILL-05: Rollback Dry-Run
+- **Tests**: The portfolio rollback script (or vendored contract fixture in standalone environments) in dry-run mode logs the expected prospective Hosting API call sequence.
+- **Does not test**: Actual Hosting release selection, live rollback, browser chunk recovery, or draft preservation through reload. The separate live-safety test exercises real build-swap chunk recovery.
 
 ---
 
-## 3. Hardware-Dependent Drills (Manual Operator Runbook)
+## Hardware-Dependent Drills (Manual, Not Yet Run)
+
+These drills require physical booth hardware and cannot be automated. They are listed here
+as operator instructions for the campus rehearsal.
 
 ### Drill H-1: TV HDMI Cable Disconnection / Resolution Reset
-1. **Scenario**: The HDMI cable between the booth laptop and the observatory TV is kicked or loosened.
-2. **Action**:
-   1. Reconnect the HDMI cable firmly to the laptop USB-C/HDMI adapter and TV input port.
-   2. Ensure the display mode is set to **"Extended Desktop"** (press `Super + P` on Linux/Windows -> Extend).
-   3. Drag the browser window to the TV display.
-   4. Press **`F`** (or click the "Pantalla completa" button) to re-enter kiosk fullscreen presentation.
-   5. Confirm that the cursor hides automatically after 2.5 seconds of mouse inactivity.
+1. **Scenario**: The HDMI cable between the booth laptop and the TV is loosened.
+2. **Steps**:
+   1. Reconnect the HDMI cable to the laptop adapter and TV input.
+   2. Set display mode to **Extended Desktop** (`Super + P` → Extend).
+   3. Drag browser window to TV display.
+   4. Press **`F`** to re-enter fullscreen presentation.
+   5. Confirm cursor hides after 2.5 seconds of inactivity.
+3. **Status**: Not yet run.
 
-### Drill H-2: Booth Ethernet Drop → Mobile Hotspot Switchover
-1. **Scenario**: USFQ campus wired cable internet goes offline during the fair.
-2. **Action**:
-   1. On the operator mobile phone, enable **Personal Hotspot** (Wi-Fi tethering).
-   2. On the booth laptop, disconnect from the Ethernet adapter and connect to the phone's Wi-Fi SSID.
-   3. Verify internet connectivity by running:
-      ```sh
-      curl -I https://alexanderkholodov.web.app/galaxy/version.json
-      ```
-   4. Neither the TV screen nor visitor workshop tabs need to be refreshed; Firestore SDK automatically reconnects over the hotspot.
+### Drill H-2: Booth Ethernet Drop → Mobile Hotspot
+1. **Scenario**: Campus wired internet goes offline during the fair.
+2. **Steps**:
+   1. Enable Personal Hotspot on operator phone.
+   2. Connect laptop Wi-Fi to phone hotspot.
+   3. Verify connectivity: `curl -I https://alexanderkholodov.web.app/galaxy/version.json`
+   4. Firestore SDK reconnects automatically; no refresh needed.
+3. **Status**: Not yet run.
 
-### Drill H-3: Laptop Sudden Power Loss / Battery Failover
-1. **Scenario**: Power cord is disconnected from the wall outlet.
-2. **Action**:
-   1. The laptop immediately switches to battery power (booth laptop must be charged to 100% prior to opening).
-   2. Check power status in system tray; plug charger back into booth power strip.
-   3. If laptop shuts down completely:
-      - Power on laptop.
-      - Launch stand daemon: `pnpm --filter @little-galaxy/stand start`.
-      - Launch browser to `/galaxy/screen` on the TV display.
-      - Press `F` for fullscreen mode.
+### Drill H-3: Laptop Power Loss / Battery Failover
+1. **Scenario**: Power cord disconnected from wall outlet.
+2. **Steps**:
+   1. Laptop switches to battery (must be 100% charged before opening).
+   2. Reconnect charger to power strip.
+   3. If laptop shuts down: power on, start stand, open `/galaxy/screen`, press `F`.
+3. **Status**: Not yet run.
