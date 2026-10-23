@@ -53,6 +53,18 @@ describe('voice allocator', () => {
       expect([...selected].sort()).toEqual(first);
     }
   });
+  it('lets a substantially nearer eligible candidate displace a distant incumbent', () => {
+    const incumbents = candidates.slice(0, 8).map((c) => ({ ...c, distance: 60 }));
+    const nearer = { id: 'nearer', visible: true, distance: 1 };
+    const previous = incumbents.map((c) => c.id);
+    expect(allocateVoices([...incumbents, nearer], previous, 5000)).toContain(nearer.id);
+    // The margin scales with distance: tolerate 5%, replace at 20%, at both scales.
+    for (const distance of [5, 60]) {
+      const existing = incumbents.map((c) => ({ ...c, distance }));
+      expect(allocateVoices([...existing, { ...nearer, distance: distance * .95 }], previous, 5000)).not.toContain(nearer.id);
+      expect(allocateVoices([...existing, { ...nearer, distance: distance * .8 }], previous, 5000)).toContain(nearer.id);
+    }
+  });
   it('prioritises pets, focus and arrivals, releases invisible/departed objects and rejects invalid distances', () => {
     const previous = allocateVoices(candidates, [], 0);
     const selected = allocateVoices(candidates.map((c, i) => ({ ...c, visible: i > 0, focused: i === 49, newUntil: i === 48 ? 2000 : 0, pettedUntil: i === 47 ? 2000 : 0 })), previous, 1000);
