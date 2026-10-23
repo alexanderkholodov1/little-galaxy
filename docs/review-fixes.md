@@ -1,5 +1,8 @@
 # Galaxy review fixes
 
+Historical G v0.2.0 handoff. The [G v0.3.0 review fixes](confirmed-review-fixes.md) and
+[D6 contract](d6-and-write-budgets.md) supersede the host read surface and camera fit described below.
+
 ## Read surface
 
 Only `get snapshots/live` is public; it omits owner IDs. `config/live` requires a
@@ -105,3 +108,55 @@ TURBO_FORCE=true PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.2.0/brow
 TURBO_FORCE=true JAVA_TOOL_OPTIONS=-Xmx512m pnpm run test:rules
 TURBO_FORCE=true pnpm run build:rehearsal
 ```
+
+## v0.3.0 integration
+
+The merge keeps schema v2 expanded planet/star/moon params, generated names, fixed
+visitor-star hosts, D6 moon ownership, stored parent orbits and the complete hangar
+edit/relaunch flow. The same local orbit bounds apply to every type and to copied
+moon parent orbits. Parent epochs may be historical; they must match the real host,
+and remain immutable through edits/relaunches. New local epochs still need ±120s.
+New negative edit/relaunch cases run for all three types, alongside existing rich
+parameter endpoint/type tests and new per-type orbit/epoch cases. A production-helper
+round trip exercises the largest hosted replacement/relaunch with a day-old parent.
+
+`hostMatches` binds its host document once. A hosted planet or moon adds exactly one
+`get` to the target object's create/relaunch rule. Other write counts in the table
+above stay unchanged: hosted first launch **10/20**, hosted replacement **18/20**,
+hosted relaunch **15/20**, single-write maximum **4/10**, with no cache savings assumed.
+Central-hosted paths retain the v0.2 counts. No path needs an exists lookup.
+
+The camera includes fixed star positions, full parent apoapsis and the moon's existing
+0.2 local scale; its hard cap is 72 display units for the expanded host field. The
+core branch keeps its 21-unit cap. Extreme local/parent paths cannot grow either cap.
+The rich renderer retains its instance count and draws radial comet tails using the
+same three existing instances, relative to the host star (including moon parents).
+
+Final v0.3.0 checks also passed: frozen install; uncached typecheck/lint; 18 shared,
+8 stand, 66 web, 26 script tests; 5 Chromium tests; 93 Auth/Firestore rules tests;
+rehearsal build/privacy gate. Commands are the same six above, run from the
+`galaxy-v0.3.0` worktree (logs use the `objects-` prefix in the scratch directory).
+Signed anonymous launches reached the screen in 111ms. The populated 500-object
+image was inspected; SwiftShader averaged 8.44fps with 4 draw calls. This software
+result does not establish real TV performance. All emulators/browser servers stopped.
+No dependency changes, deployment, push, PR, tag or assistant changes were made.
+
+### Review disposition and roadmap
+
+M2, M3, M4 and m1–m8/m10 are addressed within the requested scope, with regressions
+in shared orbit, web, stand, browser and rules suites. For m1, the delivered measure
+is the requested epoch guard; the phone still supplies time within that bound.
+M1 remains partial: physical phones, real-network <=2s, deployed preview, TV speed
+and scanning at ~2m need operator acceptance. Historical commit hygiene m9 is unchanged
+(no rewriting). Bundle reduction m11 is outside this patch; the build still reports
+large chunks and mixed Firebase imports. m12 local CI coverage now passes in both
+branches; hosted GitHub CI was not run.
+
+| G v0.2.0 roadmap bullet | State | Evidence after fixes |
+| --- | --- | --- |
+| Screen, 3D star, QR, counter | Done locally | Camera/tail/QR regressions; 375px and TV-width browser checks; populated v0.3 integration image inspected |
+| Phone planet preview and swipe | Done locally | Draft/EN/ES/offline/pointer tests; normal 250px flicks in 24 directions |
+| Shared orbital model | Done | Bound/escape/fall/finite-return and envelope tests |
+| Data, batches, rules and rate limits | Done locally | 60 core / 93 integration rules tests; conservative access budget tables |
+| Stand snapshots | Done locally | Emulator publishing plus listener backoff/stale-callback/shutdown unit test |
+| Two real phones, <=2s and returning comet acceptance | Partial | 89ms core / 111ms integration emulator arrivals; real-device/deployed checks still open |

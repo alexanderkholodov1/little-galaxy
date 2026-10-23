@@ -52,3 +52,13 @@ it('generates the QR once across server updates and language changes', async () 
   expect(qrcode).toHaveBeenCalledOnce();
   expect(container.querySelector('.join-qr svg')?.outerHTML).toBe(svg);
 });
+it('hides production diagnostics unless debug=1 is explicitly selected', async () => {
+  vi.stubEnv('DEV', false);
+  try {
+    await act(async () => root.render(<Screen language="en"/>));
+    expect(container.querySelector('.fps-reading')).toBeNull();
+    history.replaceState(null, '', '?debug=1');
+    await act(async () => root.render(<Screen language="en"/>));
+    expect(container.querySelector('.fps-reading')).not.toBeNull();
+  } finally { history.replaceState(null, '', '/'); vi.unstubAllEnvs(); }
+});

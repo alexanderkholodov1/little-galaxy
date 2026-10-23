@@ -1,12 +1,17 @@
 import { expect, it } from 'vitest';
-import { Mesh, Vector3 } from 'three';
-import { orientComet } from './comet-tail';
-it('points the cone away from the star throughout the orbit without changing the body position', () => {
-  for (const coordinates of [[6, 0, 0], [-5, 3, 1], [0, -4, -2]]) {
-    const body = new Mesh(); body.position.set(...coordinates as [number, number, number]);
-    orientComet(body);
-    const tail = new Vector3(0, 0.8, 0).applyQuaternion(body.quaternion);
-    expect(tail.clone().normalize().dot(body.position.clone().normalize())).toBeCloseTo(1);
-    expect(body.position.toArray()).toEqual(coordinates);
+import { orbitFromSwipe, starPosition, worldPosition } from '@little-galaxy/shared';
+import type { RenderObject } from '@little-galaxy/shared';
+import { cometTailPosition } from './comet-tail';
+it('points existing tail instances away from central and visitor stars, including moons', () => {
+  const body: RenderObject = { id: 'one', nameKey: 'quiet-aurora', params: { size: 0.4, palette: 0, oceans: 0.5 }, orbit: orbitFromSwipe(1000, 0, 0.1, 0) };
+  for (const object of [body, { ...body, orbit: { ...body.orbit, hostId: 'visitor-star' } },
+    { ...body, type: 'moon' as const, hostOrbit: { ...body.orbit, hostId: 'visitor-star' } }]) {
+    for (const time of [0, 1000, 20000]) {
+      const start = worldPosition(object, time);
+      const end = cometTailPosition(object, time, 2);
+      const star = starPosition(object.hostOrbit?.hostId ?? object.orbit.hostId);
+      expect(Math.hypot(...end.map((v, i) => v - start[i]))).toBeCloseTo(2);
+      expect(Math.hypot(...end.map((v, i) => v - star[i]))).toBeCloseTo(Math.hypot(...start.map((v, i) => v - star[i])) + 2);
+    }
   }
 });

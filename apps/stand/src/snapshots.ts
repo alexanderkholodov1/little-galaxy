@@ -4,12 +4,32 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { readObject, SCHEMA_VERSION } from '@little-galaxy/shared';
 import type { LiveSnapshot, RenderObject } from '@little-galaxy/shared';
 export function compactSnapshot(documents: { id: string; data(): unknown }[]): Omit<LiveSnapshot, 'at'> {
-  const objects: RenderObject[] = documents.flatMap((document) => {
-    const object = readObject(document.data());
-    return object?.status === 'active' ? [{ id: document.id, nameKey: object.nameKey, params: object.params, orbit: object.orbit }] : [];
+  const parsed = documents.map((document) => ({ id: document.id, object: readObject(document.data()) }));
+  const hosts = new Set(parsed.filter(({ object }) => object?.status === 'active' && object.type === 'moon').map(({ object }) => object!.orbit.hostId));
+  const objects: RenderObject[] = parsed.flatMap(({ id, object }) => {
+    return object && (object.status === 'active' || (object.type === 'planet' && hosts.has(id)))
+      ? [
+          {
+            id,
+            ...(object.status === 'hangar' ? { moonHost: true } : {}),
+            nameKey: object.nameKey,
+            type: object.type,
+            ...(object.type === 'planet' && object.ownerUid === '' ? { unclaimed: true } : {}),
+            params: object.params,
+            orbit: object.orbit,
+            ...(object.hostOrbit ? { hostOrbit: object.hostOrbit } : {}),
+          },
+        ]
+      : [];
   });
-  const snapshot: Omit<LiveSnapshot, 'at'> = { schemaVersion: SCHEMA_VERSION, objects, creators: objects.length, activeCount: objects.length };
-  if (Buffer.byteLength(JSON.stringify(snapshot)) > 900_000) throw new Error('Snapshot needs sharding before the next write');
+  const snapshot: Omit<LiveSnapshot, 'at'> = {
+    schemaVersion: SCHEMA_VERSION,
+    objects,
+    creators: objects.filter((object) => !object.unclaimed && !object.moonHost).length,
+    activeCount: objects.filter((o) => !o.moonHost).length,
+  };
+  if (Buffer.byteLength(JSON.stringify(snapshot)) > 900_000)
+    throw new Error('Snapshot needs sharding before the next write');
   return snapshot;
 }
 /** Publish only a healthy listener's state; reconnect with bounded exponential backoff. */
@@ -19,6 +39,8 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
   let stopped = false;
   let generation = 0;
   let failures = 0;
+  let revision = 0;
+  const hosts = new Map<string, { id: string; data(): unknown }>();
   let timer: ReturnType<typeof setInterval> | undefined;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let unsubscribe: (() => void) | undefined;
@@ -44,9 +66,24 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
     try {
       unsubscribe = database.collection('objects').where('status', '==', 'active').onSnapshot((snapshot) => {
         if (stopped || current !== generation) return;
-        try { latest = compactSnapshot(snapshot.docs); } catch { failed(); return; }
-        failures = 0;
-        if (!timer) { void flush(); timer = setInterval(() => { void flush(); }, interval); }
+        const update = ++revision;
+        const ids = new Set(snapshot.docs.map((d) => d.id));
+        const missing = new Set(snapshot.docs.flatMap((d) => {
+          const o = readObject(d.data());
+          return o?.type === 'moon' && !ids.has(o.orbit.hostId) ? [o.orbit.hostId] : [];
+        }));
+        for (const id of hosts.keys()) if (!missing.has(id)) hosts.delete(id);
+        void Promise.all([...missing].map(async (id) => {
+          const document = hosts.get(id) ?? await database.doc(`objects/${id}`).get();
+          if (readObject(document.data())?.type !== 'planet') throw new Error('Moon host unavailable');
+          if (!stopped && current === generation && update === revision) hosts.set(id, document);
+          return document;
+        })).then((parents) => {
+          if (stopped || current !== generation || update !== revision) return;
+          latest = compactSnapshot([...snapshot.docs, ...parents]);
+          failures = 0;
+          if (!timer) { void flush(); timer = setInterval(() => { void flush(); }, interval); }
+        }).catch(() => { if (update === revision) failed(); });
       }, failed);
     } catch { failed(); }
   }
