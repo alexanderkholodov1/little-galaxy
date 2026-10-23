@@ -134,12 +134,22 @@ export default function Screen({ language }: { language: Language }) {
         if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         e.preventDefault();
-        toggleFullscreen();
+        if (kioskPresentation) {
+          setKioskPresentation(false);
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          }
+        } else {
+          setKioskPresentation(true);
+          if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          }
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [kioskPresentation]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

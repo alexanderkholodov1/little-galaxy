@@ -85,33 +85,24 @@ const MIN_USABLE_BYTES = 50_000;
 async function assertHealthyScreen(page, { requireKiosk }) {
   await page.waitForSelector('.galaxy-field canvas, .galaxy-field[data-scene]', { timeout: 20000 });
 
-  const status = await page.evaluate(() => {
-    const field = document.querySelector('.field-status');
-    const text = field?.textContent?.trim() ?? '';
-    const loading = /loading|cargando/i.test(text);
-    const failed = /failed|interrumpida|unavailable|desconect/i.test(text)
-      || Boolean(document.querySelector('.events-status'));
-    const canvas = document.querySelector('.galaxy-field canvas');
-    const fullscreen = document.querySelector('[data-fullscreen="true"]');
-    return {
-      loading,
-      failed,
-      hasCanvas: Boolean(canvas),
-      kiosk: Boolean(fullscreen),
-      statusText: text.slice(0, 120),
-    };
-  });
+  const field = page.locator('.field-status');
+  const statusText = (await field.count()) ? ((await field.textContent()) ?? '').trim() : '';
+  const loading = /loading|cargando/i.test(statusText);
+  const failed = /failed|interrumpida|unavailable|desconect/i.test(statusText)
+    || (await page.locator('.events-status').count()) > 0;
+  const hasCanvas = (await page.locator('.galaxy-field canvas').count()) > 0;
+  const kiosk = (await page.locator('[data-fullscreen="true"]').count()) > 0;
 
-  if (status.loading || status.failed) {
-    throw new Error(`Screen is not healthy for recording (status="${status.statusText || 'error/loading'}"). Refusing to certify a backup.`);
+  if (loading || failed) {
+    throw new Error(`Screen is not healthy for recording (status="${statusText || 'error/loading'}"). Refusing to certify a backup.`);
   }
-  if (!status.hasCanvas) {
+  if (!hasCanvas) {
     throw new Error('No canvas rendered in .galaxy-field. Refusing to certify a backup.');
   }
-  if (requireKiosk && !status.kiosk) {
+  if (requireKiosk && !kiosk) {
     throw new Error('Kiosk presentation is not active (data-fullscreen != true).');
   }
-  return status;
+  return { loading, failed, hasCanvas, kiosk, statusText: statusText.slice(0, 120) };
 }
 
 export async function recordScreen(options = {}) {

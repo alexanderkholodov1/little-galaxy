@@ -36,7 +36,6 @@ import {
   OBJECT_SCHEMA_VERSION,
   orbitFromVelocity,
   planetDefaults,
-  SCHEMA_VERSION,
   SEASON,
 } from '../packages/shared/src/index.js';
 import { launchPlanet, editObject } from '../apps/web/src/galaxy-data';
@@ -343,9 +342,6 @@ export async function runLoadTest(options: {
   const standWritesPerHour = 120 + 4;
   // Stand reads per hour: 120 collection reads for snapshot, 2 collection reads per memory publication
   const standReadsPerHour = 120 + 8;
-  const visitorsPerHour = 100;
-  const projectedHourlyWrites = Math.round(perVisitorWrites * visitorsPerHour + standWritesPerHour);
-  const projectedHourlyReads = Math.round(perVisitorReads * visitorsPerHour + standReadsPerHour);
 
   // Fair day: 8 hours, 300 visitors total
   const fairDayWrites300 = Math.round(WRITES_PER_VISITOR * 300 + standWritesPerHour * 8);
