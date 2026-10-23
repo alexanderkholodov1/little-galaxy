@@ -205,6 +205,27 @@ it('enters DOM fullscreen on first F press after restored kiosk presentation', a
   }
 });
 
+it.each([false, true])('leaves kiosk after fullscreen rejection (restored=%s)', async (restoredKiosk) => {
+  const originalReq = document.documentElement.requestFullscreen;
+  const request = vi.fn().mockRejectedValue(new Error('Fullscreen denied by policy'));
+  document.documentElement.requestFullscreen = request;
+  try {
+    localStorage.setItem('galaxy.screen.context', JSON.stringify({
+      configuredScene: 'galaxy', lastActivity: Date.now(), kioskPresentation: restoredKiosk,
+    }));
+    await act(async () => root.render(<Screen language="en"/>));
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' })));
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.live-screen')?.getAttribute('data-fullscreen')).toBe('false');
+    expect(container.querySelector('.fullscreen-toggle')?.textContent).toBe('Fullscreen');
+    await act(async () => (container.querySelector('.fullscreen-toggle') as HTMLButtonElement).click());
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('.live-screen')?.getAttribute('data-fullscreen')).toBe('false');
+  } finally {
+    document.documentElement.requestFullscreen = originalReq;
+  }
+});
+
 it('supports kiosk presentation in timelapse replay scene with fullscreen toggle', async () => {
   localStorage.setItem('galaxy.screen.context', JSON.stringify({
     configuredScene: 'timelapse', lastActivity: Date.now(), kioskPresentation: true,

@@ -112,7 +112,10 @@ export default function Screen({ language }: { language: Language }) {
     } else {
       setKioskPresentation(true);
       if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
+        document.documentElement.requestFullscreen().catch(() => {
+          // A denied browser/embed policy must leave a usable normal layout.
+          setKioskPresentation(false);
+        });
       } else if (kioskPresentation) {
         // Fallback for environments lacking requestFullscreen (e.g. tests)
         setKioskPresentation(false);
