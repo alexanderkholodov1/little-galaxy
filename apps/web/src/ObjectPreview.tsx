@@ -30,10 +30,14 @@ export default function ObjectPreview({
   draft,
   identity,
   departed,
+  pet,
+  onPet,
 }: {
   draft: Draft;
   identity: string;
   departed: RenderObject[];
+  pet?: { id: string; at: number };
+  onPet?: (id: string) => void;
 }) {
   const objects = useMemo(
     () => [
@@ -51,7 +55,7 @@ export default function ObjectPreview({
     <Canvas dpr={1} camera={{ position: [0, 0, 5], fov: 48 }}>
       <FitSpecimen draft={draft} />
       <color attach="background" args={['#050c16']} />
-      <RichBodies objects={objects} departed={departed} preview />
+      <RichBodies objects={objects} departed={departed} preview pet={pet} onPick={onPet} />
     </Canvas>
   );
 }

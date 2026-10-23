@@ -3,7 +3,7 @@ import { BodyHistory, StarIndex, markLiveRange, RING_TILT } from './rich-runtime
 import { useFrame } from '@react-three/fiber';
 import { Color, DynamicDrawUsage, InstancedBufferAttribute, DoubleSide, FrontSide, Object3D, ShaderMaterial, Vector3 } from 'three';
 import type { InstancedMesh } from 'three';
-import { palette, planetDefaults, positionAt, starPosition, worldPosition } from '@little-galaxy/shared';
+import { palette, petScale, planetDefaults, positionAt, starPosition, worldPosition } from '@little-galaxy/shared';
 import type { MoonParams, PlanetParams, RenderObject, StarParams } from '@little-galaxy/shared';
 const vertex = `
 uniform float cheap;
@@ -69,16 +69,21 @@ export default function RichBodies({
   objects,
   preview = false,
   departed,
+  pet,
+  onPick,
 }: {
   objects: RenderObject[];
   preview?: boolean;
   departed?: RenderObject[];
+  pet?: { id: string; at: number };
+  onPick?: (id: string) => void;
 }) {
   const near = useRef<InstancedMesh>(null),
     far = useRef<InstancedMesh>(null),
     rings = useRef<InstancedMesh>(null),
     corona = useRef<InstancedMesh>(null),
     debris = useRef<InstancedMesh>(null);
+  const instanceIds = useRef<string[][]>([[], [], [], [], []]);
   const history = useRef(new BodyHistory()), rocks = useRef<Rock[]>([]);
   const bodies = useMemo(() => objects.map(body), [objects]);
   const stars = useMemo(() => new StarIndex(bodies.filter((b) => b.star).map((b) => ({ id: b.object.id, position: b.origin, colour: b.colour }))), [bodies]);
@@ -114,6 +119,7 @@ export default function RichBodies({
   );
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
   const poolRef = useRef<{
+    currentId: string; petId?: string; stretch: Point;
     scratch: Object3D; parent: Point; fragment: Point; counts: Uint16Array; meshes: InstancedMesh[];
     ranges: { start: number; count: number }[][];
   } | null>(null);
@@ -121,7 +127,7 @@ export default function RichBodies({
   useEffect(() => { materialsRef.current = materials; }, [materials]);
   useEffect(() => {
     const pool = poolRef.current ??= {
-      scratch: new Object3D(), parent: [0, 0, 0], fragment: [0, 0, 0],
+      currentId: '', stretch: [1, 1, 1], scratch: new Object3D(), parent: [0, 0, 0], fragment: [0, 0, 0],
       counts: new Uint16Array(5), meshes: [],
       ranges: Array.from({ length: 5 }, () => Array.from({ length: 6 }, () => ({ start: 0, count: 0 }))),
     };
@@ -138,8 +144,10 @@ export default function RichBodies({
     const index = pool.counts[group], mesh = pool.meshes[group];
     if (index >= 8000 || !mesh) return;
     pool.counts[group]++;
+    instanceIds.current[group][index] = pool.currentId;
     const scratch = pool.scratch;
     scratch.position.set(pos[0], pos[1], pos[2]); scratch.scale.setScalar(scale);
+    if (pool.currentId && pool.currentId === pool.petId) scratch.scale.set(scale * pool.stretch[0], scale * pool.stretch[1], scale * pool.stretch[2]);
     scratch.rotation.set(group === 2 ? RING_TILT : .15, 0, group === 2 ? .38 : rotation);
     scratch.updateMatrix(); mesh.setMatrixAt(index, scratch.matrix);
     (mesh.geometry.getAttribute('surface') as InstancedBufferAttribute).setXYZW(index, s[0], s[1], s[2], s[3]);
@@ -153,10 +161,13 @@ export default function RichBodies({
     if (!pool) return;
     const now = Date.now();
     pool.counts.fill(0);
+    pool.petId = pet?.id;
+    if (pet) petScale((now - pet.at) / 1000, pool.stretch);
     if (!pool.meshes.length) return;
     history.current.prune(now);
     for (const b of bodies) {
       const o = b.object, pos = b.position;
+      pool.currentId = o.id;
       placeBody(b, preview, now, pool.parent);
       const lamp = stars.nearest(pos, o.id), light = lamp?.position ?? (preview ? materials[0].uniforms.centralLight.value.toArray(pool.parent) : zero), lc = lamp?.colour ?? central;
       const birth = history.current.births.get(o.id), age = birth === undefined ? 2 : (now - birth) / 1000;
@@ -179,6 +190,7 @@ export default function RichBodies({
       }
       if (b.star?.corona) put(3, pos, radius * (1.2 + b.star.corona * .7), b.surface, b.detail, b.colour, light, lc);
     }
+    pool.currentId = '';
     // Compact in place; no filter/temporary arrays in the frame loop.
     let live = 0;
     for (const r of rocks.current) {
@@ -194,6 +206,9 @@ export default function RichBodies({
     for (let i = 0; i < pool.meshes.length; i++) {
       const mesh = pool.meshes[i], count = pool.counts[i];
       mesh.count = count;
+      // Matrices and live counts change every frame (orbits, pets, edits, arrivals).
+      // Three reuses its sphere/scratch storage; refresh after the complete batch.
+      mesh.computeBoundingSphere();
       markLiveRange(mesh.instanceMatrix, count, pool.ranges[i][0]);
       for (let j = 0; j < attributes.length; j++) markLiveRange(mesh.geometry.getAttribute(attributes[j][0]), count, pool.ranges[i][j + 1]);
       materials[i].uniforms.clock.value = clock.elapsedTime;
@@ -202,6 +217,10 @@ export default function RichBodies({
   return (
     <>
       <instancedMesh
+        onClick={(event) => {
+          const id = instanceIds.current[0][event.instanceId ?? -1];
+          if (id && onPick) { event.stopPropagation(); onPick(id); }
+        }}
         ref={near}
         args={[undefined, undefined, 8000]}
         material={materials[0]}
@@ -210,6 +229,10 @@ export default function RichBodies({
         <sphereGeometry args={[1, 24, 16]} />
       </instancedMesh>
       <instancedMesh
+        onClick={(event) => {
+          const id = instanceIds.current[1][event.instanceId ?? -1];
+          if (id && onPick) { event.stopPropagation(); onPick(id); }
+        }}
         ref={far}
         args={[undefined, undefined, 8000]}
         material={materials[1]}
@@ -218,6 +241,10 @@ export default function RichBodies({
         <sphereGeometry args={[1, 8, 6]} />
       </instancedMesh>
       <instancedMesh
+        onClick={(event) => {
+          const id = instanceIds.current[2][event.instanceId ?? -1];
+          if (id && onPick) { event.stopPropagation(); onPick(id); }
+        }}
         ref={rings}
         args={[undefined, undefined, 8000]}
         material={materials[2]}
@@ -226,6 +253,10 @@ export default function RichBodies({
         <ringGeometry args={[0.65, 1, 48]} />
       </instancedMesh>
       <instancedMesh
+        onClick={(event) => {
+          const id = instanceIds.current[3][event.instanceId ?? -1];
+          if (id && onPick) { event.stopPropagation(); onPick(id); }
+        }}
         ref={corona}
         args={[undefined, undefined, 8000]}
         material={materials[3]}

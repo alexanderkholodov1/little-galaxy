@@ -1,4 +1,9 @@
-# Little Galaxy · G v0.3.0
+# Little Galaxy · G v0.4.0
+
+Parametric Tone.js sound, one harmonious scale, an eight-voice screen mix, and tender phone/screen
+petting. Audio unlocks on a gesture and loads lazily; phone mute survives reloads.
+See [the v0.4.0 sound handoff](docs/sound-status.md) for mapping, offline measurements, bundle
+cost and remaining physical-device acceptance.
 
 Rich procedural planets, stars and moons; generated bilingual names; live owner edits; a permanent
 hangar with crumble/reassembly; and an instanced galaxy renderer with distance LOD.
@@ -109,7 +114,7 @@ In emulator mode it refuses non-`demo-` project IDs and does not load credential
 ## Build and delivery
 
 `apps/web/dist` is the release payload: unpack its contents under the portfolio's `dist/galaxy/`.
-The payload includes the fonts' OFL notices and QR encoder's MIT notice in `licenses/`.
+The payload includes the fonts' OFL notices and the QR/audio dependencies' license notices in `licenses/`.
 Vite fixes asset URLs to `/galaxy/`. Generated `version.json` contains `version`, `commit` (nullable
 outside a git checkout), and `builtAt` (UTC ISO timestamp). Build caching is disabled so this metadata
 describes that invocation.

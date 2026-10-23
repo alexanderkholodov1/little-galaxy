@@ -28,6 +28,8 @@ import { copy } from './copy';
 import SessionLine from './SessionLine';
 import ErrorBoundary from './ErrorBoundary';
 import { richCopy } from './rich-copy';
+import { useSound } from './use-sound';
+import SoundControls from './SoundControls';
 import Specimen from './Specimen';
 import { loadNameHistory, saveNameHistory } from './name-history';
 const Preview = lazy(() => import('./ObjectPreview'));
@@ -64,6 +66,15 @@ export default function Create({ language }: { language: Language }) {
   const [inspect3D, setInspect3D] = useState(false);
   const [specimen, setSpecimen] = useState('draft');
   const [departed, setDeparted] = useState<RenderObject[]>([]);
+  const sound = useSound(1);
+  const [pet, setPet] = useState<{ id: string; at: number }>();
+  const updateSound = sound.update;
+  useEffect(() => {
+    updateSound([{ id: specimen, type: draft.type ?? 'planet', nameKey: draft.nameKey,
+      params: draft.params, orbit: orbitFromVelocity(0, 2.58, 0, 0) }],
+      [{ id: specimen, visible: true, distance: 0, focused: true }]);
+  }, [draft, specimen, updateSound]);
+  function petSpecimen() { setPet({ id: specimen, at: Date.now() }); sound.pet(specimen); }
   const [retry, setRetry] = useState(0);
   const baseline = useRef('');
   const touched = useRef(false);
@@ -229,12 +240,16 @@ export default function Create({ language }: { language: Language }) {
       <figure className="planet-specimen" aria-label={objectName(draft.nameKey, language)}>
         {inspect3D ? <ErrorBoundary fallback={<p className="scene-message">{text.unavailable}</p>}>
           <Suspense fallback={<p>{text.loading}</p>}>
-            <Preview draft={draft} identity={specimen} departed={departed} />
+            <Preview draft={draft} identity={specimen} departed={departed} pet={pet} onPet={petSpecimen} />
           </Suspense>
-        </ErrorBoundary> : <Specimen draft={draft} />}
+        </ErrorBoundary> : <Specimen draft={draft} pet={pet} onPet={petSpecimen} label={language === 'es' ? 'Acariciar tu objeto' : 'Pet your object'} />}
         <figcaption>{editing ? rich.editing : text.preview}</figcaption>
         {!inspect3D && <button onClick={() => setInspect3D(true)}>{rich.inspect3D}</button>}
       </figure>
+      <div className="specimen-sound">
+        <button onClick={petSpecimen}>{language === 'es' ? 'Acariciar tu objeto' : 'Pet your object'}</button>
+        <SoundControls sound={sound} language={language}/>
+      </div>
       <fieldset disabled={busy} className="planet-controls">
         <legend>{rich.material}</legend>
         <div className="type-choices">

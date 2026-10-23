@@ -181,8 +181,25 @@ button:disabled { opacity: .6; cursor: wait; }
 .hangar small { display: block; }
 .fps-reading { position: absolute; top: 16px; right: 16px; color: #b9d7e8; font-variant-numeric: tabular-nums; }
 
+/* Observing-log marginal controls, aligned with the specimen and chart readings. */
+.specimen-sound, .screen-sound, .sound-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.specimen-sound { grid-column: 1; margin-block: 8px 24px; }
+.screen-sound { margin-block: 8px 24px; }
+.sound-controls label { display: flex; align-items: center; gap: 8px; }
+.sound-controls input { width: 112px; min-height: 44px; }
+.sound-controls span { font-size: .8125rem; }
+.screen-sound > label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.screen-sound select { max-width: min(250px, 100%); min-height: 44px; }
+@media (min-width: 721px) { .planet-controls { grid-column: 2; grid-row: 2 / span 2; } }
 .specimen-drawing { display: block; width: 100%; height: 100%; min-height: 230px; background: #050c16; }
+.specimen-drawing[role="button"] { cursor: pointer; }
+.specimen-drawing:focus-visible { outline: 3px solid var(--action); outline-offset: 3px; }
 .planet-specimen > button { margin: 8px 0; }
 
-/* Reserve the existing masthead/title bands so the TV chart and join QR fit in one view. */
-@media (min-width: 721px) { .galaxy-field { height: min(75vh, calc(100dvh - 24rem)); } }
+/* Reserve masthead, title and sound controls so the TV chart and join QR fit in one view. */
+@media (min-width: 721px) { .galaxy-field { height: min(75vh, calc(100dvh - 28rem)); } }
