@@ -142,3 +142,16 @@ it.each([
   await render(`/galaxy/?lang=${language}`);
   expect(container.querySelector('h1')?.textContent).toContain(sentence);
 });
+
+it('does not advertise talk in the visible navigation while preserving the route', async () => {
+  await render('/galaxy');
+  const navLinks = Array.from(container.querySelectorAll('.galaxy-nav a')).map((a) => a.getAttribute('href'));
+  expect(navLinks).toEqual(['/galaxy?lang=en', '/galaxy/screen?lang=en', '/galaxy/create?lang=en']);
+  expect(container.querySelector('.galaxy-nav a[href*="talk"]')).toBeNull();
+});
+
+it('marks the shell with data-page="screen" on the screen route', async () => {
+  await render('/galaxy/screen');
+  expect(container.querySelector('.app-shell')?.getAttribute('data-page')).toBe('screen');
+});
+

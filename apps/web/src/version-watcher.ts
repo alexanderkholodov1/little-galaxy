@@ -62,7 +62,7 @@ export function useVersionWatcher({
 } = {}) {
   const [target, setTarget] = useState<VersionInfo | null>(null);
   const current = useMemo(() => ({
-    version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.7.0',
+    version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0',
     commit: typeof __APP_COMMIT__ !== 'undefined' ? __APP_COMMIT__ : null,
   }), []);
   const updateAvailable = target !== null && !attempted(current, target);

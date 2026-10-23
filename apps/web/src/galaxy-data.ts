@@ -1,3 +1,4 @@
+import { runObservedTransaction } from './firestore-observer';
 import {
   collection,
   doc,
@@ -5,12 +6,10 @@ import {
   getDocs,
   onSnapshot,
   query,
-  runTransaction,
   serverTimestamp,
   Timestamp,
   where,
 } from 'firebase/firestore';
-import { anonymousUid } from './firebase';
 import type { Firestore } from 'firebase/firestore';
 import {
   MAX_LAUNCHES_PER_DAY,
@@ -32,6 +31,7 @@ import type {
   PlanetParams,
   RenderObject,
 } from '@little-galaxy/shared';
+import { waitForAnonymousUid } from './session-uid';
 export interface Draft {
   type?: ObjectType;
   nameKey: NameKey;
@@ -52,7 +52,7 @@ export async function launchPlanet(
 ): Promise<string> {
   const target = doc(collection(database, 'objects'));
   const event = doc(collection(database, 'events'));
-  await runTransaction(database, async (tx) => {
+  await runObservedTransaction(database, async (tx) => {
     const userRef = doc(database, 'users', uid);
     const userDoc = await tx.get(userRef);
     const old = userDoc.exists() ? (userDoc.data() as GalaxyUser<Timestamp>) : null;
@@ -124,17 +124,23 @@ export function listenActive(
   database: Firestore,
   next: (objects: RenderObject[], fromCache: boolean) => void,
   error: () => void,
+  observe?: (count: number) => void,
 ) {
   let stopped = false;
   let generation = 0;
   const hosts = new Map<string, RenderObject>();
+  let receivedServer = false;
   let unsubscribe: (() => void) | undefined;
-  void anonymousUid().then(() => {
+  void waitForAnonymousUid().then(() => {
     if (stopped) return;
     unsubscribe = onSnapshot(
       query(collection(database, 'objects'), where('status', '==', 'active')),
       { includeMetadataChanges: true },
       (snapshot) => {
+        if (!snapshot.metadata.fromCache) {
+          observe?.(receivedServer ? snapshot.docChanges().length : Math.max(1, snapshot.size));
+          receivedServer = true;
+        }
         const current = ++generation;
         const active = snapshot.docs.flatMap((document) => {
           const data = readObject(document.data());
@@ -194,7 +200,7 @@ export async function availableHosts(database: Firestore): Promise<RenderObject[
 }
 export async function editObject(database: Firestore, uid: string, draft: Draft): Promise<void> {
   const event = doc(collection(database, 'events'));
-  await runTransaction(database, async (tx) => {
+  await runObservedTransaction(database, async (tx) => {
     const flags = await tx.get(doc(database, 'config', 'live'));
     if (!flags.exists() || !flags.data()?.seasonOpen) throw new LaunchError('closed');
     const userRef = doc(database, 'users', uid),
@@ -236,7 +242,7 @@ export async function editObject(database: Firestore, uid: string, draft: Draft)
 }
 export async function relaunchObject(database: Firestore, uid: string, objectId: string): Promise<void> {
   const event = doc(collection(database, 'events'));
-  await runTransaction(database, async (tx) => {
+  await runObservedTransaction(database, async (tx) => {
     const userRef = doc(database, 'users', uid),
       user = await tx.get(userRef);
     if (!user.exists()) throw new LaunchError('closed');

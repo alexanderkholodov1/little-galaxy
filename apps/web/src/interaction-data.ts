@@ -1,8 +1,9 @@
-import { collection, doc, limitToLast, onSnapshot, orderBy, query, runTransaction, serverTimestamp, Timestamp, where } from 'firebase/firestore';
+import { runObservedTransaction } from './firestore-observer';
+import { collection, doc, limitToLast, onSnapshot, orderBy, query, serverTimestamp, Timestamp, where } from 'firebase/firestore';
 import type { Firestore } from 'firebase/firestore';
 import { interactionClock, interactionCooldown, interactionFlag, MAX_INTERACTIONS_PER_DAY, utcDay, validInteraction } from '@little-galaxy/shared';
 import type { GalaxyUser, InteractionType } from '@little-galaxy/shared';
-import { anonymousUid } from './firebase';
+import { waitForAnonymousUid } from './session-uid';
 export class InteractionError extends Error {
   constructor(public reason: 'cooldown' | 'closed' | 'limit' | 'offline', public retryAfter = 2200) { super(reason); }
 }
@@ -10,7 +11,7 @@ export class InteractionError extends Error {
 export async function sendInteraction(database: Firestore, uid: string, type: InteractionType, payload: Record<string, unknown>) {
   if (!validInteraction(type, payload)) throw new Error('Invalid interaction');
   const event = doc(collection(database, 'events'));
-  await runTransaction(database, async (tx) => {
+  await runObservedTransaction(database, async (tx) => {
     const ref = doc(database, 'users', uid), user = await tx.get(ref);
     const config = await tx.get(doc(database, 'config', 'live'));
     if (!config.data()?.seasonOpen || config.data()?.[interactionFlag[type]] !== true) throw new InteractionError('closed');
@@ -38,12 +39,12 @@ export function readScreenEvent(id: string, data: Record<string, unknown>): Scre
   return { id, type: data.type, objectId: data.objectId, at, payload };
 }
 /** Rebase every 45s; cursor from the last seen event to eliminate overlapping re-queries. Query reads at most 100 rows, never the season log. */
-export function listenRecentEvents(database: Firestore, next: (events: ScreenEvent[]) => void, error: () => void) {
+export function listenRecentEvents(database: Firestore, next: (events: ScreenEvent[]) => void, error: () => void, observe?: (count: number) => void) {
   let stopped = false, unsubscribe: (() => void) | undefined, timer: ReturnType<typeof setInterval> | undefined;
   let generation = 0;
   let lastSeenAt: number | undefined;
   const seen = new Map<string, number>();
-  void Promise.resolve().then(anonymousUid).then(() => {
+  void waitForAnonymousUid().then(() => {
     if (stopped) return;
     const attach = () => {
       unsubscribe?.();
@@ -52,9 +53,12 @@ export function listenRecentEvents(database: Firestore, next: (events: ScreenEve
       const floor = now - 60_000;
       const cursor = lastSeenAt !== undefined && lastSeenAt > floor ? lastSeenAt : floor;
       for (const [id, at] of seen) if (at < now - 120_000) seen.delete(id);
+      let receivedServer = false;
       unsubscribe = onSnapshot(query(collection(database, 'events'), where('at', '>', Timestamp.fromMillis(cursor)),
         orderBy('at'), limitToLast(100)), { includeMetadataChanges: true }, (snapshot) => {
         if (stopped || current !== generation || snapshot.metadata.fromCache) return;
+        observe?.(receivedServer ? snapshot.docChanges().length : Math.max(1, snapshot.size));
+        receivedServer = true;
         const fresh: ScreenEvent[] = [];
         for (const document of snapshot.docs) {
           const data = document.data();

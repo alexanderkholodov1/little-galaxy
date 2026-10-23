@@ -8,17 +8,18 @@ export function meteorInterval(config: Record<string, unknown> | undefined, rand
   return (min + Math.max(0, Math.min(1, random())) * (max - min)) * 1000;
 }
 /** Recheck the switch at commit; one append-only event per shower, no client can write these. */
-export async function writeMeteorShower(database: Firestore): Promise<boolean> {
+export async function writeMeteorShower(database: Firestore, observe?: (count: number) => void, onWrite?: (count: number) => void): Promise<boolean> {
   const event = database.collection('events').doc();
   return database.runTransaction(async (tx) => {
+    observe?.(1);
     const config = await tx.get(database.doc('config/live'));
     if (meteorInterval(config.data(), () => 0) === null) return false;
     tx.create(event, { schemaVersion: 1, type: 'meteorShower', uid: 'stand', objectId: '',
       at: FieldValue.serverTimestamp(), payload: { count: 12 } });
     return true;
-  });
+  }).then((wrote) => { if (wrote) onWrite?.(1); return wrote; });
 }
-export function startMeteorScheduler(database: Firestore, error: () => void, random = Math.random, clock = { setTimeout, clearTimeout }) {
+export function startMeteorScheduler(database: Firestore, error: () => void, random = Math.random, clock = { setTimeout, clearTimeout }, observe?: (count: number) => void, onWrite?: (count: number) => void) {
   let stopped = false, config: Record<string, unknown> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined, pending: Promise<unknown> | undefined;
   function schedule() {
@@ -26,10 +27,11 @@ export function startMeteorScheduler(database: Firestore, error: () => void, ran
     const delay = meteorInterval(config, random);
     if (stopped || delay === null || pending) return;
     timer = clock.setTimeout(() => {
-      pending = writeMeteorShower(database).catch(error).finally(() => { pending = undefined; schedule(); });
+      pending = writeMeteorShower(database, observe, onWrite).catch(error).finally(() => { pending = undefined; schedule(); });
     }, delay);
   }
   const unsubscribe = database.doc('config/live').onSnapshot((snapshot) => {
+    observe?.(1);
     config = snapshot.data(); schedule();
   }, () => { config = undefined; clock.clearTimeout(timer); error(); });
   return async () => { stopped = true; clock.clearTimeout(timer); unsubscribe(); await pending; };

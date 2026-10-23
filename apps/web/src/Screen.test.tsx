@@ -116,6 +116,138 @@ it('persists screen scene to localStorage and honours sound and spotlight kill s
   expect(container.querySelector('.sound-controls')?.textContent).toContain('Sound disabled by operator');
 });
 
+it('provides fullscreen toggle, keyboard shortcut, and tracks mouse idle', async () => {
+  vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Screen language="en"/>));
+    const fsBtn = container.querySelector<HTMLButtonElement>('.fullscreen-toggle')!;
+    expect(fsBtn).not.toBeNull();
+    expect(fsBtn.textContent).toBe('Fullscreen');
+
+    const screenSection = container.querySelector('.live-screen')!;
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('false');
+
+    await act(async () => fsBtn.click());
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('true');
+    expect(fsBtn.textContent).toBe('Exit fullscreen');
+    expect(JSON.parse(localStorage.getItem('galaxy.screen.context')!).kioskPresentation).toBe(true);
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    });
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('false');
+    expect(JSON.parse(localStorage.getItem('galaxy.screen.context')!).kioskPresentation).toBe(false);
+
+    await act(async () => {
+      window.dispatchEvent(new MouseEvent('mousemove'));
+    });
+    expect(screenSection.getAttribute('data-mouse-idle')).toBe('false');
+    await act(async () => vi.advanceTimersByTimeAsync(2600));
+    expect(screenSection.getAttribute('data-mouse-idle')).toBe('true');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('restores kiosk presentation layout after reload without requiring DOM fullscreen', async () => {
+  localStorage.setItem('galaxy.screen.context', JSON.stringify({
+    configuredScene: 'galaxy', lastActivity: Date.now(), kioskPresentation: true,
+  }));
+  await act(async () => root.render(<Screen language="en"/>));
+  const screenSection = container.querySelector('.live-screen')!;
+  expect(screenSection.getAttribute('data-fullscreen')).toBe('true');
+  expect(container.querySelector('.fullscreen-toggle')?.textContent).toBe('Exit fullscreen');
+});
+
+it('enters DOM fullscreen on first F press after restored kiosk presentation', async () => {
+  const originalReq = document.documentElement.requestFullscreen;
+  const originalExit = document.exitFullscreen;
+  const mockReq = vi.fn().mockResolvedValue(undefined);
+  const mockExit = vi.fn().mockResolvedValue(undefined);
+  document.documentElement.requestFullscreen = mockReq;
+  document.exitFullscreen = mockExit;
+
+  try {
+    localStorage.setItem('galaxy.screen.context', JSON.stringify({
+      configuredScene: 'galaxy', lastActivity: Date.now(), kioskPresentation: true,
+    }));
+    await act(async () => root.render(<Screen language="en"/>));
+    const screenSection = container.querySelector('.live-screen')!;
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('true');
+
+    // First F press: DOM fullscreen was absent, so it enters DOM fullscreen rather than exiting kiosk
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    });
+    expect(mockReq).toHaveBeenCalledTimes(1);
+    expect(mockExit).not.toHaveBeenCalled();
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('true');
+
+    // Now simulate being in DOM fullscreen
+    Object.defineProperty(document, 'fullscreenElement', {
+      value: document.documentElement,
+      configurable: true,
+    });
+
+    // Second F press: now in DOM fullscreen, so it exits fullscreen and clears kiosk
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    });
+    expect(mockExit).toHaveBeenCalledTimes(1);
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('false');
+  } finally {
+    document.documentElement.requestFullscreen = originalReq;
+    document.exitFullscreen = originalExit;
+    Object.defineProperty(document, 'fullscreenElement', {
+      value: null,
+      configurable: true,
+    });
+  }
+});
+
+it.each([false, true])('leaves kiosk after fullscreen rejection (restored=%s)', async (restoredKiosk) => {
+  const originalReq = document.documentElement.requestFullscreen;
+  const request = vi.fn().mockRejectedValue(new Error('Fullscreen denied by policy'));
+  document.documentElement.requestFullscreen = request;
+  try {
+    localStorage.setItem('galaxy.screen.context', JSON.stringify({
+      configuredScene: 'galaxy', lastActivity: Date.now(), kioskPresentation: restoredKiosk,
+    }));
+    await act(async () => root.render(<Screen language="en"/>));
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' })));
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.live-screen')?.getAttribute('data-fullscreen')).toBe('false');
+    expect(container.querySelector('.fullscreen-toggle')?.textContent).toBe('Fullscreen');
+    await act(async () => (container.querySelector('.fullscreen-toggle') as HTMLButtonElement).click());
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('.live-screen')?.getAttribute('data-fullscreen')).toBe('false');
+  } finally {
+    document.documentElement.requestFullscreen = originalReq;
+  }
+});
+
+it('supports kiosk presentation in timelapse replay scene with fullscreen toggle', async () => {
+  localStorage.setItem('galaxy.screen.context', JSON.stringify({
+    configuredScene: 'timelapse', lastActivity: Date.now(), kioskPresentation: true,
+  }));
+  const live = vi.mocked(useLiveConfig).mock.results[0]?.value ?? {
+    status: 'live',
+    config: { schemaVersion: 1, appVersion: '1.0.0', screenScene: 'timelapse' },
+  };
+  vi.mocked(useLiveConfig).mockReturnValue({
+    ...live,
+    status: 'live',
+    config: { ...live.config, screenScene: 'timelapse' },
+  });
+
+  await act(async () => root.render(<Screen language="en"/>));
+  const replaySection = container.querySelector('.screen-replay');
+  expect(replaySection).not.toBeNull();
+  expect(replaySection?.getAttribute('data-fullscreen')).toBe('true');
+  expect(container.querySelector('.replay-kiosk-controls .fullscreen-toggle')).not.toBeNull();
+  expect(container.querySelector('.memory-log')).not.toBeNull();
+});
+
 it('restores automatic cinematic scene and focused object before fitting the camera', async () => {
   const objects = syntheticObjects(1);
   localStorage.setItem('galaxy.screen.context', JSON.stringify({ configuredScene: 'galaxy', lastActivity: Date.now() - 60000, focused: objects[0].id }));

@@ -58,7 +58,14 @@ async function acceptance() {
   const screenContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const boots = () => Number(sessionStorage.getItem('acceptance.boots'));
   const entry = (page) => page.locator('script[type=module][src]').getAttribute('src');
-  const count = async (page, value) => expect.poll(() => page.evaluate(boots), { timeout: 45000 }).toBe(value);
+  const count = async (page, value) => expect.poll(async () => {
+    try { return await page.evaluate(boots); }
+    catch (error) {
+      // This poll crosses an expected document reload; retry only that transient context loss.
+      if (/Execution context was destroyed|Cannot find context with specified id/.test(String(error))) return NaN;
+      throw error;
+    }
+  }, { timeout: 45000 }).toBe(value);
   const assertSurface = async (phone, screen, value, focused) => {
     await expect(phone.getByRole('slider', { name: 'Radius' })).toHaveValue(value);
     await expect(phone.locator('.planet-specimen canvas')).toBeVisible();

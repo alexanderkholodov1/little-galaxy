@@ -63,8 +63,9 @@ export default function App() {
 
   const suffix = `?lang=${language}`;
   const portfolio = language === 'es' ? '/es/' : '/';
+  const isScreen = location.pathname.endsWith('/screen');
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-page={isScreen ? 'screen' : undefined}>
       <a className="skip-link" href="#content">{text.skip}</a>
       <header className="portfolio-header">
         <a className="signature" href={portfolio}>
@@ -95,7 +96,7 @@ export default function App() {
         </div>
       </header>
       <nav className="galaxy-nav" aria-label={text.nav}>
-        {(['home', 'screen', 'create', 'talk'] as const).map((page) => (
+        {(['home', 'screen', 'create'] as const).map((page) => (
           <NavLink key={page} to={`${page === 'home' ? '/' : `/${page}`}${suffix}`} end>{text[page]}</NavLink>
         ))}
       </nav>
