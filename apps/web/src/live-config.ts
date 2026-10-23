@@ -15,7 +15,11 @@ export function readConfig(data: Record<string, unknown> | undefined): LiveConfi
   return { ...closedConfig, appVersion: typeof data.appVersion === 'string' ? data.appVersion : '',
     seasonOpen: data.seasonOpen === true, launches: data.launches === true, comets: data.comets === true,
     shake: data.shake === true, shootingStars: data.shootingStars === true, meteorShowers: data.meteorShowers === true,
-    screenScene: screenScenes.includes(data.screenScene as LiveConfig['screenScene']) ? data.screenScene as LiveConfig['screenScene'] : data.screenScene === 'qr' ? 'bigQr' : 'galaxy',
+    screenScene: typeof data.screenScene === 'string' && screenScenes.includes(data.screenScene as LiveConfig['screenScene'])
+      ? (data.screenScene as LiveConfig['screenScene'])
+      : data.screenScene === 'qr'
+        ? 'bigQr'
+        : 'galaxy',
     idleSeconds: seconds('idleSeconds', 60, 10, 3600),
   };
 }

@@ -7,5 +7,8 @@ it('fails closed for missing/future config and malformed flags; supports the leg
   expect(config.launches).toBe(false); expect(config.shake).toBe(false); expect(config.shootingStars).toBe(true);
   expect(config.screenScene).toBe('bigQr'); expect(config.idleSeconds).toBe(60);
   expect(readConfig({ schemaVersion: 1, screenScene: 'assistant', idleSeconds: -10 }).screenScene).toBe('galaxy');
+  expect(readConfig({ schemaVersion: 1, screenScene: 42 }).screenScene).toBe('galaxy');
+  expect(readConfig({ schemaVersion: 1, screenScene: {} }).screenScene).toBe('galaxy');
+  expect(readConfig({ schemaVersion: 1, screenScene: null }).screenScene).toBe('galaxy');
   expect(readConfig({ schemaVersion: 1, idleSeconds: 0 }).idleSeconds).toBe(10);
 });
