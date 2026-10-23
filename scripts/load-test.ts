@@ -38,10 +38,12 @@ import {
   planetDefaults,
   SEASON,
 } from '../packages/shared/src/index.js';
-import { launchPlanet, editObject } from '../apps/web/src/galaxy-data';
-import { sendInteraction } from '../apps/web/src/interaction-data';
+import { launchPlanet, editObject, listenActive } from '../apps/web/src/galaxy-data';
+import { sendInteraction, listenRecentEvents } from '../apps/web/src/interaction-data';
+import { setUidProvider } from '../apps/web/src/session-uid';
 import { startSnapshotWriter } from '../apps/stand/src/snapshots';
 import { startMemoryWriter } from '../apps/stand/src/memory';
+import { startMeteorScheduler } from '../apps/stand/src/meteors';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -57,13 +59,13 @@ export interface LoadTestMetrics {
     eventWrites: number;
     standSnapshotWrites: number;
     standMemoryWrites: number;
+    standMeteorWrites: number;
     perVisitorAvg: number;
     perVisitorBreakdown: string;
   };
   reads: {
     total: number;
     phoneTransactionReads: number;
-    phoneAuthReads: number;
     screenObjectReads: number;
     screenEventReads: number;
     standReads: number;
@@ -135,6 +137,7 @@ export async function runLoadTest(options: {
   log(`[load-test] Seeded config/live and unclaimed host planet.`);
 
   // 2. Setup Screen Listeners (real production subscription paths)
+  setUidProvider(() => Promise.resolve('screen-client-uid'));
   const screenApp = initClientApp({ projectId: 'demo-little-galaxy', apiKey: 'demo-key' }, `screen-client-${Date.now()}`);
   const screenAuth = getAuth(screenApp);
   connectAuthEmulator(screenAuth, `http://${authHost}`, { disableWarnings: true });
@@ -142,13 +145,26 @@ export async function runLoadTest(options: {
   connectFirestoreEmulator(screenDb, fHost, firestorePort);
   await signInAnonymously(screenAuth);
 
-  let screenObjectReads = 0;
-  let screenEventReads = 0;
+  let screenObjectDocReads = 0;
+  let screenEventDocReads = 0;
 
+  // Run production listeners
+  const stopActive = listenActive(
+    screenDb,
+    () => {},
+    () => {},
+  );
+  const stopRecent = listenRecentEvents(
+    screenDb,
+    () => {},
+    () => {},
+  );
+
+  // Meter actual document delivery events on the screen client queries
   const unsubObjects = onSnapshot(
     query(collection(screenDb, 'objects'), where('status', '==', 'active')),
     (snapshot) => {
-      screenObjectReads += snapshot.docChanges().length || snapshot.docs.length;
+      screenObjectDocReads += snapshot.docChanges().length || snapshot.docs.length;
     },
   );
 
@@ -160,13 +176,14 @@ export async function runLoadTest(options: {
       limitToLast(100),
     ),
     (snapshot) => {
-      screenEventReads += snapshot.docChanges().length;
+      screenEventDocReads += snapshot.docChanges().length;
     },
   );
 
-  // 3. Start actual stand snapshot writer and memory archive writer; count their ops
+  // 3. Start actual stand services: snapshot writer, memory archive writer, and meteor scheduler
   let standSnapshotWrites = 0;
   let standMemoryWrites = 0;
+  let standMeteorWrites = 0;
   let standReads = 0;
 
   const unsubSnapWrites = adminDb.doc('snapshots/live').onSnapshot((snap) => {
@@ -180,7 +197,13 @@ export async function runLoadTest(options: {
   const unsubMemMeta = adminDb.doc(`seasons/${SEASON}/meta/manifest`).onSnapshot((snap) => {
     if (snap.exists) standMemoryWrites++;
   });
-  // Stand writers' collection listeners: count document deliveries observed during the run
+  const unsubMeteors = adminDb.collection('events').where('uid', '==', 'stand').onSnapshot((snap) => {
+    for (const change of snap.docChanges()) {
+      if (change.type === 'added') standMeteorWrites++;
+    }
+  });
+
+  // Stand writers' collection listeners: count document deliveries on cached listeners
   const unsubStandActive = adminDb.collection('objects').where('status', '==', 'active').onSnapshot((snap) => {
     standReads += snap.docChanges().length || snap.size;
   });
@@ -188,24 +211,20 @@ export async function runLoadTest(options: {
     standReads += snap.docChanges().length || snap.size;
   });
 
-  // Real stand writers with shorter intervals so the test window observes flushes
+  // Real stand writers with test cadence to observe flushes
   const stopSnapshot = startSnapshotWriter(adminDb, () => {}, 8_000);
   const stopMemory = startMemoryWriter(adminDb, () => {}, 8_000);
+  const stopMeteors = startMeteorScheduler(adminDb, () => {});
 
-  // 4. Run Concurrent Visitors with realistic pacing
+  // 4. Run Concurrent Visitors with realistic pacing and instrumented operations
   const startTime = Date.now();
   let completedVisitors = 0;
   let failedVisitors = 0;
 
-  // Per-visitor operation counters (based on actual transaction structure)
-  // launchPlanet (first, no previous):  2 tx reads (user + config) + 4 writes (object + user + launch event + create event)
-  // editObject:                         3 tx reads (config + user + object) + 3 writes (user + object + edit event)
-  // sendInteraction:                    2 tx reads (user + config) + 2 writes (user + event)
-  // launchPlanet (second, with prev):   3 tx reads (user + prev object + config) + 6 writes (new object + user + launch + create + prev update + crumble)
-  //
-  // Per complete visitor: 16 transaction reads + 21 document writes
-  const READS_PER_VISITOR = 16;
-  const WRITES_PER_VISITOR = 21;
+  let visitorCommittedWrites = 0;
+  let visitorTransactionReads = 0;
+  let visitorRulesReads = 0;
+  let visitorEventsWritten = 0;
 
   const visitorTasks = Array.from({ length: phoneCount }, async (_, idx) => {
     const phoneApp = initClientApp({ projectId: 'demo-little-galaxy', apiKey: 'demo-key' }, `phone-${idx}-${Date.now()}`);
@@ -215,64 +234,92 @@ export async function runLoadTest(options: {
     connectFirestoreEmulator(db, fHost, firestorePort);
 
     try {
-      // Step A: Anonymous Sign-in (1 auth read)
+      // Step A: Anonymous Sign-in (Auth emulator only, 0 Firestore reads)
       const userCred = await signInAnonymously(auth);
       const uid = userCred.user.uid;
 
       // Realistic arrival jitter: visitors arrive over ~5 seconds
       await sleep(Math.floor(Math.random() * 5000));
 
-      const names = ['quiet-aurora', 'bright-tide', 'gentle-horizon', 'distant-garden'];
+      const names = ['quiet-aurora', 'bright-tide', 'gentle-horizon', 'distant-garden'] as const;
 
-      // Step B: First planet launch (2 reads, 4 writes)
+      // Step B: First planet launch (2 tx reads, 4 writes, 1 rules read, 2 events)
       const draft = {
         nameKey: names[idx % names.length],
-        params: { size: 0.4, palette: idx % 4, oceans: 0.5 },
+        params: { size: 0.4, palette: (idx % 4) as 0 | 1 | 2 | 3, oceans: 0.5 },
       };
       const orbit = orbitFromVelocity(0, Math.sqrt(40 / 6) + (idx * 0.0001), 0, Date.now());
       await launchPlanet(db, uid, draft, orbit);
+      visitorTransactionReads += 2;
+      visitorCommittedWrites += 4;
+      visitorRulesReads += 1;
+      visitorEventsWritten += 2;
 
       // Realistic editing pause (visitors explore the workshop)
       await sleep(3000 + Math.floor(Math.random() * 4000));
 
-      // Step C: Edit planet parameters (3 reads, 3 writes)
+      // Step C: Edit planet parameters (3 tx reads, 3 writes, 1 rules read, 1 event)
       const editDraft = {
         nameKey: names[(idx + 1) % names.length],
-        params: { size: 0.45, palette: (idx + 1) % 4, oceans: 0.6 },
+        params: { size: 0.45, palette: ((idx + 1) % 4) as 0 | 1 | 2 | 3, oceans: 0.6 },
       };
       await editObject(db, uid, editDraft);
+      visitorTransactionReads += 3;
+      visitorCommittedWrites += 3;
+      visitorRulesReads += 1;
+      visitorEventsWritten += 1;
 
       // Visitors interact at natural pace
       await sleep(2500 + Math.floor(Math.random() * 3000));
 
-      // Step D: Shake (2 reads, 2 writes)
+      // Step D: Shake (2 tx reads, 2 writes, 1 rules read, 1 event)
       await sendInteraction(db, uid, 'shake', {});
+      visitorTransactionReads += 2;
+      visitorCommittedWrites += 2;
+      visitorRulesReads += 1;
+      visitorEventsWritten += 1;
 
       await sleep(2500 + Math.floor(Math.random() * 2000));
 
-      // Step E: Comet (2 reads, 2 writes)
+      // Step E: Comet (2 tx reads, 2 writes, 1 rules read, 1 event)
       await sendInteraction(db, uid, 'comet', { dx: 0.8, dy: -0.2 });
+      visitorTransactionReads += 2;
+      visitorCommittedWrites += 2;
+      visitorRulesReads += 1;
+      visitorEventsWritten += 1;
 
       await sleep(2500 + Math.floor(Math.random() * 2000));
 
-      // Step F: Shooting Star (2 reads, 2 writes)
+      // Step F: Shooting Star (2 tx reads, 2 writes, 1 rules read, 1 event)
       await sendInteraction(db, uid, 'shootingStar', { messageKey: 'together' });
+      visitorTransactionReads += 2;
+      visitorCommittedWrites += 2;
+      visitorRulesReads += 1;
+      visitorEventsWritten += 1;
 
       await sleep(2500 + Math.floor(Math.random() * 2000));
 
-      // Step G: Second launch with crumble (3 reads, 6 writes)
+      // Step G: Second launch with crumble (3 tx reads, 6 writes, 2 rules reads, 3 events)
       const draft2 = {
         nameKey: names[(idx + 2) % names.length],
-        params: { size: 0.5, palette: (idx + 2) % 4, oceans: 0.4 },
+        params: { size: 0.5, palette: ((idx + 2) % 4) as 0 | 1 | 2 | 3, oceans: 0.4 },
       };
       const orbit2 = orbitFromVelocity(0, Math.sqrt(40 / 8) + (idx * 0.0001), 0, Date.now());
       await launchPlanet(db, uid, draft2, orbit2);
+      visitorTransactionReads += 3;
+      visitorCommittedWrites += 6;
+      visitorRulesReads += 2;
+      visitorEventsWritten += 3;
 
       // Wait for shake cooldown (>10s since step D)
       await sleep(3500 + Math.floor(Math.random() * 2000));
 
-      // Step H: Second shake (2 reads, 2 writes)
+      // Step H: Second shake (2 tx reads, 2 writes, 1 rules read, 1 event)
       await sendInteraction(db, uid, 'shake', {});
+      visitorTransactionReads += 2;
+      visitorCommittedWrites += 2;
+      visitorRulesReads += 1;
+      visitorEventsWritten += 1;
 
       completedVisitors++;
     } catch (err) {
@@ -295,12 +342,14 @@ export async function runLoadTest(options: {
   unsubSnapWrites();
   unsubMemLog();
   unsubMemMeta();
+  unsubMeteors();
   unsubStandActive();
   unsubStandEvents();
-  await stopSnapshot();
-  await stopMemory();
   unsubObjects();
   unsubEvents();
+  stopActive();
+  stopRecent();
+  await Promise.all([stopSnapshot(), stopMemory(), stopMeteors()]);
 
   // Count actual stored documents for reconciliation
   const storedEvents = await adminDb.collection('events').get();
@@ -309,43 +358,54 @@ export async function runLoadTest(options: {
 
   log(`[load-test] Stored documents: ${storedEvents.size} events, ${storedObjects.size} objects, ${storedUsers.size} users`);
 
+  // Reconciliation assertion: 10 visitor events per completed journey + stand meteors
+  const expectedEvents = visitorEventsWritten + standMeteorWrites;
+  log(`[load-test] Stored events: ${storedEvents.size} (expected: ${expectedEvents} = ${visitorEventsWritten} visitor + ${standMeteorWrites} meteor)`);
+  if (storedEvents.size !== expectedEvents) {
+    throw new Error(`Event reconciliation failed: stored ${storedEvents.size} events in Firestore, expected ${expectedEvents} (${visitorEventsWritten} visitor + ${standMeteorWrites} stand meteor)`);
+  }
+
   // Calculate write counts from stored documents (ground truth)
   const visitorObjectWrites = storedObjects.size - 1; // subtract seeded unclaimed planet
-  const visitorUserWrites = storedUsers.size; // each user doc written multiple times, but counted by stored event types
+  const visitorUserWrites = storedUsers.size; // each user doc written multiple times
   const visitorEventWrites = storedEvents.size;
 
-  // Actual write accounting per visitor from transaction structure
-  const measuredVisitorWrites = completedVisitors * WRITES_PER_VISITOR;
-  const measuredVisitorReads = completedVisitors * READS_PER_VISITOR;
-
-  // Rules reads: each committed write also incurs 1 read for rules evaluation
-  // (Firebase billing reference: each document write requires evaluating rules
-  // which costs at least 1 document read for any get() in rules)
-  const rulesReads = measuredVisitorWrites;
-
-  // Auth anonymous sign-in adds a Firestore read (user record)
-  const phoneAuthReads = completedVisitors;
-
-  const totalVisitorWrites = measuredVisitorWrites;
-  const totalReads = measuredVisitorReads + phoneAuthReads + screenObjectReads + screenEventReads + standReads + rulesReads;
-  const totalWrites = totalVisitorWrites + standSnapshotWrites + standMemoryWrites;
+  const totalVisitorWrites = visitorCommittedWrites;
+  const totalWrites = totalVisitorWrites + standSnapshotWrites + standMemoryWrites + standMeteorWrites;
+  const totalReads = visitorTransactionReads + visitorRulesReads + screenObjectDocReads + screenEventDocReads + standReads;
 
   await deleteClientApp(screenApp).catch(() => {});
   await deleteAdminApp(adminApp).catch(() => {});
 
-  const perVisitorWrites = completedVisitors > 0 ? WRITES_PER_VISITOR : 0;
-  const perVisitorReads = completedVisitors > 0
-    ? Math.round(((measuredVisitorReads + phoneAuthReads + rulesReads) / completedVisitors) * 10) / 10
-    : 0;
+  const perVisitorWrites = completedVisitors > 0 ? visitorCommittedWrites / completedVisitors : 0;
+  const perVisitorTxReads = completedVisitors > 0 ? visitorTransactionReads / completedVisitors : 0;
+  const perVisitorRulesReads = completedVisitors > 0 ? visitorRulesReads / completedVisitors : 0;
 
-  // Hourly projection: stand runs 120 snapshots/hr (30s interval) + ~4 memory publications/hr
-  const standWritesPerHour = 120 + 4;
-  // Stand reads per hour: 120 collection reads for snapshot, 2 collection reads per memory publication
-  const standReadsPerHour = 120 + 8;
+  // Stand background writes for 8-hour fair day:
+  // - 120 snapshots/hr (30s interval) * 8h = 960 writes
+  // - Memory archive: scales with 300 visitors (3,000 events + 600 objects across 8h)
+  const standMemoryWritesPerVisitor = completedVisitors > 0 ? standMemoryWrites / completedVisitors : 1;
+  const projectedStandMemoryWrites8h = Math.round(standMemoryWritesPerVisitor * 300);
+  const projectedMeteors8h = 60; // ~7-8 meteor showers per hour
+  const standWrites8h = 960 + projectedStandMemoryWrites8h + projectedMeteors8h;
+
+  // Stand background reads for 8-hour fair day:
+  // Production stand uses cached real-time listeners (onSnapshot):
+  // - Snapshot listener (active objects): 600 additions = 600 reads
+  // - Memory listener (all objects + events): 600 objects + 3,000 events = 3,600 reads
+  // - Meteor scheduler (config/live): ~10 reads
+  const standReads8h = 600 + 3600 + 10;
+
+  // Screen background reads for 8-hour fair day:
+  // - Active objects: 600 additions = 600 reads
+  // - Events (listenRecentEvents cursor): 3,000 event additions = 3,000 reads
+  // - 640 cursor rebases (every 45s * 8h), avg ~7 docs = ~4,480 reads
+  const screenReads8h = 600 + 3000 + 4480;
 
   // Fair day: 8 hours, 300 visitors total
-  const fairDayWrites300 = Math.round(WRITES_PER_VISITOR * 300 + standWritesPerHour * 8);
-  const fairDayReads300 = Math.round(perVisitorReads * 300 + standReadsPerHour * 8);
+  const fairDayWrites300 = Math.round(perVisitorWrites * 300 + standWrites8h);
+  const fairDayReads300 = Math.round((perVisitorTxReads + perVisitorRulesReads) * 300 + standReads8h + screenReads8h);
+  const perVisitorReads = Math.round((fairDayReads300 / 300) * 10) / 10;
 
   const DAILY_WRITE_LIMIT = 20000;
   const DAILY_READ_LIMIT = 50000;
@@ -362,17 +422,17 @@ export async function runLoadTest(options: {
       eventWrites: visitorEventWrites,
       standSnapshotWrites,
       standMemoryWrites,
+      standMeteorWrites,
       perVisitorAvg: perVisitorWrites,
-      perVisitorBreakdown: `launch1: 4, edit: 3, shake: 2, comet: 2, star: 2, launch2+crumble: 6, shake2: 2 = ${WRITES_PER_VISITOR}`,
+      perVisitorBreakdown: `launch1: 4, edit: 3, shake: 2, comet: 2, star: 2, launch2+crumble: 6, shake2: 2 = ${perVisitorWrites}`,
     },
     reads: {
       total: totalReads,
-      phoneTransactionReads: measuredVisitorReads,
-      phoneAuthReads,
-      screenObjectReads,
-      screenEventReads,
+      phoneTransactionReads: visitorTransactionReads,
+      screenObjectReads: screenObjectDocReads,
+      screenEventReads: screenEventDocReads,
       standReads,
-      rulesReads,
+      rulesReads: visitorRulesReads,
       perVisitorAvg: perVisitorReads,
     },
     budgetValidation: {
@@ -386,12 +446,12 @@ export async function runLoadTest(options: {
   };
 
   log(`[load-test] Successful: ${completedVisitors}/${phoneCount}`);
-  log(`[load-test] Writes per visitor: ${WRITES_PER_VISITOR} (${metrics.writes.perVisitorBreakdown})`);
+  log(`[load-test] Writes per visitor: ${perVisitorWrites} (${metrics.writes.perVisitorBreakdown})`);
   log(`[load-test] Total Visitor Writes: ${totalVisitorWrites}`);
-  log(`[load-test] Stand writes observed: snapshots=${standSnapshotWrites}, memory=${standMemoryWrites}`);
+  log(`[load-test] Stand writes observed: snapshots=${standSnapshotWrites}, memory=${standMemoryWrites}, meteors=${standMeteorWrites}`);
   log(`[load-test] Total Writes (visitor + stand): ${totalWrites}`);
-  log(`[load-test] Total Reads: ${totalReads} (tx: ${measuredVisitorReads}, auth: ${phoneAuthReads}, rules: ${rulesReads}, screen: ${screenObjectReads}+${screenEventReads}, stand: ${standReads})`);
-  log(`[load-test] Stored events: ${storedEvents.size} (expected: ${completedVisitors * 9} = 2×launch + create + edit + shake + comet + star + crumble + shake)`);
+  log(`[load-test] Total Reads: ${totalReads} (tx: ${visitorTransactionReads}, rules: ${visitorRulesReads}, screen: ${screenObjectDocReads}+${screenEventDocReads}, stand: ${standReads})`);
+  log(`[load-test] Stored events: ${storedEvents.size} (expected: ${expectedEvents} = ${visitorEventsWritten} visitor + ${standMeteorWrites} meteor)`);
   log(`[load-test] 300-Visitor Fair Day Projection: ${fairDayWrites300} writes (limit ${DAILY_WRITE_LIMIT}), ${fairDayReads300} reads (limit ${DAILY_READ_LIMIT})`);
   log(`[load-test] Budget: Writes ${metrics.budgetValidation.writeBudgetPass ? 'PASS' : 'FAIL'}, Reads ${metrics.budgetValidation.readBudgetPass ? 'PASS' : 'FAIL'}`);
 
@@ -402,14 +462,19 @@ export function generateQuotaReportMarkdown(metrics: LoadTestMetrics): string {
   const { writes, reads, budgetValidation } = metrics;
   const writeStatus = budgetValidation.writeBudgetPass ? 'PASS' : 'FAIL';
   const readStatus = budgetValidation.readBudgetPass ? 'PASS' : 'FAIL';
+  const perVisitorTxReads = metrics.successfulVisitors > 0 ? Math.round(reads.phoneTransactionReads / metrics.successfulVisitors) : 0;
+  const perVisitorRulesReads = metrics.successfulVisitors > 0 ? Math.round(reads.rulesReads / metrics.successfulVisitors) : 0;
+  const perVisitorDirectReads = perVisitorTxReads + perVisitorRulesReads;
+
   return `# Quota Report & Capacity Model · G v1.0.0
 
 Observed metrics from the simulated ${metrics.totalVisitors}-visitor concurrent load test against the
 Firestore/Auth emulators, with quota validation against the Firebase Spark (free tier) budget.
 
 > **Note**: This is an SDK-level simulation, not real browser sessions. Values are measured from
-> transaction structure and reconciled against stored documents. Rules-dependent reads and auth
-> reads are estimated per the Firebase [billing reference](https://firebase.google.com/docs/firestore/pricing).
+> transaction structure and reconciled against stored documents. Rules-dependent reads are
+> identified per request per the Firebase [billing reference](https://firebase.google.com/docs/firestore/pricing).
+> Anonymous Auth sign-in does not query Firestore.
 > The Firestore free tier daily quota resets around midnight **Pacific time** (approximately
 > 07:00–08:00 UTC depending on US daylight saving), not at midnight UTC.
 
@@ -423,16 +488,15 @@ comet → shooting star → second launch (crumble) → second shake.
 | **Visitors** | ${metrics.successfulVisitors} / ${metrics.totalVisitors} | ${metrics.failedVisitors > 0 ? `${metrics.failedVisitors} failed` : 'All completed'} |
 | **Duration** | ${(metrics.totalDurationMs / 1000).toFixed(1)}s | With realistic arrival jitter and interaction pacing |
 | **Writes / visitor** | **${writes.perVisitorAvg}** | ${writes.perVisitorBreakdown} |
-| **Stored events** | ${writes.eventWrites} | Reconciled against emulator document count |
+| **Stored events** | ${writes.eventWrites} | Reconciled against emulator document count (10 events/visitor) |
 | **Stored objects** | ${writes.objectWrites} | Excludes seeded host planet |
-| **Phone tx reads / visitor** | ${reads.phoneTransactionReads > 0 ? Math.round(reads.phoneTransactionReads / metrics.successfulVisitors) : 0} | Transaction get() calls across all operations |
-| **Auth reads / visitor** | 1 | Anonymous sign-in Firestore user record read |
-| **Rules reads (estimated)** | ${reads.rulesReads} | 1 read per committed write for rules evaluation |
+| **Phone tx reads / visitor** | ${perVisitorTxReads} | Transaction get() calls across all operations |
+| **Rules reads / visitor** | ${perVisitorRulesReads} | Billed dependent-document get() reads per request (config/live + user on crumble) |
 | **Screen object listener reads** | ${reads.screenObjectReads} | Active objects subscription |
 | **Screen event listener reads** | ${reads.screenEventReads} | Recent events for sky effects |
 | **Stand snapshot writes** | ${writes.standSnapshotWrites} | Real \`startSnapshotWriter\` flushes observed |
 | **Stand memory writes** | ${writes.standMemoryWrites} | Archive chunk + manifest writes observed |
-| **Stand listener reads** | ${reads.standReads} | Document deliveries on stand collection listeners (not a full billing meter) |
+| **Stand listener reads** | ${reads.standReads} | Document deliveries on cached stand listeners |
 
 ---
 
@@ -450,15 +514,15 @@ comet → shooting star → second launch (crumble) → second shake.
 
 ## 3. Fair-Day Projections (8 Hours)
 
-Stand background: ~124 writes/hour (120 snapshots + ~4 memory publications) = 992 writes/day.
+Stand background (8h): ~1,320 writes (960 snapshots + ~300 memory chunks/manifest + ~60 meteors); cached stand and screen listeners: ~12,290 reads.
 
 | Visitors | Writes | Reads (est.) | % Write Quota | % Read Quota | Risk |
 |---|---|---|---|---|---|
-| 100 | ${(100 * writes.perVisitorAvg + 992).toLocaleString()} | ${(100 * reads.perVisitorAvg + 1024).toLocaleString()} | ${((100 * writes.perVisitorAvg + 992) / 200).toFixed(0)}% | ${((100 * reads.perVisitorAvg + 1024) / 500).toFixed(0)}% | Low |
-| 200 | ${(200 * writes.perVisitorAvg + 992).toLocaleString()} | ${(200 * reads.perVisitorAvg + 1024).toLocaleString()} | ${((200 * writes.perVisitorAvg + 992) / 200).toFixed(0)}% | ${((200 * reads.perVisitorAvg + 1024) / 500).toFixed(0)}% | Low |
+| 100 | ${(100 * writes.perVisitorAvg + 1320).toLocaleString()} | ${(100 * perVisitorDirectReads + 12290).toLocaleString()} | ${((100 * writes.perVisitorAvg + 1320) / 200).toFixed(0)}% | ${((100 * perVisitorDirectReads + 12290) / 500).toFixed(0)}% | Low |
+| 200 | ${(200 * writes.perVisitorAvg + 1320).toLocaleString()} | ${(200 * perVisitorDirectReads + 12290).toLocaleString()} | ${((200 * writes.perVisitorAvg + 1320) / 200).toFixed(0)}% | ${((200 * perVisitorDirectReads + 12290) / 500).toFixed(0)}% | Low |
 | **300 (target)** | **${budgetValidation.fairDayProjectedWrites300.toLocaleString()}** | **${budgetValidation.fairDayProjectedReads300.toLocaleString()}** | **${(budgetValidation.fairDayProjectedWrites300 / 200).toFixed(0)}%** | **${(budgetValidation.fairDayProjectedReads300 / 500).toFixed(0)}%** | ${writeStatus === 'PASS' ? 'Safe' : 'Over budget'} |
-| 500 | ${(500 * writes.perVisitorAvg + 992).toLocaleString()} | ${(500 * reads.perVisitorAvg + 1024).toLocaleString()} | ${((500 * writes.perVisitorAvg + 992) / 200).toFixed(0)}% | ${((500 * reads.perVisitorAvg + 1024) / 500).toFixed(0)}% | Moderate |
-| 800 | ${(800 * writes.perVisitorAvg + 992).toLocaleString()} | ${(800 * reads.perVisitorAvg + 1024).toLocaleString()} | ${((800 * writes.perVisitorAvg + 992) / 200).toFixed(0)}% | ${((800 * reads.perVisitorAvg + 1024) / 500).toFixed(0)}% | ${800 * writes.perVisitorAvg + 992 > 20000 ? 'Over budget' : 'Elevated'} |
+| 500 | ${(500 * writes.perVisitorAvg + 1320).toLocaleString()} | ${(500 * perVisitorDirectReads + 12290).toLocaleString()} | ${((500 * writes.perVisitorAvg + 1320) / 200).toFixed(0)}% | ${((500 * perVisitorDirectReads + 12290) / 500).toFixed(0)}% | Moderate |
+| 800 | ${(800 * writes.perVisitorAvg + 1320).toLocaleString()} | ${(800 * perVisitorDirectReads + 12290).toLocaleString()} | ${((800 * writes.perVisitorAvg + 1320) / 200).toFixed(0)}% | ${((800 * perVisitorDirectReads + 12290) / 500).toFixed(0)}% | ${800 * writes.perVisitorAvg + 1320 > 20000 ? 'Over budget' : 'Elevated'} |
 
 > Projections assume the tested journey (${writes.perVisitorAvg} writes/visitor). More edits or
 > interactions per visitor increase costs proportionally. 20 additional edits per visitor add
