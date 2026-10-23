@@ -1,83 +1,74 @@
 # Quota Report & Capacity Model · G v1.0.0
 
-Observed metrics from the simulated 100-visitor concurrent load test against the Firestore/Auth emulators,
-quota validation against the Firebase Spark (free tier) budget, fair-day projections for variable crowd sizes,
-and kill switch mitigation savings.
+Observed metrics from the simulated 100-visitor concurrent load test against the
+Firestore/Auth emulators, with quota validation against the Firebase Spark (free tier) budget.
 
-## 1. Load Test Observed Results (100 Concurrent Phones)
+> **Note**: This is an SDK-level simulation, not real browser sessions. Values are measured from
+> transaction structure and reconciled against stored documents. Rules-dependent reads are
+> identified per request per the Firebase [billing reference](https://firebase.google.com/docs/firestore/pricing).
+> Anonymous Auth sign-in does not query Firestore.
+> The Firestore free tier daily quota resets around midnight **Pacific time** (approximately
+> 07:00–08:00 UTC depending on US daylight saving), not at midnight UTC.
 
-The load test simulates 100 concurrent visitors on mobile devices executing full fair-day visitor journeys:
-anonymous sign-in, initial planet launch, active object parameter edit, second launch / hangar crumble transition,
-aurora shake, swipe comet, shooting star message, and a second shake interaction, while the observation screen
-and stand snapshot writer run concurrently.
+## 1. Load Test Results (100 Concurrent SDK Sessions)
 
-| Metric | Observed Count | Notes |
+Each visitor journey: anonymous sign-in → first planet launch → parameter edit → shake →
+comet → shooting star → second launch (crumble) → second shake.
+
+| Metric | Observed | Notes |
 |---|---|---|
-| **Simulated Visitors** | 100 | 100 concurrent browser sessions via anonymous authentication |
-| **Successful Visitor Flows** | 100 / 100 | 100% completion with zero transaction or rate-limit failures |
-| **Test Execution Duration** | 38.5s | Parallel execution with rules-compliant cooldown intervals |
-| **Total Document Writes** | **2,003** | Across `objects`, `users`, `events`, and `snapshots` |
-| — `objects` writes | 400 | Initial creation, parameter update, hangar archive state |
-| — `users` writes | 700 | Atomic user document progress, action logs, write timestamps |
-| — `events` writes | 900 | Append-only season timelapse log (`launch`, `create`, `edit`, `crumble`, `shake`, `comet`, `star`) |
-| — `snapshots` writes | 3 | Stand `snapshots/live` heartbeat updates |
-| **Average Writes / Visitor** | **20** | Exactly 22 writes per complete visitor lifecycle |
-| **Total Document Reads** | **3,576** | Screen listeners, phone pre-reads, stand state aggregation |
-| — Screen object listener reads | 401 | Initial collection sync and live active object change dispatches |
-| — Screen event listener reads | 1,898 | Bounded recent event stream reads for real-time sky visual effects |
-| — Phone client reads | 1,000 | Transaction precondition reads and user document checks |
-| — Stand process reads | 277 | Periodic cached snapshot aggregation |
-| **Average Reads / Visitor** | **33** | ~28–30 reads per visitor (phone + screen dispatch) |
+| **Visitors** | 100 / 100 | All completed |
+| **Duration** | 55.3s | With realistic arrival jitter and interaction pacing |
+| **Writes / visitor** | **21** | launch1: 4, edit: 3, shake: 2, comet: 2, star: 2, launch2+crumble: 6, shake2: 2 = 21 |
+| **Stored events** | 1000 | Reconciled against emulator document count (10 events/visitor) |
+| **Stored objects** | 200 | Excludes seeded host planet |
+| **Phone tx reads / visitor** | 16 | Transaction get() calls across all operations |
+| **Rules reads / visitor** | 8 | Billed dependent-document get() reads per request (config/live + user on crumble) |
+| **Screen object listener reads** | 401 | Active objects subscription |
+| **Screen event listener reads** | 1900 | Recent events for sky effects |
+| **Stand snapshot writes** | 9 | Real `startSnapshotWriter` flushes observed |
+| **Stand memory writes** | 116 | Archive chunk + manifest writes observed |
+| **Stand listener reads** | 1401 | Document deliveries on cached stand listeners |
 
 ---
 
-## 2. Firebase Spark (Free Tier) Daily Quota Budget Check
+## 2. Spark Budget Check
 
-Per portfolio plan `03-data-and-security.md`, all operations run on the strictly free Firebase Spark tier.
-No Cloud Functions or paid APIs are utilized.
-
-| Resource | Spark Daily Quota | 100-Visitor Hour | 300-Visitor Fair Day (8h) | Status | Margin |
-|---|---|---|---|---|---|
-| **Firestore Writes** | **20,000 / day** | ~2,120 writes | **6,960 writes** | **PASS** | **65% remaining** |
-| **Firestore Reads** | **50,000 / day** | ~3,419 reads | **10,857 reads** | **PASS** | **78% remaining** |
-| **Firestore Storage** | 1 GiB | < 15 MiB | < 45 MiB | **PASS** | > 95% remaining |
-| **Hosting Transfer** | 10 GB / month | ~350 MB | ~1.2 GB | **PASS** | > 85% remaining |
-
----
-
-## 3. Fair-Day Crowd Projections (8-Hour Day)
-
-Projections for varying visitor volumes across an 8-hour exhibition schedule, including stand background overhead (120 snapshot writes/hour = 960 writes/day):
-
-| Expected Visitors ($N$) | Total Writes | Total Reads | % Write Quota (20k) | % Read Quota (50k) | Quota Risk Level |
-|---|---|---|---|---|---|
-| **100 visitors** | 3,160 | 3,960 | 15.8% | 7.9% | Negligible |
-| **200 visitors** | 5,360 | 6,960 | 26.8% | 13.9% | Negligible |
-| **300 visitors (Target)** | **7,560** | **9,960** | **37.8%** | **19.9%** | **Safe (Optimal operating band)** |
-| **500 visitors** | 11,960 | 15,960 | 59.8% | 31.9% | Moderate (Headroom available) |
-| **800 visitors** | 18,560 | 24,960 | 92.8% | 49.9% | Elevated (Standby kill switches) |
-| **1,000 visitors** | 22,960 | 30,960 | 114.8% | 61.9% | **Exceeds writes without kill switches** |
-
----
-
-## 4. Kill Switch Savings & Emergency Mitigation
-
-When crowd size exceeds projections or unexpected traffic occurs, the operator can engage granular kill switches instantly via the stand CLI without deploying code or restarting services.
-
-```sh
-pnpm --filter @little-galaxy/stand control flag <flagName> off
-```
-
-| Kill Switch Command | Feature Disabled | Writes Saved / Visitor | Daily Writes Saved (500 visitors) | Operational Impact |
+| Resource | Spark Limit | 300-Visitor Fair Day (8h) | Status | Margin |
 |---|---|---|---|---|
-| `flag shake off` | Phone aurora waves | 4 writes (2 per shake) | **2,000 writes** | Phones show "Shake paused by operator"; sound & visuals remain |
-| `flag comets off` | Swipe comets | 2 writes | **1,000 writes** | Swipe pad disabled with polite notice; no screen disruption |
-| `flag shootingStars off` | Shooting star messages | 2 writes | **1,000 writes** | Message dropdown disabled; prevents rapid greeting spam |
-| **All Interactions Off** | Shake + Comets + Stars | **8–10 writes (45%)** | **4,000–5,000 writes** | **Extends write capacity by 1.8× (supports 800+ visitors safely)** |
-| `flag edits off` | Object parameter editing | 3 writes | **1,500 writes** | Workshop locks launched objects into read-only observation mode |
-| `flag launches off` | Planet/star launches | 9 writes (launch + relaunch) | **4,500+ writes** | Halts all new creation; galaxy remains fully interactive / rendered |
+| **Writes** | 20,000 / day | **7,668** | **PASS** | 62% remaining |
+| **Reads** | 50,000 / day | **19,490** | **PASS** | 61% remaining |
 
-### Recommended Action Plan If Quota Exceeds 80% (16,000 Writes):
-1. Execute `pnpm --filter @little-galaxy/stand control flag shake off` (saves ~25% of ongoing writes).
-2. If writes remain elevated, execute `flag comets off` and `flag shootingStars off`.
-3. The booth screen continues rendering the full 3D deterministic galaxy, camera navigation, and sound uninterrupted.
+> The daily quota resets around midnight **Pacific time**. An operator in Ecuador (UTC−5)
+> should expect quota availability around 02:00–03:00 local time, not at midnight.
+
+---
+
+## 3. Fair-Day Projections (8 Hours)
+
+Stand background (8h): ~1,320 writes (960 snapshots + ~300 memory chunks/manifest + ~60 meteors); cached stand and screen listeners: ~12,290 reads.
+
+| Visitors | Writes | Reads (est.) | % Write Quota | % Read Quota | Risk |
+|---|---|---|---|---|---|
+| 100 | 3,420 | 14,690 | 17% | 29% | Low |
+| 200 | 5,520 | 17,090 | 28% | 34% | Low |
+| **300 (target)** | **7,668** | **19,490** | **38%** | **39%** | Safe |
+| 500 | 11,820 | 24,290 | 59% | 49% | Moderate |
+| 800 | 18,120 | 31,490 | 91% | 63% | Elevated |
+
+> Projections assume the tested journey (21 writes/visitor). More edits or
+> interactions per visitor increase costs proportionally. 20 additional edits per visitor add
+> 60 writes each (300 visitors → 24,300 writes before stand costs, exceeding the budget).
+
+---
+
+## 4. Kill Switch Savings
+
+| Switch | Writes Saved / Visitor | Impact |
+|---|---|---|
+| `flag shake off` | 4 (2 per shake) | Phones show "paused"; visuals remain |
+| `flag comets off` | 2 | Swipe pad disabled with notice |
+| `flag shootingStars off` | 2 | Message UI disabled |
+| **All interactions off** | **8 (38%)** | Galaxy remains rendered and navigable |
+| `flag edits off` | 3 | Workshop locks to read-only |
+| `flag launches off` | 4–6 | Halts new creation |
