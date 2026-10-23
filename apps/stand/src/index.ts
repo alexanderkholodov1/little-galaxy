@@ -32,9 +32,14 @@ try {
       process.once('SIGINT', shutdown); process.once('SIGTERM', shutdown);
     }
   } else if (control) throw new Error('No admin connection');
-} catch {
-  console.error('Stand command failed. Check its arguments, admin connection and existing config/live.');
-  console.error('Controls: scene <galaxy|bigQr|spotlight|cinematic|timelapse>; flag <launches|comets|shake|shootingStars|meteorShowers|seasonOpen> <on|off>; timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`Stand command failed: ${message}`);
+  if (process.argv[2] === 'freeze-season') {
+    console.error('Usage: freeze-season <output-directory>');
+  } else {
+    console.error('Controls: scene <galaxy|bigQr|spotlight|cinematic|timelapse>; flag <launches|comets|shake|shootingStars|meteorShowers|seasonOpen> <on|off>; timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
+  }
   if (getApps().length) await getFirestore().terminate();
   process.exitCode = 1;
 }
