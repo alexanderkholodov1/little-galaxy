@@ -243,3 +243,69 @@ launch/relaunch disable. On the booth TV verify spotlight flight/return, idle ti
 meteor interval/switch and QR scanning from across the booth. LAN HTTP may expose no motion API;
 the visible manual fallback must still work. Record browser/OS/device and observations. No physical
 sensor thresholds or deployed behavior are claimed from local browser automation.
+
+## Inherited sound review fixes — 2026-10-23
+
+Normal local merge **`ff71757`** brings in `v0.4.0-sound` at **`1d0fce2`**, with parents
+`15499fa` (the existing interactions implementation) and `1d0fce2`. It merged without conflicts.
+The merge changes only seven sound renderer/allocator/engine/test/documentation files. The existing
+interaction UI, screen scenes/camera, effects, live switches, stand scheduler, data helpers and rules
+are byte-for-byte unchanged from `15499fa`; all three package versions remain **0.5.0**.
+
+Inherited commits:
+
+- `dd582af`: refresh reusable instance picking spheres after matrices/live counts change; real Three
+  regressions hit an enlarged phone preview, a moved screen instance and a newly populated far batch.
+- `3dd831b`: replace the fixed retention bonus with a **10% relative-distance margin**. The original
+  jitter test passes, alongside a substantially nearer candidate replacing an incumbent at two scales.
+- `a15f806`: start last-pet time at negative infinity; the first pet at **0.23 s** context age plays
+  the short octave-up note, rapid repeats are suppressed and the next spaced pet plays.
+- `1d0fce2`: exact physical Android Chrome, iPhone Safari and booth-listening operator checklist in
+  [sound-status.md](sound-status.md#operator-acceptance-remaining), plus the v0.4.0 verification evidence.
+
+All five new regression tests failed before their respective fixes and pass on this merged branch.
+Sound acceptance remains partial: no physical mobile unlock/recovery or subjective booth-speaker
+listening was performed. The existing motion/QR/hardware checklist, remote CI and captain-owned
+portfolio plan/changelog updates remain open. The excluded voice spike stays excluded; no assistant
+or `/talk` behavior was changed.
+
+### Verification after the merge
+
+Ran these exact commands sequentially in the v0.5.0 worktree; **every command exited 0**, with
+**zero cached Turbo tasks**. No heavy command overlapped another command started by this task.
+
+```sh
+pnpm install --frozen-lockfile
+TURBO_FORCE=true pnpm run typecheck
+TURBO_FORCE=true pnpm run lint
+TURBO_FORCE=true PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.3.0/browsers GALAXY_SCREENSHOTS=/home/alexamaze/bad/work/fix-g-v0.4.0/v050 pnpm run test
+JAVA_TOOL_OPTIONS=-Xmx512m TURBO_FORCE=true pnpm run test:rules
+TURBO_FORCE=true pnpm run build:rehearsal
+```
+
+- Frozen install was up to date; no dependencies or lockfile changed.
+- Typecheck and lint passed for all three packages, plus root lint.
+- Tests passed: **29 shared, 11 stand, 103 web, 26 script, 13 Chromium**. These include the existing
+  interactions/scenes/kill-switch and bounded-backend browser checks, plus all inherited regressions.
+- Rules: **174 passed**, using only **`demo-little-galaxy`**, Java heap **512 MB**; the command logged
+  full Auth/Firestore/hub/logging shutdown and exited successfully.
+- Rehearsal build: **2 uncached tasks passed**, privacy gate **28 files**. Package/built versions
+  remain **0.5.0**. Gzip: main **267.89 kB**, audio **61.75 kB**, rich renderer **4.26 kB**, Three/R3F
+  **241.19 kB**. Existing chunk-size/Firebase import warnings remain.
+- The 500-object run reports **11.0125 mean FPS**, samples **16.5, 9.7, 9.9, 12.3, 11.4, 7.9, 9.5,
+  10.9**, **six draw calls**, Chromium SwiftShader, **1920×1080 / DPR 1**. This is a separate v0.5.0
+  shared-machine sample, not the v0.4.0 before/after comparison or a booth performance claim.
+  The v0.4.0 comparison is **13.775 → 15.100 FPS**, six calls in both, recorded in sound-status.
+- Real offline audio graph: **eight voices from 50 objects**, zero clipping; preset spectral distance
+  **0.99374**, same-register material distance **0.07526**. This remains signal evidence, not listening.
+
+The tested implementation is merge `ff71757`; this handoff is a documentation-only follow-up.
+`git diff --check` passes. Logs, screenshots and measurements are under
+`~/bad/work/fix-g-v0.4.0/` (`v050-*` logs and `v050/` images); checkpoint:
+`~/bad/checkpoints/fix-g-v0.4.0.md`.
+
+Playwright's server exited and the rules command logged successful emulator shutdown. The
+4177/8080/9099 ports were free before the rules run. Other emulator listeners appeared after that
+command exited (8080/4400/9150, followed by 9099/4500); their owning processes are not visible in
+this command's isolated PID namespace. They were left untouched. No server is retained by this task.
+No deployment, push, PR, tag, branch deletion, history rewrite or plan edit was performed.
