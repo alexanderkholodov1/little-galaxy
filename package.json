@@ -1,0 +1,32 @@
+{
+  "name": "little-galaxy",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.2",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "turbo run build && node scripts/privacy-check",
+    "build:rehearsal": "node scripts/with-example-env.js pnpm run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint && eslint eslint.config.js vitest.config.js scripts tests apps/web/vite.config.js apps/web/eslint.web.js scripts/privacy-check",
+    "test": "turbo run test && vitest run",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-little-galaxy \"pnpm exec vitest run --config tests/rules/vitest.config.js\"",
+    "privacy": "node scripts/privacy-check",
+    "privacy:rehearsal": "node scripts/with-example-env.js pnpm run privacy",
+    "emulators:lan": "firebase emulators:start --config firebase.lan.json --only firestore,auth --project demo-little-galaxy"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "eslint": "^10.12.0",
+    "firebase": "^13.0.0",
+    "firebase-tools": "^15.33.0",
+    "globals": "^17.13.0",
+    "turbo": "^2.11.8",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.4"
+  }
+}

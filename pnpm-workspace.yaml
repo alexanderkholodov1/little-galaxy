@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Dependency build scripts stay off unless a package needs one (pnpm 11 refuses unlisted ones).
+allowBuilds:
+  "@firebase/util": false
+  esbuild: false
+  protobufjs: false
+  re2: false

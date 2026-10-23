@@ -1,0 +1,125 @@
+/* Observatory finding chart: Spectral titles and Archivo Narrow marginal labels. */
+@font-face {
+  font-family: "Spectral";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/spectral-latin-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Spectral";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/spectral-latin-ext-400.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Archivo Narrow";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/archivo-narrow-latin-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Archivo Narrow";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/archivo-narrow-latin-ext-400.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Archivo Narrow";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/archivo-narrow-latin-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Archivo Narrow";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/archivo-narrow-latin-ext-700.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  font-family: var(--font-text);
+  color: var(--ink);
+  background: var(--paper);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  color-scheme: light;
+  --font-display: var(--pf-font-display, "Spectral", Georgia, serif);
+  --font-text: var(--pf-font-text, "Archivo Narrow", "Trebuchet MS", sans-serif);
+  --hairline: #9baec2;
+  --paper: var(--pf-paper, #f1f5f9);
+  --ink: var(--pf-ink, #102e4c);
+  --action: var(--pf-action, #0050ae);
+  --rule: var(--pf-rule, #6b819a);
+  --warning: var(--pf-warning, #805000);
+  --confirmed: var(--pf-confirmed, #226640);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color: var(--ink);
+  background: var(--paper);
+  --hairline: #60788e;
+  --paper: var(--pf-paper, #071421);
+  --ink: var(--pf-ink, #e1eaf4);
+  --action: var(--pf-action, #5fccf3);
+  --rule: var(--pf-rule, #60788e);
+  --warning: var(--pf-warning, #e7bd70);
+  --confirmed: var(--pf-confirmed, #82cda2);
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+a { color: var(--action); text-underline-offset: 0.25em; }
+button { font: inherit; color: inherit; background: transparent; cursor: pointer; border: 1px solid var(--rule); min-height: 44px; padding: 0.5rem 0.85rem; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--action); outline-offset: 4px; }
+.app-shell { padding: 0 clamp(1rem, 4vw, 4rem); }
+.skip-link { position: absolute; top: -100px; left: 1rem; padding: 0.8rem; background: var(--paper); z-index: 10; }
+.skip-link:focus { top: 0.5rem; }
+.portfolio-header { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem 2rem; padding: 1rem 0; border-bottom: 1px solid var(--hairline); }
+.signature { display: inline-flex; align-items: center; gap: 0.75rem; text-decoration: none; font-weight: 700; min-height: 44px; overflow-wrap: anywhere; }
+.signature svg { flex-shrink: 0; }
+.profile-links { display: flex; flex-wrap: wrap; gap: 0 1.25rem; }
+.profile-links a { display: inline-flex; align-items: center; min-height: 44px; overflow-wrap: anywhere; }
+.preferences { margin-left: auto; display: flex; gap: 0.75rem; align-items: center; }
+.language-switch { display: flex; }
+.language-switch button { border: 0; }
+.language-switch [aria-pressed="true"] { color: var(--action); box-shadow: inset 0 -2px var(--action); font-weight: 700; }
+.theme-switch { border-radius: 2px; min-width: 5rem; }
+.galaxy-nav { display: flex; flex-wrap: wrap; gap: 0.25rem clamp(0.75rem, 3vw, 2rem); padding: 0.5rem 0; }
+.galaxy-nav a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
+.galaxy-nav a[aria-current="page"] { font-weight: 700; text-decoration: underline; }
+main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; gap: clamp(2rem, 5vw, 6rem); padding: clamp(2rem, 6vw, 5rem) 0 3rem; min-height: 60vh; }
+h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(3rem, 5.8vw, 6rem); line-height: 1.04; letter-spacing: -0.04em; margin: 0 0 1.75rem; max-width: 12ch; text-wrap: balance; }
+.intro { font-size: 1.125rem; line-height: 1.65; max-width: 38ch; margin: 0; }
+.sky-chart { margin: 0; border-top: 1px solid var(--hairline); }
+.sky-view { height: clamp(18rem, 42vw, 34rem); background: #050c16; color: #e1eaf4; }
+.scene-message { margin: 0; padding: 2rem; line-height: 1.6; }
+figcaption { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 0; font-size: 0.8125rem; line-height: 1.5; }
+.chart-cross { font: 1.75rem var(--font-display); }
+.session-line { border-top: 1px solid var(--hairline); display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; padding: 1rem 0 1.5rem; font-size: 0.8125rem; line-height: 1.5; }
+.session-mark { width: 8px; height: 8px; background: var(--warning); flex-shrink: 0; }
+.session-mark.connected { background: var(--confirmed); }
+.session-line button { margin-left: auto; }
+@media (max-width: 720px) {
+  .portfolio-header { gap: 0.25rem 1rem; }
+  .preferences { margin-left: 0; }
+  main { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding-top: 2rem; }
+  h1 { max-width: 16ch; }
+  .sky-view { height: 18rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+
+body { font-variant-numeric: tabular-nums; }
+.session-line { grid-column: 1 / -1; }
+.theme-switch[aria-pressed="true"] { box-shadow: inset 0 -2px var(--action); }
+.sky-view button { color: #e1eaf4; border-color: #60788e; }
