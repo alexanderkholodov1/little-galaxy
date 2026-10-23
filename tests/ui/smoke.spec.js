@@ -1,4 +1,4 @@
-/* global document, innerWidth, navigator, localStorage */
+/* global document, innerWidth */
 import { expect, test } from '@playwright/test';
 import { seedDemo } from '../../scripts/demo-emulators.mjs';
 
@@ -63,14 +63,16 @@ test('offline phone retains its draft, reconnects without auto-launch, and launc
     expect(await phone.evaluate(() => navigator.onLine)).toBe(false);
     await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
     const draft = await phone.evaluate(() => localStorage.getItem('galaxy.draft.v1'));
-    await launch.click();
-    await expect(phone.locator('.launch-feedback')).toContainText('You are offline');
+    const radius = await phone.getByRole('slider', { name: 'Radius' }).inputValue();
+    await expect(launch).toBeDisabled();
+    await expect(phone.getByText('Launches paused or disconnected. Your design stays here.', { exact: true })).toBeVisible();
     expect(await phone.evaluate(() => localStorage.getItem('galaxy.workshop.mode'))).not.toBe('edit');
     await context.setOffline(false);
     await expect.poll(() => phone.evaluate(() => navigator.onLine)).toBe(true);
     await phone.reload();
     await expect(launch).toBeEnabled({ timeout: 30000 });
-    expect(await phone.evaluate(() => localStorage.getItem('galaxy.draft.v1'))).toBe(draft);
+    expect(await phone.evaluate(() => JSON.parse(localStorage.getItem('galaxy.draft.v1')))).toEqual(JSON.parse(draft));
+    await expect(phone.getByRole('slider', { name: 'Radius' })).toHaveValue(radius);
     // Reconnection/reload restores a design, never a pending launch.
     await expect(phone.getByRole('button', { name: 'Design another object', exact: true })).toHaveCount(0);
     await launch.click();

@@ -364,7 +364,7 @@ software, but no physical-network or equipment recovery is certified by these ch
 ### Browser disconnection building block (separate from the five checks)
 Run \`pnpm run test:ui\` to execute the connected Playwright smoke suite against emulators.
 Its offline-to-online case disconnects an actual browser context, changes and saves a draft,
-checks that an offline launch is rejected, reconnects and reloads, verifies localStorage draft
+checks that offline launch controls are disabled, reconnects and reloads, verifies localStorage draft
 restoration with no automatic launch, then launches with a fresh visitor action. This covers
 browser network emulation only, not campus connectivity or an offline reload of uncached HTML.
 
