@@ -6,12 +6,57 @@ import { worldPosition } from '@little-galaxy/shared';
 import type { RenderObject, SoundCandidate } from '@little-galaxy/shared';
 import { Vector3 } from 'three';
 import RichBodies from './RichBodies';
+function savedCameraPosition(): [number, number, number] {
+  try {
+    const raw = localStorage.getItem('galaxy.screen.camera');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length === 3 && parsed.every(Number.isFinite)) {
+        return parsed as [number, number, number];
+      }
+    }
+  } catch { /* Storage optional. */ }
+  return [0, -12, 25];
+}
+
+function savedCameraLook(): [number, number, number] {
+  try {
+    const raw = localStorage.getItem('galaxy.screen.look');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length === 3 && parsed.every(Number.isFinite)) {
+        return parsed as [number, number, number];
+      }
+    }
+  } catch { /* Storage optional. */ }
+  return [0, 0, 0];
+}
+
 function FitChart({ objects, focused, cinematic, historicalAt }: { objects: RenderObject[]; focused?: string; cinematic?: boolean; historicalAt?: number }) {
   const { camera, size } = useThree();
   const object = useMemo(() => objects.find((o) => o.id === focused), [objects, focused]);
   const chart = useMemo(() => chartFrame(objects), [objects]);
-  const points = useMemo(() => ({ position: new Vector3(), target: new Vector3(), look: new Vector3() }), []);
+  const initialCam = useMemo(() => savedCameraPosition(), []);
+  const initialLook = useMemo(() => savedCameraLook(), []);
+  const points = useMemo(() => ({ position: new Vector3(), target: new Vector3(...initialCam), look: new Vector3(...initialLook) }), [initialCam, initialLook]);
   const reduced = useMemo(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, []);
+  const lastSave = useRef(0);
+
+  useEffect(() => {
+    const saveState = () => {
+      try {
+        localStorage.setItem('galaxy.screen.camera', JSON.stringify([camera.position.x, camera.position.y, camera.position.z]));
+        localStorage.setItem('galaxy.screen.look', JSON.stringify([points.look.x, points.look.y, points.look.z]));
+      } catch { /* Storage optional. */ }
+    };
+    window.addEventListener('galaxy:save-state', saveState);
+    window.addEventListener('beforeunload', saveState);
+    return () => {
+      window.removeEventListener('galaxy:save-state', saveState);
+      window.removeEventListener('beforeunload', saveState);
+    };
+  }, [camera, points.look]);
+
   useFrame(({ clock }, delta) => {
     const position = points.position;
     if (object) {
@@ -28,6 +73,13 @@ function FitChart({ objects, focused, cinematic, historicalAt }: { objects: Rend
     camera.position.lerp(points.target, blend);
     points.look.lerp(position, blend);
     camera.lookAt(points.look);
+    if (clock.elapsedTime - lastSave.current > 0.5) {
+      lastSave.current = clock.elapsedTime;
+      try {
+        localStorage.setItem('galaxy.screen.camera', JSON.stringify([camera.position.x, camera.position.y, camera.position.z]));
+        localStorage.setItem('galaxy.screen.look', JSON.stringify([points.look.x, points.look.y, points.look.z]));
+      } catch { /* Storage optional. */ }
+    }
   });
   return null;
 }
@@ -90,12 +142,14 @@ export default function GalaxyScene({
   onPick?: (id: string) => void;
   onSoundCandidates?: (objects: RenderObject[], candidates: SoundCandidate[]) => void;
 }) {
+  const initialCam = useMemo(() => savedCameraPosition(), []);
+  const initialLook = useMemo(() => savedCameraLook(), []);
   return (
     <Canvas
       dpr={1}
-      camera={{ position: [0, -12, 25], fov: 60, far: 1000 }}
+      camera={{ position: initialCam, fov: 60, far: 1000 }}
       onCreated={({ camera, gl }) => {
-        camera.lookAt(0, 0, 0);
+        camera.lookAt(...initialLook);
         gl.domElement.setAttribute('role', 'img');
         gl.domElement.setAttribute('aria-label', label);
       }}

@@ -11,16 +11,42 @@ export default function Timelapse({ language, join }: { language: Language; join
   const es = language === 'es';
   const [data, setData] = useState<Awaited<ReturnType<typeof loadSeason>>>();
   const [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
-  const [at, setAt] = useState(0), [playing, setPlaying] = useState(false), [speed, setSpeed] = useState(60);
+  const [at, setAt] = useState(0), [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(() => {
+    try {
+      const s = Number(localStorage.getItem('galaxy.timelapse.speed'));
+      return [1, 10, 60, 300, 600].includes(s) ? s : 60;
+    } catch { return 60; }
+  });
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => { if (active) setFailed(true); controller.abort(); }, 12000);
     let active = true;
     loadSeason(controller.signal).then((value) => {
-      if (active) { setData(value); setAt(value.manifest.start); setFailed(false); clearTimeout(timeout); }
+      if (active) {
+        setData(value);
+        let initialAt = value.manifest.start;
+        try {
+          const savedAt = Number(localStorage.getItem('galaxy.timelapse.at'));
+          if (Number.isFinite(savedAt) && savedAt >= value.manifest.start && savedAt <= value.manifest.end) {
+            initialAt = savedAt;
+          }
+        } catch { /* Storage optional. */ }
+        setAt(initialAt);
+        setFailed(false);
+        clearTimeout(timeout);
+      }
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; controller.abort(); clearTimeout(timeout); };
   }, [attempt]);
+  useEffect(() => {
+    if (at > 0) {
+      try { localStorage.setItem('galaxy.timelapse.at', String(at)); } catch { /* Storage optional. */ }
+    }
+  }, [at]);
+  useEffect(() => {
+    try { localStorage.setItem('galaxy.timelapse.speed', String(speed)); } catch { /* Storage optional. */ }
+  }, [speed]);
   const end = data?.manifest.end ?? 0;
   useEffect(() => {
     if (!playing) return;

@@ -283,3 +283,32 @@ it('waits through a shared-interaction cooldown and saves the current edit witho
     await act(async () => vi.advanceTimersByTimeAsync(5000)); expect(editObject).toHaveBeenCalledTimes(2);
   } finally { vi.useRealTimers(); vi.mocked(ownObjects).mockResolvedValue([]); vi.mocked(editObject).mockResolvedValue(undefined); }
 });
+
+it('restores workshop step, inspect3D, and hangar view from localStorage', async () => {
+  localStorage.setItem('galaxy.workshop.step', 'hangar');
+  localStorage.setItem('galaxy.workshop.hangar', 'true');
+  localStorage.setItem('galaxy.workshop.inspect3D', 'true');
+  await act(async () => root.render(<Create language="en" />));
+  const workshop = container.querySelector('.workshop');
+  expect(workshop?.getAttribute('data-workshop-step')).toBe('hangar');
+  expect(workshop?.getAttribute('data-hangar-view')).toBe('true');
+  expect(container.querySelector('[data-preview="procedural"]')).not.toBeNull();
+});
+
+it('honours edits kill switch, disabling editing controls and showing paused status honestly', async () => {
+  const { ownObjects } = await import('./galaxy-data');
+  const { presets, orbitFromVelocity } = await import('@little-galaxy/shared');
+  vi.mocked(ownObjects).mockResolvedValue([{ schemaVersion: 2, id: 'active', ownerUid: 'visitor', type: 'planet', nameKey: 'quiet-aurora', params: presets.planet[0], orbit: orbitFromVelocity(0, 2.58, 0, 0), status: 'active', createdAt: 0, updatedAt: 0, season: 'bad-2026' }]);
+  vi.mocked(useLiveConfig).mockReturnValue({
+    config: { schemaVersion: 1, appVersion: '0.7.0', seasonOpen: true, launches: true, edits: false, shake: true, comets: true, shootingStars: true, meteorShowers: true, assistantPublic: false, screenScene: 'galaxy', idleSeconds: 60 },
+    status: 'live',
+    retry: () => {},
+  });
+  try {
+    await act(async () => root.render(<Create language="en" />));
+    expect(container.querySelector('fieldset')?.disabled).toBe(true);
+    expect(container.textContent).toContain('Edits paused by operator.');
+  } finally {
+    vi.mocked(ownObjects).mockResolvedValue([]);
+  }
+});

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   objectName,
   orbitFromSwipe,
@@ -34,6 +34,8 @@ import Specimen from './Specimen';
 import { useLiveConfig } from './use-live-config';
 const Interactions = lazy(() => import('./Interactions'));
 import { loadNameHistory, saveNameHistory } from './name-history';
+import { useVersionWatcher } from './version-watcher';
+import { triggerStateSave } from './live-safety';
 const Preview = lazy(() => import('./ObjectPreview'));
 function remember(mode: string, objectId?: string) {
   try {
@@ -55,8 +57,21 @@ export default function Create({ language }: { language: Language }) {
   const text = coreCopy[language],
     rich = richCopy[language];
   const live = useLiveConfig();
+  const { updateAvailable } = useVersionWatcher({ appVersion: live.config.appVersion });
   const launchesOpen = live.status === 'live' && live.config.seasonOpen && live.config.launches;
+  const editsOpen = live.status === 'live' ? (live.config.seasonOpen && live.config.edits !== false) : true;
   const [draft, setDraft] = useState(loadDraft);
+  const [workshopStep, setWorkshopStep] = useState<string>(() => {
+    try { return localStorage.getItem('galaxy.workshop.step') ?? 'parameters'; } catch { return 'parameters'; }
+  });
+  const [hangarView, setHangarView] = useState<boolean>(() => {
+    try { return localStorage.getItem('galaxy.workshop.hangar') === 'true'; } catch { return false; }
+  });
+  const [inspect3D, setInspect3D] = useState(() => {
+    try { return localStorage.getItem('galaxy.workshop.inspect3D') === 'true'; } catch { return false; }
+  });
+  const lastActivity = useRef(0);
+  const markActivity = useCallback(() => { lastActivity.current = Date.now(); }, []);
   const [message, setMessage] = useState<keyof typeof text | null>(null);
   const [inventory, setInventory] = useState<(GalaxyObject & { id: string })[]>([]);
   const [inventoryState, setInventoryState] = useState<'loading' | 'ready' | 'failed'>('loading');
@@ -67,12 +82,36 @@ export default function Create({ language }: { language: Language }) {
   const [editSaving, setEditSaving] = useState(false);
   const exhaustedDay = useRef('');
   const [rolledNames, setRolledNames] = useState(loadNameHistory);
-  const [inspect3D, setInspect3D] = useState(false);
   const [specimen, setSpecimen] = useState('draft');
   const [departed, setDeparted] = useState<RenderObject[]>([]);
   const sound = useSound(1);
   const [pet, setPet] = useState<{ id: string; at: number }>();
   const updateSound = sound.update;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('galaxy.workshop.step', workshopStep);
+      localStorage.setItem('galaxy.workshop.hangar', String(hangarView));
+      localStorage.setItem('galaxy.workshop.inspect3D', String(inspect3D));
+    } catch { /* Storage optional. */ }
+  }, [workshopStep, hangarView, inspect3D]);
+
+  useEffect(() => {
+    const onSave = () => {
+      saveDraft(draft);
+      try {
+        localStorage.setItem('galaxy.workshop.step', workshopStep);
+        localStorage.setItem('galaxy.workshop.hangar', String(hangarView));
+        localStorage.setItem('galaxy.workshop.inspect3D', String(inspect3D));
+      } catch { /* Storage optional. */ }
+    };
+    window.addEventListener('galaxy:save-state', onSave);
+    window.addEventListener('beforeunload', onSave);
+    return () => {
+      window.removeEventListener('galaxy:save-state', onSave);
+      window.removeEventListener('beforeunload', onSave);
+    };
+  }, [draft, workshopStep, hangarView, inspect3D]);
   useEffect(() => {
     updateSound([{ id: specimen, type: draft.type ?? 'planet', nameKey: draft.nameKey,
       params: draft.params, orbit: orbitFromVelocity(0, 2.58, 0, 0) }],
@@ -134,6 +173,7 @@ export default function Create({ language }: { language: Language }) {
   useEffect(() => {
     if (
       !editing ||
+      !editsOpen ||
       !firestore ||
       busy ||
       editSaving ||
@@ -174,7 +214,21 @@ export default function Create({ language }: { language: Language }) {
         });
     }, 2200);
     return () => window.clearTimeout(timer);
-  }, [draft, editing, busy, editSaving, retry, editState]);
+  }, [draft, editing, busy, editSaving, retry, editState, editsOpen]);
+
+  useEffect(() => {
+    if (!updateAvailable) return;
+    const interval = window.setInterval(() => {
+      const idleSeconds = lastActivity.current === 0 ? 30 : (Date.now() - lastActivity.current) / 1000;
+      const isSwiping = start.current !== null || trace !== null;
+      const isMidEdit = editing && (editSaving || editState === 'pending' || idleSeconds < 20);
+      if (!busy && !isSwiping && !isMidEdit && idleSeconds >= 20) {
+        triggerStateSave();
+        window.location.reload();
+      }
+    }, 2000);
+    return () => window.clearInterval(interval);
+  }, [updateAvailable, busy, editing, editSaving, editState, trace]);
   async function refresh(uid: string) {
     const all = await ownObjects(firestore!, uid);
     setInventory(all);
@@ -207,6 +261,12 @@ export default function Create({ language }: { language: Language }) {
       void refresh(uid).catch(() => {});
       setEditState('saved');
       setMessage(orbit.isComet ? 'comet' : 'orbit');
+      if (updateAvailable) {
+        window.setTimeout(() => {
+          triggerStateSave();
+          window.location.reload();
+        }, 3000);
+      }
     } catch (error) {
       setMessage(error instanceof LaunchError ? error.reason :
         error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied' ? 'restricted' : 'rejected');
@@ -231,17 +291,25 @@ export default function Create({ language }: { language: Language }) {
   const selectedHost = draft.hostId ?? (kind === 'moon' ? hosts[0]?.id : leastCrowdedHost(catalog));
   function updateDraft(next: typeof draft) {
     touched.current = true;
+    markActivity();
+    setWorkshopStep('parameters');
     setEditState((state) => state === 'limited' ? 'limited' : 'pending');
     setRolledNames((keys) => new Set([...keys, draft.nameKey, next.nameKey]));
     setDraft(next);
   }
   function change(field: string, value: number) {
+    markActivity();
     setEditState('pending');
     updateDraft({ ...draft, params: { ...draft.params, [field]: value } as ObjectParams });
   }
   const active = inventory.find((o) => o.status === 'active');
   return (
-    <section className="workshop">
+    <section className="workshop" data-workshop-step={workshopStep} data-hangar-view={hangarView}>
+      {updateAvailable && (
+        <p className="update-notice" role="status">
+          {language === 'es' ? 'Nueva versión disponible. Se actualizará tras un lanzamiento o en reposo.' : 'New version available. Updates after launch or when idle.'}
+        </p>
+      )}
       {active && <a className="memory-return" href={`/galaxy/o/${active.id}?lang=${language}`}>{language === 'es' ? 'Tu página permanente y postal' : 'Your permanent page and postcard'}</a>}
       <div className="workshop-title">
         <p className="eyebrow">{text.desk}</p>
@@ -254,13 +322,13 @@ export default function Create({ language }: { language: Language }) {
           </Suspense>
         </ErrorBoundary> : <Specimen draft={draft} pet={pet} onPet={petSpecimen} label={language === 'es' ? 'Acariciar tu objeto' : 'Pet your object'} />}
         <figcaption>{editing ? rich.editing : text.preview}</figcaption>
-        {!inspect3D && <button onClick={() => setInspect3D(true)}>{rich.inspect3D}</button>}
+        {!inspect3D && <button onClick={() => { setInspect3D(true); setWorkshopStep('specimen'); markActivity(); }}>{rich.inspect3D}</button>}
       </figure>
       <div className="specimen-sound">
         <button onClick={petSpecimen}>{language === 'es' ? 'Acariciar tu objeto' : 'Pet your object'}</button>
         <SoundControls sound={sound} language={language}/>
       </div>
-      <fieldset disabled={busy} className="planet-controls">
+      <fieldset disabled={busy || (editing && !editsOpen)} className="planet-controls">
         <legend>{rich.material}</legend>
         <div className="type-choices">
           {(['planet', 'star', 'moon'] as const).map((type) => (
@@ -349,7 +417,8 @@ export default function Create({ language }: { language: Language }) {
         {editing && (
           <>
             <p role="status">
-              {editState === 'saved' ? rich.saved : editState === 'limited' ? text.editLimit : editState === 'failed' ? rich.editFailed : rich.pending}
+              {!editsOpen ? (language === 'es' ? 'Ediciones pausadas por el operador.' : 'Edits paused by operator.') :
+                editState === 'saved' ? rich.saved : editState === 'limited' ? text.editLimit : editState === 'failed' ? rich.editFailed : rich.pending}
             </p>
             {editState === 'failed' && (
               <button
@@ -382,6 +451,8 @@ export default function Create({ language }: { language: Language }) {
             aria-label={text.swipe}
             data-busy={busy}
             onPointerDown={(e) => {
+              markActivity();
+              setWorkshopStep('launch');
               if (!launchesOpen || (kind === 'moon' && hosts.length === 0) || busy || !e.isPrimary || e.button !== 0) return;
               e.currentTarget.setPointerCapture(e.pointerId);
               start.current = { x: e.clientX, y: e.clientY, t: performance.now(), pointer: e.pointerId };
@@ -428,7 +499,7 @@ export default function Create({ language }: { language: Language }) {
           </button>
         </div>
       )}
-      <section className="hangar">
+      <section className="hangar" onClick={() => { markActivity(); setWorkshopStep('hangar'); setHangarView(true); }}>
         <p className="eyebrow">03 / {rich.hangar}</p>
         <h2>{rich.kept}</h2>
         {inventoryState === 'loading' ? (

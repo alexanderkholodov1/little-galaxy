@@ -6,8 +6,10 @@ import ErrorBoundary from './ErrorBoundary';
 import { applyTheme, resolveTheme } from './theme';
 import { resolveLanguage } from './language';
 import { copy } from './copy';
+import { initChunkErrorListener } from './live-safety';
 import './styles.css';
 
+initChunkErrorListener();
 applyTheme(resolveTheme());
 const text = copy[resolveLanguage(window.location.search, () => localStorage)];
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/';

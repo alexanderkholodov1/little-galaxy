@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RenderObject, SoundCandidate } from '@little-galaxy/shared';
-import { createSoundController, savedSoundMute } from './sound-controller';
+import { createSoundController, savedSoundMute, savedSoundVolume } from './sound-controller';
 import type { AudioState } from './sound-controller';
 export function useSound(count: number) {
   const controller = useRef<ReturnType<typeof createSoundController> | null>(null);
   const [state, setState] = useState<AudioState>('locked');
   const [muted, setMuted] = useState(savedSoundMute);
-  const [volume, setVolume] = useState(0.32);
+  const [volume, setVolume] = useState(savedSoundVolume);
   const volumeRef = useRef(volume);
   const latest = useRef<{ objects: RenderObject[]; candidates: SoundCandidate[] }>({ objects: [], candidates: [] });
   useEffect(() => {
@@ -38,6 +38,9 @@ export function useSound(count: number) {
     controller.current?.setMute(!muted); setMuted(!muted);
   };
   return { state, muted, volume, update, pet, toggle, setVolume(value: number) {
-    volumeRef.current = value; setVolume(value); controller.current?.setVolume(value);
+    volumeRef.current = value;
+    setVolume(value);
+    try { localStorage.setItem('galaxy.sound.volume', String(value)); } catch { /* Storage optional. */ }
+    controller.current?.setVolume(value);
   } };
 }

@@ -98,3 +98,20 @@ it('follows live scenes, spotlights only new launches, returns to the chart and 
     }
   } finally { vi.useRealTimers(); }
 });
+
+it('persists screen scene to localStorage and honours sound and spotlight kill switches', async () => {
+  vi.mocked(useLiveConfig).mockReturnValue({
+    config: {
+      schemaVersion: 1, appVersion: '0.7.0', seasonOpen: true, launches: true, shake: true,
+      comets: true, shootingStars: true, meteorShowers: true, assistantPublic: false,
+      screenScene: 'galaxy', idleSeconds: 10, soundOnScreen: false, spotlight: false,
+    },
+    status: 'live',
+    retry: () => {},
+  });
+  await act(async () => root.render(<Screen language="en" />));
+  expect(localStorage.getItem('galaxy.screen.scene')).toBe('galaxy');
+  const soundButton = container.querySelector<HTMLButtonElement>('.sound-controls button');
+  expect(soundButton?.disabled).toBe(true);
+  expect(container.querySelector('.sound-controls')?.textContent).toContain('Sound disabled by operator');
+});

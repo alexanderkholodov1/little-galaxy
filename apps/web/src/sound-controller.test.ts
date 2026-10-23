@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { createSoundController, savedSoundMute } from './sound-controller';
+import { createSoundController, savedSoundMute, savedSoundVolume } from './sound-controller';
 const engine = vi.hoisted(() => ({ update: vi.fn(), setMix: vi.fn(), pet: vi.fn(), dispose: vi.fn() }));
 const createEngine = vi.hoisted(() => vi.fn(() => engine));
 vi.mock('./sound-engine', () => ({ createSoundEngine: createEngine }));
@@ -41,6 +41,13 @@ it('saved mute survives visits and prevents loading even on a pet; unmute unlock
   controller.setVolume(0.2); expect(engine.setMix).toHaveBeenLastCalledWith(false, 0.2);
   controller.setMute(true); expect(savedSoundMute()).toBe(true);
   expect(engine.setMix).toHaveBeenLastCalledWith(true, 0.2);
+  controller.dispose();
+});
+it('persists and restores sound volume', () => {
+  expect(savedSoundVolume()).toBe(0.32);
+  const controller = createSoundController(1, vi.fn());
+  controller.setVolume(0.75);
+  expect(savedSoundVolume()).toBe(0.75);
   controller.dispose();
 });
 it('reports failed unlock honestly and retries a suspended mobile context on the next gesture', async () => {

@@ -4,11 +4,21 @@ export type AudioState = 'locked' | 'loading' | 'ready' | 'failed';
 export function savedSoundMute() {
   try { return localStorage.getItem('galaxy.sound.muted') === 'true'; } catch { return false; }
 }
+export function savedSoundVolume(): number {
+  try {
+    const raw = localStorage.getItem('galaxy.sound.volume');
+    if (raw !== null) {
+      const v = Number(raw);
+      if (Number.isFinite(v) && v >= 0 && v <= 1) return v;
+    }
+  } catch { /* Storage optional. */ }
+  return 0.32;
+}
 /** Native resume happens synchronously inside the gesture, before any await/import.
  * A silent one-frame buffer also primes iOS's audio output during that gesture. */
 export function createSoundController(count: number, notify: (state: AudioState) => void) {
   let context: AudioContext | undefined, engine: ReturnType<typeof createSoundEngine> | undefined;
-  let pending: Promise<void> | undefined, disposed = false, muted = savedSoundMute(), volume = 0.32;
+  let pending: Promise<void> | undefined, disposed = false, muted = savedSoundMute(), volume = savedSoundVolume();
   let objects: RenderObject[] = [], candidates: SoundCandidate[] = [];
   function unlock(): Promise<void> {
     if (disposed || muted) return Promise.resolve();
@@ -47,7 +57,11 @@ export function createSoundController(count: number, notify: (state: AudioState)
       engine?.setMix(muted, volume);
       if (!muted) void unlock();
     },
-    setVolume(value: number) { volume = value; engine?.setMix(muted, volume); },
+    setVolume(value: number) {
+      volume = value;
+      try { localStorage.setItem('galaxy.sound.volume', String(value)); } catch { /* Storage optional. */ }
+      engine?.setMix(muted, volume);
+    },
     dispose() { disposed = true; engine?.dispose(); if (context) void context.close().catch(() => {}); },
   };
 }

@@ -34,7 +34,7 @@ try {
   } else if (control) throw new Error('No admin connection');
 } catch {
   console.error('Stand command failed. Check its arguments, admin connection and existing config/live.');
-  console.error('Controls: scene <galaxy|bigQr|spotlight|cinematic|timelapse>; flag <launches|comets|shake|shootingStars|meteorShowers|seasonOpen> <on|off>; timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
+  console.error('Controls: scene <galaxy|bigQr|spotlight|cinematic|timelapse>; flag <launches|edits|shake|comets|shootingStars|meteorShowers|soundOnScreen|spotlight|seasonOpen> <on|off>; timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
   if (getApps().length) await getFirestore().terminate();
   process.exitCode = 1;
 }

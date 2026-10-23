@@ -4,17 +4,27 @@ import { screenScenes } from '@little-galaxy/shared';
 import type { LiveConfig } from '@little-galaxy/shared';
 import { anonymousUid } from './firebase';
 export const closedConfig: LiveConfig = {
-  schemaVersion: 1, appVersion: '', seasonOpen: false, launches: false, comets: false,
-  shake: false, shootingStars: false, assistantPublic: false, meteorShowers: false, screenScene: 'galaxy',
+  schemaVersion: 1, appVersion: '', seasonOpen: false, launches: false, edits: false, comets: false,
+  shake: false, shootingStars: false, assistantPublic: false, meteorShowers: false, soundOnScreen: false,
+  sound: false, spotlight: false, screenScene: 'galaxy',
 };
 export function readConfig(data: Record<string, unknown> | undefined): LiveConfig {
   if (data?.schemaVersion !== 1) return closedConfig;
   const seconds = (key: string, fallback: number, min: number, max: number) =>
     typeof data[key] === 'number' && Number.isFinite(data[key])
       ? Math.max(min, Math.min(max, data[key] as number)) : fallback;
+  const seasonOpen = data.seasonOpen === true;
   return { ...closedConfig, appVersion: typeof data.appVersion === 'string' ? data.appVersion : '',
-    seasonOpen: data.seasonOpen === true, launches: data.launches === true, comets: data.comets === true,
-    shake: data.shake === true, shootingStars: data.shootingStars === true, meteorShowers: data.meteorShowers === true,
+    seasonOpen,
+    launches: seasonOpen && data.launches === true,
+    edits: seasonOpen && data.edits !== false,
+    comets: seasonOpen && data.comets === true,
+    shake: seasonOpen && data.shake === true,
+    shootingStars: seasonOpen && data.shootingStars === true,
+    meteorShowers: seasonOpen && data.meteorShowers === true,
+    soundOnScreen: seasonOpen && data.soundOnScreen !== false && data.sound !== false,
+    sound: seasonOpen && data.soundOnScreen !== false && data.sound !== false,
+    spotlight: seasonOpen && data.spotlight !== false,
     screenScene: screenScenes.includes(data.screenScene as LiveConfig['screenScene']) ? data.screenScene as LiveConfig['screenScene'] : data.screenScene === 'qr' ? 'bigQr' : 'galaxy',
     idleSeconds: seconds('idleSeconds', 60, 10, 3600),
   };

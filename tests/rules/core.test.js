@@ -398,6 +398,11 @@ it('honours season and launch/interaction kill switches', async () => {
   await bypass((database) => updateDoc(doc(database, 'config', 'live'), { launches: true }));
   await launchPlanet(db(), 'alice', draft, orbit());
   await ageUser();
+  await bypass((database) => updateDoc(doc(database, 'config', 'live'), { edits: false }));
+  await assertFails(editObject(db(), 'alice', { ...draft, nameKey: 'bright-tide' }));
+  await bypass((database) => updateDoc(doc(database, 'config', 'live'), { edits: true }));
+  await assertSucceeds(editObject(db(), 'alice', { ...draft, nameKey: 'bright-tide' }));
+  await ageUser();
   for (const [flag, type, payload] of [
     ['shake', 'shake', {}],
     ['comets', 'comet', { dx: 0, dy: 1 }],

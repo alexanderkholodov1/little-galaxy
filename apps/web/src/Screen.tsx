@@ -13,6 +13,8 @@ import { listenRecentEvents } from './interaction-data';
 import { addEffects } from './screen-effects';
 import type { SkyEffect } from './screen-effects';
 import SkyEffects from './SkyEffects';
+import { useVersionWatcher } from './version-watcher';
+import { triggerStateSave } from './live-safety';
 const Timelapse = lazy(() => import('./Timelapse'));
 const Scene = lazy(() => import('./GalaxyScene'));
 export default function Screen({ language }: { language: Language }) {
@@ -23,6 +25,10 @@ export default function Screen({ language }: { language: Language }) {
   const [objects, setObjects] = useState<RenderObject[]>(() => syntheticObjects(synthetic));
   const [attempt, setAttempt] = useState(0);
   const live = useLiveConfig(synthetic > 0);
+  const { updateAvailable } = useVersionWatcher({ appVersion: live.config.appVersion });
+  const [reloading, setReloading] = useState(false);
+  const soundAllowed = live.status === 'live' ? (live.config.soundOnScreen !== false && live.config.sound !== false) : true;
+  const spotlightEnabled = live.status === 'live' ? live.config.spotlight !== false : true;
   const [now, setNow] = useState(Date.now);
   const [lastActivity, setLastActivity] = useState(Date.now);
   const [spotlight, setSpotlight] = useState<{ id: string; until: number }>();
@@ -31,10 +37,31 @@ export default function Screen({ language }: { language: Language }) {
   const configuredScene = synthetic && import.meta.env.DEV
     ? new URLSearchParams(location.search).get('scene') ?? 'galaxy' : live.config.screenScene;
   const auto = configuredScene === 'galaxy' || configuredScene === 'spotlight';
-  const spotlightObject = auto && spotlight && spotlight.until > now ? objects.find((o) => o.id === spotlight.id) : undefined;
+  const spotlightObject = spotlightEnabled && auto && spotlight && spotlight.until > now ? objects.find((o) => o.id === spotlight.id) : undefined;
   const idle = now - lastActivity >= (live.config.idleSeconds ?? 60) * 1000;
-  const scene: ScreenScene = auto ? spotlightObject ? 'spotlight' : idle ? 'cinematic' : 'galaxy' : configuredScene as ScreenScene;
+  const scene: ScreenScene = auto
+    ? spotlightObject ? 'spotlight' : idle ? 'cinematic' : 'galaxy'
+    : (configuredScene === 'spotlight' && !spotlightEnabled ? 'galaxy' : configuredScene as ScreenScene);
   const replaying = scene === 'timelapse';
+  useEffect(() => {
+    try { localStorage.setItem('galaxy.screen.scene', scene); } catch { /* Storage optional. */ }
+  }, [scene]);
+  useEffect(() => {
+    if (!updateAvailable || reloading) return;
+    const checkQuiet = () => {
+      const time = Date.now();
+      const quiet = !spotlightObject && effects.length === 0 && (time - lastActivity >= 8000);
+      if (quiet) {
+        setReloading(true);
+        triggerStateSave();
+        window.setTimeout(() => {
+          window.location.reload();
+        }, 600);
+      }
+    };
+    const timer = window.setInterval(checkQuiet, 1500);
+    return () => clearInterval(timer);
+  }, [updateAvailable, reloading, spotlightObject, effects.length, lastActivity]);
   useEffect(() => {
     const timer = window.setInterval(() => {
       const time = Date.now(); setNow(time);
@@ -67,9 +94,9 @@ export default function Screen({ language }: { language: Language }) {
       setLastActivity(time);
       setEffects((old) => addEffects(old, events, time));
       const launch = [...events].reverse().find((e) => e.type === 'launch' || e.type === 'relaunch');
-      if (launch) setSpotlight({ id: launch.objectId, until: time + 8000 });
+      if (launch && spotlightEnabled) setSpotlight({ id: launch.objectId, until: time + 8000 });
     }, () => setEventsFailed(true));
-  }, [synthetic, attempt, replaying]);
+  }, [synthetic, attempt, replaying, spotlightEnabled]);
   const sound = useSound(8);
   const [focused, setFocused] = useState<string>();
   const [pet, setPet] = useState<{ id: string; at: number }>();
@@ -121,7 +148,7 @@ export default function Screen({ language }: { language: Language }) {
         <h1>{text.screen}</h1>
       </div>
       <div className="screen-sound">
-        <SoundControls sound={sound} language={language} screen/>
+        <SoundControls sound={sound} language={language} screen disabled={!soundAllowed} disabledReason={language === 'es' ? 'Sonido desactivado por el operador' : 'Sound disabled by operator'}/>
         <label>{language === 'es' ? 'Enfocar objeto' : 'Focus object'}
           <select aria-label={language === 'es' ? 'Enfocar objeto' : 'Focus object'} value={focusObject?.id ?? ''}
             onChange={(e) => { setFocused(e.target.value || undefined); setSpotlight(undefined); setLastActivity(Date.now()); }}>
@@ -184,6 +211,7 @@ export default function Screen({ language }: { language: Language }) {
           </div>
         )}
       </div>
+      {reloading && <div className="version-crossfade" role="presentation" aria-hidden="true" />}
     </section>
   );
 }
