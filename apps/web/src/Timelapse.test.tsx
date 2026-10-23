@@ -45,7 +45,6 @@ it('stops playing and clears interval when reaching the end of the season, and H
     frozen: true,
     manifest,
     chunks: [],
-    files: {},
   });
 
   await act(async () => {
