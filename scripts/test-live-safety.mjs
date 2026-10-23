@@ -1,234 +1,160 @@
 #!/usr/bin/env node
 /* global document, window */
-/**
- * Standalone automated live-safety verification script:
- * 1. Serves version A files on a local HTTP port.
- * 2. Launches headless Chromium, opening a phone workshop page mid-edit and a screen scene.
- * 3. Swaps served files to version B (deleting version A's hashed chunks, as Firebase Hosting does on release).
- * 4. Asserts:
- *    - chunk errors on missing old chunks trigger soft reload once (with loop guard).
- *    - phone draft and workshop parameters are preserved.
- *    - phone updates only at a safe moment (never mid-edit or mid-swipe).
- *    - screen crossfades and reloads at quiet moment, restoring camera and scene.
- *    - no blank screens throughout.
- */
-
 import http from 'node:http';
-import { chromium } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readFile, readdir, mkdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { chromium, expect } from '@playwright/test';
+import { run, runDemo, seedDemo } from './demo-emulators.mjs';
 
-const PORT = 4192;
-const ORIGIN = `http://127.0.0.1:${PORT}`;
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const artifacts = path.join(root, '.live-safety');
+const demoEnv = {
+  VITE_FIREBASE_API_KEY: 'demo-key', VITE_FIREBASE_AUTH_DOMAIN: 'demo-little-galaxy.firebaseapp.com',
+  VITE_FIREBASE_PROJECT_ID: 'demo-little-galaxy', VITE_FIREBASE_STORAGE_BUCKET: 'demo-little-galaxy.appspot.com',
+  VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000', VITE_FIREBASE_APP_ID: 'demo-app',
+};
+const origin = 'http://127.0.0.1:4192';
+const launchOptions = { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] };
 
-async function main() {
-  console.log('[live-safety] Starting live-safety deploy verification...');
-
-  // In-memory versioned file server
-  let currentVersion = '0.7.0';
-  let currentCommit = 'commit-a111';
-  const versionAChunks = new Set(['/galaxy/assets/core-chunk-A1.js', '/galaxy/assets/preview-chunk-A2.js']);
-  const versionBChunks = new Set(['/galaxy/assets/core-chunk-B1.js', '/galaxy/assets/preview-chunk-B2.js']);
-  let activeChunks = new Set(versionAChunks);
-
-  const server = http.createServer((req, res) => {
-    const url = new URL(req.url ?? '/', ORIGIN);
-    const pathname = url.pathname;
-
-    if (pathname === '/galaxy/version.json') {
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      });
-      res.end(JSON.stringify({ version: currentVersion, commit: currentCommit, builtAt: new Date().toISOString() }));
-      return;
-    }
-
-    if (pathname === '/galaxy/create' || pathname === '/galaxy/screen' || pathname === '/galaxy/' || pathname === '/galaxy') {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Collective Galaxy</title>
-  <style>
-    body { margin: 0; background: #050c16; color: #e1eaf4; font-family: sans-serif; }
-    .app-root { padding: 24px; min-height: 100vh; }
-    .version-crossfade { position: fixed; inset: 0; background: #000; animation: fade 600ms; }
-    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-  </style>
-</head>
-<body>
-  <div id="root">
-    <div class="app-root">
-      <h1 id="title">Collective Galaxy</h1>
-      <div id="status">Loading...</div>
-      <div id="content"></div>
-    </div>
-  </div>
-  <script type="module">
-    // Live safety chunk guard implementation
-    const CHUNK_ERROR_PATTERN = /Loading (?:CSS )?chunk|dynamically imported module|Importing a module script failed|ChunkLoadError|Failed to fetch dynamically/i;
-    const GUARD_KEY = 'galaxy.reload_guard';
-    
-    function isChunkError(e) {
-      const msg = typeof e === 'string' ? e : e?.message || '';
-      return CHUNK_ERROR_PATTERN.test(msg);
-    }
-    
-    function handleChunkError(err) {
-      if (!isChunkError(err)) return false;
-      const now = Date.now();
-      const last = Number(sessionStorage.getItem(GUARD_KEY) || '0');
-      if (now - last < 15000) return false; // Loop guard active
-      sessionStorage.setItem(GUARD_KEY, String(now));
-      window.dispatchEvent(new CustomEvent('galaxy:save-state'));
-      window.location.reload();
-      return true;
-    }
-
-    window.addEventListener('vite:preloadError', (e) => {
-      e.preventDefault();
-      handleChunkError('dynamically imported module failed');
+async function build() {
+  console.log(execFileSync('free', ['-m'], { encoding: 'utf8' }));
+  for (const release of ['a', 'b']) {
+    console.log(execFileSync('free', ['-m'], { encoding: 'utf8' }));
+    // Both are production Vite builds. B uses unminified output to change every lazy chunk hash.
+    // No application module, state reader or recovery implementation is replaced by a fixture.
+    await run('pnpm', ['--filter', '@little-galaxy/web', 'exec', 'vite', 'build', '--emptyOutDir', '--outDir', path.join(artifacts, release), ...(release === 'b' ? ['--minify', 'false'] : [])], {
+      ...demoEnv, GITHUB_SHA: release.repeat(40),
     });
-
-    window.addEventListener('error', (e) => {
-      if (isChunkError(e.message)) {
-        e.preventDefault();
-        handleChunkError(e.message);
-      }
-    });
-
-    // Page logic for /galaxy/create
-    if (location.pathname.includes('/create')) {
-      const draft = JSON.parse(localStorage.getItem('galaxy.draft.v1') || '{"size":0.4,"name":"quiet-aurora"}');
-      const root = document.getElementById('content');
-      root.innerHTML = '<input type="range" id="size-slider" min="0.2" max="0.7" step="0.01" value="' + draft.size + '"><span id="val">' + draft.size + '</span><button id="inspect-btn">Inspect in 3D</button>';
-      
-      const slider = document.getElementById('size-slider');
-      slider.oninput = (e) => {
-        draft.size = Number(e.target.value);
-        document.getElementById('val').textContent = e.target.value;
-        localStorage.setItem('galaxy.draft.v1', JSON.stringify(draft));
-        window.__mid_edit = true;
-      };
-
-      document.getElementById('inspect-btn').onclick = async () => {
-        try {
-          const mod = await import('/galaxy/assets/preview-chunk-A2.js');
-          mod.render();
-        } catch (err) {
-          handleChunkError(err);
-        }
-      };
-
-      window.addEventListener('galaxy:save-state', () => {
-        localStorage.setItem('galaxy.draft.v1', JSON.stringify(draft));
-      });
-    }
-
-    // Page logic for /galaxy/screen
-    if (location.pathname.includes('/screen')) {
-      const root = document.getElementById('content');
-      const savedCam = localStorage.getItem('galaxy.screen.camera') || '[0,-12,25]';
-      const savedScene = localStorage.getItem('galaxy.screen.scene') || 'galaxy';
-      root.innerHTML = '<div id="scene" data-scene="' + savedScene + '">Scene: ' + savedScene + '</div><div id="cam" data-cam="' + savedCam + '">Camera: ' + savedCam + '</div>';
-
-      window.addEventListener('galaxy:save-state', () => {
-        localStorage.setItem('galaxy.screen.camera', JSON.stringify([14.2, -6.5, 30.0]));
-        localStorage.setItem('galaxy.screen.scene', 'galaxy');
-      });
-    }
-  </script>
-</body>
-</html>`);
-      return;
-    }
-
-    // Assets
-    if (activeChunks.has(pathname)) {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' });
-      res.end(`export function render() { console.log('Chunk rendered: ${pathname}'); }`);
-      return;
-    }
-
-    // Deleted old chunk -> 404 (simulates Firebase Hosting atomic version swap deleting old hashed chunks)
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('404 Not Found');
-  });
-
-  await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve));
-  console.log(`[live-safety] Version A serving at ${ORIGIN}`);
-
-  const browser = await chromium.launch({
-    args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
-  });
-
-  try {
-    // 1. Open Phone at /galaxy/create
-    const phoneContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
-    const phone = await phoneContext.newPage();
-    await phone.goto(`${ORIGIN}/galaxy/create`);
-    await phone.waitForSelector('#size-slider');
-
-    // Simulate mid-edit: user modifies slider to 0.58
-    await phone.evaluate(() => {
-      const slider = document.getElementById('size-slider');
-      slider.value = '0.58';
-      slider.dispatchEvent(new Event('input'));
-    });
-    console.log('[live-safety] Phone customized draft in progress (size: 0.58)');
-
-    // 2. Open Screen at /galaxy/screen
-    const screenContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    const screen = await screenContext.newPage();
-    await screen.goto(`${ORIGIN}/galaxy/screen`);
-    await screen.waitForSelector('#scene');
-    console.log('[live-safety] Screen page open and rendering');
-
-    // 3. Swap served version to Version B (deleting Version A chunks!)
-    console.log('[live-safety] Swapping release from Version A (0.7.0) to Version B (0.7.1)...');
-    currentVersion = '0.7.1';
-    currentCommit = 'commit-b222';
-    activeChunks = new Set(versionBChunks); // Version A chunks deleted, will return 404!
-
-    // 4. Trigger chunk load on phone (simulating user clicking a feature whose old chunk is now 404)
-    console.log('[live-safety] Phone requests lazy chunk that was deleted in deploy swap...');
-    await phone.evaluate(() => { window.__before_reload = 1; });
-    await phone.click('#inspect-btn');
-
-    // Wait for the soft reload to complete
-    await phone.waitForFunction(() => window.__before_reload === undefined, null, { timeout: 10_000 });
-    console.log('[live-safety] Soft reload recovered chunk error!');
-
-    // Assert: Phone kept draft state (size is still 0.58)!
-    const restoredSize = await phone.inputValue('#size-slider');
-    if (restoredSize !== '0.58') {
-      throw new Error(`Expected draft size to be restored to 0.58, got ${restoredSize}`);
-    }
-    console.log('[live-safety] PASS: Phone draft intact after soft reload (size = 0.58)');
-
-    // Assert: Loop guard active in sessionStorage
-    const loopGuard = await phone.evaluate(() => sessionStorage.getItem('galaxy.reload_guard'));
-    if (!loopGuard || Number(loopGuard) <= 0) {
-      throw new Error('Expected loop guard to be active in sessionStorage');
-    }
-    console.log('[live-safety] PASS: Loop guard active in sessionStorage');
-
-    // Assert: No blank screen
-    const childCount = await phone.evaluate(() => document.getElementById('root')?.childElementCount ?? 0);
-    if (childCount === 0) throw new Error('Blank screen detected on phone');
-    console.log('[live-safety] PASS: Phone UI active and rendered, zero blank screens');
-
-    // Clean up
-    await phoneContext.close();
-    await screenContext.close();
-    console.log('[live-safety] ALL CHECKS PASSED: Live deploy safety verified successfully.');
-  } finally {
-    await browser.close();
-    server.close();
   }
+  await runDemo('node scripts/test-live-safety.mjs --serve');
 }
 
-main().catch((err) => {
-  console.error('[live-safety] FAILED:', err);
-  process.exit(1);
-});
+async function acceptance() {
+  await seedDemo({ idleSeconds: 3600 }); // Intentionally stale appVersion is unchanged in both directions.
+  let release = 'a';
+  const denied = new Set(), missing = [];
+  const mime = { '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.woff2': 'font/woff2', '.html': 'text/html' };
+  const server = http.createServer(async (req, res) => {
+    const pathname = new URL(req.url, origin).pathname;
+    const relative = pathname.replace(/^\/galaxy\/?/, '');
+    if (!pathname.startsWith('/galaxy') || relative.includes('..')) { res.writeHead(404).end(); return; }
+    const file = path.extname(relative) ? relative : 'index.html';
+    try {
+      if (denied.has(pathname)) throw new Error('Deleted chunk');
+      const bytes = await readFile(path.join(artifacts, release, file));
+      res.writeHead(200, { 'Content-Type': mime[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
+      res.end(bytes);
+    } catch {
+      if (pathname.includes('/assets/')) missing.push(pathname);
+      res.writeHead(404).end('Release asset unavailable');
+    }
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(4192, '127.0.0.1', resolve); });
+  const browser = await chromium.launch(launchOptions);
+  const phoneContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
+  const screenContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const boots = () => Number(sessionStorage.getItem('acceptance.boots'));
+  const entry = (page) => page.locator('script[type=module][src]').getAttribute('src');
+  const count = async (page, value) => expect.poll(() => page.evaluate(boots), { timeout: 45000 }).toBe(value);
+  const assertSurface = async (phone, screen, value, focused) => {
+    await expect(phone.getByRole('slider', { name: 'Radius' })).toHaveValue(value);
+    await expect(phone.locator('.planet-specimen canvas')).toBeVisible();
+    await expect(screen.locator('.galaxy-field canvas')).toBeVisible();
+    await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-draw-calls'))).toBeGreaterThan(0);
+    await expect(screen.getByRole('combobox', { name: 'Focus object' })).toHaveValue(focused);
+    await expect(screen.locator('.sound-controls input')).toHaveValue('0.75');
+    await expect(phone.locator('.launch-desk button')).toBeEnabled();
+    expect(await phone.evaluate(() => document.documentElement.scrollWidth <= 375)).toBe(true);
+  };
+  try {
+    for (const context of [phoneContext, screenContext]) {
+      await context.addInitScript(() => {
+        sessionStorage.setItem('acceptance.boots', String(Number(sessionStorage.getItem('acceptance.boots')) + 1));
+        window.addEventListener('beforeunload', () => {
+          const canvas = document.querySelector('.galaxy-field canvas');
+          if (canvas?.dataset.camera) sessionStorage.setItem('acceptance.camera', canvas.dataset.camera);
+        });
+      });
+    }
+    const phone = await phoneContext.newPage(), screen = await screenContext.newPage();
+    await screen.goto(`${origin}/galaxy/screen?emulators=1&debug=1`);
+    await expect(screen.locator('.creator-count')).toHaveText('0');
+    await phone.goto(`${origin}/galaxy/create?emulators=1`);
+    const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
+    await expect(launch).toBeEnabled();
+    await launch.click();
+    await expect(phone.locator('.launch-feedback')).toContainText('In orbit');
+    await expect(screen.locator('select option')).toHaveCount(2);
+    const focused = await screen.locator('select option').nth(1).getAttribute('value');
+    await screen.getByRole('combobox', { name: 'Focus object' }).selectOption(focused);
+    await screen.locator('.sound-controls input').fill('0.75');
+    await phone.getByRole('button', { name: 'Design another object', exact: true }).click();
+    await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
+    const radius = phone.getByRole('slider', { name: 'Radius' });
+    await radius.focus(); await phone.keyboard.press('ArrowRight');
+    const value = await radius.inputValue();
+    await expect(screen.locator('.galaxy-field canvas')).toHaveAttribute('data-camera', /\[/);
+    const entryA = await entry(phone);
+    // Hold a real launch gesture across the version poll and reload deadline.
+    const swipe = phone.locator('.swipe-window');
+    await swipe.scrollIntoViewIfNeeded();
+    const box = await swipe.boundingBox();
+    await phone.mouse.move(box.x + 20, box.y + 20); await phone.mouse.down();
+    release = 'b'; // A-only hashed URLs now return 404, exactly as a Hosting tree replacement.
+    const aAssets = await readdir(path.join(artifacts, 'a/assets'));
+    const bAssets = new Set(await readdir(path.join(artifacts, 'b/assets')));
+    const oldAsset = aAssets.find((file) => file.endsWith('.js') && !bAssets.has(file));
+    expect((await fetch(`${origin}/galaxy/assets/${oldAsset}`)).status).toBe(404);
+    await expect(phone.locator('.update-notice')).toBeVisible({ timeout: 25000 });
+    await phone.waitForTimeout(6000);
+    expect(await phone.evaluate(boots)).toBe(1); // Held longer than 20s, update is announced.
+    await phone.mouse.up();
+    // A real outstanding lazy import requests a deleted A chunk; no synthetic error event.
+    await phone.getByRole('button', { name: 'Inspect in 3D', exact: true }).click();
+    await expect.poll(() => missing.filter((url) => !url.endsWith(oldAsset)).length).toBeGreaterThan(0);
+    await phone.waitForTimeout(1000);
+    expect(await phone.evaluate(boots)).toBe(1); // Recent inspection action still protects recovery.
+    await count(phone, 2); await count(screen, 2);
+    expect(await entry(phone)).not.toBe(entryA);
+    expect(await entry(screen)).toBe(await entry(phone));
+    await assertSurface(phone, screen, value, focused);
+    // A second real missing lazy chunk within the guard window must not reload again.
+    const soundChunk = [...bAssets].find((file) => /^sound-.*\.js$/.test(file) || /^sound-engine-.*\.js$/.test(file));
+    expect(soundChunk).toBeTruthy();
+    denied.add(`/galaxy/assets/${soundChunk}`);
+    await phone.locator('.sound-controls button').click();
+    await expect.poll(() => missing.includes(`/galaxy/assets/${soundChunk}`)).toBe(true);
+    await phone.waitForTimeout(1000);
+    expect(await phone.evaluate(boots)).toBe(2);
+    denied.clear();
+    // Sample the actual rendered camera, rather than merely finite storage coordinates.
+    const savedCamera = await screen.evaluate(() => JSON.parse(sessionStorage.getItem('acceptance.camera')));
+    const restoredCamera = JSON.parse(await screen.locator('.galaxy-field canvas').getAttribute('data-camera'));
+    expect(Math.hypot(...savedCamera.map((n, i) => n - restoredCamera[i]))).toBeLessThan(4);
+    await phone.waitForTimeout(25000); // Beyond another poll and idle deadline: stale config settles.
+    expect(await phone.evaluate(boots)).toBe(2); expect(await screen.evaluate(boots)).toBe(2);
+    await expect(phone.locator('.update-notice')).toHaveCount(0);
+    console.log('PASS A→B: deleted application lazy chunk, safe held gesture, restored UI/camera/focus/volume, no repeated update');
+    release = 'a';
+    await count(phone, 3); await count(screen, 3);
+    expect(await entry(phone)).toBe(entryA); expect(await entry(screen)).toBe(entryA);
+    await assertSurface(phone, screen, value, focused);
+    await phone.waitForTimeout(25000);
+    expect(await phone.evaluate(boots)).toBe(3); expect(await screen.evaluate(boots)).toBe(3);
+    await expect(phone.locator('.update-notice')).toHaveCount(0);
+    console.log('PASS B→A rollback: both real application surfaces restored and settled');
+    await mkdir(path.join(artifacts, 'evidence'), { recursive: true });
+    await phone.screenshot({ path: path.join(artifacts, 'evidence/phone.png'), fullPage: true });
+    await screen.screenshot({ path: path.join(artifacts, 'evidence/screen.png') });
+    await phoneContext.close(); await screenContext.close(); await browser.close();
+    // Run the exact hosted-mode read-only command against a real built application, separately.
+    await run('pnpm', ['exec', 'playwright', 'test', '--config', 'tests/ui/playwright.config.js'], { BASE_URL: origin });
+  } finally {
+    await phoneContext.close(); await screenContext.close(); await browser.close();
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+try { if (process.argv.includes('--serve')) await acceptance(); else await build(); }
+catch (error) { console.error(error); process.exitCode = 1; }

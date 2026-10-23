@@ -19,7 +19,7 @@
     "demo:seed": "pnpm --filter @little-galaxy/stand exec tsx src/seed-demo.ts",
     "test:live-safety": "node scripts/test-live-safety.mjs",
     "test:sound": "playwright test --config tests/ui/playwright.config.js tests/ui/sound.spec.js",
-    "test:ui": "playwright test --config tests/ui/playwright.config.js"
+    "test:ui": "node scripts/test-ui.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
