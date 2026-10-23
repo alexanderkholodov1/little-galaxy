@@ -1,4 +1,11 @@
-# Little Galaxy · G v0.6.0
+# Little Galaxy · G v0.7.0
+
+Live-safe deploys, chunk-load error recovery with single-reload loop guards, continuous state
+restoration across reloads (phone draft, workshop step, active object, hangar view; screen camera
+position/target, scene, timelapse playhead, volume/mute), safe-moment phone updates and quiet-moment
+screen crossfades, backward-compatible reads across all historical schemas, complete kill switches in
+Firestore rules and stand CLI, and automated Playwright smoke and deploy-swap test suites.
+See [live-safety status and runbook](docs/live-safety-status.md).
 
 An exact, scrubbed replay of the fair; permanent 3D object records with sound; and 1080×1920
 postcards rendered on the visitor's phone with a QR back to the object. Static season files take
@@ -52,6 +59,7 @@ pnpm --filter @little-galaxy/stand freeze-season /absolute/fresh/output-director
 pnpm run typecheck
 pnpm run lint
 pnpm run test
+pnpm run test:live-safety
 pnpm run test:rules
 pnpm run build:rehearsal
 pnpm run privacy:rehearsal
@@ -177,4 +185,4 @@ Preview and real-phone verification are required before claiming deployed behavi
 after reload. Active-object edits appear live; launching another object archives the previous one, and
 hangar relaunches reassemble it. Both count toward the rules-enforced five launches/relaunches per UTC day.
 Moons can orbit your own planets or operator-seeded unclaimed planets; details are in the v0.3.0 handoff.
-Complete live deploy recovery belongs to G v0.7.0. Two real phones and deployed acceptance remain open.
+Live-safe deploy resilience, chunk-load recovery, and automated verification belong to G v0.7.0. Two real phones and deployed preview acceptance remain open.
