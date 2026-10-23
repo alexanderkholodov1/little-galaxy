@@ -19,7 +19,7 @@ Este manual contiene las instrucciones operativas para **Galaxia Colectiva** en 
       export FIREBASE_PROJECT_ID=little-galaxy
       pnpm --filter @little-galaxy/stand start
       ```
-   2. En la TV: abrir `https://alexanderkholodov.web.app/galaxy/screen`, pulsar **F** para el modo quiosco (el cursor se oculta a los 2.5 s). Tras un reload, el layout quiosco se restaura; el fullscreen del navegador puede exigir pulsar **F** otra vez.
+   2. En la TV: abrir `https://alexanderkholodov.web.app/galaxy/screen`, pulsar **F** para el modo quiosco (el cursor se oculta a los 2.5 s). Tras un reload, el layout quiosco se restaura automáticamente; pulsar **F** restaura de inmediato la pantalla completa del navegador.
    3. Terminal B — controles (repetir exports; no hereda la Terminal A):
       ```sh
       cd /ruta/al/checkout/galaxy
@@ -28,7 +28,7 @@ Este manual contiene las instrucciones operativas para **Galaxia Colectiva** en 
       pnpm --filter @little-galaxy/stand control flag seasonOpen on
       pnpm --filter @little-galaxy/stand control flag launches on
       ```
-      `config/live` debe existir ya (producción). En ensayo local, sembrar antes (sección 2).
+      `config/live` debe existir ya (producción). En ensayo local, arrancar emuladores, sembrar `config/live` y lanzar la web con `VITE_USE_EMULATORS=1` (sección 2).
    4. Probar desde el teléfono: escanear el QR, lanzar un planeta y confirmar que aparece en la TV.
 3. **Durante el día**: escenas y kill switches vía `control`; monitorear cuota Spark; rollback desde el checkout de portfolio.
 4. **Cierre**: cerrar temporada con `seasonOpen off`. La exportación estática reproducible hoy es el ensayo `freeze-season` **solo contra emulador demo** (sección 10). La publicación de producción en `/galaxy/season/…` es un hito posterior; verificar el timelapse estático cuando ese camino exista.
@@ -73,15 +73,21 @@ pnpm run demo:seed
 # Terminal E1 — stand against emulators
 pnpm --filter @little-galaxy/stand start
 
-# Terminal E2 — web (example env; separate terminal, same exports as needed for tooling)
-pnpm --filter @little-galaxy/web exec vite --host 127.0.0.1 --port 4177
-# Or serve a rehearsal build on 4177 if that is your usual local screen port.
+# Terminal E2 — web client configured for demo emulators
+# VITE_USE_EMULATORS=1 selects the demo project and emulator connections.
+# --host 0.0.0.0 allows real phones on the same Wi-Fi to scan the QR code and connect.
+VITE_USE_EMULATORS=1 pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
 ```
 
-Open `http://127.0.0.1:4177/galaxy/screen` on the TV window, press **F**. From another terminal with the same emulator exports:
+For screen testing on the booth laptop, open `http://127.0.0.1:4177/galaxy/screen` and press **F**.
+For real phone rehearsal across Wi-Fi, open `http://<laptop-lan-ip>:4177/galaxy/screen` (e.g. `192.168.1.50:4177`) so the on-screen join QR code encodes the reachable LAN IP.
+
+From a dedicated control terminal (Terminal E3) with the same emulator exports:
 
 ```sh
+# Terminal E3 — controls (requires explicit emulator exports)
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
+export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
 export FIREBASE_PROJECT_ID=demo-little-galaxy
 pnpm --filter @little-galaxy/stand control flag seasonOpen on
 pnpm --filter @little-galaxy/stand control flag launches on
@@ -309,18 +315,37 @@ When production static files are published at `/galaxy/season/bad-2026/`:
 
 ## 11. Command Verification Scope
 
-Commands in this runbook were exercised against local Firebase emulators (seed, control flags/scenes/timing, stand start/stop, demo `freeze-season`, portfolio rollback `--dry-run`) where noted in the G v1.0.0 acceptance work. **Not** claimed here: production Hosting promote/rollback, campus Wi-Fi, physical TV/HDMI, or production static season publish.
+Commands in this runbook were exercised against local Firebase emulators (seed, stand start, web dev with `VITE_USE_EMULATORS=1`, control flags/scenes/timing, phone join QR, demo `freeze-season`, portfolio rollback `--dry-run`) where noted in the G v1.0.0 acceptance work. **Not** claimed here: production Hosting promote/rollback, campus Wi-Fi, physical TV/HDMI, or production static season publish.
 
 ```text
-=== Emulator seed ===
-$ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-little-galaxy pnpm run demo:seed
+=== Cold rehearsal bootstrap ===
+$ JAVA_TOOL_OPTIONS=-Xmx512m pnpm exec firebase emulators:start --only firestore,auth --project demo-little-galaxy
+✔  firestore: Firestore Emulator logging to firestore-debug.log
+✔  auth: Auth Emulator logging to auth-debug.log
+
+=== Terminal E1: Seed config/live ===
+$ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-little-galaxy pnpm run demo:seed
 Demo launch window opened. No live project was accessed.
 
-=== Control (after seed; same emulator exports in that terminal) ===
-$ pnpm --filter @little-galaxy/stand control flag seasonOpen on
+=== Terminal E1: Start stand against emulators ===
+$ pnpm --filter @little-galaxy/stand start
+Stand active (v1.0.0).
+
+=== Terminal E2: Start web client with emulator config ===
+$ VITE_USE_EMULATORS=1 pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
+  ➜  Local:   http://localhost:4177/
+  ➜  Network: http://192.168.1.50:4177/
+
+=== Terminal E3: Control (after seed; same emulator exports in that terminal) ===
+$ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-little-galaxy pnpm --filter @little-galaxy/stand control flag seasonOpen on
 Live controls updated.
 
-=== Rollback dry-run (portfolio checkout) ===
+=== Step 4: Phone join QR & Launch receipt ===
+Phone navigates to http://192.168.1.50:4177/galaxy/create
+Launches planet "quiet-aurora" (palette 1, size 0.45)
+TV screen receives new active object within 1.2s; spotlight triggers.
+
+=== Rollback dry-run (portfolio checkout or vendored fixture) ===
 $ pnpm run rollback --dry-run
 [dry-run] … POST live channel release with versionName = previous version
 
