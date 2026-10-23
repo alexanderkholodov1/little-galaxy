@@ -3,16 +3,12 @@
  * Record Galaxy Booth Screen with Playwright video.
  *
  * Usage:
- *   node scripts/record-screen.mjs [--url <url>] [--duration <seconds>] [--output <dir>]
+ *   node scripts/record-screen.mjs --mode demo|rehearsal [options]
  *
- * Options:
- *   --url <url>           URL of the screen page (default: http://127.0.0.1:4177/galaxy/screen?synthetic=50&debug=0)
- *   --duration <seconds>  Recording duration in seconds (default: 15)
- *   --output <dir>        Directory to store the recorded video (default: records)
- *   --width <pixels>      Viewport width (default: 1920)
- *   --height <pixels>     Viewport height (default: 1080)
- *   --obs                 Print manual OBS Studio recording instructions and exit
- *   --help                Show this help message
+ * Demo mode (default) records the synthetic development screen and labels the
+ * output as a demo clip — never as a fair backup.
+ * Rehearsal mode requires an explicit --url of a healthy live/rehearsal screen,
+ * enters kiosk presentation, and refuses loading/error-only output.
  */
 
 import fs from 'node:fs';
@@ -27,6 +23,7 @@ export function parseArgs(argv) {
     output: 'records',
     width: 1920,
     height: 1080,
+    mode: 'demo',
     obs: false,
     help: false,
   };
@@ -37,6 +34,8 @@ export function parseArgs(argv) {
       options.help = true;
     } else if (arg === '--obs') {
       options.obs = true;
+    } else if (arg === '--mode' && argv[i + 1]) {
+      options.mode = argv[++i];
     } else if (arg === '--url' && argv[i + 1]) {
       options.url = argv[++i];
     } else if (arg === '--duration' && argv[i + 1]) {
@@ -47,7 +46,13 @@ export function parseArgs(argv) {
       options.width = parseInt(argv[++i], 10) || 1920;
     } else if (arg === '--height' && argv[i + 1]) {
       options.height = parseInt(argv[++i], 10) || 1080;
+    } else if (!arg.startsWith('-')) {
+      throw new Error(`Unexpected positional argument "${arg}". Use --url, --output, and --duration flags.`);
     }
+  }
+
+  if (options.mode !== 'demo' && options.mode !== 'rehearsal') {
+    throw new Error('--mode must be "demo" or "rehearsal"');
   }
 
   return options;
@@ -72,7 +77,42 @@ export const OBS_INSTRUCTIONS = `
 7. Click "Start Recording", let the galaxy animate for rehearsal duration (e.g. 5-10 minutes).
 8. Click "Stop Recording".
 9. Access your file via File -> Show Recordings.
+10. Play the file back and confirm a usable kiosk galaxy (not a loading/error frame) before treating it as a backup.
 `;
+
+const MIN_USABLE_BYTES = 50_000;
+
+async function assertHealthyScreen(page, { requireKiosk }) {
+  await page.waitForSelector('.galaxy-field canvas, .galaxy-field[data-scene]', { timeout: 20000 });
+
+  const status = await page.evaluate(() => {
+    const field = document.querySelector('.field-status');
+    const text = field?.textContent?.trim() ?? '';
+    const loading = /loading|cargando/i.test(text);
+    const failed = /failed|interrumpida|unavailable|desconect/i.test(text)
+      || Boolean(document.querySelector('.events-status'));
+    const canvas = document.querySelector('.galaxy-field canvas');
+    const fullscreen = document.querySelector('[data-fullscreen="true"]');
+    return {
+      loading,
+      failed,
+      hasCanvas: Boolean(canvas),
+      kiosk: Boolean(fullscreen),
+      statusText: text.slice(0, 120),
+    };
+  });
+
+  if (status.loading || status.failed) {
+    throw new Error(`Screen is not healthy for recording (status="${status.statusText || 'error/loading'}"). Refusing to certify a backup.`);
+  }
+  if (!status.hasCanvas) {
+    throw new Error('No canvas rendered in .galaxy-field. Refusing to certify a backup.');
+  }
+  if (requireKiosk && !status.kiosk) {
+    throw new Error('Kiosk presentation is not active (data-fullscreen != true).');
+  }
+  return status;
+}
 
 export async function recordScreen(options = {}) {
   const {
@@ -81,14 +121,24 @@ export async function recordScreen(options = {}) {
     output = 'records',
     width = 1920,
     height = 1080,
+    mode = 'demo',
   } = options;
+
+  if (mode === 'rehearsal') {
+    if (!options.url) {
+      throw new Error('Rehearsal mode requires an explicit --url of a healthy live or rehearsal screen.');
+    }
+    if (/[?&]synthetic=/.test(url)) {
+      throw new Error('Rehearsal mode refuses synthetic= URLs. Use a live/rehearsal screen without synthetic objects.');
+    }
+  }
 
   const outDir = path.resolve(output);
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
   }
 
-  console.log(`[record-screen] Launching Playwright Chromium...`);
+  console.log(`[record-screen] Mode: ${mode}`);
   console.log(`[record-screen] Target URL: ${url}`);
   console.log(`[record-screen] Resolution: ${width}x${height}`);
   console.log(`[record-screen] Duration: ${duration}s`);
@@ -99,48 +149,78 @@ export async function recordScreen(options = {}) {
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
 
+  // Phase 1: warm up without recording so startup/error frames are not kept.
+  const warm = await browser.newContext({ viewport: { width, height } });
+  const warmPage = await warm.newPage();
+  try {
+    console.log(`[record-screen] Warm-up navigation (not recorded)...`);
+    await warmPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await warmPage.waitForSelector('.galaxy-field', { timeout: 15000 });
+    await warmPage.waitForTimeout(2000);
+    await assertHealthyScreen(warmPage, { requireKiosk: false });
+    const toggle = warmPage.locator('.fullscreen-toggle');
+    if (await toggle.count()) {
+      await toggle.click();
+      await warmPage.waitForSelector('[data-fullscreen="true"]', { timeout: 5000 }).catch(() => {});
+    }
+    await assertHealthyScreen(warmPage, { requireKiosk: true });
+    console.log(`[record-screen] Warm-up healthy; kiosk presentation active.`);
+  } finally {
+    await warm.close();
+  }
+
+  // Phase 2: record after reload so kiosk intent restores from localStorage.
   const context = await browser.newContext({
     viewport: { width, height },
-    recordVideo: {
-      dir: outDir,
-      size: { width, height },
-    },
+    recordVideo: { dir: outDir, size: { width, height } },
   });
-
   const page = await context.newPage();
 
   try {
-    console.log(`[record-screen] Navigating to screen page...`);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-    // Wait for canvas or field to appear
-    await page.waitForSelector('.galaxy-field', { timeout: 15000 });
-    console.log(`[record-screen] Galaxy field loaded. Recording for ${duration} seconds...`);
-
-    // Wait for the specified duration while recording
+    await page.waitForTimeout(1500);
+    const toggle = page.locator('.fullscreen-toggle');
+    if (await toggle.count()) {
+      const label = await toggle.textContent();
+      if (!/exit|salir/i.test(label ?? '')) await toggle.click();
+    }
+    await assertHealthyScreen(page, { requireKiosk: true });
+    console.log(`[record-screen] Recording ${duration}s of healthy kiosk screen...`);
     await page.waitForTimeout(duration * 1000);
+    await assertHealthyScreen(page, { requireKiosk: true });
 
     const video = page.video();
     await page.close();
     await context.close();
     await browser.close();
 
-    if (video) {
-      const videoPath = await video.path();
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const targetName = `galaxy-screen-${timestamp}.webm`;
-      const targetPath = path.join(outDir, targetName);
-      fs.renameSync(videoPath, targetPath);
-
-      const stats = fs.statSync(targetPath);
-      console.log(`[record-screen] Recording finished!`);
-      console.log(`[record-screen] Video file: ${targetPath} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
-      return targetPath;
-    } else {
-      console.warn(`[record-screen] Warning: No video object returned by Playwright.`);
-      return null;
+    if (!video) {
+      throw new Error('Playwright returned no video object.');
     }
+
+    const videoPath = await video.path();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const prefix = mode === 'rehearsal' ? 'galaxy-rehearsal' : 'galaxy-demo';
+    const targetName = `${prefix}-${timestamp}.webm`;
+    const targetPath = path.join(outDir, targetName);
+    fs.renameSync(videoPath, targetPath);
+
+    const stats = fs.statSync(targetPath);
+    if (stats.size < MIN_USABLE_BYTES) {
+      fs.unlinkSync(targetPath);
+      throw new Error(`Recorded file too small (${stats.size} bytes); refusing to certify as usable video.`);
+    }
+
+    if (mode === 'demo') {
+      console.log(`[record-screen] Demo clip written: ${targetPath} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+      console.log(`[record-screen] This is a DEMO recording, not a fair-day backup. Use --mode rehearsal with a live URL for backup.`);
+    } else {
+      console.log(`[record-screen] Rehearsal clip written: ${targetPath} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+      console.log(`[record-screen] Play back and confirm usable kiosk content before treating as booth backup.`);
+    }
+    return targetPath;
   } catch (error) {
+    await context.close().catch(() => {});
     await browser.close().catch(() => {});
     throw error;
   }
@@ -150,8 +230,9 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
 
   if (options.help) {
-    console.log(`Usage: node scripts/record-screen.mjs [options]`);
+    console.log(`Usage: node scripts/record-screen.mjs --mode demo|rehearsal [options]`);
     console.log(`Options:`);
+    console.log(`  --mode demo|rehearsal Recording mode (default: demo)`);
     console.log(`  --url <url>           Target screen URL`);
     console.log(`  --duration <seconds>  Recording duration in seconds`);
     console.log(`  --output <dir>        Output directory`);

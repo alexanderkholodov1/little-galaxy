@@ -73,7 +73,7 @@ pnpm run test:live-safety
 pnpm run test:rules
 pnpm run test:drills
 pnpm run test:load
-node scripts/record-screen.mjs http://127.0.0.1:5173/galaxy/screen screen-backup.webm 10000
+node scripts/record-screen.mjs --mode demo --url http://127.0.0.1:4177/galaxy/screen?synthetic=50 --duration 15 --output records/
 pnpm run build:rehearsal
 pnpm run privacy:rehearsal
 ```
