@@ -267,13 +267,8 @@ export async function runAllDrills(): Promise<DrillResult[]> {
   // =========================================================================
   try {
     console.log(`[drills] Running Drill 5: Rollback dry-run verification...`);
-    // Locate the portfolio rollback script at sibling worktree or parent-sibling paths, or use vendored contract fixture for standalone checkouts
-    const candidates = [
-      path.resolve(import.meta.dirname, '../../portfolio/scripts/rollback.mjs'),
-      path.resolve(import.meta.dirname, '../../portfolio-v0.3.0/scripts/rollback.mjs'),
-      path.resolve(import.meta.dirname, '../../../portfolio/scripts/rollback.mjs'),
-      path.resolve(import.meta.dirname, 'fixtures/portfolio-rollback.mjs'),
-    ];
+    // Standalone contract fixture only; actual portfolio rollback is operator acceptance.
+    const candidates = [path.resolve(import.meta.dirname, 'fixtures/portfolio-rollback.mjs')];
     const rollbackPath = candidates.find((p) => fs.existsSync(p));
     if (!rollbackPath) {
       results.push({
@@ -320,7 +315,8 @@ export function generateDrillsMarkdown(results: DrillResult[]): string {
   const failed = results.filter((r) => r.status === 'FAILED').length;
   return `# Failure-Mode Drills · G v1.0.0
 
-Automated drills against Firestore/Auth emulators verifying key failure scenario building blocks.
+The five automated drills are **building-block checks**, not completed outage acceptance.
+They run against Firestore/Auth emulators. Passing all five does not certify booth recovery.
 Hardware-dependent drills (network interruption, HDMI, power failover) are manual operator steps
 listed below and **not yet run**.
 
@@ -362,8 +358,29 @@ ${results.map((r) => `| **${r.drillId}** | ${r.name} | **${r.status}** | ${r.obs
 
 ## Hardware-Dependent Drills (Manual, Not Yet Run)
 
-These drills require physical booth hardware and cannot be automated. They are listed here
-as operator instructions for the campus rehearsal.
+These operator checks validate the actual booth/network. Some pieces can be simulated in
+software, but no physical-network or equipment recovery is certified by these checks.
+
+### Browser disconnection building block (separate from the five checks)
+Run \`pnpm run test:ui\` to execute the connected Playwright smoke suite against emulators.
+Its offline-to-online case disconnects an actual browser context, changes and saves a draft,
+checks that an offline launch is rejected, reconnects and reloads, verifies localStorage draft
+restoration with no automatic launch, then launches with a fresh visitor action. This covers
+browser network emulation only, not campus connectivity or an offline reload of uncached HTML.
+
+### Drill H-0: Event Internet Outage and Stand Crash / Restart
+1. Start the actual stand, public Home, live TV and a phone workshop on booth hardware.
+2. Disconnect the booth uplink; retain the TV tab. Confirm the last sky keeps moving and draft edits persist on the phone. Do not promise queued launch replay.
+3. Reconnect or switch to hotspot. Confirm live updates resume; ask the visitor to press Launch again and observe receipt on the TV.
+4. Stop the stand process, leaving clients open. Wait beyond the stale threshold and observe the public Home last-updated/stale state while the sky continues locally.
+5. Restart the stand using the appropriate RUNBOOK environment exports. Confirm a fresh snapshot and removal of the stale indication. Record the observed times.
+6. Status: not yet run on booth hardware.
+
+### Drill H-4: Quota Pressure, Bad Release and Total Failure
+1. With a phone designing and TV live, turn off the documented interaction flags. Observe disabled phone controls and continued sky rendering, then restore flags.
+2. Captain/operator: rehearse the approved portfolio rollback with a known previous release and verify both phone draft and TV recovery. This checkout's fixture does not validate Hosting.
+3. Disconnect live services entirely, play the identified rehearsal backup fullscreen, and scan its QR from a separate phone on the intended network.
+4. Status: not yet run; do not exhaust real quotas or deploy as part of automated checks.
 
 ### Drill H-1: TV HDMI Cable Disconnection / Resolution Reset
 1. **Scenario**: The HDMI cable between the booth laptop and the TV is loosened.

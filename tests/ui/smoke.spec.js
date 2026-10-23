@@ -1,4 +1,4 @@
-/* global document, innerWidth */
+/* global document, innerWidth, navigator, localStorage */
 import { expect, test } from '@playwright/test';
 import { seedDemo } from '../../scripts/demo-emulators.mjs';
 
@@ -48,4 +48,32 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     await expect(screen.locator('.sky-effects')).toHaveAttribute('data-effects', /comet/, { timeout: 2000 });
     expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally { await Promise.allSettled([phoneContext.close(), screenContext.close()]); }
+});
+
+test('offline phone retains its draft, reconnects without auto-launch, and launches on a fresh action', async ({ browser }) => {
+  test.setTimeout(120000);
+  await seedDemo();
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
+  try {
+    const phone = await context.newPage();
+    await phone.goto('/galaxy/create');
+    const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
+    await expect(launch).toBeEnabled({ timeout: 30000 });
+    await context.setOffline(true);
+    expect(await phone.evaluate(() => navigator.onLine)).toBe(false);
+    await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
+    const draft = await phone.evaluate(() => localStorage.getItem('galaxy.draft.v1'));
+    await launch.click();
+    await expect(phone.locator('.launch-feedback')).toContainText('You are offline');
+    expect(await phone.evaluate(() => localStorage.getItem('galaxy.workshop.mode'))).not.toBe('edit');
+    await context.setOffline(false);
+    await expect.poll(() => phone.evaluate(() => navigator.onLine)).toBe(true);
+    await phone.reload();
+    await expect(launch).toBeEnabled({ timeout: 30000 });
+    expect(await phone.evaluate(() => localStorage.getItem('galaxy.draft.v1'))).toBe(draft);
+    // Reconnection/reload restores a design, never a pending launch.
+    await expect(phone.getByRole('button', { name: 'Design another object', exact: true })).toHaveCount(0);
+    await launch.click();
+    await expect(phone.locator('.launch-feedback')).toContainText('In orbit', { timeout: 15000 });
+  } finally { await context.close(); }
 });
