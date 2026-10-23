@@ -225,9 +225,6 @@ button:disabled { opacity: .6; cursor: wait; }
 .spotlight-caption, .scene-caption { position: absolute; left: 1.25rem; top: 4.5rem; max-width: 65%; margin: 0; padding: 8px; background: #050c16dd; font-size: clamp(1.125rem, 2vw, 2rem); }
 .events-status { position: absolute; left: 1rem; top: 1rem; max-width: 65%; padding: 8px; margin-top: 0; background: #050c16; color: #e7bd70; }
 .events-status button { color: #e1eaf4; border-color: #60788e; }
-.timelapse-placeholder { position: absolute; inset: 0; background: #050c16eb; padding: 8% 5%; animation: scene-appear 900ms both; }
-.timelapse-placeholder h2 { max-width: 17ch; font-size: clamp(2rem, 5vw, 4rem); }
-.timelapse-placeholder p { max-width: 36ch; }
 .galaxy-field[data-scene="bigQr"] .join-qr { width: min(80cqw, 80cqh, 760px); right: 50%; bottom: 50%; transform: translate(50%, 50%); font-size: clamp(1.125rem, 2vw, 2rem); }
 .galaxy-field[data-scene="bigQr"] .screen-reading, .galaxy-field[data-scene="bigQr"] .field-status { opacity: 0; pointer-events: none; }
 .galaxy-field[data-scene="bigQr"] { background: #050c16; }
@@ -240,3 +237,36 @@ button:disabled { opacity: .6; cursor: wait; }
 .live-screen[data-screen-scene="bigQr"] .screen-heading, .live-screen[data-screen-scene="bigQr"] .screen-sound { display: none; }
 .live-screen[data-screen-scene="bigQr"] .galaxy-field { height: min(80vh, calc(100dvh - 16rem)); }
 .galaxy-field[data-scene="timelapse"] .screen-reading { display: none; }
+
+/* A bound observatory log: full-width finding chart with its time ruler below;
+   permanent specimens have a separate marginal record, like a museum accession sheet. */
+.memory-log, .object-record { padding: 24px clamp(16px, 4vw, 64px) 48px; }
+.memory-heading h1, .object-record h1 { font-size: clamp(2.4rem, 5vw, 4.5rem); line-height: 1.1; max-width: 20ch; margin: 12px 0 32px; }
+.memory-field { position: relative; height: min(60vh, 680px); min-height: 300px; background: #050c16; color: #e1eaf4; }
+.memory-state { border-block: 1px solid var(--rule); padding-block: 32px; max-width: 65ch; }
+.memory-state h2 { font-size: 1.75rem; }
+.replay-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 16px 24px; border-bottom: 1px solid var(--rule); padding-block: 16px; }
+.replay-controls label { display: grid; gap: 8px; }
+.replay-scrubber { flex: 1 1 240px; }
+.replay-controls output, .object-notes dd, .memory-source { font-variant-numeric: tabular-nums; }
+.replay-controls output { flex-basis: 100%; }
+.replay-controls input, .replay-controls select, .memory-log button, .object-record button { min-height: 44px; }
+.memory-source { font-size: .875rem; }
+.object-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr); gap: 48px; }
+.permanent-specimen { background: #050c16; height: min(65vh, 650px); min-height: 350px; }
+.object-notes { border-top: 1px solid var(--rule); padding-top: 16px; }
+.object-notes dl { display: grid; grid-template-columns: 1fr 2fr; gap: 8px 24px; margin-bottom: 32px; }
+.object-notes dd { margin: 0; }
+.memory-return { display: inline-flex; min-height: 44px; align-items: center; margin-top: 32px; }
+.postcard-actions { border-top: 1px solid var(--rule); margin-top: 24px; padding-top: 24px; }
+.postcard-actions img { display: block; width: min(100%, 270px); height: auto; margin-block: 16px; }
+.postcard-actions button { margin: 0 8px 8px 0; }
+@media (max-width: 650px) { .object-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; } .memory-heading h1 { font-size: 2.6rem; } }
+.screen-replay { position: relative; }
+.replay-join { width: clamp(132px, 14vw, 240px); margin: 0; }
+.memory-field > .memory-state, .memory-field > p { padding: 24px; margin: 0; }
+.memory-field button { color: #e1eaf4; border-color: #60788e; }
+.screen-replay .memory-heading h1 { font-size: clamp(2rem, 3vw, 3rem); margin-bottom: 16px; }
+.screen-replay .memory-field { height: min(60vh, calc(100dvh - 29rem)); }
+.replay-back { margin: 16px 32px; min-height: 44px; }
+.replay-controls .memory-return { margin-top: 0; }

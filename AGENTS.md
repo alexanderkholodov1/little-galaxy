@@ -39,3 +39,10 @@ The screen borrows an observatory finding chart; the phone workshop borrows its 
 a large specimen, numbered marginal instructions, and aligned measurement scales. Spectral gives
 the chart its printed identity; Archivo Narrow keeps readings compact. Use 8px within readings,
 24px between controls, and 48px around headings. Colour identifies material, actions and status.
+
+## Memory design artifact
+
+Timelapse is the observatory's continuous time ruler beneath a finding chart. The permanent page
+and postcard borrow a museum specimen accession sheet: one large specimen, a left-aligned title,
+a marginal dated record and a printed return link. Loading, missing and offline records retain
+that same grid. Postcards use the existing Spectral/Archivo faces and the dark reference field.

@@ -23,7 +23,7 @@ test('crowd wave, directional comet, meteor shower and bilingual shooting star r
   await expect(page.locator('.sky-effects')).toHaveCount(0, { timeout: 10_000 });
   expect(errors).toEqual([]); expect(backend).toEqual([]);
 });
-test('big QR fits the booth chart and timelapse is an explicit placeholder', async ({ page }) => {
+test('big QR fits the booth chart and timelapse has a designed archive state', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/galaxy/screen?synthetic=12&scene=bigQr');
   await expect(page.locator('.galaxy-field')).toHaveAttribute('data-scene', 'bigQr');
@@ -36,10 +36,10 @@ test('big QR fits the booth chart and timelapse is an explicit placeholder', asy
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto('/galaxy/screen?synthetic=12&scene=timelapse&lang=es');
-  await expect(page.locator('.timelapse-placeholder')).toContainText('La repetición llegará');
+  await expect(page.locator('.memory-log')).toContainText('La memoria de este cielo');
   await expect(page.locator('.screen-reading')).toBeHidden();
   await page.waitForTimeout(1000);
-  await expect(page.locator('.join-qr')).toBeVisible();
+  await expect(page.locator('.replay-join')).toBeVisible();
   if (artifact) await page.screenshot({ path: `${artifact}/timelapse-375-es.png`, fullPage: true });
 });
 test('idle cinematic scene keeps the QR and phone controls explain an unavailable backend', async ({ page }) => {

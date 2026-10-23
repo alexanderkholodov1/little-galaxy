@@ -13,6 +13,7 @@ import { listenRecentEvents } from './interaction-data';
 import { addEffects } from './screen-effects';
 import type { SkyEffect } from './screen-effects';
 import SkyEffects from './SkyEffects';
+const Timelapse = lazy(() => import('./Timelapse'));
 const Scene = lazy(() => import('./GalaxyScene'));
 export default function Screen({ language }: { language: Language }) {
   const text = coreCopy[language];
@@ -33,6 +34,7 @@ export default function Screen({ language }: { language: Language }) {
   const spotlightObject = auto && spotlight && spotlight.until > now ? objects.find((o) => o.id === spotlight.id) : undefined;
   const idle = now - lastActivity >= (live.config.idleSeconds ?? 60) * 1000;
   const scene: ScreenScene = auto ? spotlightObject ? 'spotlight' : idle ? 'cinematic' : 'galaxy' : configuredScene as ScreenScene;
+  const replaying = scene === 'timelapse';
   useEffect(() => {
     const timer = window.setInterval(() => {
       const time = Date.now(); setNow(time);
@@ -41,6 +43,7 @@ export default function Screen({ language }: { language: Language }) {
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
+    if (replaying) return;
     if (synthetic) {
       if (import.meta.env.DEV && new URLSearchParams(location.search).get('effects') === '1') {
         const timer = window.setTimeout(() => {
@@ -66,7 +69,7 @@ export default function Screen({ language }: { language: Language }) {
       const launch = [...events].reverse().find((e) => e.type === 'launch' || e.type === 'relaunch');
       if (launch) setSpotlight({ id: launch.objectId, until: time + 8000 });
     }, () => setEventsFailed(true));
-  }, [synthetic, attempt]);
+  }, [synthetic, attempt, replaying]);
   const sound = useSound(8);
   const [focused, setFocused] = useState<string>();
   const [pet, setPet] = useState<{ id: string; at: number }>();
@@ -86,7 +89,7 @@ export default function Screen({ language }: { language: Language }) {
     return qr.createSvgTag({ cellSize: 3, margin: 12, scalable: true });
   }, [join]);
   useEffect(() => {
-    if (!firestore || synthetic) return;
+    if (!firestore || synthetic || replaying) return;
     const timeout = window.setTimeout(() => setState('failed'), 8000);
     const offline = () => setState('failed');
     window.addEventListener('offline', offline);
@@ -107,9 +110,10 @@ export default function Screen({ language }: { language: Language }) {
       window.clearTimeout(timeout);
       window.removeEventListener('offline', offline);
     };
-  }, [attempt, synthetic]);
+  }, [attempt, synthetic, replaying]);
   const visibleEffects = useMemo(() => effects.filter((e) => synthetic || (live.config.seasonOpen && (e.type === 'wave' ? live.config.shake : e.type === 'comet' ? live.config.comets : e.type === 'shootingStar' ? live.config.shootingStars : live.config.meteorShowers))), [effects, synthetic, live.config]);
   const status = synthetic ? 'live' : !firestore ? 'failed' : state;
+  if (scene === 'timelapse') return <section className="screen-replay" data-screen-scene="timelapse"><Suspense fallback={<p>{text.loading}</p>}><Timelapse language={language} join={<a className="join-qr replay-join" href={join}><span className="qr-image" dangerouslySetInnerHTML={{ __html: qrSvg }}/><span>{text.join}</span></a>}/></Suspense></section>;
   return (
     <section className="live-screen" data-screen-scene={scene}>
       <div className="screen-heading">
@@ -146,7 +150,7 @@ export default function Screen({ language }: { language: Language }) {
           ? `${spotlightObject.type === 'star' ? 'Nueva estrella' : spotlightObject.type === 'moon' ? 'Nueva luna' : 'Nuevo planeta'}: `
           : `New ${spotlightObject.type ?? 'planet'}: `}{objectName(spotlightObject.nameKey, language)}</p>}
         {configuredScene === 'spotlight' && !spotlightObject && <p className="scene-caption">{language === 'es' ? 'Esperando el próximo lanzamiento' : 'Waiting for the next launch'}</p>}
-        {scene === 'timelapse' && <div className="timelapse-placeholder"><p className="eyebrow">G v0.6.0</p><h2>{language === 'es' ? 'La memoria de este cielo' : 'The memory of this sky'}</h2><p>{language === 'es' ? 'La repetición llegará en la próxima versión. El cielo en vivo sigue en marcha.' : 'Replay arrives in the next version. The live sky keeps moving.'}</p></div>}
+
         {(eventsFailed || (!synthetic && live.status === 'failed')) && <p className="events-status" role="status">{language === 'es' ? 'Eventos o escenas sin conexión.' : 'Events or scenes disconnected.'} <button onClick={() => { live.retry(); setAttempt((n) => n + 1); }}>{text.retry}</button></p>}
         {debug && <output className="fps-reading" data-fps={fps.toFixed(1)}>
           {fps.toFixed(1)} fps{synthetic > 0 ? ` · ${objects.length} synthetic` : ''}

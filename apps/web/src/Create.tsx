@@ -127,7 +127,7 @@ export default function Create({ language }: { language: Language }) {
         .catch(() => {
           if (alive) setInventoryState('failed');
         });
-    return () => {
+  return () => {
       alive = false;
     };
   }, [restoreAttempt]);
@@ -239,8 +239,10 @@ export default function Create({ language }: { language: Language }) {
     setEditState('pending');
     updateDraft({ ...draft, params: { ...draft.params, [field]: value } as ObjectParams });
   }
+  const active = inventory.find((o) => o.status === 'active');
   return (
     <section className="workshop">
+      {active && <a className="memory-return" href={`/galaxy/o/${active.id}?lang=${language}`}>{language === 'es' ? 'Tu página permanente y postal' : 'Your permanent page and postcard'}</a>}
       <div className="workshop-title">
         <p className="eyebrow">{text.desk}</p>
         <h1>{text.create}</h1>

@@ -6,7 +6,7 @@ import { worldPosition } from '@little-galaxy/shared';
 import type { RenderObject, SoundCandidate } from '@little-galaxy/shared';
 import { Vector3 } from 'three';
 import RichBodies from './RichBodies';
-function FitChart({ objects, focused, cinematic }: { objects: RenderObject[]; focused?: string; cinematic?: boolean }) {
+function FitChart({ objects, focused, cinematic, historicalAt }: { objects: RenderObject[]; focused?: string; cinematic?: boolean; historicalAt?: number }) {
   const { camera, size } = useThree();
   const object = useMemo(() => objects.find((o) => o.id === focused), [objects, focused]);
   const chart = useMemo(() => chartFrame(objects), [objects]);
@@ -15,7 +15,7 @@ function FitChart({ objects, focused, cinematic }: { objects: RenderObject[]; fo
   useFrame(({ clock }, delta) => {
     const position = points.position;
     if (object) {
-      position.set(...worldPosition(object, Date.now()));
+      position.set(...worldPosition(object, historicalAt ?? Date.now()));
       const distance = Math.max(4, object.params.size * 9) * Math.max(1, size.height / size.width);
       points.target.set(position.x, position.y - distance * .3, position.z + distance);
     } else {
@@ -75,13 +75,16 @@ export default function GalaxyScene({
   label,
   unavailable,
   onFps,
-  focused, pet, onPick, onSoundCandidates, cinematic,
+  focused, pet, onPick, onSoundCandidates, cinematic, historicalAt, departed, births,
 }: {
   objects: RenderObject[];
   label: string;
   unavailable: string;
   onFps?: (fps: number) => void;
   focused?: string;
+  historicalAt?: number;
+  departed?: RenderObject[];
+  births?: Map<string, number>;
   cinematic?: boolean;
   pet?: { id: string; at: number };
   onPick?: (id: string) => void;
@@ -103,9 +106,9 @@ export default function GalaxyScene({
         <sphereGeometry args={[1, 24, 16]} />
         <meshBasicMaterial color="#fff0c3" />
       </mesh>
-      <OrbitTrails objects={objects} />
-      <RichBodies objects={objects} pet={pet} onPick={onPick} />
-      <FitChart objects={objects} focused={focused} cinematic={cinematic} />
+      <OrbitTrails objects={objects} historicalAt={historicalAt} />
+      <RichBodies objects={objects} pet={pet} onPick={onPick} historicalAt={historicalAt} departed={departed} births={births} />
+      <FitChart objects={objects} focused={focused} cinematic={cinematic} historicalAt={historicalAt} />
       <SoundSelection objects={objects} focused={focused} pet={pet} onUpdate={onSoundCandidates} />
       <Meter onFps={onFps} />
     </Canvas>
