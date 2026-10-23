@@ -36,7 +36,10 @@ afterEach(async () => {
 
 async function render(path: string) {
   window.history.replaceState(null, '', path);
-  await act(async () => root.render(<BrowserRouter basename="/galaxy"><App /></BrowserRouter>));
+  await act(async () => {
+    root.render(<BrowserRouter basename="/galaxy"><App /></BrowserRouter>);
+    if (path.startsWith('/galaxy/screen')) await import('./Screen');
+  });
 }
 
 it.each([

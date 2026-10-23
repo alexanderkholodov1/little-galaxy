@@ -31,6 +31,8 @@ import { richCopy } from './rich-copy';
 import { useSound } from './use-sound';
 import SoundControls from './SoundControls';
 import Specimen from './Specimen';
+import { useLiveConfig } from './use-live-config';
+const Interactions = lazy(() => import('./Interactions'));
 import { loadNameHistory, saveNameHistory } from './name-history';
 const Preview = lazy(() => import('./ObjectPreview'));
 function remember(mode: string, objectId?: string) {
@@ -52,6 +54,8 @@ function savedMode(key = 'galaxy.workshop.mode') {
 export default function Create({ language }: { language: Language }) {
   const text = coreCopy[language],
     rich = richCopy[language];
+  const live = useLiveConfig();
+  const launchesOpen = live.status === 'live' && live.config.seasonOpen && live.config.launches;
   const [draft, setDraft] = useState(loadDraft);
   const [message, setMessage] = useState<keyof typeof text | null>(null);
   const [inventory, setInventory] = useState<(GalaxyObject & { id: string })[]>([]);
@@ -59,7 +63,7 @@ export default function Create({ language }: { language: Language }) {
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [catalog, setCatalog] = useState<RenderObject[]>([]);
   const [editing, setEditing] = useState(false);
-  const [editState, setEditState] = useState<'saved' | 'pending' | 'failed' | 'limited'>('saved');
+  const [editState, setEditState] = useState<'saved' | 'pending' | 'failed' | 'limited' | 'closed'>('saved');
   const [editSaving, setEditSaving] = useState(false);
   const exhaustedDay = useRef('');
   const [rolledNames, setRolledNames] = useState(loadNameHistory);
@@ -133,6 +137,7 @@ export default function Create({ language }: { language: Language }) {
       !firestore ||
       busy ||
       editSaving ||
+      !live.config.seasonOpen ||
       exhaustedDay.current === utcDay(Date.now()) ||
       editState === 'failed' ||
       JSON.stringify(draft) === baseline.current
@@ -158,6 +163,12 @@ export default function Create({ language }: { language: Language }) {
           if (error instanceof LaunchError && error.reason === 'editLimit') {
             exhaustedDay.current = utcDay(Date.now());
             setEditState('limited');
+          } else if (error instanceof LaunchError && error.reason === 'cooldown') {
+            // A shared-sky gesture may just have used this identity's write clock.
+            setEditState('pending');
+            setRetry((value) => value + 1);
+          } else if (error instanceof LaunchError && error.reason === 'closed') {
+            setEditState('closed');
           } else setEditState('failed');
         })
         .finally(() => {
@@ -166,14 +177,14 @@ export default function Create({ language }: { language: Language }) {
         });
     }, 2200);
     return () => window.clearTimeout(timer);
-  }, [draft, editing, busy, editSaving, retry, editState]);
+  }, [draft, editing, busy, editSaving, retry, editState, live.config.seasonOpen]);
   async function refresh(uid: string) {
     const all = await ownObjects(firestore!, uid);
     setInventory(all);
     return all;
   }
   async function launch(orbit: Orbit) {
-    if (lock.current) return;
+    if (lock.current || !launchesOpen) return;
     if (!navigator.onLine) {
       setMessage('offline');
       return;
@@ -339,7 +350,15 @@ export default function Create({ language }: { language: Language }) {
         {editing && (
           <>
             <p role="status">
-              {editState === 'saved' ? rich.saved : editState === 'limited' ? text.editLimit : editState === 'failed' ? rich.editFailed : rich.pending}
+              {editState === 'closed' || !live.config.seasonOpen
+                ? text.closed
+                : editState === 'saved'
+                  ? rich.saved
+                  : editState === 'limited'
+                    ? text.editLimit
+                    : editState === 'failed'
+                      ? rich.editFailed
+                      : rich.pending}
             </p>
             {editState === 'failed' && (
               <button
@@ -364,6 +383,7 @@ export default function Create({ language }: { language: Language }) {
       </fieldset>
       {!editing && (
         <div className="launch-desk">
+          {!launchesOpen && <p role="status">{language === 'es' ? 'Lanzamientos pausados o sin conexión. Tu diseño queda aquí.' : 'Launches paused or disconnected. Your design stays here.'}</p>}
           <p className="eyebrow">{text.swipe}</p>
           <p className="launch-instruction">{text.instruction}</p>
           <div
@@ -371,7 +391,7 @@ export default function Create({ language }: { language: Language }) {
             aria-label={text.swipe}
             data-busy={busy}
             onPointerDown={(e) => {
-              if ((kind === 'moon' && hosts.length === 0) || busy || !e.isPrimary || e.button !== 0) return;
+              if (!launchesOpen || (kind === 'moon' && hosts.length === 0) || busy || !e.isPrimary || e.button !== 0) return;
               e.currentTarget.setPointerCapture(e.pointerId);
               start.current = { x: e.clientX, y: e.clientY, t: performance.now(), pointer: e.pointerId };
               setTrace([0, 0]);
@@ -408,7 +428,7 @@ export default function Create({ language }: { language: Language }) {
           </div>
           <p>{text.hint}</p>
           <button
-            disabled={busy || (kind === 'moon' && hosts.length === 0)}
+            disabled={!launchesOpen || busy || (kind === 'moon' && hosts.length === 0)}
             onClick={() =>
               void launch(orbitFromVelocity(0, Math.sqrt(GRAVITY / LAUNCH_RADIUS), 0.08, Date.now()))
             }
@@ -446,9 +466,9 @@ export default function Create({ language }: { language: Language }) {
                     {objectName(o.nameKey, language)} <small>{rich[o.type]}</small>
                   </span>
                   <button
-                    disabled={busy}
+                    disabled={busy || !launchesOpen}
                     onClick={() => {
-                      if (!firestore || lock.current) return;
+                      if (!firestore || lock.current || !launchesOpen) return;
                       lock.current = true;
                       setBusy(true);
                       void anonymousUid()
@@ -493,6 +513,7 @@ export default function Create({ language }: { language: Language }) {
           </p>
         )}
       </section>
+      <Suspense fallback={<p>{text.loading}</p>}><Interactions language={language} config={live.config} status={live.status} retry={live.retry} disabled={busy || editSaving} /></Suspense>
       <SessionLine text={copy[language]} />
     </section>
   );

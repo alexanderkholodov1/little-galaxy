@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { NavLink, Route, Routes, useSearchParams } from 'react-router';
 import { isLanguage, supportedLanguages } from '@little-galaxy/shared';
 import { persistLanguage, resolveLanguage } from './language';
@@ -9,7 +9,7 @@ import { applyTheme, resolveTheme, savedTheme, themeQuery } from './theme';
 import ReferenceSky from './ReferenceSky';
 import SessionLine from './SessionLine';
 import Create from './Create';
-import Screen from './Screen';
+const Screen = lazy(() => import('./Screen'));
 
 type Page = 'home' | 'talk' | 'object' | 'missing';
 
@@ -109,7 +109,7 @@ export default function App() {
       <main id="content">
         <Routes>
           <Route index element={<PageContent page="home" text={text} />} />
-          <Route path="screen" element={<Screen language={language} />} />
+          <Route path="screen" element={<Suspense fallback={<p>{text.loadingSky}</p>}><Screen language={language} /></Suspense>} />
           <Route path="create" element={<Create language={language} />} />
           <Route path="talk" element={<PageContent page="talk" text={text} />} />
           <Route path="o/:id" element={<PageContent page="object" text={text} />} />

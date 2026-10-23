@@ -75,9 +75,9 @@ service cloud.firestore {
     }
     function userSchema(d) {
       return d.keys().hasAll(['schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
-        && d.keys().hasOnly(['editsToday','editDay','schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
-        && d.schemaVersion == 1 && id(d.activeObjectId) && id(d.writeId)
-        && d.launchesToday is int && d.launchesToday >= 1 && d.launchesToday <= 5
+        && d.keys().hasOnly(['interactionDay','interactionsToday','editsToday','editDay','schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
+        && d.schemaVersion == 1 && (id(d.activeObjectId) || d.activeObjectId == '') && id(d.writeId)
+        && d.launchesToday is int && d.launchesToday >= 0 && d.launchesToday <= 5
         && d.launchDay is string && d.lastWriteAt == request.time
         && d.lastShakeAt is timestamp && d.lastCometAt is timestamp && d.lastStarAt is timestamp
         && d.action in ['launch','relaunch','edit','shake','comet','shootingStar'];
@@ -90,6 +90,15 @@ service cloud.firestore {
           && d.editsToday <= 100
         : (d.get('editDay','') == old.get('editDay','') && d.get('editsToday',0) == old.get('editsToday',0))
           || (old.get('editDay','') != today() && d.get('editDay','') == today() && d.get('editsToday',0) == 0);
+    }
+    function interactionAction(a) { return a in ['shake','comet','shootingStar']; }
+    function interactionBudget(d, old) {
+      return interactionAction(d.action)
+        ? d.get('interactionDay','') == today() && d.get('interactionsToday',0) is int
+          && d.interactionsToday == (old.get('interactionDay','') == today() ? old.get('interactionsToday',0) + 1 : 1)
+          && d.interactionsToday <= 10
+        : d.get('interactionDay','') == old.get('interactionDay','')
+          && d.get('interactionsToday',0) == old.get('interactionsToday',0);
     }
     function cooldowns(d, old) {
       return (d.action == 'shake' ? d.lastShakeAt == request.time && request.time >= old.lastShakeAt + duration.value(10,'s') : d.lastShakeAt == old.lastShakeAt)
@@ -132,20 +141,32 @@ service cloud.firestore {
                 && d.diff(old).affectedKeys().hasOnly(['status','updatedAt']) && validHost(d))));
     }
 
+    function initialInteractionClocks(d) {
+      return d.lastShakeAt == (d.action == 'shake' ? request.time : timestamp.value(0))
+        && d.lastCometAt == (d.action == 'comet' ? request.time : timestamp.value(0))
+        && d.lastStarAt == (d.action == 'shootingStar' ? request.time : timestamp.value(0));
+    }
     match /users/{uid} {
       allow get: if own(uid);
-      allow create: if own(uid) && userSchema(request.resource.data) && request.resource.data.action == 'launch'
-        && request.resource.data.launchesToday == 1 && request.resource.data.launchDay == today()
+      allow create: if own(uid) && userSchema(request.resource.data) && request.resource.data.launchDay == today()
         && request.resource.data.get('editsToday',0) == 0
         && request.resource.data.get('editDay',today()) == today()
-        && request.resource.data.lastShakeAt == timestamp.value(0)
-        && request.resource.data.lastCometAt == timestamp.value(0) && request.resource.data.lastStarAt == timestamp.value(0)
-        && activeTransition(request.resource.data, '');
+        && (request.resource.data.action == 'launch'
+          ? request.resource.data.lastShakeAt == timestamp.value(0)
+            && request.resource.data.lastCometAt == timestamp.value(0) && request.resource.data.lastStarAt == timestamp.value(0)
+            && request.resource.data.launchesToday == 1 && request.resource.data.get('interactionsToday',0) == 0
+            && request.resource.data.get('interactionDay',today()) == today() && activeTransition(request.resource.data, '')
+          : interactionAction(request.resource.data.action) && request.resource.data.launchesToday == 0
+            && request.resource.data.activeObjectId == ''
+            && interactionBudget(request.resource.data, {})
+            && initialInteractionClocks(request.resource.data)
+            && eventMatches(request.resource.data.writeId, request.resource.data.action, ''));
       allow update: if own(uid) && userSchema(request.resource.data)
         && request.time >= resource.data.lastWriteAt + duration.value(2,'s')
         && request.resource.data.writeId != resource.data.writeId
         && cooldowns(request.resource.data, resource.data)
         && editBudget(request.resource.data, resource.data)
+        && interactionBudget(request.resource.data, resource.data)
         && (launchAction(request.resource.data.action)
           ? request.resource.data.launchDay == today() && request.resource.data.launchDay >= resource.data.launchDay
             && request.resource.data.launchesToday == (resource.data.launchDay == today() ? resource.data.launchesToday + 1 : 1)
@@ -166,9 +187,10 @@ service cloud.firestore {
               && d.payload.updatedAt == request.time)
             || (d.type == 'shake' && interactionEnabled('shake') && d.payload.keys().size() == 0)
             || (d.type == 'comet' && interactionEnabled('comets') && d.payload.keys().hasAll(['dx','dy']) && d.payload.keys().hasOnly(['dx','dy'])
-                && numberIn(d.payload.dx,-1,1) && numberIn(d.payload.dy,-1,1))
+                && numberIn(d.payload.dx,-1,1) && numberIn(d.payload.dy,-1,1)
+                && d.payload.dx * d.payload.dx + d.payload.dy * d.payload.dy >= 0.01)
             || (d.type == 'shootingStar' && interactionEnabled('shootingStars') && d.payload.keys().hasAll(['messageKey'])
-                && d.payload.keys().hasOnly(['messageKey']) && d.payload.messageKey in ['hello','together','wonder'])));
+                && d.payload.keys().hasOnly(['messageKey']) && d.payload.messageKey in ['hello','together','wonder','wish','orbit','stardust','helloEarth','explore','bright','beyond','dream','thanks'])));
     }
     function interactionEnabled(flag) {
       let flags = config();
@@ -180,10 +202,13 @@ service cloud.firestore {
         && d.keys().hasAll(['schemaVersion','type','objectId','uid','at','payload'])
         && d.keys().hasOnly(['schemaVersion','type','objectId','uid','at','payload'])
         && d.schemaVersion == 1 && d.uid == request.auth.uid
-        && d.at == request.time && id(d.objectId)
+        && d.at == request.time && (id(d.objectId) || (interactionAction(d.type) && d.objectId == ''))
         && d.payload is map && allowedEvent(d, eventId, u);
     }
     match /events/{eventId} {
+      // A moving, bounded recent window only. Never expose the season event history.
+      allow list: if signed() && request.query.limit != null && request.query.limit <= 100
+        && resource.data.at > request.time - duration.value(120, 's');
       allow create: if signed() && validEvent(request.resource.data, eventId);
     }
     match /snapshots/{snapshotId} { allow get: if snapshotId == 'live'; }

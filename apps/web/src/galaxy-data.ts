@@ -56,7 +56,7 @@ export async function launchPlanet(
     const userRef = doc(database, 'users', uid);
     const userDoc = await tx.get(userRef);
     const old = userDoc.exists() ? (userDoc.data() as GalaxyUser<Timestamp>) : null;
-    const previous = old ? await tx.get(doc(database, 'objects', old.activeObjectId)) : null;
+    const previous = old?.activeObjectId ? await tx.get(doc(database, 'objects', old.activeObjectId)) : null;
     const host = draft.type === 'moon' ? await tx.get(doc(database, 'objects', orbit.hostId)) : null;
     const flags = await tx.get(doc(database, 'config', 'live'));
     if (!flags.exists() || !flags.data().seasonOpen || !flags.data().launches)
@@ -88,6 +88,7 @@ export async function launchPlanet(
       launchDay: day,
       editDay: day,
       editsToday: old?.editDay === day ? (old.editsToday ?? 0) : 0,
+      ...(old?.interactionDay !== undefined ? { interactionDay: old.interactionDay, interactionsToday: old.interactionsToday ?? 0 } : {}),
       lastWriteAt: at,
       lastShakeAt: old?.lastShakeAt ?? Timestamp.fromMillis(0),
       lastCometAt: old?.lastCometAt ?? Timestamp.fromMillis(0),
@@ -115,7 +116,7 @@ export async function launchPlanet(
 }
 export async function ownActive(database: Firestore, uid: string): Promise<GalaxyObject | null> {
   const user = await getDoc(doc(database, 'users', uid));
-  if (!user.exists()) return null;
+  if (!user.exists() || !user.data().activeObjectId) return null;
   const active = await getDoc(doc(database, 'objects', user.data().activeObjectId as string));
   return readObject(active.data());
 }
@@ -194,10 +195,13 @@ export async function availableHosts(database: Firestore): Promise<RenderObject[
 export async function editObject(database: Firestore, uid: string, draft: Draft): Promise<void> {
   const event = doc(collection(database, 'events'));
   await runTransaction(database, async (tx) => {
+    const flags = await tx.get(doc(database, 'config', 'live'));
+    if (!flags.exists() || !flags.data()?.seasonOpen) throw new LaunchError('closed');
     const userRef = doc(database, 'users', uid),
       user = await tx.get(userRef);
     if (!user.exists()) throw new LaunchError('closed');
     const u = user.data() as GalaxyUser<Timestamp>;
+    if (!u.activeObjectId) throw new LaunchError('closed');
     const target = doc(database, 'objects', u.activeObjectId),
       current = await tx.get(target);
     if (Date.now() - u.lastWriteAt.toMillis() < 2000) throw new LaunchError('cooldown');
@@ -237,6 +241,7 @@ export async function relaunchObject(database: Firestore, uid: string, objectId:
       user = await tx.get(userRef);
     if (!user.exists()) throw new LaunchError('closed');
     const u = user.data() as GalaxyUser<Timestamp>;
+    if (!u.activeObjectId) throw new LaunchError('closed');
     const target = await tx.get(doc(database, 'objects', objectId));
     const previous = await tx.get(doc(database, 'objects', u.activeObjectId));
     const flags = await tx.get(doc(database, 'config', 'live'));

@@ -15,3 +15,4 @@ export * from './orbit.js';
 export * from './schema.js';
 export * from './layout.js';
 export * from './sound.js';
+export * from './interactions.js';
