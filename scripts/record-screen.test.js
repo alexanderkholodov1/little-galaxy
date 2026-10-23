@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { parseArgs, OBS_INSTRUCTIONS } from './record-screen.mjs';
+import { describe, expect, it, vi } from 'vitest';
+import { parseArgs, OBS_INSTRUCTIONS, LOADING_STATUS_REGEX, FAILED_STATUS_REGEX, recordScreen } from './record-screen.mjs';
+import { chromium } from '@playwright/test';
 
 describe('record-screen options', () => {
   it('parses default options as demo mode', () => {
@@ -42,5 +43,41 @@ describe('record-screen options', () => {
     expect(OBS_INSTRUCTIONS).toContain('1920x1080');
     expect(OBS_INSTRUCTIONS).toContain('Window Capture');
     expect(OBS_INSTRUCTIONS).toContain('usable kiosk');
+  });
+
+  it('detects loading and failure copy in both English and Spanish', () => {
+    // English & Spanish loading states
+    expect(LOADING_STATUS_REGEX.test('Reading the sky…')).toBe(true);
+    expect(LOADING_STATUS_REGEX.test('Leyendo el cielo…')).toBe(true);
+    expect(LOADING_STATUS_REGEX.test('Loading…')).toBe(true);
+    expect(LOADING_STATUS_REGEX.test('Cargando')).toBe(true);
+
+    // English & Spanish failure / unavailable states
+    expect(FAILED_STATUS_REGEX.test('Live connection interrupted. The last known sky keeps moving.')).toBe(true);
+    expect(FAILED_STATUS_REGEX.test('Conexión en vivo interrumpida. El último cielo conocido sigue en movimiento.')).toBe(true);
+    expect(FAILED_STATUS_REGEX.test('The 3D sky could not open.')).toBe(true);
+    expect(FAILED_STATUS_REGEX.test('El cielo en 3D no pudo abrirse.')).toBe(true);
+    expect(FAILED_STATUS_REGEX.test('Failed to connect')).toBe(true);
+    expect(FAILED_STATUS_REGEX.test('Desconectado')).toBe(true);
+  });
+
+  it('terminates chromium when warm-up navigation fails', async () => {
+    const mockCloseBrowser = vi.fn().mockResolvedValue(undefined);
+    const mockCloseWarm = vi.fn().mockResolvedValue(undefined);
+    const mockLaunch = vi.spyOn(chromium, 'launch').mockResolvedValue({
+      newContext: vi.fn().mockResolvedValue({
+        newPage: vi.fn().mockResolvedValue({
+          goto: vi.fn().mockRejectedValue(new Error('Navigation timeout during warm-up')),
+        }),
+        close: mockCloseWarm,
+      }),
+      close: mockCloseBrowser,
+    });
+
+    await expect(recordScreen({ mode: 'demo', duration: 1 })).rejects.toThrow('Navigation timeout during warm-up');
+    expect(mockCloseWarm).toHaveBeenCalledTimes(1);
+    expect(mockCloseBrowser).toHaveBeenCalledTimes(1);
+
+    mockLaunch.mockRestore();
   });
 });

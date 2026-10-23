@@ -80,17 +80,20 @@ export const OBS_INSTRUCTIONS = `
 10. Play the file back and confirm a usable kiosk galaxy (not a loading/error frame) before treating it as a backup.
 `;
 
-const MIN_USABLE_BYTES = 50_000;
+export const MIN_USABLE_BYTES = 50_000;
+export const LOADING_STATUS_REGEX = /loading|cargando|reading the sky|leyendo el cielo/i;
+export const FAILED_STATUS_REGEX = /failed|interrumpida|interrupted|live connection|conexi[oó]n.*interrumpida|unavailable|desconect|no pudo|could not open/i;
 
-async function assertHealthyScreen(page, { requireKiosk }) {
+export async function assertHealthyScreen(page, { requireKiosk }) {
   await page.waitForSelector('.galaxy-field canvas, .galaxy-field[data-scene]', { timeout: 20000 });
 
   const field = page.locator('.field-status');
   const statusText = (await field.count()) ? ((await field.textContent()) ?? '').trim() : '';
-  const loading = /loading|cargando/i.test(statusText);
-  const failed = /failed|interrumpida|unavailable|desconect/i.test(statusText)
+  const loading = LOADING_STATUS_REGEX.test(statusText);
+  const failed = FAILED_STATUS_REGEX.test(statusText)
     || (await page.locator('.events-status').count()) > 0;
-  const hasCanvas = (await page.locator('.galaxy-field canvas').count()) > 0;
+  const canvas = page.locator('.galaxy-field canvas');
+  const hasCanvas = (await canvas.count()) > 0;
   const kiosk = (await page.locator('[data-fullscreen="true"]').count()) > 0;
 
   if (loading || failed) {
@@ -98,6 +101,10 @@ async function assertHealthyScreen(page, { requireKiosk }) {
   }
   if (!hasCanvas) {
     throw new Error('No canvas rendered in .galaxy-field. Refusing to certify a backup.');
+  }
+  const canvasBox = await canvas.first().boundingBox().catch(() => null);
+  if (canvasBox && (canvasBox.width === 0 || canvasBox.height === 0)) {
+    throw new Error('Canvas has zero width or height. Refusing to certify a backup.');
   }
   if (requireKiosk && !kiosk) {
     throw new Error('Kiosk presentation is not active (data-fullscreen != true).');
@@ -140,50 +147,52 @@ export async function recordScreen(options = {}) {
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
 
-  // Phase 1: warm up without recording so startup/error frames are not kept.
-  const warm = await browser.newContext({ viewport: { width, height } });
-  const warmPage = await warm.newPage();
   try {
-    console.log(`[record-screen] Warm-up navigation (not recorded)...`);
-    await warmPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await warmPage.waitForSelector('.galaxy-field', { timeout: 15000 });
-    await warmPage.waitForTimeout(2000);
-    await assertHealthyScreen(warmPage, { requireKiosk: false });
-    const toggle = warmPage.locator('.fullscreen-toggle');
-    if (await toggle.count()) {
-      await toggle.click();
-      await warmPage.waitForSelector('[data-fullscreen="true"]', { timeout: 5000 }).catch(() => {});
+    // Phase 1: warm up without recording so startup/error frames are not kept.
+    const warm = await browser.newContext({ viewport: { width, height } });
+    try {
+      const warmPage = await warm.newPage();
+      console.log(`[record-screen] Warm-up navigation (not recorded)...`);
+      await warmPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await warmPage.waitForSelector('.galaxy-field', { timeout: 15000 });
+      await warmPage.waitForTimeout(2000);
+      await assertHealthyScreen(warmPage, { requireKiosk: false });
+      const toggle = warmPage.locator('.fullscreen-toggle');
+      if (await toggle.count()) {
+        await toggle.click();
+        await warmPage.waitForSelector('[data-fullscreen="true"]', { timeout: 5000 }).catch(() => {});
+      }
+      await assertHealthyScreen(warmPage, { requireKiosk: true });
+      console.log(`[record-screen] Warm-up healthy; kiosk presentation active.`);
+    } finally {
+      await warm.close().catch(() => {});
     }
-    await assertHealthyScreen(warmPage, { requireKiosk: true });
-    console.log(`[record-screen] Warm-up healthy; kiosk presentation active.`);
-  } finally {
-    await warm.close();
-  }
 
-  // Phase 2: record after reload so kiosk intent restores from localStorage.
-  const context = await browser.newContext({
-    viewport: { width, height },
-    recordVideo: { dir: outDir, size: { width, height } },
-  });
-  const page = await context.newPage();
+    // Phase 2: record after reload so kiosk intent restores from localStorage.
+    const context = await browser.newContext({
+      viewport: { width, height },
+      recordVideo: { dir: outDir, size: { width, height } },
+    });
+    let video;
+    try {
+      const page = await context.newPage();
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(1500);
+      const toggle = page.locator('.fullscreen-toggle');
+      if (await toggle.count()) {
+        const label = await toggle.textContent();
+        if (!/exit|salir/i.test(label ?? '')) await toggle.click();
+      }
+      await assertHealthyScreen(page, { requireKiosk: true });
+      console.log(`[record-screen] Recording ${duration}s of healthy kiosk screen...`);
+      await page.waitForTimeout(duration * 1000);
+      await assertHealthyScreen(page, { requireKiosk: true });
 
-  try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(1500);
-    const toggle = page.locator('.fullscreen-toggle');
-    if (await toggle.count()) {
-      const label = await toggle.textContent();
-      if (!/exit|salir/i.test(label ?? '')) await toggle.click();
+      video = page.video();
+      await page.close().catch(() => {});
+    } finally {
+      await context.close().catch(() => {});
     }
-    await assertHealthyScreen(page, { requireKiosk: true });
-    console.log(`[record-screen] Recording ${duration}s of healthy kiosk screen...`);
-    await page.waitForTimeout(duration * 1000);
-    await assertHealthyScreen(page, { requireKiosk: true });
-
-    const video = page.video();
-    await page.close();
-    await context.close();
-    await browser.close();
 
     if (!video) {
       throw new Error('Playwright returned no video object.');
@@ -210,10 +219,8 @@ export async function recordScreen(options = {}) {
       console.log(`[record-screen] Play back and confirm usable kiosk content before treating as booth backup.`);
     }
     return targetPath;
-  } catch (error) {
-    await context.close().catch(() => {});
+  } finally {
     await browser.close().catch(() => {});
-    throw error;
   }
 }
 
