@@ -2,13 +2,14 @@
   "name": "@little-galaxy/stand",
   "private": true,
   "type": "module",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "scripts": {
     "start": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
-    "test": "vitest run --pool=threads"
+    "test": "vitest run --pool=threads",
+    "control": "tsx src/index.ts control"
   },
   "dependencies": {
     "@little-galaxy/shared": "workspace:*",

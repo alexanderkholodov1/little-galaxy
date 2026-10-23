@@ -1,3 +1,4 @@
+import type { ScreenScene } from './interactions.js';
 import type { Orbit } from './orbit.js';
 export const SCHEMA_VERSION = 1;
 export const SEASON = 'bad-2026';
@@ -68,6 +69,8 @@ export interface GalaxyUser<T = unknown> {
   launchDay: string;
   editsToday?: number;
   editDay?: string;
+  interactionDay?: string;
+  interactionsToday?: number;
   lastWriteAt: T;
   lastShakeAt: T;
   lastCometAt: T;
@@ -92,7 +95,11 @@ export interface LiveConfig {
   shake: boolean;
   shootingStars: boolean;
   assistantPublic: boolean;
-  screenScene: 'galaxy' | 'qr';
+  screenScene: ScreenScene;
+  meteorShowers?: boolean;
+  meteorMinSeconds?: number;
+  meteorMaxSeconds?: number;
+  idleSeconds?: number;
 }
 export interface RenderObject {
   id: string;
