@@ -27,12 +27,14 @@ jobs:
         run: pnpm run lint
       - name: Install Chromium for browser checks
         run: pnpm exec playwright install --with-deps chromium
-      - name: Unit and browser tests
-        run: pnpm run test
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '21'
+      - name: Unit and browser tests
+        run: pnpm run test
+      - name: Real build swap acceptance
+        run: pnpm run test:live-safety
       - name: Firestore rules tests
         run: pnpm run test:rules
       - name: Build and run the privacy gate

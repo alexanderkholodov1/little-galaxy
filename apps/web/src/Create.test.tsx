@@ -20,12 +20,14 @@ vi.mock('./galaxy-data', async (original) => ({
   editObject: vi.fn().mockResolvedValue(undefined),
   relaunchObject: vi.fn().mockResolvedValue(undefined),
 }));
+const updates = vi.hoisted(() => ({ updateAvailable: false, reload: vi.fn() }));
+vi.mock('./version-watcher', () => ({ useVersionWatcher: () => updates }));
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
-  localStorage.clear();
+  localStorage.clear(); updates.updateAvailable = false; updates.reload.mockClear();
   sessionStorage.clear();
   vi.mocked(launchPlanet).mockReset().mockResolvedValue('planet');
   container = document.createElement('div');
@@ -249,7 +251,7 @@ it('explains the edit budget and keeps subsequent changes local after exhaustion
 });
 
 vi.mock('./use-live-config', () => ({ useLiveConfig: vi.fn(() => ({ config: { schemaVersion: 1, seasonOpen: true, launches: true, shake: true, comets: true, shootingStars: true, meteorShowers: true, screenScene: 'galaxy', idleSeconds: 60 }, status: 'live', retry: () => {} })) }));
-vi.mock('./Interactions', () => ({ default: () => <div/> }));
+
 
 it('disables launch gestures and relaunch when the live launch switch closes', async () => {
   const { ownObjects } = await import('./galaxy-data');
@@ -283,6 +285,34 @@ it('waits through a shared-interaction cooldown and saves the current edit witho
     await act(async () => vi.advanceTimersByTimeAsync(5000)); expect(editObject).toHaveBeenCalledTimes(2);
   } finally { vi.useRealTimers(); vi.mocked(ownObjects).mockResolvedValue([]); vi.mocked(editObject).mockResolvedValue(undefined); }
 });
+it('restores workshop step and hangar view from localStorage', async () => {
+  localStorage.setItem('galaxy.workshop.step', 'hangar');
+  localStorage.setItem('galaxy.workshop.hangar', 'true');
+  await act(async () => root.render(<Create language="en" />));
+  const workshop = container.querySelector('.workshop');
+  expect(workshop?.getAttribute('data-workshop-step')).toBe('hangar');
+  expect(workshop?.getAttribute('data-hangar-view')).toBe('true');
+  expect(document.activeElement).toBe(container.querySelector('.hangar'));
+});
+
+it('honours edits kill switch, disabling editing controls and showing paused status honestly', async () => {
+  const { ownObjects } = await import('./galaxy-data');
+  const { presets, orbitFromVelocity } = await import('@little-galaxy/shared');
+  vi.mocked(ownObjects).mockResolvedValue([{ schemaVersion: 2, id: 'active', ownerUid: 'visitor', type: 'planet', nameKey: 'quiet-aurora', params: presets.planet[0], orbit: orbitFromVelocity(0, 2.58, 0, 0), status: 'active', createdAt: 0, updatedAt: 0, season: 'bad-2026' }]);
+  vi.mocked(useLiveConfig).mockReturnValue({
+    config: { schemaVersion: 1, appVersion: '0.7.0', seasonOpen: true, launches: true, edits: false, shake: true, comets: true, shootingStars: true, meteorShowers: true, assistantPublic: false, screenScene: 'galaxy', idleSeconds: 60 },
+    status: 'live',
+    retry: () => {},
+  });
+  try {
+    await act(async () => root.render(<Create language="en" />));
+    expect(container.querySelector('fieldset')?.disabled).toBe(true);
+    expect(container.textContent).toContain('Edits paused by operator.');
+  } finally {
+    vi.mocked(ownObjects).mockResolvedValue([]);
+  }
+});
+
 it('pauses live edits cleanly when seasonOpen is false and shows honest closed status', async () => {
   const { ownObjects, editObject } = await import('./galaxy-data');
   const { presets, orbitFromVelocity } = await import('@little-galaxy/shared');
@@ -317,4 +347,58 @@ it('pauses live edits cleanly when seasonOpen is false and shows honest closed s
     vi.mocked(ownObjects).mockResolvedValue([]);
     vi.mocked(editObject).mockReset().mockResolvedValue(undefined);
   }
+});
+
+it('restores the visible 3D inspector after a reload', async () => {
+  localStorage.setItem('galaxy.workshop.inspect3D', 'true');
+  localStorage.setItem('galaxy.workshop.step', 'specimen');
+  await act(async () => root.render(<Create language="en" />));
+  expect(container.querySelector('[data-preview="procedural"]')).not.toBeNull();
+  expect([...container.querySelectorAll('button')].some((b) => b.textContent === 'Inspect in 3D')).toBe(false);
+});
+
+it('announced update waits for post-launch debounced and in-flight edits through the actual deadline', async () => {
+  const { ownObjects, editObject } = await import('./galaxy-data');
+  vi.mocked(ownObjects).mockResolvedValue([]);
+  const live = vi.mocked(useLiveConfig).getMockImplementation()!();
+  vi.mocked(useLiveConfig).mockReturnValue({ ...live, config: { ...live.config, seasonOpen: true, launches: true, edits: true } });
+  let finish!: () => void;
+  vi.mocked(editObject).mockReturnValue(new Promise<void>((resolve) => { finish = resolve; }));
+  updates.updateAvailable = true;
+  vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Create language="en" />));
+    await act(async () => container.querySelector<HTMLButtonElement>('.launch-desk button')!.click());
+    await act(async () => [...container.querySelectorAll('button')].find((b) => b.textContent === 'Preset 2')!.click());
+    await act(async () => vi.advanceTimersByTimeAsync(30000));
+    expect(editObject).toHaveBeenCalled(); expect(updates.reload).not.toHaveBeenCalled();
+    await act(async () => finish());
+    await act(async () => vi.advanceTimersByTimeAsync(22000));
+    expect(updates.reload).toHaveBeenCalled();
+  } finally { vi.useRealTimers(); vi.mocked(editObject).mockResolvedValue(undefined); }
+});
+it.each(['.swipe-window', '.comet-swipe'])('holds announced update throughout a gesture on %s', async (selector) => {
+  const { ownObjects } = await import('./galaxy-data');
+  vi.mocked(ownObjects).mockResolvedValue([]);
+  const live = vi.mocked(useLiveConfig).getMockImplementation()!();
+  vi.mocked(useLiveConfig).mockReturnValue({ ...live, config: { ...live.config, seasonOpen: true, launches: true, comets: true } });
+  updates.updateAvailable = true; vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Create language="en" />));
+    const target = container.querySelector<HTMLDivElement>(selector)!;
+    target.setPointerCapture = vi.fn();
+    const down = new Event('pointerdown', { bubbles: true });
+    Object.assign(down, { isPrimary: true, button: 0, pointerId: 1, clientX: 10, clientY: 10 });
+    await act(async () => target.dispatchEvent(down));
+    await act(async () => vi.advanceTimersByTimeAsync(26000));
+    expect(updates.reload).not.toHaveBeenCalled();
+    await act(async () => target.dispatchEvent(Object.assign(new Event('pointercancel', { bubbles: true }), { pointerId: 1 })));
+    await act(async () => vi.advanceTimersByTimeAsync(22000));
+    expect(updates.reload).toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
+});
+it('recovers inspection from an older workshop specimen step before the explicit preference existed', async () => {
+  localStorage.setItem('galaxy.workshop.step', 'specimen');
+  await act(async () => root.render(<Create language="en" />));
+  expect(container.querySelector('[data-preview="procedural"]')).not.toBeNull();
 });

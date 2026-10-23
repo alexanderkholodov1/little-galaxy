@@ -38,7 +38,7 @@ try {
   if (process.argv[2] === 'freeze-season') {
     console.error('Usage: freeze-season <output-directory>');
   } else {
-    console.error('Controls: scene <galaxy|bigQr|spotlight|cinematic|timelapse>; flag <launches|comets|shake|shootingStars|meteorShowers|seasonOpen> <on|off>; timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
+    console.error('Controls: scene <galaxy|bigQr|spotlight|cinematic|timelapse>; flag <launches|edits|shake|comets|shootingStars|meteorShowers|soundOnScreen|spotlight|seasonOpen> <on|off>; timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
   }
   if (getApps().length) await getFirestore().terminate();
   process.exitCode = 1;

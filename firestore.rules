@@ -136,7 +136,7 @@ service cloud.firestore {
             && get(userPath()).data.activeObjectId == objectId && u.activeObjectId != objectId
             && d.diff(old).affectedKeys().hasOnly(['status','updatedAt'])
           : u.activeObjectId == objectId
-            && ((u.action == 'edit' && old.status == 'active' && d.orbit == old.orbit)
+            && ((u.action == 'edit' && old.status == 'active' && d.orbit == old.orbit && flags.get('edits', true))
               || (u.action == 'relaunch' && old.status == 'hangar' && flags.launches
                 && d.diff(old).affectedKeys().hasOnly(['status','updatedAt']) && validHost(d))));
     }
@@ -183,7 +183,8 @@ service cloud.firestore {
         || (d.type == 'crumble' && eventId == u.writeId + '-crumble' && launchAction(u.action)
           && d.objectId == get(userPath()).data.activeObjectId && objectPayload(d))
         || (eventId == u.writeId && d.type == u.action && d.objectId == u.activeObjectId
-          && ((d.type in ['launch','relaunch','edit'] && objectPayload(d)
+          && (((d.type in ['launch','relaunch']
+                || (d.type == 'edit' && editEnabled())) && objectPayload(d)
               && d.payload.updatedAt == request.time)
             || (d.type == 'shake' && interactionEnabled('shake') && d.payload.keys().size() == 0)
             || (d.type == 'comet' && interactionEnabled('comets') && d.payload.keys().hasAll(['dx','dy']) && d.payload.keys().hasOnly(['dx','dy'])
@@ -191,6 +192,10 @@ service cloud.firestore {
                 && d.payload.dx * d.payload.dx + d.payload.dy * d.payload.dy >= 0.01)
             || (d.type == 'shootingStar' && interactionEnabled('shootingStars') && d.payload.keys().hasAll(['messageKey'])
                 && d.payload.keys().hasOnly(['messageKey']) && d.payload.messageKey in ['hello','together','wonder','wish','orbit','stardust','helloEarth','explore','bright','beyond','dream','thanks'])));
+    }
+    function editEnabled() {
+      let flags = config();
+      return flags.seasonOpen && flags.get('edits', true);
     }
     function interactionEnabled(flag) {
       let flags = config();

@@ -230,7 +230,19 @@ button:disabled { opacity: .6; cursor: wait; }
 .galaxy-field[data-scene="bigQr"] { background: #050c16; }
 .galaxy-field[data-scene="bigQr"] > div:first-child { opacity: .2; }
 @media (max-width: 720px) { .interaction-row { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
-@media (prefers-reduced-motion: reduce) { .scene-crossfade, .star-message { animation: none; } }
+.version-crossfade { position: fixed; inset: 0; z-index: 9999; pointer-events: all; background: #050c16; animation: version-fade-in 600ms forwards; }
+@keyframes version-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scene-crossfade, .star-message, .version-crossfade { animation: none; } }
+
+.update-notice {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  line-height: 1.3;
+  color: var(--action);
+  padding: 8px 12px;
+  border-left: 2px solid currentColor;
+  margin: 16px 0;
+}
 
 @keyframes scene-appear { from { opacity: 0; } to { opacity: 1; } }
 

@@ -11,3 +11,4 @@ private/
 *.log
 .ui-results/
 playwright-report/
+.live-safety/

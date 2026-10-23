@@ -91,6 +91,7 @@ export interface LiveConfig {
   appVersion: string;
   seasonOpen: boolean;
   launches: boolean;
+  edits?: boolean;
   comets: boolean;
   shake: boolean;
   shootingStars: boolean;
@@ -100,6 +101,9 @@ export interface LiveConfig {
   meteorMinSeconds?: number;
   meteorMaxSeconds?: number;
   idleSeconds?: number;
+  soundOnScreen?: boolean;
+  sound?: boolean;
+  spotlight?: boolean;
 }
 export interface RenderObject {
   id: string;

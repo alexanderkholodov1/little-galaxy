@@ -22,7 +22,7 @@ let fail: () => void;
 const stop = vi.fn();
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  stop.mockClear();
+  stop.mockClear(); localStorage.clear(); sessionStorage.clear();
   vi.mocked(useLiveConfig).mockReturnValue({ config: { schemaVersion: 1, appVersion: '0.5.0', seasonOpen: true, launches: true, shake: true, comets: true, shootingStars: true, meteorShowers: true, assistantPublic: false, screenScene: 'galaxy', idleSeconds: 10 }, status: 'live', retry: () => {} });
   vi.mocked(listenActive).mockImplementation((_database, next, error) => { receive = next; fail = error; return stop; });
   container = document.createElement('div'); document.body.append(container); root = createRoot(container);
@@ -97,4 +97,61 @@ it('follows live scenes, spotlights only new launches, returns to the chart and 
       expect(container.querySelector('.join-qr svg')).not.toBeNull();
     }
   } finally { vi.useRealTimers(); }
+});
+
+it('persists screen scene to localStorage and honours sound and spotlight kill switches', async () => {
+  vi.mocked(useLiveConfig).mockReturnValue({
+    config: {
+      schemaVersion: 1, appVersion: '0.7.0', seasonOpen: true, launches: true, shake: true,
+      comets: true, shootingStars: true, meteorShowers: true, assistantPublic: false,
+      screenScene: 'galaxy', idleSeconds: 10, soundOnScreen: false, spotlight: false,
+    },
+    status: 'live',
+    retry: () => {},
+  });
+  await act(async () => root.render(<Screen language="en" />));
+  expect(localStorage.getItem('galaxy.screen.scene')).toBe('galaxy');
+  const soundButton = container.querySelector<HTMLButtonElement>('.sound-controls button');
+  expect(soundButton?.disabled).toBe(true);
+  expect(container.querySelector('.sound-controls')?.textContent).toContain('Sound disabled by operator');
+});
+
+it('restores automatic cinematic scene and focused object before fitting the camera', async () => {
+  const objects = syntheticObjects(1);
+  localStorage.setItem('galaxy.screen.context', JSON.stringify({ configuredScene: 'galaxy', lastActivity: Date.now() - 60000, focused: objects[0].id }));
+  await act(async () => root.render(<Screen language="en" />));
+  await act(async () => receive(objects, false));
+  expect(container.querySelector('[data-screen-scene]')?.getAttribute('data-screen-scene')).toBe('cinematic');
+  expect(container.querySelector('select')?.value).toBe(objects[0].id);
+});
+
+it('restores a still-live spotlight and yields to later operator scene changes', async () => {
+  const objects = syntheticObjects(1);
+  localStorage.setItem('galaxy.screen.context', JSON.stringify({ configuredScene: 'galaxy', lastActivity: Date.now(), spotlight: { id: objects[0].id, until: Date.now() + 8000 } }));
+  await act(async () => root.render(<Screen language="en" />));
+  await act(async () => receive(objects, false));
+  expect(container.querySelector('[data-screen-scene]')?.getAttribute('data-screen-scene')).toBe('spotlight');
+  expect(container.querySelector('canvas')?.getAttribute('data-focused')).toBe(objects[0].id);
+  const live = vi.mocked(useLiveConfig).mock.results.at(-1)!.value;
+  vi.mocked(useLiveConfig).mockReturnValue({ ...live, config: { ...live.config, screenScene: 'bigQr' } });
+  await act(async () => root.render(<Screen language="en" />));
+  expect(container.querySelector('[data-screen-scene]')?.getAttribute('data-screen-scene')).toBe('bigQr');
+  expect(container.querySelector('canvas')?.getAttribute('data-focused')).toBeNull();
+});
+it('keeps backend-free synthetic audio available without a live backend', async () => {
+  const { closedConfig } = await import('./live-config');
+  vi.mocked(useLiveConfig).mockReturnValue({ config: closedConfig, status: 'failed', retry: () => {} });
+  history.replaceState(null, '', '/galaxy/screen?synthetic=1');
+  try {
+    await act(async () => root.render(<Screen language="en" />));
+    expect(container.querySelector<HTMLButtonElement>('.sound-controls button')?.disabled).toBe(false);
+  } finally { history.replaceState(null, '', '/'); }
+});
+
+it('labels unavailable sound permission as disconnected rather than an operator decision', async () => {
+  const { closedConfig } = await import('./live-config');
+  vi.mocked(useLiveConfig).mockReturnValue({ config: closedConfig, status: 'failed', retry: () => {} });
+  await act(async () => root.render(<Screen language="en" />));
+  expect(container.querySelector('.sound-controls')?.textContent).toContain('Sound paused until live controls reconnect');
+  expect(container.querySelector<HTMLButtonElement>('.sound-controls button')?.disabled).toBe(true);
 });

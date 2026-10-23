@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RenderObject, SoundCandidate } from '@little-galaxy/shared';
-import { createSoundController, savedSoundMute } from './sound-controller';
+import { createSoundController, savedSoundMute, savedSoundVolume } from './sound-controller';
 import type { AudioState } from './sound-controller';
-export function useSound(count: number) {
+export function useSound(count: number, allowed = true) {
   const controller = useRef<ReturnType<typeof createSoundController> | null>(null);
   const [state, setState] = useState<AudioState>('locked');
   const [muted, setMuted] = useState(savedSoundMute);
-  const [volume, setVolume] = useState(0.32);
+  const [volume, setVolume] = useState(savedSoundVolume);
   const volumeRef = useRef(volume);
   const latest = useRef<{ objects: RenderObject[]; candidates: SoundCandidate[] }>({ objects: [], candidates: [] });
   useEffect(() => {
@@ -18,7 +18,7 @@ export function useSound(count: number) {
       if (event.target instanceof Element && event.target.closest('.sound-controls button')) return;
       if (event.isTrusted) void sound.unlock();
     };
-    const visibility = () => { sound.setVolume(document.hidden ? 0 : volumeRef.current); };
+    const visibility = () => { sound.setVolume(document.hidden ? 0 : volumeRef.current, false); };
     document.addEventListener('pointerup', unlock);
     document.addEventListener('keydown', unlock);
     document.addEventListener('visibilitychange', visibility);
@@ -29,6 +29,7 @@ export function useSound(count: number) {
       sound.dispose(); controller.current = null;
     };
   }, [count]);
+  useEffect(() => { controller.current?.setAllowed(allowed); }, [allowed, count]);
   const update = useCallback((objects: RenderObject[], candidates: SoundCandidate[]) => {
     latest.current = { objects, candidates }; controller.current?.update(objects, candidates);
   }, []);
@@ -38,6 +39,9 @@ export function useSound(count: number) {
     controller.current?.setMute(!muted); setMuted(!muted);
   };
   return { state, muted, volume, update, pet, toggle, setVolume(value: number) {
-    volumeRef.current = value; setVolume(value); controller.current?.setVolume(value);
+    volumeRef.current = value;
+    setVolume(value);
+    try { localStorage.setItem('galaxy.sound.volume', String(value)); } catch { /* Storage optional. */ }
+    controller.current?.setVolume(value);
   } };
 }

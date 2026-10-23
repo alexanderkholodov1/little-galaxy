@@ -8,8 +8,16 @@ import { loadBuildEnv } from './build-env.js';
 export default defineConfig(({ command, mode }) => {
   const env = loadBuildEnv(process.cwd(), mode);
   assertProductionEnv(command, mode, env);
+  const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+  const metadata = createVersionFile(pkg, env, () => execFileSync('git', ['rev-parse', 'HEAD'], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+  }));
   return {
     base: '/galaxy/',
+    define: {
+      __APP_VERSION__: JSON.stringify(metadata.version),
+      __APP_COMMIT__: JSON.stringify(metadata.commit),
+    },
     plugins: [react(), {
       name: 'galaxy-version',
       generateBundle() {
@@ -26,10 +34,6 @@ export default defineConfig(({ command, mode }) => {
           this.emitFile({ type: 'asset', fileName: `licenses/${name}`,
             source: readFileSync(new URL(`./src/assets/licenses/${name}`, import.meta.url), 'utf8') });
         }
-        const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-        const metadata = createVersionFile(pkg, env, () => execFileSync('git', ['rev-parse', 'HEAD'], {
-          encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-        }));
         this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify(metadata, null, 2) + '\n' });
       },
     }],

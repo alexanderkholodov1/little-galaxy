@@ -3,7 +3,8 @@ import { controlPatch } from './control.js';
 import { meteorInterval } from './meteors.js';
 it('allowlists operator controls without accepting assistant scenes or arbitrary fields', () => {
   for (const scene of ['galaxy','bigQr','spotlight','cinematic','timelapse']) expect(controlPatch(['scene', scene])).toEqual({ screenScene: scene });
-  for (const flag of ['comets','shake','shootingStars','launches','meteorShowers','seasonOpen']) expect(controlPatch(['flag', flag, 'off'])).toEqual({ [flag]: false });
+  for (const flag of ['comets','shake','shootingStars','launches','edits','meteorShowers','soundOnScreen','spotlight','seasonOpen']) expect(controlPatch(['flag', flag, 'off'])).toEqual({ [flag]: false });
+  expect(controlPatch(['flag', 'sound', 'off'])).toEqual({ soundOnScreen: false, sound: false });
   expect(controlPatch(['timing', 'idleSeconds', '10'])).toEqual({ idleSeconds: 10 });
   for (const args of [['scene','assistant'],['scene','galaxy','extra'],['flag','assistantPublic','on'],['flag','launches','true'],['timing','meteorMinSeconds','1'],['timing','idleSeconds','NaN'],['timing','idleSeconds','3601']]) expect(() => controlPatch(args)).toThrow();
 });

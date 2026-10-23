@@ -4,14 +4,18 @@ export function controlPatch(args: string[]): Record<string, string | boolean | 
   const [command, key, value, ...extra] = args;
   if (!extra.length && command === 'scene' && screenScenes.includes(key as typeof screenScenes[number]) && value === undefined)
     return { screenScene: key };
-  if (!extra.length && command === 'flag' && ['launches','comets','shake','shootingStars','meteorShowers','seasonOpen'].includes(key)
-    && ['on','off'].includes(value)) return { [key]: value === 'on' };
+  if (!extra.length && command === 'flag' && ['launches','edits','comets','shake','shootingStars','meteorShowers','soundOnScreen','sound','spotlight','seasonOpen'].includes(key)
+    && ['on','off'].includes(value)) {
+    const flagVal = value === 'on';
+    if (key === 'sound') return { soundOnScreen: flagVal, sound: flagVal };
+    return { [key]: flagVal };
+  }
   if (!extra.length && command === 'timing' && ['idleSeconds','meteorMinSeconds','meteorMaxSeconds'].includes(key)
     && /^\d+$/.test(value)) {
     const seconds = Number(value), min = key === 'idleSeconds' ? 10 : 60;
     if (seconds >= min && seconds <= 3600) return { [key]: seconds };
   }
-  throw new Error('Use control scene <galaxy|bigQr|spotlight|cinematic|timelapse>, flag <launches|comets|shake|shootingStars|meteorShowers|seasonOpen> <on|off>, or timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
+  throw new Error('Use control scene <galaxy|bigQr|spotlight|cinematic|timelapse>, flag <launches|edits|shake|comets|shootingStars|meteorShowers|soundOnScreen|spotlight|seasonOpen> <on|off>, or timing <idleSeconds|meteorMinSeconds|meteorMaxSeconds> <seconds>.');
 }
 export async function applyControl(database: Firestore, args: string[]) {
   const patch = controlPatch(args);
