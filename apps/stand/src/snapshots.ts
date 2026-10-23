@@ -33,7 +33,7 @@ export function compactSnapshot(documents: { id: string; data(): unknown }[]): O
   return snapshot;
 }
 /** Publish only a healthy listener's state; reconnect with bounded exponential backoff. */
-export function startSnapshotWriter(database: Firestore, onError: () => void, interval = 30_000) {
+export function startSnapshotWriter(database: Firestore, onError: () => void, interval = 30_000, observe?: (count: number) => void) {
   let latest: Omit<LiveSnapshot, 'at'> | undefined;
   let pending: Promise<void> | undefined;
   let stopped = false;
@@ -66,6 +66,7 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
     try {
       unsubscribe = database.collection('objects').where('status', '==', 'active').onSnapshot((snapshot) => {
         if (stopped || current !== generation) return;
+        observe?.(snapshot.docChanges().length || (snapshot.empty ? 1 : 0));
         const update = ++revision;
         const ids = new Set(snapshot.docs.map((d) => d.id));
         const missing = new Set(snapshot.docs.flatMap((d) => {
@@ -74,6 +75,7 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
         }));
         for (const id of hosts.keys()) if (!missing.has(id)) hosts.delete(id);
         void Promise.all([...missing].map(async (id) => {
+          if (!hosts.has(id)) observe?.(1);
           const document = hosts.get(id) ?? await database.doc(`objects/${id}`).get();
           if (readObject(document.data())?.type !== 'planet') throw new Error('Moon host unavailable');
           if (!stopped && current === generation && update === revision) hosts.set(id, document);

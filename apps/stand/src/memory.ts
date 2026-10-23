@@ -83,9 +83,10 @@ export async function readSeason(database: Firestore): Promise<SeasonData> {
     return buildSeason(objects.docs, events.docs);
   }, { readOnly: true });
 }
-export async function publishSeason(database: Firestore, season: SeasonData) {
+export async function publishSeason(database: Firestore, season: SeasonData, observe?: (count: number) => void) {
   // Only changed mutable shards are rewritten. Log chunks are immutable and reusable across revisions.
   const manifestRef = database.doc(`seasons/${SEASON}/meta/manifest`);
+  observe?.(1);
   const previous = await manifestRef.get();
   const old = previous.data();
   const hashes = Object.fromEntries(Object.entries(season.files).map(([id, data]) => [id, createHash('sha256').update(JSON.stringify(data)).digest('hex')]));
@@ -101,16 +102,16 @@ export async function publishSeason(database: Firestore, season: SeasonData) {
   }
 }
 /** One cached listener per source; serialize/debounce publication and stop all work on shutdown. */
-export function startMemoryWriter(database: Firestore, onError: () => void, delay = 30_000) {
+export function startMemoryWriter(database: Firestore, onError: () => void, delay = 30_000, observe?: (count: number) => void) {
   let objects: Source[] | undefined, events: Source[] | undefined, timer: ReturnType<typeof setTimeout> | undefined;
   let pending = Promise.resolve(), stopped = false;
   const flush = () => {
     if (stopped || !objects || !events) return;
     const a = objects, b = events;
-    pending = pending.then(() => publishSeason(database, buildSeason(a, b))).catch(onError);
+    pending = pending.then(() => publishSeason(database, buildSeason(a, b), observe)).catch(onError);
   };
   const schedule = () => { if (!timer) timer = setTimeout(() => { timer = undefined; flush(); }, delay); };
-  const a = database.collection('objects').onSnapshot((s) => { objects = s.docs; schedule(); }, onError);
-  const b = database.collection('events').onSnapshot((s) => { events = s.docs; schedule(); }, onError);
+  const a = database.collection('objects').onSnapshot((s) => { observe?.(s.docChanges().length || (s.empty ? 1 : 0)); objects = s.docs; schedule(); }, onError);
+  const b = database.collection('events').onSnapshot((s) => { observe?.(s.docChanges().length || (s.empty ? 1 : 0)); events = s.docs; schedule(); }, onError);
   return async () => { stopped = true; clearTimeout(timer); a(); b(); await pending; };
 }

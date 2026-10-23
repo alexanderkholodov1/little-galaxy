@@ -4,6 +4,9 @@ import { generateQuotaReportMarkdown } from './load-test.ts';
 describe('generateQuotaReportMarkdown', () => {
   it('renders FAIL statuses from budget booleans and reports failures', () => {
     const md = generateQuotaReportMarkdown({
+      transactionAttempts: 700,
+      commitRequests: 700,
+      projections: [],
       totalVisitors: 100,
       successfulVisitors: 0,
       failedVisitors: 100,
@@ -48,6 +51,9 @@ describe('generateQuotaReportMarkdown', () => {
 
   it('renders PASS when budgets succeed and all visitors complete', () => {
     const md = generateQuotaReportMarkdown({
+      transactionAttempts: 700,
+      commitRequests: 700,
+      projections: [],
       totalVisitors: 100,
       successfulVisitors: 100,
       failedVisitors: 0,
