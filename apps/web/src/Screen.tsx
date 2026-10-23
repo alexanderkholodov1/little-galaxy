@@ -98,6 +98,63 @@ export default function Screen({ language }: { language: Language }) {
     }, () => setEventsFailed(true));
   }, [synthetic, attempt, replaying, spotlightEnabled]);
   const sound = useSound(8);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mouseIdle, setMouseIdle] = useState(false);
+
+  const toggleFullscreen = () => {
+    if (typeof document === 'undefined') return;
+    if (!document.fullscreenElement) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+      } else {
+        setIsFullscreen((v) => !v);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      } else {
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'f' || e.key === 'F') {
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let timer: ReturnType<typeof setTimeout>;
+    const onMouseMove = () => {
+      setMouseIdle(false);
+      clearTimeout(timer);
+      timer = setTimeout(() => setMouseIdle(true), 2500);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    timer = setTimeout(() => setMouseIdle(true), 2500);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      clearTimeout(timer);
+    };
+  }, []);
   const [focused, setFocused] = useState<string>();
   const [pet, setPet] = useState<{ id: string; at: number }>();
   const focusObject = spotlightObject ?? objects.find((o) => o.id === focused);
@@ -140,9 +197,9 @@ export default function Screen({ language }: { language: Language }) {
   }, [attempt, synthetic, replaying]);
   const visibleEffects = useMemo(() => effects.filter((e) => synthetic || (live.config.seasonOpen && (e.type === 'wave' ? live.config.shake : e.type === 'comet' ? live.config.comets : e.type === 'shootingStar' ? live.config.shootingStars : live.config.meteorShowers))), [effects, synthetic, live.config]);
   const status = synthetic ? 'live' : !firestore ? 'failed' : state;
-  if (scene === 'timelapse') return <section className="screen-replay" data-screen-scene="timelapse"><Suspense fallback={<p>{text.loading}</p>}><Timelapse language={language} join={<a className="join-qr replay-join" href={join}><span className="qr-image" dangerouslySetInnerHTML={{ __html: qrSvg }}/><span>{text.join}</span></a>}/></Suspense></section>;
+  if (scene === 'timelapse') return <section className="screen-replay" data-screen-scene="timelapse" data-fullscreen={isFullscreen ? 'true' : 'false'} data-mouse-idle={mouseIdle ? 'true' : 'false'}><Suspense fallback={<p>{text.loading}</p>}><Timelapse language={language} join={<a className="join-qr replay-join" href={join}><span className="qr-image" dangerouslySetInnerHTML={{ __html: qrSvg }}/><span>{text.join}</span></a>}/></Suspense></section>;
   return (
-    <section className="live-screen" data-screen-scene={scene}>
+    <section className="live-screen" data-screen-scene={scene} data-fullscreen={isFullscreen ? 'true' : 'false'} data-mouse-idle={mouseIdle ? 'true' : 'false'}>
       <div className="screen-heading">
         <p className="eyebrow">Collective Galaxy / 2026</p>
         <h1>{text.screen}</h1>
@@ -157,6 +214,16 @@ export default function Screen({ language }: { language: Language }) {
           </select>
         </label>
         {focusObject && <button onClick={() => pick(focusObject.id)}>{language === 'es' ? 'Acariciar objeto enfocado' : 'Pet focused object'}</button>}
+        <button
+          type="button"
+          className="fullscreen-toggle"
+          aria-label={language === 'es' ? 'Pantalla completa (tecla F)' : 'Fullscreen (F key)'}
+          onClick={toggleFullscreen}
+        >
+          {isFullscreen
+            ? (language === 'es' ? 'Salir de pantalla completa' : 'Exit fullscreen')
+            : (language === 'es' ? 'Pantalla completa' : 'Fullscreen')}
+        </button>
       </div>
       <div className="galaxy-field" data-scene={scene}>
         <ErrorBoundary

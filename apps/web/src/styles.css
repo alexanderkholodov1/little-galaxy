@@ -282,3 +282,66 @@ button:disabled { opacity: .6; cursor: wait; }
 .screen-replay .memory-field { height: min(60vh, calc(100dvh - 29rem)); }
 .replay-back { margin: 16px 32px; min-height: 44px; }
 .replay-controls .memory-return { margin-top: 0; }
+
+/* Booth TV Kiosk & Fullscreen presentation */
+.app-shell[data-page="screen"] { padding: 0 clamp(0.75rem, 2vw, 2rem); }
+.app-shell[data-page="screen"] .portfolio-header,
+.app-shell[data-page="screen"] .galaxy-nav { display: none; }
+.app-shell[data-page="screen"] main { display: block; padding-top: 0.5rem; }
+
+.live-screen[data-mouse-idle="true"],
+.live-screen[data-mouse-idle="true"] *,
+.screen-replay[data-mouse-idle="true"],
+.screen-replay[data-mouse-idle="true"] * {
+  cursor: none !important;
+}
+
+.live-screen[data-fullscreen="true"],
+.screen-replay[data-fullscreen="true"] {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+  background: #050c16;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.live-screen[data-fullscreen="true"] .screen-heading {
+  display: none;
+}
+
+.live-screen[data-fullscreen="true"] .screen-sound {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  margin: 0;
+  background: #050c16e6;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--rule);
+  transition: opacity 300ms ease;
+}
+
+.live-screen[data-fullscreen="true"][data-mouse-idle="true"] .screen-sound {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.live-screen[data-fullscreen="true"] .galaxy-field {
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+}
+
+.fullscreen-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+

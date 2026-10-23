@@ -115,3 +115,35 @@ it('persists screen scene to localStorage and honours sound and spotlight kill s
   expect(soundButton?.disabled).toBe(true);
   expect(container.querySelector('.sound-controls')?.textContent).toContain('Sound disabled by operator');
 });
+
+it('provides fullscreen toggle, keyboard shortcut, and tracks mouse idle', async () => {
+  vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Screen language="en"/>));
+    const fsBtn = container.querySelector<HTMLButtonElement>('.fullscreen-toggle')!;
+    expect(fsBtn).not.toBeNull();
+    expect(fsBtn.textContent).toBe('Fullscreen');
+
+    const screenSection = container.querySelector('.live-screen')!;
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('false');
+
+    await act(async () => fsBtn.click());
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('true');
+    expect(fsBtn.textContent).toBe('Exit fullscreen');
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    });
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('false');
+
+    await act(async () => {
+      window.dispatchEvent(new MouseEvent('mousemove'));
+    });
+    expect(screenSection.getAttribute('data-mouse-idle')).toBe('false');
+    await act(async () => vi.advanceTimersByTimeAsync(2600));
+    expect(screenSection.getAttribute('data-mouse-idle')).toBe('true');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
