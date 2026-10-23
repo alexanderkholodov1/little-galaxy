@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { objectName, syntheticObjects } from '@little-galaxy/shared';
 import type { Language, RenderObject, ScreenScene } from '@little-galaxy/shared';
@@ -101,7 +101,7 @@ export default function Screen({ language }: { language: Language }) {
   const [kioskPresentation, setKioskPresentation] = useState(() => restored.kioskPresentation === true);
   const [mouseIdle, setMouseIdle] = useState(false);
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = useCallback(() => {
     if (typeof document === 'undefined') return;
     const isDomFs = Boolean(document.fullscreenElement);
     if (isDomFs) {
@@ -118,7 +118,7 @@ export default function Screen({ language }: { language: Language }) {
         setKioskPresentation(false);
       }
     }
-  };
+  }, [kioskPresentation]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -143,7 +143,7 @@ export default function Screen({ language }: { language: Language }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [kioskPresentation]);
+  }, [toggleFullscreen]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
