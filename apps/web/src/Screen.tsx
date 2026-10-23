@@ -26,7 +26,7 @@ export default function Screen({ language }: { language: Language }) {
   const live = useLiveConfig(synthetic > 0);
   const { updateAvailable, reload } = useVersionWatcher({ appVersion: live.config.appVersion });
   const [reloading, setReloading] = useState(false);
-  const soundAllowed = live.config.soundOnScreen !== false && live.config.sound !== false;
+  const soundAllowed = synthetic > 0 || (live.config.soundOnScreen !== false && live.config.sound !== false);
   const spotlightEnabled = live.status === 'live' ? live.config.spotlight !== false : true;
   const [now, setNow] = useState(Date.now);
   const [restored] = useState(() => {
@@ -163,7 +163,7 @@ export default function Screen({ language }: { language: Language }) {
         <h1>{text.screen}</h1>
       </div>
       <div className="screen-sound">
-        <SoundControls sound={sound} language={language} screen disabled={!soundAllowed} disabledReason={language === 'es' ? 'Sonido desactivado por el operador' : 'Sound disabled by operator'}/>
+        <SoundControls sound={sound} language={language} screen disabled={!soundAllowed} disabledReason={live.status === 'live' ? (language === 'es' ? 'Sonido desactivado por el operador' : 'Sound disabled by operator') : (language === 'es' ? 'Sonido pausado hasta reconectar los controles' : 'Sound paused until live controls reconnect')}/>
         <label>{language === 'es' ? 'Enfocar objeto' : 'Focus object'}
           <select aria-label={language === 'es' ? 'Enfocar objeto' : 'Focus object'} value={focusObject?.id ?? ''}
             onChange={(e) => { setFocused(e.target.value || undefined); setSpotlight(undefined); setLastActivity(Date.now()); }}>

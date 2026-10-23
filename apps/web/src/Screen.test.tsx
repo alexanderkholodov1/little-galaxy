@@ -138,3 +138,20 @@ it('restores a still-live spotlight and yields to later operator scene changes',
   expect(container.querySelector('[data-screen-scene]')?.getAttribute('data-screen-scene')).toBe('bigQr');
   expect(container.querySelector('canvas')?.getAttribute('data-focused')).toBeNull();
 });
+it('keeps backend-free synthetic audio available without a live backend', async () => {
+  const { closedConfig } = await import('./live-config');
+  vi.mocked(useLiveConfig).mockReturnValue({ config: closedConfig, status: 'failed', retry: () => {} });
+  history.replaceState(null, '', '/galaxy/screen?synthetic=1');
+  try {
+    await act(async () => root.render(<Screen language="en" />));
+    expect(container.querySelector<HTMLButtonElement>('.sound-controls button')?.disabled).toBe(false);
+  } finally { history.replaceState(null, '', '/'); }
+});
+
+it('labels unavailable sound permission as disconnected rather than an operator decision', async () => {
+  const { closedConfig } = await import('./live-config');
+  vi.mocked(useLiveConfig).mockReturnValue({ config: closedConfig, status: 'failed', retry: () => {} });
+  await act(async () => root.render(<Screen language="en" />));
+  expect(container.querySelector('.sound-controls')?.textContent).toContain('Sound paused until live controls reconnect');
+  expect(container.querySelector<HTMLButtonElement>('.sound-controls button')?.disabled).toBe(true);
+});
