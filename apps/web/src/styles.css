@@ -239,3 +239,4 @@ button:disabled { opacity: .6; cursor: wait; }
 
 .live-screen[data-screen-scene="bigQr"] .screen-heading, .live-screen[data-screen-scene="bigQr"] .screen-sound { display: none; }
 .live-screen[data-screen-scene="bigQr"] .galaxy-field { height: min(80vh, calc(100dvh - 16rem)); }
+.galaxy-field[data-scene="timelapse"] .screen-reading { display: none; }

@@ -1,4 +1,4 @@
-/* global document, innerWidth */
+/* global document, innerWidth, window */
 import { expect, test } from '@playwright/test';
 const artifact = process.env.GALAXY_SCREENSHOTS;
 test('crowd wave, directional comet, meteor shower and bilingual shooting star render without backend traffic', async ({ page }) => {
@@ -37,6 +37,8 @@ test('big QR fits the booth chart and timelapse is an explicit placeholder', asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto('/galaxy/screen?synthetic=12&scene=timelapse&lang=es');
   await expect(page.locator('.timelapse-placeholder')).toContainText('La repetición llegará');
+  await expect(page.locator('.screen-reading')).toBeHidden();
+  await page.waitForTimeout(1000);
   await expect(page.locator('.join-qr')).toBeVisible();
   if (artifact) await page.screenshot({ path: `${artifact}/timelapse-375-es.png`, fullPage: true });
 });
