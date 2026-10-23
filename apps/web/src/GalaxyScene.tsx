@@ -32,7 +32,7 @@ function savedCameraLook(): [number, number, number] {
   return [0, 0, 0];
 }
 
-function FitChart({ objects, focused, cinematic, historicalAt }: { objects: RenderObject[]; focused?: string; cinematic?: boolean; historicalAt?: number }) {
+function FitChart({ objects, focused, cinematic, historicalAt, ready }: { objects: RenderObject[]; focused?: string; cinematic?: boolean; historicalAt?: number; ready: boolean }) {
   const { camera, size } = useThree();
   const object = useMemo(() => objects.find((o) => o.id === focused), [objects, focused]);
   const chart = useMemo(() => chartFrame(objects), [objects]);
@@ -41,10 +41,12 @@ function FitChart({ objects, focused, cinematic, historicalAt }: { objects: Rend
   const points = useMemo(() => ({ position: new Vector3(), target: new Vector3(...initialCam), look: new Vector3(...initialLook) }), [initialCam, initialLook]);
   const reduced = useMemo(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, []);
   const lastSave = useRef(0);
+  const phase = useRef((() => { try { return Number(localStorage.getItem('galaxy.screen.phase')) || 0; } catch { return 0; } })());
 
   useEffect(() => {
     const saveState = () => {
       try {
+        localStorage.setItem('galaxy.screen.phase', String(phase.current));
         localStorage.setItem('galaxy.screen.camera', JSON.stringify([camera.position.x, camera.position.y, camera.position.z]));
         localStorage.setItem('galaxy.screen.look', JSON.stringify([points.look.x, points.look.y, points.look.z]));
       } catch { /* Storage optional. */ }
@@ -58,7 +60,9 @@ function FitChart({ objects, focused, cinematic, historicalAt }: { objects: Rend
   }, [camera, points.look]);
 
   useFrame(({ clock }, delta) => {
+    if (!ready) return;
     const position = points.position;
+    if (cinematic && !reduced) phase.current += delta * .035;
     if (object) {
       position.set(...worldPosition(object, historicalAt ?? Date.now()));
       const distance = Math.max(4, object.params.size * 9) * Math.max(1, size.height / size.width);
@@ -66,7 +70,7 @@ function FitChart({ objects, focused, cinematic, historicalAt }: { objects: Rend
     } else {
       position.set(...chart.center);
       const distance = chart.radius * 1.8 * Math.max(1, size.height / size.width);
-      const angle = cinematic && !reduced ? clock.elapsedTime * .035 : 0;
+      const angle = cinematic && !reduced ? phase.current : 0;
       points.target.set(position.x + Math.sin(angle) * distance * .6, position.y - distance * .4, position.z + Math.cos(angle) * distance);
     }
     const blend = reduced ? 1 : 1 - Math.exp(-delta * 2);
@@ -76,6 +80,7 @@ function FitChart({ objects, focused, cinematic, historicalAt }: { objects: Rend
     if (clock.elapsedTime - lastSave.current > 0.5) {
       lastSave.current = clock.elapsedTime;
       try {
+        localStorage.setItem('galaxy.screen.phase', String(phase.current));
         localStorage.setItem('galaxy.screen.camera', JSON.stringify([camera.position.x, camera.position.y, camera.position.z]));
         localStorage.setItem('galaxy.screen.look', JSON.stringify([points.look.x, points.look.y, points.look.z]));
       } catch { /* Storage optional. */ }
@@ -127,9 +132,10 @@ export default function GalaxyScene({
   label,
   unavailable,
   onFps,
-  focused, pet, onPick, onSoundCandidates, cinematic, historicalAt, departed, births,
+  focused, pet, onPick, onSoundCandidates, cinematic, historicalAt, departed, births, ready = true,
 }: {
   objects: RenderObject[];
+  ready?: boolean;
   label: string;
   unavailable: string;
   onFps?: (fps: number) => void;
@@ -162,7 +168,7 @@ export default function GalaxyScene({
       </mesh>
       <OrbitTrails objects={objects} historicalAt={historicalAt} />
       <RichBodies objects={objects} pet={pet} onPick={onPick} historicalAt={historicalAt} departed={departed} births={births} />
-      <FitChart objects={objects} focused={focused} cinematic={cinematic} historicalAt={historicalAt} />
+      <FitChart ready={ready} objects={objects} focused={focused} cinematic={cinematic} historicalAt={historicalAt} />
       <SoundSelection objects={objects} focused={focused} pet={pet} onUpdate={onSoundCandidates} />
       <Meter onFps={onFps} />
     </Canvas>

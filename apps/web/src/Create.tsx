@@ -35,7 +35,6 @@ import { useLiveConfig } from './use-live-config';
 const Interactions = lazy(() => import('./Interactions'));
 import { loadNameHistory, saveNameHistory } from './name-history';
 import { useVersionWatcher } from './version-watcher';
-import { triggerStateSave } from './live-safety';
 const Preview = lazy(() => import('./ObjectPreview'));
 function remember(mode: string, objectId?: string) {
   try {
@@ -57,7 +56,7 @@ export default function Create({ language }: { language: Language }) {
   const text = coreCopy[language],
     rich = richCopy[language];
   const live = useLiveConfig();
-  const { updateAvailable } = useVersionWatcher({ appVersion: live.config.appVersion });
+  const { updateAvailable, reload } = useVersionWatcher({ appVersion: live.config.appVersion });
   const launchesOpen = live.status === 'live' && live.config.seasonOpen && live.config.launches;
   const editsOpen = live.status === 'live' ? (live.config.seasonOpen && live.config.edits !== false) : true;
   const [draft, setDraft] = useState(loadDraft);
@@ -67,7 +66,9 @@ export default function Create({ language }: { language: Language }) {
   const [hangarView, setHangarView] = useState<boolean>(() => {
     try { return localStorage.getItem('galaxy.workshop.hangar') === 'true'; } catch { return false; }
   });
-  const [inspect3D, setInspect3D] = useState(false);
+  const [inspect3D, setInspect3D] = useState(() => savedMode('galaxy.workshop.inspect3D') === 'true');
+  const pointers = useRef(new Set<number>());
+  const interactionBusy = useRef(false);
   const lastActivity = useRef(0);
   const markActivity = useCallback(() => { lastActivity.current = Date.now(); }, []);
   const [message, setMessage] = useState<keyof typeof text | null>(null);
@@ -88,16 +89,18 @@ export default function Create({ language }: { language: Language }) {
 
   useEffect(() => {
     try {
+      localStorage.setItem('galaxy.workshop.inspect3D', String(inspect3D));
       localStorage.setItem('galaxy.workshop.step', workshopStep);
       localStorage.setItem('galaxy.workshop.hangar', String(hangarView));
     } catch { /* Storage optional. */ }
-  }, [workshopStep, hangarView]);
+  }, [workshopStep, hangarView, inspect3D]);
 
   useEffect(() => {
     const onSave = () => {
       saveDraft(draft);
       try {
-        localStorage.setItem('galaxy.workshop.step', workshopStep);
+        localStorage.setItem('galaxy.workshop.inspect3D', String(inspect3D));
+      localStorage.setItem('galaxy.workshop.step', workshopStep);
         localStorage.setItem('galaxy.workshop.hangar', String(hangarView));
       } catch { /* Storage optional. */ }
     };
@@ -215,19 +218,37 @@ export default function Create({ language }: { language: Language }) {
     return () => window.clearTimeout(timer);
   }, [draft, editing, busy, editSaving, retry, editState, editsOpen, live.config.seasonOpen]);
 
+  const recovery = useRef<(() => void) | undefined>(undefined);
   useEffect(() => {
-    if (!updateAvailable) return;
+    const defer = (event: Event) => {
+      event.preventDefault(); recovery.current = (event as CustomEvent<() => void>).detail;
+    };
+    window.addEventListener('galaxy:before-reload', defer);
+    return () => window.removeEventListener('galaxy:before-reload', defer);
+  }, []);
+  useEffect(() => {
     const interval = window.setInterval(() => {
-      const idleSeconds = lastActivity.current === 0 ? 30 : (Date.now() - lastActivity.current) / 1000;
-      const isSwiping = start.current !== null || trace !== null;
-      const isMidEdit = editing && (editSaving || editState === 'pending' || idleSeconds < 20);
-      if (!busy && !isSwiping && !isMidEdit && idleSeconds >= 20) {
-        triggerStateSave();
-        window.location.reload();
+      const idle = Date.now() - lastActivity.current >= 20_000;
+      const dirty = editing && JSON.stringify(draft) !== baseline.current;
+      if (idle && pointers.current.size === 0 && !start.current && !busy && !lock.current &&
+          !interactionBusy.current && !editSaving && !dirty) {
+        if (recovery.current) { const resume = recovery.current; recovery.current = undefined; resume(); }
+        else if (updateAvailable) reload();
       }
-    }, 2000);
+    }, 1000);
     return () => window.clearInterval(interval);
-  }, [updateAvailable, busy, editing, editSaving, editState, trace]);
+  }, [updateAvailable, busy, editing, editSaving, draft, reload]);
+  const restoredView = useRef(false);
+  useEffect(() => {
+    if (restoredView.current || inventoryState === 'loading') return;
+    restoredView.current = true;
+    const target = document.getElementById(`workshop-${workshopStep}`);
+    if (workshopStep !== 'parameters') { target?.scrollIntoView?.(); target?.focus({ preventScroll: true }); }
+  }, [inventoryState, workshopStep]);
+  function selectStep(step: string) {
+    markActivity(); setWorkshopStep(step); setHangarView(step === 'hangar');
+    document.getElementById(`workshop-${step}`)?.scrollIntoView?.({ behavior: 'smooth' });
+  }
   async function refresh(uid: string) {
     const all = await ownObjects(firestore!, uid);
     setInventory(all);
@@ -260,12 +281,7 @@ export default function Create({ language }: { language: Language }) {
       void refresh(uid).catch(() => {});
       setEditState('saved');
       setMessage(orbit.isComet ? 'comet' : 'orbit');
-      if (updateAvailable) {
-        window.setTimeout(() => {
-          triggerStateSave();
-          window.location.reload();
-        }, 3000);
-      }
+
     } catch (error) {
       setMessage(error instanceof LaunchError ? error.reason :
         error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied' ? 'restricted' : 'rejected');
@@ -303,10 +319,14 @@ export default function Create({ language }: { language: Language }) {
   }
   const active = inventory.find((o) => o.status === 'active');
   return (
-    <section className="workshop" data-workshop-step={workshopStep} data-hangar-view={hangarView}>
+    <section className="workshop" data-workshop-step={workshopStep} data-hangar-view={hangarView}
+      onPointerDownCapture={(e) => { pointers.current.add(e.pointerId); markActivity(); }}
+      onPointerUpCapture={(e) => { pointers.current.delete(e.pointerId); markActivity(); }}
+      onPointerCancelCapture={(e) => { pointers.current.delete(e.pointerId); markActivity(); }}
+      onKeyDownCapture={markActivity} onChangeCapture={markActivity} onClickCapture={markActivity}>
       {updateAvailable && (
         <p className="update-notice" role="status">
-          {language === 'es' ? 'Nueva versión disponible. Se actualizará tras un lanzamiento o en reposo.' : 'New version available. Updates after launch or when idle.'}
+          {language === 'es' ? 'Nueva versión disponible. Se actualizará en reposo tras guardar tus cambios.' : 'New version available. Updates when idle after your changes are saved.'}
         </p>
       )}
       {active && <a className="memory-return" href={`/galaxy/o/${active.id}?lang=${language}`}>{language === 'es' ? 'Tu página permanente y postal' : 'Your permanent page and postcard'}</a>}
@@ -314,7 +334,13 @@ export default function Create({ language }: { language: Language }) {
         <p className="eyebrow">{text.desk}</p>
         <h1>{text.create}</h1>
       </div>
-      <figure className="planet-specimen" aria-label={objectName(draft.nameKey, language)}>
+      <nav aria-label={language === 'es' ? 'Pasos del taller' : 'Workshop steps'}>
+        {(['parameters', 'specimen', 'launch', 'hangar'] as const).filter((step) => step !== 'launch' || !editing).map((step, i) =>
+          <button key={step} aria-current={workshopStep === step ? 'step' : undefined} onClick={() => selectStep(step)}>
+            {i + 1} / {step === 'parameters' ? rich.material : step === 'specimen' ? text.preview : step === 'launch' ? text.swipe : rich.hangar}
+          </button>)}
+      </nav>
+      <figure id="workshop-specimen" tabIndex={-1} className="planet-specimen" aria-label={objectName(draft.nameKey, language)}>
         {inspect3D ? <ErrorBoundary fallback={<p className="scene-message">{text.unavailable}</p>}>
           <Suspense fallback={<p>{text.loading}</p>}>
             <Preview draft={draft} identity={specimen} departed={departed} pet={pet} onPet={petSpecimen} />
@@ -327,7 +353,7 @@ export default function Create({ language }: { language: Language }) {
         <button onClick={petSpecimen}>{language === 'es' ? 'Acariciar tu objeto' : 'Pet your object'}</button>
         <SoundControls sound={sound} language={language}/>
       </div>
-      <fieldset disabled={busy || (editing && !editsOpen)} className="planet-controls">
+      <fieldset id="workshop-parameters" tabIndex={-1} disabled={busy || (editing && !editsOpen)} className="planet-controls">
         <legend>{rich.material}</legend>
         <div className="type-choices">
           {(['planet', 'star', 'moon'] as const).map((type) => (
@@ -450,7 +476,7 @@ export default function Create({ language }: { language: Language }) {
         )}
       </fieldset>
       {!editing && (
-        <div className="launch-desk">
+        <div id="workshop-launch" tabIndex={-1} className="launch-desk">
           {!launchesOpen && <p role="status">{language === 'es' ? 'Lanzamientos pausados o sin conexión. Tu diseño queda aquí.' : 'Launches paused or disconnected. Your design stays here.'}</p>}
           <p className="eyebrow">{text.swipe}</p>
           <p className="launch-instruction">{text.instruction}</p>
@@ -507,7 +533,7 @@ export default function Create({ language }: { language: Language }) {
           </button>
         </div>
       )}
-      <section className="hangar" onClick={() => { markActivity(); setWorkshopStep('hangar'); setHangarView(true); }}>
+      <section id="workshop-hangar" tabIndex={-1} className="hangar" onClick={() => { markActivity(); setWorkshopStep('hangar'); setHangarView(true); }}>
         <p className="eyebrow">03 / {rich.hangar}</p>
         <h2>{rich.kept}</h2>
         {inventoryState === 'loading' ? (
@@ -583,7 +609,7 @@ export default function Create({ language }: { language: Language }) {
           </p>
         )}
       </section>
-      <Suspense fallback={<p>{text.loading}</p>}><Interactions language={language} config={live.config} status={live.status} retry={live.retry} disabled={busy || editSaving} /></Suspense>
+      <Suspense fallback={<p>{text.loading}</p>}><Interactions language={language} config={live.config} status={live.status} retry={live.retry} disabled={busy || editSaving} onBusyChange={(value) => { interactionBusy.current = value; markActivity(); }} /></Suspense>
       <SessionLine text={copy[language]} />
     </section>
   );

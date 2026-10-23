@@ -11,7 +11,7 @@ export default function Timelapse({ language, join }: { language: Language; join
   const es = language === 'es';
   const [data, setData] = useState<Awaited<ReturnType<typeof loadSeason>>>();
   const [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
-  const [at, setAt] = useState(0), [playing, setPlaying] = useState(false);
+  const [at, setAt] = useState(0), [playing, setPlaying] = useState(() => { try { return localStorage.getItem('galaxy.timelapse.playing') === 'true'; } catch { return false; } });
   const [speed, setSpeed] = useState(() => {
     try {
       const s = Number(localStorage.getItem('galaxy.timelapse.speed'));
@@ -47,9 +47,10 @@ export default function Timelapse({ language, join }: { language: Language; join
   useEffect(() => {
     try { localStorage.setItem('galaxy.timelapse.speed', String(speed)); } catch { /* Storage optional. */ }
   }, [speed]);
+  useEffect(() => { try { localStorage.setItem('galaxy.timelapse.playing', String(playing)); } catch { /* Storage optional. */ } }, [playing]);
   const end = data?.manifest.end ?? 0;
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || !data) return;
     let previous = performance.now();
     const timer = setInterval(() => {
       const now = performance.now(), delta = now - previous; previous = now;
@@ -63,7 +64,7 @@ export default function Timelapse({ language, join }: { language: Language; join
       });
     }, 50);
     return () => clearInterval(timer);
-  }, [playing, speed, end]);
+  }, [playing, speed, end, data]);
   const state = useMemo(() => replay(data?.chunks ?? [], at), [data, at]);
   const objects = useMemo(() => replayScene(state), [state]);
   const departed = useMemo(() => state.filter((o) => o.status === 'hangar' && at - o.updatedAt < 120000).map(memoryRender), [state, at]);

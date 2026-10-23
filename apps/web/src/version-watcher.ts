@@ -44,6 +44,14 @@ export async function fetchServedVersion(
   return null;
 }
 
+function attemptKey(current: VersionInfo, target: VersionInfo) {
+  return `galaxy.update.${JSON.stringify([current.version, current.commit ?? null])}>${JSON.stringify([target.version, target.commit ?? null])}`;
+}
+function attempted(current: VersionInfo, target: VersionInfo) {
+  try { return sessionStorage.getItem(attemptKey(current, target)) === 'attempted'; }
+  catch { return true; }
+}
+
 export function useVersionWatcher({
   appVersion,
   checkIntervalMs = 20_000,
@@ -56,13 +64,7 @@ export function useVersionWatcher({
     version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.7.0',
     commit: typeof __APP_COMMIT__ !== 'undefined' ? __APP_COMMIT__ : null,
   }), []);
-  const key = (value: VersionInfo) => JSON.stringify([value.version, value.commit ?? null]);
-  const attemptKey = (value: VersionInfo) => `galaxy.update.${key(current)}>${key(value)}`;
-  const attempted = (value: VersionInfo) => {
-    try { return sessionStorage.getItem(attemptKey(value)) === 'attempted'; }
-    catch { return true; } // Automatic reload requires a durable loop guard.
-  };
-  const updateAvailable = target !== null && !attempted(target);
+  const updateAvailable = target !== null && !attempted(current, target);
 
   useEffect(() => {
     let alive = true;
@@ -77,11 +79,11 @@ export function useVersionWatcher({
   }, [current, checkIntervalMs, appVersion]);
 
   const reload = useCallback((navigate: () => void = () => window.location.reload()) => {
-    if (!target || attempted(target)) return false;
-    try { sessionStorage.setItem(attemptKey(target), 'attempted'); } catch { return false; }
+    if (!target || attempted(current, target)) return false;
+    try { sessionStorage.setItem(attemptKey(current, target), 'attempted'); } catch { return false; }
     triggerStateSave();
     navigate();
     return true;
-  });
+  }, [target, current]);
   return { updateAvailable, current, target, reload };
 }

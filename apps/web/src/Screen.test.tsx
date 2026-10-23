@@ -22,7 +22,7 @@ let fail: () => void;
 const stop = vi.fn();
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  stop.mockClear();
+  stop.mockClear(); localStorage.clear(); sessionStorage.clear();
   vi.mocked(useLiveConfig).mockReturnValue({ config: { schemaVersion: 1, appVersion: '0.5.0', seasonOpen: true, launches: true, shake: true, comets: true, shootingStars: true, meteorShowers: true, assistantPublic: false, screenScene: 'galaxy', idleSeconds: 10 }, status: 'live', retry: () => {} });
   vi.mocked(listenActive).mockImplementation((_database, next, error) => { receive = next; fail = error; return stop; });
   container = document.createElement('div'); document.body.append(container); root = createRoot(container);
@@ -114,4 +114,13 @@ it('persists screen scene to localStorage and honours sound and spotlight kill s
   const soundButton = container.querySelector<HTMLButtonElement>('.sound-controls button');
   expect(soundButton?.disabled).toBe(true);
   expect(container.querySelector('.sound-controls')?.textContent).toContain('Sound disabled by operator');
+});
+
+it('restores automatic cinematic scene and focused object before fitting the camera', async () => {
+  const objects = syntheticObjects(1);
+  localStorage.setItem('galaxy.screen.context', JSON.stringify({ configuredScene: 'galaxy', lastActivity: Date.now() - 60000, focused: objects[0].id }));
+  await act(async () => root.render(<Screen language="en" />));
+  await act(async () => receive(objects, false));
+  expect(container.querySelector('[data-screen-scene]')?.getAttribute('data-screen-scene')).toBe('cinematic');
+  expect(container.querySelector('select')?.value).toBe(objects[0].id);
 });

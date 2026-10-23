@@ -20,12 +20,14 @@ vi.mock('./galaxy-data', async (original) => ({
   editObject: vi.fn().mockResolvedValue(undefined),
   relaunchObject: vi.fn().mockResolvedValue(undefined),
 }));
+const updates = vi.hoisted(() => ({ updateAvailable: false, reload: vi.fn() }));
+vi.mock('./version-watcher', () => ({ useVersionWatcher: () => updates }));
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
-  localStorage.clear();
+  localStorage.clear(); updates.updateAvailable = false; updates.reload.mockClear();
   sessionStorage.clear();
   vi.mocked(launchPlanet).mockReset().mockResolvedValue('planet');
   container = document.createElement('div');
@@ -249,7 +251,7 @@ it('explains the edit budget and keeps subsequent changes local after exhaustion
 });
 
 vi.mock('./use-live-config', () => ({ useLiveConfig: vi.fn(() => ({ config: { schemaVersion: 1, seasonOpen: true, launches: true, shake: true, comets: true, shootingStars: true, meteorShowers: true, screenScene: 'galaxy', idleSeconds: 60 }, status: 'live', retry: () => {} })) }));
-vi.mock('./Interactions', () => ({ default: () => <div/> }));
+
 
 it('disables launch gestures and relaunch when the live launch switch closes', async () => {
   const { ownObjects } = await import('./galaxy-data');
@@ -290,6 +292,7 @@ it('restores workshop step and hangar view from localStorage', async () => {
   const workshop = container.querySelector('.workshop');
   expect(workshop?.getAttribute('data-workshop-step')).toBe('hangar');
   expect(workshop?.getAttribute('data-hangar-view')).toBe('true');
+  expect(document.activeElement).toBe(container.querySelector('.hangar'));
 });
 
 it('honours edits kill switch, disabling editing controls and showing paused status honestly', async () => {
@@ -344,4 +347,53 @@ it('pauses live edits cleanly when seasonOpen is false and shows honest closed s
     vi.mocked(ownObjects).mockResolvedValue([]);
     vi.mocked(editObject).mockReset().mockResolvedValue(undefined);
   }
+});
+
+it('restores the visible 3D inspector after a reload', async () => {
+  localStorage.setItem('galaxy.workshop.inspect3D', 'true');
+  localStorage.setItem('galaxy.workshop.step', 'specimen');
+  await act(async () => root.render(<Create language="en" />));
+  expect(container.querySelector('[data-preview="procedural"]')).not.toBeNull();
+  expect([...container.querySelectorAll('button')].some((b) => b.textContent === 'Inspect in 3D')).toBe(false);
+});
+
+it('announced update waits for post-launch debounced and in-flight edits through the actual deadline', async () => {
+  const { ownObjects, editObject } = await import('./galaxy-data');
+  vi.mocked(ownObjects).mockResolvedValue([]);
+  const live = vi.mocked(useLiveConfig).getMockImplementation()!();
+  vi.mocked(useLiveConfig).mockReturnValue({ ...live, config: { ...live.config, seasonOpen: true, launches: true, edits: true } });
+  let finish!: () => void;
+  vi.mocked(editObject).mockReturnValue(new Promise<void>((resolve) => { finish = resolve; }));
+  updates.updateAvailable = true;
+  vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Create language="en" />));
+    await act(async () => container.querySelector<HTMLButtonElement>('.launch-desk button')!.click());
+    await act(async () => [...container.querySelectorAll('button')].find((b) => b.textContent === 'Preset 2')!.click());
+    await act(async () => vi.advanceTimersByTimeAsync(30000));
+    expect(editObject).toHaveBeenCalled(); expect(updates.reload).not.toHaveBeenCalled();
+    await act(async () => finish());
+    await act(async () => vi.advanceTimersByTimeAsync(22000));
+    expect(updates.reload).toHaveBeenCalled();
+  } finally { vi.useRealTimers(); vi.mocked(editObject).mockResolvedValue(undefined); }
+});
+it.each(['.swipe-window', '.comet-swipe'])('holds announced update throughout a gesture on %s', async (selector) => {
+  const { ownObjects } = await import('./galaxy-data');
+  vi.mocked(ownObjects).mockResolvedValue([]);
+  const live = vi.mocked(useLiveConfig).getMockImplementation()!();
+  vi.mocked(useLiveConfig).mockReturnValue({ ...live, config: { ...live.config, seasonOpen: true, launches: true, comets: true } });
+  updates.updateAvailable = true; vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Create language="en" />));
+    const target = container.querySelector<HTMLDivElement>(selector)!;
+    target.setPointerCapture = vi.fn();
+    const down = new Event('pointerdown', { bubbles: true });
+    Object.assign(down, { isPrimary: true, button: 0, pointerId: 1, clientX: 10, clientY: 10 });
+    await act(async () => target.dispatchEvent(down));
+    await act(async () => vi.advanceTimersByTimeAsync(26000));
+    expect(updates.reload).not.toHaveBeenCalled();
+    await act(async () => target.dispatchEvent(Object.assign(new Event('pointercancel', { bubbles: true }), { pointerId: 1 })));
+    await act(async () => vi.advanceTimersByTimeAsync(22000));
+    expect(updates.reload).toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
 });

@@ -32,9 +32,16 @@ export function handleChunkError(
   error: unknown,
   storage: Storage = sessionStorage,
   reload: () => void = () => window.location.reload(),
+  resumed = false,
 ): boolean {
   if (!isChunkError(error)) return false;
 
+  if (!resumed) {
+    const event = new CustomEvent('galaxy:before-reload', {
+      cancelable: true, detail: () => handleChunkError(error, storage, reload, true),
+    });
+    if (!window.dispatchEvent(event)) return true;
+  }
   const now = Date.now();
   try {
     const lastReload = Number(storage.getItem(RELOAD_GUARD_KEY) ?? '0');
