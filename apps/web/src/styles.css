@@ -153,7 +153,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .confirmed { color: var(--confirmed); }
 .notice { color: var(--warning); }
 .screen-heading h1 { font-size: clamp(2rem, 4vw, 3rem); max-width: none; margin-bottom: 1.5rem; }
-.galaxy-field { position: relative; height: min(75vh, 900px); min-height: 440px; background: #050c16; color: #e1eaf4; }
+.galaxy-field { container-type: size; position: relative; height: min(75vh, 900px); min-height: 440px; background: #050c16; color: #e1eaf4; }
 .screen-reading { position: absolute; top: 1.25rem; left: 1.25rem; font-size: 1.125rem; pointer-events: none; }
 .creator-count { display: block; font-family: var(--font-display); font-size: 3rem; line-height: 1.2; }
 .join-qr { position: absolute; right: 1rem; bottom: 1rem; display: grid; gap: .5rem; width: clamp(132px, 23vw, 440px); color: #e1eaf4; background: #050c16; font-size: .8125rem; }
@@ -203,3 +203,39 @@ button:disabled { opacity: .6; cursor: wait; }
 
 /* Reserve masthead, title and sound controls so the TV chart and join QR fit in one view. */
 @media (min-width: 721px) { .galaxy-field { height: min(75vh, calc(100dvh - 28rem)); } }
+
+/* The phone's observing log continues as three aligned marginal action entries. */
+.interactions { grid-column: 1 / -1; border-top: 1px solid var(--rule); padding-top: 2rem; min-width: 0; }
+.interactions h2 { font-size: clamp(1.75rem, 4vw, 3rem); margin-block: .5rem 2rem; }
+.interaction-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); align-items: start; gap: 8px 24px; padding-block: 24px; border-top: 1px solid var(--rule); }
+.interaction-row h3 { margin: .5rem 0; font-size: 1.5rem; }
+.interaction-row p { margin-block: 4px; }
+.interaction-row label { display: grid; gap: 8px; min-width: 0; }
+.interaction-row select { width: 100%; min-height: 44px; }
+.interaction-feedback { min-height: 3em; font-variant-numeric: tabular-nums; }
+.comet-swipe { border: 1px dashed var(--action); color: var(--action); padding: 8px; touch-action: none; user-select: none; }
+.comet-swipe svg { width: 100%; height: 90px; display: block; }
+.comet-swipe[data-disabled="true"] { opacity: .5; }
+.sky-effects { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sky-effects canvas { width: 100%; height: 100%; }
+.star-message { position: absolute; left: 5%; top: 20%; max-width: 70%; margin: 0; color: #fff0c3; font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 3rem); text-shadow: 0 2px 8px #050c16; animation: star-message 6s both; }
+@keyframes star-message { 0% { opacity: 0; transform: translateX(-20px); } 15%,75% { opacity: 1; } 100% { opacity: 0; transform: translateX(25px); } }
+.scene-crossfade { position: absolute; inset: 0; pointer-events: none; background: #050c16; animation: scene-crossfade 900ms both; }
+@keyframes scene-crossfade { from { opacity: .8; } to { opacity: 0; } }
+.spotlight-caption, .scene-caption { position: absolute; left: 1.25rem; top: 4.5rem; max-width: 65%; margin: 0; padding: 8px; background: #050c16dd; font-size: clamp(1.125rem, 2vw, 2rem); }
+.events-status { position: absolute; left: 1rem; top: 1rem; max-width: 65%; padding: 8px; margin-top: 0; background: #050c16; color: #e7bd70; }
+.events-status button { color: #e1eaf4; border-color: #60788e; }
+.timelapse-placeholder { position: absolute; inset: 0; background: #050c16eb; padding: 8% 5%; animation: scene-appear 900ms both; }
+.timelapse-placeholder h2 { max-width: 17ch; font-size: clamp(2rem, 5vw, 4rem); }
+.timelapse-placeholder p { max-width: 36ch; }
+.galaxy-field[data-scene="bigQr"] .join-qr { width: min(80cqw, 80cqh, 760px); right: 50%; bottom: 50%; transform: translate(50%, 50%); font-size: clamp(1.125rem, 2vw, 2rem); }
+.galaxy-field[data-scene="bigQr"] .screen-reading, .galaxy-field[data-scene="bigQr"] .field-status { opacity: 0; pointer-events: none; }
+.galaxy-field[data-scene="bigQr"] { background: #050c16; }
+.galaxy-field[data-scene="bigQr"] > div:first-child { opacity: .2; }
+@media (max-width: 720px) { .interaction-row { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
+@media (prefers-reduced-motion: reduce) { .scene-crossfade, .star-message { animation: none; } }
+
+@keyframes scene-appear { from { opacity: 0; } to { opacity: 1; } }
+
+.live-screen[data-screen-scene="bigQr"] .screen-heading, .live-screen[data-screen-scene="bigQr"] .screen-sound { display: none; }
+.live-screen[data-screen-scene="bigQr"] .galaxy-field { height: min(80vh, calc(100dvh - 16rem)); }

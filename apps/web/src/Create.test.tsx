@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Create from './Create';
 import { launchPlanet, LaunchError } from './galaxy-data';
+import { useLiveConfig } from './use-live-config';
 import { defaultDraft } from './draft';
 vi.mock('./ObjectPreview', () => ({ default: () => <div data-preview="procedural" /> }));
 vi.mock('./firebase', () => ({
@@ -244,5 +245,41 @@ it('explains the edit budget and keeps subsequent changes local after exhaustion
     expect(editObject).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('100 live edits');
     expect(container.querySelector('fieldset')!.disabled).toBe(false);
+  } finally { vi.useRealTimers(); vi.mocked(ownObjects).mockResolvedValue([]); vi.mocked(editObject).mockResolvedValue(undefined); }
+});
+
+vi.mock('./use-live-config', () => ({ useLiveConfig: vi.fn(() => ({ config: { schemaVersion: 1, seasonOpen: true, launches: true, shake: true, comets: true, shootingStars: true, meteorShowers: true, screenScene: 'galaxy', idleSeconds: 60 }, status: 'live', retry: () => {} })) }));
+vi.mock('./Interactions', () => ({ default: () => <div/> }));
+
+it('disables launch gestures and relaunch when the live launch switch closes', async () => {
+  const { ownObjects } = await import('./galaxy-data');
+  const { presets, orbitFromVelocity } = await import('@little-galaxy/shared');
+  vi.mocked(ownObjects).mockResolvedValue([{ schemaVersion: 2, id: 'kept', ownerUid: 'visitor', type: 'planet', nameKey: 'quiet-aurora', params: presets.planet[0], orbit: orbitFromVelocity(0, 2.58, 0, 0), status: 'hangar', createdAt: 0, updatedAt: 0, season: 'bad-2026' }]);
+  await act(async () => root.render(<Create language="en"/>));
+  const previous = vi.mocked(useLiveConfig).mock.results.at(-1)!.value;
+  try {
+    vi.mocked(useLiveConfig).mockReturnValue({ ...previous, config: { ...previous.config, launches: false } });
+    await act(async () => root.render(<Create language="en"/>));
+    expect(container.querySelector<HTMLButtonElement>('.launch-desk button')!.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>('.hangar button')!.disabled).toBe(true);
+    expect(container.textContent).toContain('Launches paused or disconnected');
+    expect(container.querySelector('fieldset')!.disabled).toBe(false);
+  } finally { vi.mocked(useLiveConfig).mockReturnValue(previous); vi.mocked(ownObjects).mockResolvedValue([]); }
+});
+it('waits through a shared-interaction cooldown and saves the current edit without losing focus', async () => {
+  const { ownObjects, editObject } = await import('./galaxy-data');
+  const { presets, orbitFromVelocity } = await import('@little-galaxy/shared');
+  vi.mocked(ownObjects).mockResolvedValue([{ schemaVersion: 2, id: 'active', ownerUid: 'visitor', type: 'planet', nameKey: 'quiet-aurora', params: presets.planet[0], orbit: orbitFromVelocity(0, 2.58, 0, 0), status: 'active', createdAt: 0, updatedAt: 0, season: 'bad-2026' }]);
+  vi.mocked(editObject).mockReset().mockRejectedValueOnce(new LaunchError('cooldown')).mockResolvedValue(undefined);
+  vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Create language="en"/>));
+    const input = container.querySelector('input')!; input.focus();
+    await act(async () => [...container.querySelectorAll('button')].find((b) => b.textContent === 'Preset 2')!.click());
+    await act(async () => vi.advanceTimersByTimeAsync(2201));
+    expect(editObject).toHaveBeenCalledOnce(); expect(container.textContent).not.toContain('Could not save');
+    await act(async () => vi.advanceTimersByTimeAsync(2201));
+    expect(editObject).toHaveBeenCalledTimes(2); expect(document.activeElement).toBe(input);
+    await act(async () => vi.advanceTimersByTimeAsync(5000)); expect(editObject).toHaveBeenCalledTimes(2);
   } finally { vi.useRealTimers(); vi.mocked(ownObjects).mockResolvedValue([]); vi.mocked(editObject).mockResolvedValue(undefined); }
 });
