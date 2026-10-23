@@ -37,10 +37,11 @@ export function readScreenEvent(id: string, data: Record<string, unknown>): Scre
   if (!['shake', 'comet', 'shootingStar', 'launch', 'relaunch', 'edit', 'meteorShower'].includes(data.type)) return null;
   return { id, type: data.type, objectId: data.objectId, at, payload };
 }
-/** Rebase every 45s; deduplicate reconnects. Query reads at most 100 rows, never the season log. */
+/** Rebase every 45s; cursor from the last seen event to eliminate overlapping re-queries. Query reads at most 100 rows, never the season log. */
 export function listenRecentEvents(database: Firestore, next: (events: ScreenEvent[]) => void, error: () => void) {
   let stopped = false, unsubscribe: (() => void) | undefined, timer: ReturnType<typeof setInterval> | undefined;
   let generation = 0;
+  let lastSeenAt: number | undefined;
   const seen = new Map<string, number>();
   void Promise.resolve().then(anonymousUid).then(() => {
     if (stopped) return;
@@ -48,15 +49,22 @@ export function listenRecentEvents(database: Firestore, next: (events: ScreenEve
       unsubscribe?.();
       const current = ++generation;
       const now = Date.now();
+      const floor = now - 60_000;
+      const cursor = lastSeenAt !== undefined && lastSeenAt > floor ? lastSeenAt : floor;
       for (const [id, at] of seen) if (at < now - 120_000) seen.delete(id);
-      unsubscribe = onSnapshot(query(collection(database, 'events'), where('at', '>', Timestamp.fromMillis(now - 60_000)),
+      unsubscribe = onSnapshot(query(collection(database, 'events'), where('at', '>', Timestamp.fromMillis(cursor)),
         orderBy('at'), limitToLast(100)), { includeMetadataChanges: true }, (snapshot) => {
         if (stopped || current !== generation || snapshot.metadata.fromCache) return;
         const fresh: ScreenEvent[] = [];
         for (const document of snapshot.docs) {
+          const data = document.data();
+          const atMillis = data?.at?.toMillis?.();
+          if (typeof atMillis === 'number' && (lastSeenAt === undefined || atMillis > lastSeenAt)) {
+            lastSeenAt = atMillis;
+          }
           if (seen.has(document.id)) continue;
           seen.set(document.id, now);
-          const event = readScreenEvent(document.id, document.data());
+          const event = readScreenEvent(document.id, data);
           if (event && event.at > Date.now() - 10_000 && event.at <= Date.now() + 5000) fresh.push(event);
         }
         next(fresh);
@@ -64,5 +72,5 @@ export function listenRecentEvents(database: Firestore, next: (events: ScreenEve
     };
     attach(); timer = setInterval(attach, 45_000);
   }).catch(() => { if (!stopped) error(); });
-  return () => { stopped = true; generation++; unsubscribe?.(); clearInterval(timer); seen.clear(); };
+  return () => { stopped = true; generation++; unsubscribe?.(); clearInterval(timer); seen.clear(); lastSeenAt = undefined; };
 }

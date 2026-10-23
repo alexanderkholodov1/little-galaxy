@@ -167,6 +167,8 @@ beforeAll(async () => {
     },
   });
   admin = adminApp({ projectId }, 'snapshot-test');
+  await bypass((database) => setDoc(doc(database, 'config', 'live'), flags));
+  await getDoc(doc(db('warmup'), 'config', 'live'));
 });
 beforeEach(async () => {
   await env.clearFirestore();
@@ -213,13 +215,14 @@ it.each([
   { params: { size: 0.4, palette: 1.2, oceans: 0.5 } },
   { params: { size: 0.4, palette: 0, oceans: -0.1 } },
   { params: { size: 0.4, palette: 0, oceans: 0.5, text: 'x' } },
-  { orbit: { ...orbit(), e: 1 } },
-  { orbit: { ...orbit(), inclination: 1 } },
-  { orbit: { ...orbit(), a: 0 } },
-  { orbit: { ...orbit(), epoch: -1 } },
-  { orbit: { ...orbit(), hostId: 'visitor' } },
-  { orbit: { ...orbit(), isComet: 'yes' } },
-])('rejects malformed object %#', async (object) => {
+  { orbitPatch: { e: 1 } },
+  { orbitPatch: { inclination: 1 } },
+  { orbitPatch: { a: 0 } },
+  { orbitPatch: { epoch: -1 } },
+  { orbitPatch: { hostId: 'visitor' } },
+  { orbitPatch: { isComet: 'yes' } },
+])('rejects malformed object %#', async (entry) => {
+  const object = entry.orbitPatch ? { orbit: { ...orbit(), ...entry.orbitPatch } } : entry;
   await assertFails((await launchBatch(db(), { object })).commit());
 });
 it('enforces ownership, immutable fields, no direct edits, no deletes', async () => {
@@ -408,6 +411,7 @@ it('honours season and launch/interaction kill switches', async () => {
   }
   await bypass((database) => updateDoc(doc(database, 'config', 'live'), { seasonOpen: false }));
   await assertFails((await launchBatch(db())).commit());
+  await expect(editObject(db(), 'alice', draft)).rejects.toThrow('closed');
 });
 it('two real anonymous Auth clients launch; a third screen listener receives both within two seconds', async () => {
   const apps = [];
@@ -690,9 +694,10 @@ it('the live screen receives owner edits and both hangar transitions through pro
 it.each([
   { a: 20.1 }, { a: 3.4 }, { e: 0.76 }, { a: 20, e: 0.755 },
   { inclination: 0.351 }, { omega: 3.142 }, { meanAnomaly: 3.142 },
-  { epoch: Date.now() - 180000 }, { epoch: Date.now() + 180000 },
+  { epochOffset: -180000 }, { epochOffset: 180000 },
 ])('rejects orbit bounds outside the generated envelope: %j', async (patch) => {
-  await assertFails((await launchBatch(db(), { object: { orbit: { ...orbit(), ...patch } } })).commit());
+  const orbitPatch = 'epochOffset' in patch ? { epoch: Date.now() + patch.epochOffset } : patch;
+  await assertFails((await launchBatch(db(), { object: { orbit: { ...orbit(), ...orbitPatch } } })).commit());
 });
 it.each([-90000, 90000])('accepts new epochs within two minutes (%s ms)', async (offset) => {
   await assertSucceeds((await launchBatch(db(), { object: { orbit: { ...orbit(), epoch: Date.now() + offset } } })).commit());
