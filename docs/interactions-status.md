@@ -143,11 +143,97 @@ without either connection. No client operator UI or assistant tools are added.
 
 ## Verification and acceptance
 
-Final uncached command results, browser evidence, bundle sizes and commits are recorded below after
-the complete verification. Targeted checks already include motion permission/threshold/null readings,
-coalescing/no trailing write, switch races, message translation, caps, scene changes and idle/spotlight
-state. Demo-emulator tests exercise production interaction transactions and recent subscription,
-complete allow/deny batches, migration/budgets/cooldowns, and real admin scene/meteor writes.
+All required checks passed locally, sequentially, with Turbo cache bypassed. This is local CI-equivalent
+verification; no remote GitHub Actions run or deployed preview was performed. Implementation/artifact
+commit: `2e1f2e0`; final documentation follows separately. All three package versions and built
+`version.json` report **0.5.0**. The build metadata records `2026-10-23T00:48:48.681Z`.
+
+| Roadmap bullet | State | Evidence |
+| --- | --- | --- |
+| Shake, swipe comets, predefined messages, ambient meteors | Done locally | Permission/threshold/null-reading and fallback tests; burst coalescing and switch-race tests; normalized/cancelled pointer gestures; all 12 EN/ES keys; rendered pixels/crowd strength/Spanish star text in Chromium; admin scheduler and event writes against the demo emulator. |
+| Cooldowns in rules | Done | 174 emulator tests, including 2/10/10/20 clocks, complete invalid payload batches, standalone/spoofed writes, initial accounts, 10/11/day reset, migration and forged budgets. |
+| Five config-driven screen scenes | Done locally | Live scene/spotlight-return/idle state test; actual camera focus regression; dedicated big-QR bounds and timelapse-placeholder browser checks; dark scene wash and smooth camera interpolation. |
+| Live kill switches | Done locally | Signed config subscription fails closed; phone launch/relaunch/interaction controls and pending gestures respect switches; emulator denies disabled writes independently. Admin CLI allowlist/transaction tested. |
+| Voice spike | Not done — explicitly excluded | Deferred to CASPIAN by the operator. Existing talk stub and assistant text retained; no new assistant behavior or scene. |
+| Real Android and iPhone acceptance | Not done — captain work | Local mocks/emulators/Chromium establish no physical sensor, iOS or Android acceptance. Checklist below. |
+
+Exact final commands (log redirection omitted):
+
+```sh
+pnpm install --frozen-lockfile
+TURBO_FORCE=true pnpm run typecheck
+TURBO_FORCE=true pnpm run lint
+TURBO_FORCE=true PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.5.0/browsers GALAXY_SCREENSHOTS=/home/alexamaze/bad/work/g-v0.5.0 pnpm run test
+JAVA_TOOL_OPTIONS=-Xmx512m TURBO_FORCE=true pnpm run test:rules
+TURBO_FORCE=true pnpm run build:rehearsal
+```
+
+- Install: frozen lockfile unchanged; no new dependency.
+- Typecheck/lint: all three packages; zero cached tasks. Root script/test lint also passed.
+- Tests: **28 shared, 99 web, 11 stand, 26 script, 13 Chromium**. The full test command passed twice;
+  the second run includes the final timelapse layout correction. Auth/Firestore: **174 passed**,
+  only `demo-little-galaxy`; emulators stopped afterward. The meteor scheduler test injects its timer
+  to fire the asserted 630-second random interval immediately, then uses the real admin transaction;
+  it verifies one logged shower, rescheduling, switch-off and cleanup without waiting ten minutes.
+- Rehearsal build: both build tasks uncached; **privacy gate passed, 28 files**. The final build follows
+  the timelapse correction. The existing large-chunk and mixed Firebase import warnings remain, as
+  does Three's development Clock deprecation warning; shader-error assertions pass.
+- The final 500-object sample at **1920×1080, DPR 1, Chromium SwiftShader** reports **14.525 mean FPS**,
+  samples 18.1/12.5/12.8/14.1/16.4/13.6/14.0/14.7, **six draw calls**, no backend traffic or shader
+  errors. The previous run averaged 13.7125 FPS. These are shared-machine software measurements,
+  not a booth GPU result or a stable performance floor.
+
+Final Vite sizes (decimal kB, gzip): main JS **267.88** (raw 865.65), CSS **3.64** (raw 13.50), lazy
+interaction controls **3.28**, shared interaction data **1.17**, lazy screen **10.83**, galaxy entry
+**2.24**, Three/R3F **241.19**, rich renderer **4.25**, audio **61.75**. The phone loads no Three until
+inspection and no Tone until a gesture, as verified by Chromium. The screen module, QR generator and
+particle rendering are outside the phone's initial main module. These are chunk sizes, not measured
+Hosting transfers or a physical-phone speed score.
+
+Screenshots inspected in `~/bad/work/g-v0.5.0/`: `interactions-1920-es.png` (stronger crowd curtain,
+meteor/comet tails, translated message, intact corner QR); `big-qr-1920.png` (~659px QR within the
+TV chart); `interaction-controls-open-375-es.png` (instrumented open config, permission denied,
+visible manual wave, swipe and 44px actions); `interaction-controls-375-es-dark.png` (truthful
+unavailable controls); `timelapse-375-es.png` (settled placeholder with the creator reading hidden,
+no overlap); and the unchanged workshop/sound/500-body regression images. The observing-log strips
+and dark finding chart remain recognizable in the five-second silhouette check. Physical/deployed
+verification is still required by AGENTS.md and belongs to the captain.
+
+Iteration commands also used (all pass in the final complete suite):
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.5.0/browsers pnpm exec playwright install chromium
+pnpm --filter @little-galaxy/shared exec vitest run src/interactions.test.ts
+pnpm --filter @little-galaxy/stand exec vitest run src/control.test.ts src/stand.test.ts
+pnpm --filter @little-galaxy/web exec vitest run src/motion.test.ts src/screen-effects.test.ts src/Screen.test.tsx src/Create.test.tsx
+pnpm --filter @little-galaxy/web exec vitest run src/Interactions.test.tsx src/motion.test.ts src/screen-effects.test.ts src/Screen.test.tsx src/Create.test.tsx
+pnpm --filter @little-galaxy/web exec vitest run src/App.test.tsx src/Create.test.tsx src/Interactions.test.tsx src/Screen.test.tsx src/motion.test.ts src/screen-effects.test.ts src/live-config.test.ts
+pnpm --filter @little-galaxy/web exec vitest run src/App.test.tsx src/interaction-data.test.ts src/Interactions.test.tsx src/Screen.test.tsx
+pnpm --filter @little-galaxy/web exec vitest run src/Create.test.tsx src/Interactions.test.tsx
+PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.5.0/browsers GALAXY_SCREENSHOTS=/home/alexamaze/bad/work/g-v0.5.0 pnpm exec playwright test --config tests/ui/playwright.config.js tests/ui/interactions.spec.js
+git diff --check
+ss -ltn '( sport = :4177 or sport = :4178 or sport = :8080 or sport = :9099 )'
+```
+
+Initial iterations corrected an expected motion trace, client-error assertion matchers (cooldown/
+closed errors happen before rules), lazy-screen test settling, a missing browser global declaration,
+and an actual batched-state autosave retry race after a gesture used the common write clock. Final
+screenshot review found/fixed a creator-count overlap in the phone-width timelapse placeholder;
+the complete test suite and build were repeated. The stand, SDK credentials and live data were never
+started/accessed outside the demo emulator. Logs retain the iteration failures and final passes.
+All test servers and emulators are stopped; the four ports above have no listeners.
+
+Implementation commits:
+
+- `91fb2b2` — shared bilingual interaction/scene contracts and admin controls/meteor scheduler.
+- `91a2d13` — budgeted interaction batches, pre-launch identities, recent event reads and rule budgets.
+- `3560d8f` — lazy phone controls, motion permission/fallback, live switches and edit cooldown recovery.
+- `4defeeb` — sky effects, scenes/camera and browser regressions.
+- `2e1f2e0` — clear timelapse placeholder and its browser regression.
+
+The read-only portfolio plan/changelog need the captain's corresponding update. Remote CI, any
+publication, physical devices and booth scanning/performance remain captain work. No push, PR,
+merge, tag, deployment, branch deletion or history rewriting was performed.
 
 Captain checklist on Android and iPhone: use an HTTPS preview for sensor APIs; verify the permission
 tap/deny/retry and manual button, normal movement vs two deliberate shakes, ten-second debounce,

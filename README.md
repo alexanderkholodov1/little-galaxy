@@ -1,4 +1,10 @@
-# Little Galaxy · G v0.4.0
+# Little Galaxy · G v0.5.0
+
+Shared aurora waves, swipe comets, twelve bilingual shooting-star messages, stand-scheduled meteor
+showers, live kill switches and five operator-controlled screen scenes. Phone writes have server
+cooldowns and a ten-interaction UTC-day cap; the screen reads a bounded recent event window.
+See [the v0.5.0 handoff](docs/interactions-status.md) for schemas, rule access counts, quota estimates,
+operator CLI commands, local verification and the remaining Android/iPhone acceptance.
 
 Parametric Tone.js sound, one harmonious scale, an eight-voice screen mix, and tender phone/screen
 petting. Audio unlocks on a gesture and loads lazily; phone mute survives reloads.
@@ -28,6 +34,9 @@ CI installs Chromium and its system dependencies before the same step. Common co
 ```sh
 pnpm --filter @little-galaxy/web run dev
 pnpm --filter @little-galaxy/stand run start
+# With the stand admin connection configured (demo emulator for local use):
+pnpm --filter @little-galaxy/stand control scene bigQr
+pnpm --filter @little-galaxy/stand control flag shake off
 pnpm run typecheck
 pnpm run lint
 pnpm run test
@@ -107,6 +116,9 @@ Use the exact data-project ID from `VITE_FIREBASE_PROJECT_ID`, not an assumed di
 release job reads that same repository variable and fails closed if it is missing.
 Keep the credential file outside public source and output; never put
 key contents in an environment variable or browser config.
+The stand also schedules ambient meteor events (default 6–15 minutes, only when `seasonOpen` and
+`meteorShowers` are true). Its `control` command updates scenes, timing and kill switches through
+the admin SDK; clients cannot write config. See the v0.5.0 handoff for the allowlisted commands.
 The stand writes `snapshots/live` after its first active-object read and every 30 seconds,
 using one cached listener rather than rescanning the galaxy. It handles SIGINT/SIGTERM cleanup.
 In emulator mode it refuses non-`demo-` project IDs and does not load credentials.
