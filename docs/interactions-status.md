@@ -235,14 +235,115 @@ The read-only portfolio plan/changelog need the captain's corresponding update. 
 publication, physical devices and booth scanning/performance remain captain work. No push, PR,
 merge, tag, deployment, branch deletion or history rewriting was performed.
 
-Captain checklist on Android and iPhone: use an HTTPS preview for sensor APIs; verify the permission
-tap/deny/retry and manual button, normal movement vs two deliberate shakes, ten-second debounce,
-crowd wave strength, all swipe directions/cancel, translated message selection, background/resume,
-connectivity failure without a delayed gesture, reload at the daily cap, every kill switch and
-launch/relaunch disable. On the booth TV verify spotlight flight/return, idle timing, scene crossfade,
-meteor interval/switch and QR scanning from across the booth. LAN HTTP may expose no motion API;
-the visible manual fallback must still work. Record browser/OS/device and observations. No physical
-sensor thresholds or deployed behavior are claimed from local browser automation.
+## Operator acceptance remaining
+
+**Open: physical Android and iPhone sensor motion and booth screen acceptance remain unverified on real hardware.**
+Local Chromium/SwiftShader automation and synthetic sensor tests establish algorithm correctness, but do not close physical acceptance.
+The captain supplies a deployed HTTPS preview channel (sensor APIs like `DeviceMotionEvent.requestPermission` require a secure context; plain LAN HTTP denies sensor access).
+Do not mark the G v0.5.0 interaction milestone accepted until every row has a recorded result on real hardware.
+
+### Required configurations (each currently TODO / unverified)
+
+| Device | Browser | Connection | Required checklist |
+| --- | --- | --- | --- |
+| Physical iPhone (model/iOS: TODO) | Safari stable (version: TODO) | HTTPS preview URL | M1–M8 |
+| Physical Android phone (model/Android: TODO) | Chrome stable (version: TODO) | HTTPS preview URL | M1–M8 |
+| Booth screen computer (model/OS: TODO) | Intended exhibition browser (name/version: TODO) | Booth TV / large display (1080p+) | S1–S6 |
+
+Record each run in the release ledger: date, preview URL and commit SHA, device/model, OS version, browser/version, step/result, and any retry needed. Leave unknown details as TODO. A failure stays open with reproduction steps.
+
+### Mobile interaction checklist (M1–M8), run on BOTH physical phones:
+
+- [ ] **M1 — Sensor permission & unlock (Safari / Chrome).**
+  - **Steps:** Navigate to `/galaxy/create` on a cold browser session (no cached permission). Scroll down to the shared-sky section.
+  - **Action:** Tap the "Enable motion" control.
+  - **What counts as pass:**
+    - On iOS Safari, the native dialog *"“...web.app” Would Like to Access Motion and Orientation"* appears immediately in response to the tap without delay or requiring a second tap.
+    - Granting permission transitions the UI to the listening state ("Listening for shakes...").
+    - If permission is denied, the UI displays the honest permission denied notice and reveals the always-visible manual wave button.
+    - On Android Chrome, if permission is granted by default on secure origin, sensor listener attaches immediately.
+- [ ] **M2 — Shake threshold & casual motion rejection.**
+  - **Steps:** Hold the phone in hand while walking, tilting, and gently handling it for 30 seconds.
+  - **Action:** Then perform two deliberate shakes (jolt peak acceleration > 16 m/s², 100–800 ms apart).
+  - **What counts as pass:**
+    - Walking and gentle handling trigger **zero** accidental shakes.
+    - Two deliberate shakes reliably trigger the shake event ("Wave sent!"), initiate the 10-second cooldown timer countdown, and coalesce rapid shake bursts into a single transaction without multi-write errors.
+- [ ] **M3 — Manual wave fallback button.**
+  - **Steps:** Tap the manual wave button (`Send aurora wave`).
+  - **What counts as pass:**
+    - The wave transaction is submitted atomically to Firestore.
+    - The 10-second cooldown countdown starts immediately on the phone.
+    - The button is disabled during cooldown with tabular seconds remaining.
+- [ ] **M4 — Comet pointer swipe gesture.**
+  - **Steps:** In the comet swipe pad, test short gestures (< 24 px), cancelled gestures (touch moves off target or touchcancel), and deliberate swipes in 4 directions (up, down, left, right). Also test the keyboard/button alternative.
+  - **What counts as pass:**
+    - Swipes under 24 px or cancelled swipes send nothing and consume no quota.
+    - Deliberate swipes (> 24 px) emit an ephemeral comet event with normalized direction $(dx, dy)$ and enter the 10-second cooldown.
+    - The accessible comet button emits a rightward comet.
+- [ ] **M5 — Predefined shooting star messages (EN / ES).**
+  - **Steps:** Switch UI language between English and Spanish via the language toggle. Open the shooting-star message dropdown and select 3 different messages. Send one.
+  - **What counts as pass:**
+    - Dropdown lists all 12 predefined messages matching the current language without untranslated keys.
+    - Sending writes `{ type: 'shootingStar', payload: { messageKey } }` with the allowlisted key and enters the 20-second star cooldown.
+    - No free text input is present anywhere in the UI.
+- [ ] **M6 — Cooldown enforcement & daily 10-interaction cap.**
+  - **Steps:** Perform interactions consecutively until 10 interactions are used in a single UTC day.
+  - **What counts as pass:**
+    - The global 2-second rate limit prevents rapid multi-tapping across all controls.
+    - Cooldown countdowns display truthful remaining seconds.
+    - Upon reaching the 10th interaction, the daily cap message appears ("Daily interactions used up..."), all interaction controls disable gracefully, and reloading the page retains the exhausted daily budget without resetting.
+- [ ] **M7 — Background / lock / resume & offline behavior.**
+  - **Steps:** With active sensors, background the browser for 15 seconds, lock the phone, and return. Disconnect Wi-Fi/cellular and attempt an interaction.
+  - **What counts as pass:**
+    - No queued shake bursts fire upon resuming from background.
+    - Sensor listeners cleanly recover or provide a manual retry.
+    - Disconnection shows the honest offline status; gestures do not buffer and fire unexpectedly on reconnection.
+- [ ] **M8 — Object workshop editing & season kill switch honesty.**
+  - **Steps:** In `/galaxy/create`, adjust a slider on an active launched object. Wait 2.2s for debounced autosave. Then have the operator disable `seasonOpen` via stand CLI (`control flag seasonOpen off`).
+  - **What counts as pass:**
+    - When `seasonOpen` is true, autosave saves cleanly ("In the sky · edits appear live").
+    - When `seasonOpen` is false, editing pauses without submitting failing writes, displaying `"The launch window is closed. Your design is saved here."` instead of an unhandled `PERMISSION_DENIED` or failed red error state.
+
+### Booth screen display checklist (S1–S6), run on the booth screen computer:
+
+- [ ] **S1 — Real-time effects rendering on the dark chart.**
+  - **Steps:** Trigger a phone wave, swipe a comet, send a shooting star, and trigger a meteor shower from the stand CLI.
+  - **What counts as pass:**
+    - Phone shake displays a dust curtain / aurora wave sweeping the screen canvas for 6 seconds. Multiple simultaneous shakes visibly coalesce into a brighter/stronger wave.
+    - Comet swipe displays a directional luminous tail.
+    - Shooting star displays the translated caption matching the screen language.
+    - Meteor shower displays 12 staggered meteors across the sky.
+    - Frame rate remains smooth (> 30 FPS on booth GPU) without memory leaks over 30 minutes of continuous effects.
+- [ ] **S2 — Five config-driven scenes.**
+  - **Steps:** Using the stand CLI (`control scene <scene>`), cycle through `galaxy`, `bigQr`, `spotlight`, `cinematic`, `timelapse`.
+  - **What counts as pass:**
+    - `galaxy`: standard interactive observatory finding chart with live visitor orbits and corner QR.
+    - `bigQr`: QR code expands up to 760 px, centered, readable from across the booth.
+    - `spotlight`: camera focuses on the next newly launched object for 8 seconds, then returns smoothly to the galaxy view.
+    - `cinematic`: slow dramatic camera orbit persists until changed.
+    - `timelapse`: truthful announcement indicating full replay arrives in G v0.6.0.
+    - Dark wash cross-fades smoothly between scene transitions.
+- [ ] **S3 — Idle camera orbit.**
+  - **Steps:** Leave the screen in `galaxy` scene with zero mouse/keyboard activity for `idleSeconds` (default 60s).
+  - **What counts as pass:**
+    - Screen automatically transitions into slow cinematic camera orbit after 60 seconds of inactivity.
+    - Moving the mouse or tapping the screen instantly returns to the finding chart.
+- [ ] **S4 — Booth QR readability.**
+  - **Steps:** Stand at the typical visitor booth distance (~2–3 meters from the TV).
+  - **Action:** Scan the corner QR in `galaxy` scene, and scan the expanded QR in `bigQr` scene using both iPhone and Android camera apps.
+  - **What counts as pass:**
+    - Both QR codes scan reliably without optical distortion or chromatic aberration.
+- [ ] **S5 — Stand meteor scheduler.**
+  - **Steps:** Start the stand daemon (`node apps/stand/dist/index.js`).
+  - **What counts as pass:**
+    - Stand scheduler logs ambient meteor showers at randomized intervals (360–900s).
+    - Stand admin transaction commits successfully; screen renders the meteor shower.
+    - CLI switch `control flag meteorShowers off` pauses scheduling.
+- [ ] **S6 — Long-running stability & zero read amplification.**
+  - **Steps:** Leave the screen display running for 2 hours with periodic interactions.
+  - **What counts as pass:**
+    - `listenRecentEvents` rebases every 45s using the cursor of the last seen event without reading duplicate events.
+    - Memory usage remains flat; no WebGL context loss or gRPC channel timeouts.
 
 ## Inherited sound review fixes — 2026-10-23
 
