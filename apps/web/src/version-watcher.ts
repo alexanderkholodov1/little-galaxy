@@ -5,7 +5,8 @@
  * - Provides safe-moment checking for phones and quiet-moment checking for screen.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { triggerStateSave } from './live-safety';
 
 export interface VersionInfo {
   version: string;
@@ -30,6 +31,7 @@ export async function fetchServedVersion(
   try {
     const url = new URL('/galaxy/version.json', origin).href;
     const response = await fetchFn(url, {
+      cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' },
       signal: AbortSignal.timeout(10_000),
     });
@@ -49,32 +51,37 @@ export function useVersionWatcher({
   appVersion?: string;
   checkIntervalMs?: number;
 } = {}) {
-  const [polledUpdate, setPolledUpdate] = useState(false);
+  const [target, setTarget] = useState<VersionInfo | null>(null);
   const current = useMemo(() => ({
     version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.7.0',
     commit: typeof __APP_COMMIT__ !== 'undefined' ? __APP_COMMIT__ : null,
   }), []);
-
-  const configUpdate = Boolean(appVersion && appVersion !== current.version);
-  const updateAvailable = configUpdate || polledUpdate;
+  const key = (value: VersionInfo) => JSON.stringify([value.version, value.commit ?? null]);
+  const attemptKey = (value: VersionInfo) => `galaxy.update.${key(current)}>${key(value)}`;
+  const attempted = (value: VersionInfo) => {
+    try { return sessionStorage.getItem(attemptKey(value)) === 'attempted'; }
+    catch { return true; } // Automatic reload requires a durable loop guard.
+  };
+  const updateAvailable = target !== null && !attempted(target);
 
   useEffect(() => {
     let alive = true;
     const check = async () => {
       const served = await fetchServedVersion();
-      if (!alive || !served) return;
-      if (isNewerVersion(current, served)) {
-        setPolledUpdate(true);
-      }
+      if (alive) setTarget(served && isNewerVersion(current, served) ? served : null);
     };
-
     void check();
     const interval = setInterval(check, checkIntervalMs);
-    return () => {
-      alive = false;
-      clearInterval(interval);
-    };
-  }, [current, checkIntervalMs]);
+    return () => { alive = false; clearInterval(interval); };
+    // Config is only a prompt to recheck Hosting, including stale and rollback hints.
+  }, [current, checkIntervalMs, appVersion]);
 
-  return { updateAvailable, current };
+  const reload = useCallback((navigate: () => void = () => window.location.reload()) => {
+    if (!target || attempted(target)) return false;
+    try { sessionStorage.setItem(attemptKey(target), 'attempted'); } catch { return false; }
+    triggerStateSave();
+    navigate();
+    return true;
+  });
+  return { updateAvailable, current, target, reload };
 }
