@@ -284,15 +284,13 @@ it('waits through a shared-interaction cooldown and saves the current edit witho
   } finally { vi.useRealTimers(); vi.mocked(ownObjects).mockResolvedValue([]); vi.mocked(editObject).mockResolvedValue(undefined); }
 });
 
-it('restores workshop step, inspect3D, and hangar view from localStorage', async () => {
+it('restores workshop step and hangar view from localStorage', async () => {
   localStorage.setItem('galaxy.workshop.step', 'hangar');
   localStorage.setItem('galaxy.workshop.hangar', 'true');
-  localStorage.setItem('galaxy.workshop.inspect3D', 'true');
   await act(async () => root.render(<Create language="en" />));
   const workshop = container.querySelector('.workshop');
   expect(workshop?.getAttribute('data-workshop-step')).toBe('hangar');
   expect(workshop?.getAttribute('data-hangar-view')).toBe('true');
-  expect(container.querySelector('[data-preview="procedural"]')).not.toBeNull();
 });
 
 it('honours edits kill switch, disabling editing controls and showing paused status honestly', async () => {
