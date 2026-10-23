@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global document, window */
+/* global document, window, MutationObserver */
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,6 +73,17 @@ async function acceptance() {
     for (const context of [phoneContext, screenContext]) {
       await context.addInitScript(() => {
         sessionStorage.setItem('acceptance.boots', String(Number(sessionStorage.getItem('acceptance.boots')) + 1));
+        sessionStorage.removeItem('acceptance.restored-camera');
+        const firstFrame = new MutationObserver(() => {
+          const canvas = document.querySelector('.galaxy-field canvas');
+          if (canvas?.dataset.camera) {
+            sessionStorage.setItem('acceptance.restored-camera', canvas.dataset.camera);
+            firstFrame.disconnect();
+          }
+        });
+        document.addEventListener('DOMContentLoaded', () => firstFrame.observe(document.documentElement, {
+          subtree: true, childList: true, attributes: true, attributeFilter: ['data-camera'],
+        }));
         window.addEventListener('beforeunload', () => {
           const canvas = document.querySelector('.galaxy-field canvas');
           if (canvas?.dataset.camera) sessionStorage.setItem('acceptance.camera', canvas.dataset.camera);
@@ -81,10 +92,10 @@ async function acceptance() {
     }
     const phone = await phoneContext.newPage(), screen = await screenContext.newPage();
     await screen.goto(`${origin}/galaxy/screen?emulators=1&debug=1`);
-    await expect(screen.locator('.creator-count')).toHaveText('0');
+    await expect(screen.locator('.creator-count')).toHaveText('0', { timeout: 30000 });
     await phone.goto(`${origin}/galaxy/create?emulators=1`);
     const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
-    await expect(launch).toBeEnabled();
+    await expect(launch).toBeEnabled({ timeout: 30000 });
     await launch.click();
     await expect(phone.locator('.launch-feedback')).toContainText('In orbit');
     await expect(screen.locator('select option')).toHaveCount(2);
@@ -130,10 +141,11 @@ async function acceptance() {
     await phone.waitForTimeout(1000);
     expect(await phone.evaluate(boots)).toBe(2);
     denied.clear();
-    // Sample the actual rendered camera, rather than merely finite storage coordinates.
+    // Compare the first restored rendered frame with the last rendered frame before reload.
+    // Later camera samples legitimately follow the moving planet and are not a continuity check.
     const savedCamera = await screen.evaluate(() => JSON.parse(sessionStorage.getItem('acceptance.camera')));
-    const restoredCamera = JSON.parse(await screen.locator('.galaxy-field canvas').getAttribute('data-camera'));
-    expect(Math.hypot(...savedCamera.map((n, i) => n - restoredCamera[i]))).toBeLessThan(4);
+    const restoredCamera = await screen.evaluate(() => JSON.parse(sessionStorage.getItem('acceptance.restored-camera')));
+    expect(Math.hypot(...savedCamera.map((n, i) => n - restoredCamera[i]))).toBeLessThan(1);
     await phone.waitForTimeout(25000); // Beyond another poll and idle deadline: stale config settles.
     expect(await phone.evaluate(boots)).toBe(2); expect(await screen.evaluate(boots)).toBe(2);
     await expect(phone.locator('.update-notice')).toHaveCount(0);

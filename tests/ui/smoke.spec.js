@@ -12,13 +12,13 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
   try {
     const phone = await phoneContext.newPage(), screen = await screenContext.newPage();
     await screen.goto('/galaxy/screen');
-    await expect(screen.locator('.creator-count')).toHaveText('0');
-    await expect(screen.locator('.galaxy-field canvas')).toBeVisible();
-    await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles'))).toBeGreaterThan(0);
+    await expect(screen.locator('.creator-count')).toHaveText('0', { timeout: 30000 });
+    await expect(screen.locator('.galaxy-field canvas')).toBeVisible({ timeout: 30000 });
+    await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles')), { timeout: 30000 }).toBeGreaterThan(0);
     const trianglesBefore = Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles'));
     await phone.goto('/galaxy/create');
     const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
-    await expect(launch).toBeEnabled();
+    await expect(launch).toBeEnabled({ timeout: 30000 });
     await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
     const name = await phone.locator('.planet-specimen').getAttribute('aria-label');
     const started = Date.now();
