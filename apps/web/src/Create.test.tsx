@@ -290,7 +290,7 @@ it('pauses live edits cleanly when seasonOpen is false and shows honest closed s
   vi.mocked(editObject).mockReset().mockResolvedValue(undefined);
   vi.useFakeTimers();
   const baseLive = {
-    config: { schemaVersion: 1 as const, seasonOpen: true, launches: true, shake: true, comets: true, shootingStars: true, meteorShowers: true, screenScene: 'galaxy' as const, idleSeconds: 60 },
+    config: { schemaVersion: 1 as const, appVersion: '0.5.0', assistantPublic: false, seasonOpen: true, launches: true, shake: true, comets: true, shootingStars: true, meteorShowers: true, screenScene: 'galaxy' as const, idleSeconds: 60 },
     status: 'live' as const,
     retry: () => {},
   };
