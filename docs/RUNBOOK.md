@@ -55,14 +55,15 @@ Este manual contiene las instrucciones operativas para **Galaxia Colectiva** en 
 
 Run steps in order. Every new terminal must `cd` into the Galaxy checkout and export its own environment — shell exports are not inherited by a separately opened terminal.
 
-### Local rehearsal (emulators) — cold start from a fresh checkout
+### Local rehearsal (LAN emulators) — cold start from a fresh checkout
 
 ```sh
 cd /path/to/galaxy-checkout
 pnpm install --frozen-lockfile
 
 # Terminal E0 — emulators (leave running)
-JAVA_TOOL_OPTIONS=-Xmx512m pnpm exec firebase emulators:start --only firestore,auth --project demo-little-galaxy
+export JAVA_TOOL_OPTIONS=-Xmx512m
+pnpm run emulators:lan
 
 # Terminal E1 — seed config/live (required before any control flag)
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
@@ -76,7 +77,8 @@ pnpm --filter @little-galaxy/stand start
 # Terminal E2 — web client configured for demo emulators
 # VITE_USE_EMULATORS=1 selects the demo project and emulator connections.
 # --host 0.0.0.0 allows real phones on the same Wi-Fi to scan the QR code and connect.
-VITE_USE_EMULATORS=1 pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
+export VITE_USE_EMULATORS=1
+pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
 ```
 
 For screen testing on the booth laptop, open `http://127.0.0.1:4177/galaxy/screen` and press **F**.
@@ -256,8 +258,10 @@ A fallback video is only a booth backup after playback confirms a healthy kiosk 
 # Demo only (synthetic) — never claim this is the fair backup
 node scripts/record-screen.mjs --mode demo --duration 30 --output records/
 
-# Rehearsal / backup candidate — explicit healthy screen URL, no synthetic=
-node scripts/record-screen.mjs --mode rehearsal --url http://127.0.0.1:4177/galaxy/screen --duration 30 --output records/
+# Rehearsal / backup candidate — set this to the actual laptop LAN IP first
+export GALAXY_LAN_HOST=192.168.1.50
+# Explicit healthy screen URL, no synthetic=
+node scripts/record-screen.mjs --mode rehearsal --url "http://${GALAXY_LAN_HOST}:4177/galaxy/screen" --duration 30 --output records/
 ```
 
 The script refuses error/loading-only output, requires kiosk presentation, and labels demo vs rehearsal filenames. Play the file back before relying on it.
@@ -315,41 +319,40 @@ When production static files are published at `/galaxy/season/bad-2026/`:
 
 ## 11. Command Verification Scope
 
-Commands in this runbook were exercised against local Firebase emulators (seed, stand start, web dev with `VITE_USE_EMULATORS=1`, control flags/scenes/timing, phone join QR, demo `freeze-season`, portfolio rollback `--dry-run`) where noted in the G v1.0.0 acceptance work. **Not** claimed here: production Hosting promote/rollback, campus Wi-Fi, physical TV/HDMI, or production static season publish.
+The following is a reproducible command recipe, not an observed physical-phone transcript. Replace `/path/to/galaxy-checkout` in **each** terminal. E0 uses `firebase.lan.json` through the package script, binding Auth and Firestore to all interfaces as well as Vite. Use a trusted rehearsal network; allow inbound TCP 4177, 8080 and 9099 and disable Wi-Fi client isolation. Keep all terminals open until rehearsal is finished.
 
-```text
-=== Cold rehearsal bootstrap ===
-$ JAVA_TOOL_OPTIONS=-Xmx512m pnpm exec firebase emulators:start --only firestore,auth --project demo-little-galaxy
-✔  firestore: Firestore Emulator logging to firestore-debug.log
-✔  auth: Auth Emulator logging to auth-debug.log
-
-=== Terminal E1: Seed config/live ===
-$ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-little-galaxy pnpm run demo:seed
-Demo launch window opened. No live project was accessed.
-
-=== Terminal E1: Start stand against emulators ===
-$ pnpm --filter @little-galaxy/stand start
-Stand active (v1.0.0).
-
-=== Terminal E2: Start web client with emulator config ===
-$ VITE_USE_EMULATORS=1 pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
-  ➜  Local:   http://localhost:4177/
-  ➜  Network: http://192.168.1.50:4177/
-
-=== Terminal E3: Control (after seed; same emulator exports in that terminal) ===
-$ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-little-galaxy pnpm --filter @little-galaxy/stand control flag seasonOpen on
-Live controls updated.
-
-=== Step 4: Phone join QR & Launch receipt ===
-Phone navigates to http://192.168.1.50:4177/galaxy/create
-Launches planet "quiet-aurora" (palette 1, size 0.45)
-TV screen receives new active object within 1.2s; spotlight triggers.
-
-=== Rollback dry-run (portfolio checkout or vendored fixture) ===
-$ pnpm run rollback --dry-run
-[dry-run] … POST live channel release with versionName = previous version
-
-=== Demo freeze (emulator only) ===
-$ pnpm --filter @little-galaxy/stand freeze-season /tmp/dryrun-freeze
-Season exported; live configuration unchanged.
+```sh
+# E0: emulator terminal
+cd /path/to/galaxy-checkout
+export JAVA_TOOL_OPTIONS=-Xmx512m
+pnpm run emulators:lan
 ```
+
+```sh
+# E1: seed once, then run stand
+cd /path/to/galaxy-checkout
+export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
+export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
+export FIREBASE_PROJECT_ID=demo-little-galaxy
+pnpm run demo:seed
+pnpm --filter @little-galaxy/stand start
+```
+
+```sh
+# E2: web terminal
+cd /path/to/galaxy-checkout
+export VITE_USE_EMULATORS=1
+pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
+```
+
+```sh
+# E3: independent control terminal
+cd /path/to/galaxy-checkout
+export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
+export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
+export FIREBASE_PROJECT_ID=demo-little-galaxy
+pnpm --filter @little-galaxy/stand control flag seasonOpen on
+pnpm --filter @little-galaxy/stand control scene galaxy
+```
+
+Operator acceptance still required: open the screen using the laptop's actual LAN IP, scan its QR on a separate phone, launch, and record the observed TV receipt time. No campus Wi-Fi, physical phone/TV, Hosting rollback or production static publication is certified by this recipe. Stop E1, E2 and E0 with Ctrl+C after rehearsal. A screen opened on loopback produces a QR inaccessible from a separate phone.
