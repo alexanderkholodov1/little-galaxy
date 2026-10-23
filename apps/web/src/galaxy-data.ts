@@ -10,7 +10,6 @@ import {
   Timestamp,
   where,
 } from 'firebase/firestore';
-import { anonymousUid } from './firebase';
 import type { Firestore } from 'firebase/firestore';
 import {
   MAX_LAUNCHES_PER_DAY,
@@ -129,7 +128,7 @@ export function listenActive(
   let generation = 0;
   const hosts = new Map<string, RenderObject>();
   let unsubscribe: (() => void) | undefined;
-  void anonymousUid().then(() => {
+  void import('./firebase').then(m => m.anonymousUid()).then(() => {
     if (stopped) return;
     unsubscribe = onSnapshot(
       query(collection(database, 'objects'), where('status', '==', 'active')),

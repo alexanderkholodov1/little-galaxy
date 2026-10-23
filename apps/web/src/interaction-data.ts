@@ -2,7 +2,6 @@ import { collection, doc, limitToLast, onSnapshot, orderBy, query, runTransactio
 import type { Firestore } from 'firebase/firestore';
 import { interactionClock, interactionCooldown, interactionFlag, MAX_INTERACTIONS_PER_DAY, utcDay, validInteraction } from '@little-galaxy/shared';
 import type { GalaxyUser, InteractionType } from '@little-galaxy/shared';
-import { anonymousUid } from './firebase';
 export class InteractionError extends Error {
   constructor(public reason: 'cooldown' | 'closed' | 'limit' | 'offline', public retryAfter = 2200) { super(reason); }
 }
@@ -43,7 +42,7 @@ export function listenRecentEvents(database: Firestore, next: (events: ScreenEve
   let generation = 0;
   let lastSeenAt: number | undefined;
   const seen = new Map<string, number>();
-  void Promise.resolve().then(anonymousUid).then(() => {
+  void import('./firebase').then(m => m.anonymousUid()).then(() => {
     if (stopped) return;
     const attach = () => {
       unsubscribe?.();

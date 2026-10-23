@@ -1,12 +1,17 @@
 /**
  * Failure-Mode Drills for Collective Galaxy (plan 05)
  *
- * Automates and verifies key failure scenarios against Firestore/Auth emulators:
- * 1. Screen offline: keeps rendering deterministic orbits, shows graceful offline status.
- * 2. Phone offline resilience: draft persisted locally across network drops; syncs on reconnect.
- * 3. Stand crash & restart: snapshot goes stale, stand process restarts and recovers snapshot.
- * 4. Quota pressure mitigation: kill switches engaged via stand CLI, verified at security rules boundary.
- * 5. Rollback verification: portfolio rollback command dry-run validated, soft-reload chunk recovery.
+ * Automated verification of key failure scenarios against Firestore/Auth emulators:
+ * 1. Orbit determinism: positionAt advances without network, pure local math.
+ * 2. Draft serialization: JSON round-trip and successful launch from restored draft.
+ * 3. Snapshot staleness: old timestamp detected, fresh write recovers.
+ * 4. Kill switch enforcement: config flag disables interaction at helper level, re-enable restores it.
+ * 5. Rollback dry-run: portfolio script logs a prospective Hosting promotion.
+ *
+ * Hardware-dependent drills (network interruption, HDMI recovery, power failover)
+ * are documented as manual operator steps and marked as not yet run.
+ *
+ * Exits non-zero when any drill fails.
  */
 
 import { initializeApp as initClientApp, deleteApp as deleteClientApp } from 'firebase/app';
@@ -27,7 +32,6 @@ import { sendInteraction } from '../apps/web/src/interaction-data';
 import { applyControl } from '../apps/stand/src/control';
 import path from 'node:path';
 import fs from 'node:fs';
-import { rollback } from '../../portfolio-v0.3.0/scripts/rollback.mjs';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -69,31 +73,37 @@ export async function runAllDrills(): Promise<DrillResult[]> {
   });
 
   // =========================================================================
-  // DRILL 1: Screen Offline Keeps Rendering Deterministic Orbits
+  // DRILL 1: Orbit Determinism (No Network Required)
   // =========================================================================
   try {
-    console.log(`[drills] Running Drill 1: Screen offline orbit determinism...`);
+    console.log(`[drills] Running Drill 1: Orbit determinism without network...`);
     const orbit = orbitFromVelocity(0, 2.58, 0.05, Date.now() - 30000);
-    const pos1 = positionAt(orbit, Date.now());
+    const t1 = Date.now();
+    const pos1 = positionAt(orbit, t1);
     await sleep(200);
-    const pos2 = positionAt(orbit, Date.now());
+    const t2 = Date.now();
+    const pos2 = positionAt(orbit, t2);
 
-    // Verify orbit advances deterministically without server round-trip
     const dx = pos2[0] - pos1[0];
     const dy = pos2[1] - pos1[1];
-    const moved = Math.hypot(dx, dy) > 0;
+    const distance = Math.hypot(dx, dy);
+    const moved = distance > 0;
+
+    // Verify determinism: same input produces same output
+    const pos1Again = positionAt(orbit, t1);
+    const deterministic = pos1[0] === pos1Again[0] && pos1[1] === pos1Again[1] && pos1[2] === pos1Again[2];
 
     results.push({
       drillId: 'DRILL-01',
-      name: 'Screen offline deterministic orbit rendering',
-      status: moved ? 'PASSED' : 'FAILED',
-      observedBehavior: 'Screen computes Three.js planet positions locally using deterministic Keplerian mechanics. When network drops, canvas continues animating without freezing or jumping.',
-      details: { pos1, pos2, deltaDistance: Math.hypot(dx, dy) },
+      name: 'Orbit position advances deterministically without network',
+      status: moved && deterministic ? 'PASSED' : 'FAILED',
+      observedBehavior: `positionAt(orbit, t) computed two positions ${t2 - t1}ms apart: delta=${distance.toFixed(6)}. Same timestamp reproduced identical coordinates: deterministic=${deterministic}. No server call was made.`,
+      details: { pos1, pos2, deltaDistance: distance, deterministic, elapsedMs: t2 - t1 },
     });
   } catch (err) {
     results.push({
       drillId: 'DRILL-01',
-      name: 'Screen offline deterministic orbit rendering',
+      name: 'Orbit position advances deterministically without network',
       status: 'FAILED',
       observedBehavior: `Error: ${String(err)}`,
       details: {},
@@ -101,10 +111,10 @@ export async function runAllDrills(): Promise<DrillResult[]> {
   }
 
   // =========================================================================
-  // DRILL 2: Phone Writes Queue & Reconnect Sync
+  // DRILL 2: Draft Serialization and Launch from Restored Data
   // =========================================================================
   try {
-    console.log(`[drills] Running Drill 2: Phone offline persistence & reconnect...`);
+    console.log(`[drills] Running Drill 2: Draft serialization and launch...`);
     const phoneApp = initClientApp({ projectId: 'demo-little-galaxy', apiKey: 'demo-key' }, `drill-phone-${Date.now()}`);
     const auth = getAuth(phoneApp);
     connectAuthEmulator(auth, `http://${authHost}`, { disableWarnings: true });
@@ -114,34 +124,34 @@ export async function runAllDrills(): Promise<DrillResult[]> {
     const userCred = await signInAnonymously(auth);
     const uid = userCred.user.uid;
 
-    // Simulate local draft preservation
+    // Simulate draft round-trip through JSON (as localStorage would)
     const draft = {
       nameKey: 'quiet-aurora' as const,
       params: { size: 0.45, palette: 1, oceans: 0.6 },
     };
     const serializedDraft = JSON.stringify(draft);
-
-    // Verify draft serialization & restoration
     const restoredDraft = JSON.parse(serializedDraft);
     const orbit = orbitFromVelocity(0, 2.58, 0, Date.now());
 
-    // When connection restores, launch executes successfully
+    // Launch from restored draft succeeds
     const objectId = await launchPlanet(db, uid, restoredDraft, orbit);
     const objDoc = await adminDb.doc(`objects/${objectId}`).get();
 
     await deleteClientApp(phoneApp);
 
+    const draftMatch = JSON.stringify(draft) === serializedDraft;
+
     results.push({
       drillId: 'DRILL-02',
-      name: 'Phone offline draft retention and sync on reconnect',
-      status: objDoc.exists ? 'PASSED' : 'FAILED',
-      observedBehavior: 'Visitor workshop drafts persist in localStorage. When Wi-Fi/cellular connection is restored, pending draft launches successfully and writes to Firestore.',
-      details: { objectId, status: objDoc.data()?.status },
+      name: 'Draft JSON round-trip and launch from restored data',
+      status: objDoc.exists && draftMatch ? 'PASSED' : 'FAILED',
+      observedBehavior: `Draft serialized to ${serializedDraft.length} bytes, restored, and launched as object ${objectId} (status: ${objDoc.data()?.status}). Round-trip fidelity: ${draftMatch}. This verifies the data path but does not exercise actual localStorage, offline network interruption, or browser reload.`,
+      details: { objectId, status: objDoc.data()?.status, draftMatch },
     });
   } catch (err) {
     results.push({
       drillId: 'DRILL-02',
-      name: 'Phone offline draft retention and sync on reconnect',
+      name: 'Draft JSON round-trip and launch from restored data',
       status: 'FAILED',
       observedBehavior: `Error: ${String(err)}`,
       details: {},
@@ -149,12 +159,12 @@ export async function runAllDrills(): Promise<DrillResult[]> {
   }
 
   // =========================================================================
-  // DRILL 3: Stand Crash → Snapshot Staleness Shown → Stand Restart
+  // DRILL 3: Snapshot Staleness Detection and Recovery
   // =========================================================================
   try {
-    console.log(`[drills] Running Drill 3: Stand crash, snapshot staleness, and restart...`);
-    // Step 1: Write an initial snapshot
-    const pastTime = Date.now() - 95000; // 95 seconds ago (> 60s stale threshold)
+    console.log(`[drills] Running Drill 3: Snapshot staleness and recovery...`);
+    // Write an old snapshot (95 seconds ago, exceeding the 60s stale threshold)
+    const pastTime = Date.now() - 95000;
     await adminDb.doc('snapshots/live').set({
       schemaVersion: SCHEMA_VERSION,
       objects: [],
@@ -167,25 +177,26 @@ export async function runAllDrills(): Promise<DrillResult[]> {
     const snapAgeMs = Date.now() - staleSnap.data()?.at.toMillis();
     const isStale = snapAgeMs > 60000;
 
-    // Step 2: Restart stand (simulated by updating snapshot with current time)
+    // Simulate stand restart by updating the timestamp
     await adminDb.doc('snapshots/live').update({
       at: AdminFieldValue.serverTimestamp(),
       creators: 13,
     });
     const freshSnap = await adminDb.doc('snapshots/live').get();
     const freshAgeMs = Date.now() - freshSnap.data()?.at.toMillis();
+    const isRecovered = freshAgeMs < 5000;
 
     results.push({
       drillId: 'DRILL-03',
-      name: 'Stand process crash and snapshot recovery',
-      status: isStale && freshAgeMs < 5000 ? 'PASSED' : 'FAILED',
-      observedBehavior: 'When stand crashes, public viewer detects snapshot age > 60s and renders "Last updated X min ago" without crashing. Stand restart immediately restores active snapshot generation.',
+      name: 'Snapshot staleness detection and timestamp recovery',
+      status: isStale && isRecovered ? 'PASSED' : 'FAILED',
+      observedBehavior: `Wrote snapshot with timestamp ${Math.round(snapAgeMs / 1000)}s ago (stale=${isStale}). Updated timestamp; new age ${Math.round(freshAgeMs / 1000)}s (recovered=${isRecovered}). This verifies Firestore timestamp mechanics but does not start/crash/restart an actual stand process or open a public viewer.`,
       details: { staleAgeSeconds: Math.round(snapAgeMs / 1000), recoveredAgeSeconds: Math.round(freshAgeMs / 1000) },
     });
   } catch (err) {
     results.push({
       drillId: 'DRILL-03',
-      name: 'Stand process crash and snapshot recovery',
+      name: 'Snapshot staleness detection and timestamp recovery',
       status: 'FAILED',
       observedBehavior: `Error: ${String(err)}`,
       details: {},
@@ -193,10 +204,10 @@ export async function runAllDrills(): Promise<DrillResult[]> {
   }
 
   // =========================================================================
-  // DRILL 4: Quota Pressure → Stand Kill Switches
+  // DRILL 4: Kill Switch Config Update and Helper-Level Enforcement
   // =========================================================================
   try {
-    console.log(`[drills] Running Drill 4: Quota pressure kill switches...`);
+    console.log(`[drills] Running Drill 4: Kill switch enforcement...`);
     const phoneApp = initClientApp({ projectId: 'demo-little-galaxy', apiKey: 'demo-key' }, `drill-kill-${Date.now()}`);
     const auth = getAuth(phoneApp);
     connectAuthEmulator(auth, `http://${authHost}`, { disableWarnings: true });
@@ -206,20 +217,22 @@ export async function runAllDrills(): Promise<DrillResult[]> {
     const userCred = await signInAnonymously(auth);
     const uid = userCred.user.uid;
 
-    // Operator applies kill switch: disable shake
+    // Disable shake via stand control
     await applyControl(adminDb, ['flag', 'shake', 'off']);
 
     let shakeBlocked = false;
+    let blockReason = '';
     try {
       await sendInteraction(db, uid, 'shake', {});
     } catch (e: unknown) {
       const err = e as { reason?: string; code?: string } | null;
+      blockReason = err?.reason ?? err?.code ?? String(e);
       if (err?.reason === 'closed' || err?.code === 'permission-denied' || String(e).includes('closed')) {
         shakeBlocked = true;
       }
     }
 
-    // Operator re-enables shake
+    // Re-enable shake
     await applyControl(adminDb, ['flag', 'shake', 'on']);
     await sleep(2100);
     let shakeRestored = false;
@@ -234,15 +247,15 @@ export async function runAllDrills(): Promise<DrillResult[]> {
 
     results.push({
       drillId: 'DRILL-04',
-      name: 'Quota pressure mitigation via instant stand kill switches',
+      name: 'Kill switch config update and helper-level enforcement',
       status: shakeBlocked && shakeRestored ? 'PASSED' : 'FAILED',
-      observedBehavior: 'Stand CLI control updates config/live instantly. Firestore rules enforce kill switches at the boundary, rejecting blocked requests immediately and saving writes. Re-enabling restores functionality instantly.',
-      details: { shakeBlockedWhenOff: shakeBlocked, shakeAllowedWhenOn: shakeRestored },
+      observedBehavior: `Set config/live shake=false via applyControl. sendInteraction threw "${blockReason}" (blocked=${shakeBlocked}). Re-enabled shake=true; sendInteraction succeeded (restored=${shakeRestored}). The helper reads config/live and rejects before writing. Separate rules tests verify boundary enforcement; this drill verifies the config update propagates to the client helper.`,
+      details: { shakeBlockedWhenOff: shakeBlocked, blockReason, shakeAllowedWhenOn: shakeRestored },
     });
   } catch (err) {
     results.push({
       drillId: 'DRILL-04',
-      name: 'Quota pressure mitigation via instant stand kill switches',
+      name: 'Kill switch config update and helper-level enforcement',
       status: 'FAILED',
       observedBehavior: `Error: ${String(err)}`,
       details: {},
@@ -250,26 +263,45 @@ export async function runAllDrills(): Promise<DrillResult[]> {
   }
 
   // =========================================================================
-  // DRILL 5: Bad Deploy → Rollback Verification
+  // DRILL 5: Rollback Dry-Run
   // =========================================================================
   try {
-    console.log(`[drills] Running Drill 5: Bad deploy rollback verification...`);
-    // Verify portfolio rollback script in dry-run mode
-    const logs: string[] = [];
-    const dryRunResult = await rollback(['--dry-run'], { log: (msg) => logs.push(msg) });
-    const dryRunValid = Boolean(dryRunResult?.dryRun && logs.some((l) => l.includes('POST live channel release')));
+    console.log(`[drills] Running Drill 5: Rollback dry-run verification...`);
+    // Locate the portfolio rollback script at sibling worktree or parent-sibling paths
+    const candidates = [
+      path.resolve(import.meta.dirname, '../../portfolio/scripts/rollback.mjs'),
+      path.resolve(import.meta.dirname, '../../portfolio-v0.3.0/scripts/rollback.mjs'),
+      path.resolve(import.meta.dirname, '../../../portfolio/scripts/rollback.mjs'),
+    ];
+    const rollbackPath = candidates.find((p) => fs.existsSync(p));
+    if (!rollbackPath) {
+      results.push({
+        drillId: 'DRILL-05',
+        name: 'Rollback dry-run verification',
+        status: 'FAILED',
+        observedBehavior: 'Portfolio rollback script not found at any expected sibling path. This drill requires the portfolio checkout as a sibling.',
+        details: { searched: candidates },
+      });
+    } else {
+      const { rollback } = await import(rollbackPath) as { rollback: (args: string[], opts: { log: (msg: string) => void }) => Promise<{ dryRun?: boolean }> };
+      const logs: string[] = [];
+      const dryRunResult = await rollback(['--dry-run'], { log: (msg) => logs.push(msg) });
+      const dryRunValid = Boolean(dryRunResult?.dryRun && logs.some((l) => l.includes('POST live channel release')));
 
-    results.push({
-      drillId: 'DRILL-05',
-      name: 'Bad deploy rollback command execution',
-      status: dryRunValid ? 'PASSED' : 'FAILED',
-      observedBehavior: 'Portfolio rollback script (scripts/rollback.mjs) validates previous live Hosting release and confirms instant atomic one-command target restore. Client chunk loop guards protect active viewers.',
-      details: { dryRunSuccess: dryRunValid, loggedMessages: logs.length },
-    });
+      results.push({
+        drillId: 'DRILL-05',
+        name: 'Rollback dry-run verification',
+        status: dryRunValid ? 'PASSED' : 'FAILED',
+        observedBehavior: dryRunValid
+          ? `Dry-run logged ${logs.length} steps including a prospective POST. No actual Hosting API calls were made. This does not exercise a real release selection, browser chunk recovery, or live rollback.`
+          : `Dry-run did not produce the expected log output.`,
+        details: { dryRunSuccess: dryRunValid, loggedMessages: logs.length, rollbackPath },
+      });
+    }
   } catch (err) {
     results.push({
       drillId: 'DRILL-05',
-      name: 'Bad deploy rollback command execution',
+      name: 'Rollback dry-run verification',
       status: 'FAILED',
       observedBehavior: `Error: ${String(err)}`,
       details: {},
@@ -282,79 +314,81 @@ export async function runAllDrills(): Promise<DrillResult[]> {
 }
 
 export function generateDrillsMarkdown(results: DrillResult[]): string {
-  return `# Failure-Mode Drills & Observed Results · G v1.0.0
+  const passed = results.filter((r) => r.status === 'PASSED').length;
+  const failed = results.filter((r) => r.status === 'FAILED').length;
+  return `# Failure-Mode Drills · G v1.0.0
 
-Verification of failure scenarios defined in portfolio plan \`05-live-deploys-and-ops.md\`.
-Automated drills are executed against the Firestore/Auth emulators and verified locally; hardware-dependent procedures
-are documented with exact operational instructions for the booth operator.
+Automated drills against Firestore/Auth emulators verifying key failure scenario building blocks.
+Hardware-dependent drills (network interruption, HDMI, power failover) are manual operator steps
+listed below and **not yet run**.
+
+**Results: ${passed} passed, ${failed} failed out of ${results.length} automated drills.**
 
 ---
 
-## 1. Summary of Automated Drills
+## Automated Drill Results
 
-| Drill ID | Scenario | Status | Observed Behavior |
+| Drill | Scenario | Status | What was actually tested |
 |---|---|---|---|
 ${results.map((r) => `| **${r.drillId}** | ${r.name} | **${r.status}** | ${r.observedBehavior} |`).join('\n')}
 
 ---
 
-## 2. Detailed Drill Findings
+## What These Drills Cover and Do Not Cover
 
-### DRILL-01: Screen Offline Deterministic Rendering
-- **Failure Trigger**: Event Wi-Fi or booth Ethernet drops while the observation screen is active.
-- **Observed Behavior**: The Three.js renderer does not halt, blank, or reset. Orbits are computed locally and deterministically via Keplerian orbital mechanics (\`positionAt(orbit, t)\`). As time advances, celestial bodies continue orbiting smoothly in real time.
-- **UI State**: An unobtrusive offline banner appears (\`"Conexión en vivo interrumpida"\`) offering a manual retry button without obstructing celestial viewing.
+### DRILL-01: Orbit Determinism
+- **Tests**: \`positionAt(orbit, t)\` produces advancing, reproducible coordinates from pure math.
+- **Does not test**: Actual browser canvas rendering, offline banner display, or network disconnection.
 
-### DRILL-02: Phone Writes Queue & Reconnect Sync
-- **Failure Trigger**: Visitor enters the planet workshop, begins modifying sliders, and cellular/Wi-Fi connection drops.
-- **Observed Behavior**: The phone continuously commits draft parameters, selected name keys, and workshop step to browser \`localStorage\` (\`galaxy.workshop.draft\`). Form inputs remain responsive. When connectivity is restored, the visitor taps "Launch" and the transaction successfully commits to Firestore without loss of progress.
+### DRILL-02: Draft Serialization and Launch
+- **Tests**: Draft JSON round-trips through serialization and launches successfully from restored data.
+- **Does not test**: Actual \`localStorage\` persistence, browser offline mode, reload, or reconnection.
 
-### DRILL-03: Stand Crash & Snapshot Staleness Recovery
-- **Failure Trigger**: The stand daemon process terminates unexpectedly due to OS process limits or power interruption.
-- **Observed Behavior**: The galaxy continues operating from existing active objects. When \`snapshots/live\` is not updated for > 60 seconds, public viewer components note the snapshot age. Upon executing the stand restart command (\`pnpm --filter @little-galaxy/stand start\`), the snapshot writer re-establishes the cached listener and rewrites \`snapshots/live\` within 2 seconds.
+### DRILL-03: Snapshot Staleness
+- **Tests**: A Firestore timestamp written 95s ago reads as stale (>60s); a fresh write reads as current.
+- **Does not test**: Actual stand process start/crash/restart, public viewer UI, or recovery timing.
 
-### DRILL-04: Quota Pressure Mitigation via Stand Kill Switches
-- **Failure Trigger**: Sudden crowd surge causes write velocity to approach the Firebase Spark 20,000 writes/day threshold.
-- **Observed Behavior**: The operator issues \`pnpm --filter @little-galaxy/stand control flag shake off\` (and optionally \`comets\`, \`shootingStars\`, \`launches\`). Firestore security rules instantly reject blocked interaction types with \`permission-denied\`, terminating write consumption. Phones observe the flag within 1 second and display friendly disabled badges. Re-enabling flags restores immediate operation without service restarts.
+### DRILL-04: Kill Switch Enforcement
+- **Tests**: \`applyControl\` updates \`config/live\`; the client helper reads the flag and rejects before writing; re-enabling restores the operation.
+- **Does not test**: Firestore security rules boundary enforcement directly (covered by \`test:rules\`), phone UI update latency, or disabled badges.
 
-### DRILL-05: Bad Deploy & Atomic Hosting Rollback
-- **Failure Trigger**: A newly promoted release exhibits an unexpected runtime bug on booth hardware.
-- **Observed Behavior**: The operator executes the portfolio rollback script (\`node ../portfolio/scripts/rollback.mjs --yes\`). Firebase Hosting atomically restores the previous version pointer. Client tabs encountering deleted chunks invoke the single-reload chunk guard (\`galaxy.reload_guard\` in \`sessionStorage\`) and recover with user draft and camera coordinates preserved.
+### DRILL-05: Rollback Dry-Run
+- **Tests**: The portfolio rollback script in dry-run mode logs the expected prospective Hosting API call sequence.
+- **Does not test**: Actual Hosting release selection, live rollback, browser chunk recovery, or draft preservation through reload. The separate live-safety test exercises real build-swap chunk recovery.
 
 ---
 
-## 3. Hardware-Dependent Drills (Manual Operator Runbook)
+## Hardware-Dependent Drills (Manual, Not Yet Run)
+
+These drills require physical booth hardware and cannot be automated. They are listed here
+as operator instructions for the campus rehearsal.
 
 ### Drill H-1: TV HDMI Cable Disconnection / Resolution Reset
-1. **Scenario**: The HDMI cable between the booth laptop and the observatory TV is kicked or loosened.
-2. **Action**:
-   1. Reconnect the HDMI cable firmly to the laptop USB-C/HDMI adapter and TV input port.
-   2. Ensure the display mode is set to **"Extended Desktop"** (press \`Super + P\` on Linux/Windows -> Extend).
-   3. Drag the browser window to the TV display.
-   4. Press **\`F\`** (or click the "Pantalla completa" button) to re-enter kiosk fullscreen presentation.
-   5. Confirm that the cursor hides automatically after 2.5 seconds of mouse inactivity.
+1. **Scenario**: The HDMI cable between the booth laptop and the TV is loosened.
+2. **Steps**:
+   1. Reconnect the HDMI cable to the laptop adapter and TV input.
+   2. Set display mode to **Extended Desktop** (\`Super + P\` → Extend).
+   3. Drag browser window to TV display.
+   4. Press **\`F\`** to re-enter fullscreen presentation.
+   5. Confirm cursor hides after 2.5 seconds of inactivity.
+3. **Status**: Not yet run.
 
-### Drill H-2: Booth Ethernet Drop → Mobile Hotspot Switchover
-1. **Scenario**: USFQ campus wired cable internet goes offline during the fair.
-2. **Action**:
-   1. On the operator mobile phone, enable **Personal Hotspot** (Wi-Fi tethering).
-   2. On the booth laptop, disconnect from the Ethernet adapter and connect to the phone's Wi-Fi SSID.
-   3. Verify internet connectivity by running:
-      \`\`\`sh
-      curl -I https://alexanderkholodov.web.app/galaxy/version.json
-      \`\`\`
-   4. Neither the TV screen nor visitor workshop tabs need to be refreshed; Firestore SDK automatically reconnects over the hotspot.
+### Drill H-2: Booth Ethernet Drop → Mobile Hotspot
+1. **Scenario**: Campus wired internet goes offline during the fair.
+2. **Steps**:
+   1. Enable Personal Hotspot on operator phone.
+   2. Connect laptop Wi-Fi to phone hotspot.
+   3. Verify connectivity: \`curl -I https://alexanderkholodov.web.app/galaxy/version.json\`
+   4. Firestore SDK reconnects automatically; no refresh needed.
+3. **Status**: Not yet run.
 
-### Drill H-3: Laptop Sudden Power Loss / Battery Failover
-1. **Scenario**: Power cord is disconnected from the wall outlet.
-2. **Action**:
-   1. The laptop immediately switches to battery power (booth laptop must be charged to 100% prior to opening).
-   2. Check power status in system tray; plug charger back into booth power strip.
-   3. If laptop shuts down completely:
-      - Power on laptop.
-      - Launch stand daemon: \`pnpm --filter @little-galaxy/stand start\`.
-      - Launch browser to \`/galaxy/screen\` on the TV display.
-      - Press \`F\` for fullscreen mode.
+### Drill H-3: Laptop Power Loss / Battery Failover
+1. **Scenario**: Power cord disconnected from wall outlet.
+2. **Steps**:
+   1. Laptop switches to battery (must be 100% charged before opening).
+   2. Reconnect charger to power strip.
+   3. If laptop shuts down: power on, start stand, open \`/galaxy/screen\`, press \`F\`.
+3. **Status**: Not yet run.
 `;
 }
 
@@ -364,6 +398,13 @@ async function main() {
   const outPath = path.resolve(import.meta.dirname, '../docs/DRILLS.md');
   fs.writeFileSync(outPath, md, 'utf8');
   console.log(`[drills] Wrote drills report to ${outPath}`);
+
+  // Exit non-zero if any drill failed
+  const failed = results.filter((r) => r.status === 'FAILED');
+  if (failed.length > 0) {
+    console.error(`[drills] FAIL: ${failed.length} drill(s) failed: ${failed.map((r) => r.drillId).join(', ')}`);
+    process.exitCode = 1;
+  }
 }
 
 const isEntry = process.argv[1] && process.argv[1].endsWith('drills.ts');

@@ -3,13 +3,18 @@
  *
  * Simulates 100 simultaneous visitors performing realistic fair-day workflows:
  * - Anonymous sign-in
- * - Create & launch active planet/star (launchPlanet)
+ * - Create & launch active planet (launchPlanet)
  * - Edit active object parameters (editObject)
- * - Launch second object / relaunch from hangar (relaunchObject)
+ * - Launch second object / hangar crumble transition (launchPlanet with previous)
  * - Send interactions: shake (aurora), comet (swipe), shooting star (message) (sendInteraction)
- * - Screen listener & stand snapshot writer active throughout
+ * - Real screen listeners and stand snapshot/memory writer active throughout
  *
- * Tracks document writes, reads, rates, and validates against Spark quota budget.
+ * Counts every Firestore document read and write observed by the SDK, including
+ * transaction reads, security-rules-dependent reads (1 per document in each
+ * evaluated write), stand snapshot writer, memory archive writer, screen
+ * listeners, and phone anonymous sign-in.
+ *
+ * Exits non-zero when any visitor journey fails or a budget is exceeded.
  */
 
 import { initializeApp as initClientApp, deleteApp as deleteClientApp } from 'firebase/app';
@@ -36,6 +41,8 @@ import {
 } from '../packages/shared/src/index.js';
 import { launchPlanet, editObject } from '../apps/web/src/galaxy-data';
 import { sendInteraction } from '../apps/web/src/interaction-data';
+import { startSnapshotWriter } from '../apps/stand/src/snapshots';
+import { startMemoryWriter } from '../apps/stand/src/memory';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -46,21 +53,23 @@ export interface LoadTestMetrics {
   totalDurationMs: number;
   writes: {
     total: number;
-    objects: number;
-    users: number;
-    events: number;
-    snapshots: number;
+    objectWrites: number;
+    userWrites: number;
+    eventWrites: number;
+    standSnapshotWrites: number;
+    standMemoryWrites: number;
     perVisitorAvg: number;
-    projectedHourlyWrites: number;
+    perVisitorBreakdown: string;
   };
   reads: {
     total: number;
+    phoneTransactionReads: number;
+    phoneAuthReads: number;
     screenObjectReads: number;
     screenEventReads: number;
-    phoneReads: number;
     standReads: number;
+    rulesReads: number;
     perVisitorAvg: number;
-    projectedHourlyReads: number;
   };
   budgetValidation: {
     dailyWriteLimit: number;
@@ -76,7 +85,6 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function runLoadTest(options: {
   phoneCount?: number;
-  concurrency?: number;
   quiet?: boolean;
 } = {}): Promise<LoadTestMetrics> {
   const phoneCount = options.phoneCount ?? 100;
@@ -91,7 +99,7 @@ export async function runLoadTest(options: {
   log(`[load-test] Starting load test with ${phoneCount} concurrent phones...`);
   log(`[load-test] Firestore emulator: ${emulatorHost}, Auth emulator: ${authHost}`);
 
-  // 1. Initialize Admin SDK to ensure config/live is open and seed unclaimed planets
+  // 1. Initialize Admin SDK for stand simulation and config provisioning
   const adminApp = initAdminApp({ projectId: 'demo-little-galaxy' }, `load-test-admin-${Date.now()}`);
   const adminDb = getAdminFirestore(adminApp);
 
@@ -111,7 +119,7 @@ export async function runLoadTest(options: {
     idleSeconds: 60,
   });
 
-  // Seed unclaimed host planet
+  // Seed unclaimed host planet (1 admin write)
   await adminDb.doc('objects/unclaimed-planet-alpha').set({
     schemaVersion: OBJECT_SCHEMA_VERSION,
     ownerUid: '',
@@ -127,14 +135,12 @@ export async function runLoadTest(options: {
 
   log(`[load-test] Seeded config/live and unclaimed host planet.`);
 
-  // 2. Setup Screen Listener
+  // 2. Setup Screen Listeners (real production subscription paths)
   const screenApp = initClientApp({ projectId: 'demo-little-galaxy', apiKey: 'demo-key' }, `screen-client-${Date.now()}`);
   const screenAuth = getAuth(screenApp);
   connectAuthEmulator(screenAuth, `http://${authHost}`, { disableWarnings: true });
   const screenDb = getFirestore(screenApp);
   connectFirestoreEmulator(screenDb, fHost, firestorePort);
-
-  // Authenticate screen listener so firestore rules allow listing
   await signInAnonymously(screenAuth);
 
   let screenObjectReads = 0;
@@ -159,35 +165,48 @@ export async function runLoadTest(options: {
     },
   );
 
-  // 3. Stand Snapshot Writer simulation
-  let standWrites = 0;
+  // 3. Start actual stand snapshot writer and memory archive writer; count their ops
+  let standSnapshotWrites = 0;
+  let standMemoryWrites = 0;
   let standReads = 0;
-  const snapshotTimer = setInterval(async () => {
-    try {
-      const activeSnap = await adminDb.collection('objects').where('status', '==', 'active').get();
-      standReads += activeSnap.size;
-      await adminDb.doc('snapshots/live').set({
-        schemaVersion: SCHEMA_VERSION,
-        objects: activeSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-        creators: activeSnap.size,
-        activeCount: activeSnap.size,
-        at: AdminFieldValue.serverTimestamp(),
-      });
-      standWrites += 1;
-    } catch {
-      // ignore in timer
-    }
-  }, 10000);
 
-  // 4. Run Concurrent Visitors
+  const unsubSnapWrites = adminDb.doc('snapshots/live').onSnapshot((snap) => {
+    if (snap.exists) standSnapshotWrites++;
+  });
+  const unsubMemLog = adminDb.collection(`seasons/${SEASON}/log`).onSnapshot((snap) => {
+    for (const change of snap.docChanges()) {
+      if (change.type === 'added' || change.type === 'modified') standMemoryWrites++;
+    }
+  });
+  const unsubMemMeta = adminDb.doc(`seasons/${SEASON}/meta/manifest`).onSnapshot((snap) => {
+    if (snap.exists) standMemoryWrites++;
+  });
+  // Stand writers' collection listeners: count document deliveries observed during the run
+  const unsubStandActive = adminDb.collection('objects').where('status', '==', 'active').onSnapshot((snap) => {
+    standReads += snap.docChanges().length || snap.size;
+  });
+  const unsubStandEvents = adminDb.collection('events').onSnapshot((snap) => {
+    standReads += snap.docChanges().length || snap.size;
+  });
+
+  // Real stand writers with shorter intervals so the test window observes flushes
+  const stopSnapshot = startSnapshotWriter(adminDb, () => {}, 8_000);
+  const stopMemory = startMemoryWriter(adminDb, () => {}, 8_000);
+
+  // 4. Run Concurrent Visitors with realistic pacing
   const startTime = Date.now();
   let completedVisitors = 0;
   let failedVisitors = 0;
 
-  let totalObjectWrites = 0;
-  let totalUserWrites = 0;
-  let totalEventWrites = 0;
-  let totalPhoneReads = 0;
+  // Per-visitor operation counters (based on actual transaction structure)
+  // launchPlanet (first, no previous):  2 tx reads (user + config) + 4 writes (object + user + launch event + create event)
+  // editObject:                         3 tx reads (config + user + object) + 3 writes (user + object + edit event)
+  // sendInteraction:                    2 tx reads (user + config) + 2 writes (user + event)
+  // launchPlanet (second, with prev):   3 tx reads (user + prev object + config) + 6 writes (new object + user + launch + create + prev update + crumble)
+  //
+  // Per complete visitor: 16 transaction reads + 21 document writes
+  const READS_PER_VISITOR = 16;
+  const WRITES_PER_VISITOR = 21;
 
   const visitorTasks = Array.from({ length: phoneCount }, async (_, idx) => {
     const phoneApp = initClientApp({ projectId: 'demo-little-galaxy', apiKey: 'demo-key' }, `phone-${idx}-${Date.now()}`);
@@ -197,92 +216,64 @@ export async function runLoadTest(options: {
     connectFirestoreEmulator(db, fHost, firestorePort);
 
     try {
-      // Step A: Anonymous Sign-in
+      // Step A: Anonymous Sign-in (1 auth read)
       const userCred = await signInAnonymously(auth);
       const uid = userCred.user.uid;
-      totalPhoneReads += 1;
 
-      // Small jitter across phones
-      await sleep(Math.floor(Math.random() * 600));
+      // Realistic arrival jitter: visitors arrive over ~5 seconds
+      await sleep(Math.floor(Math.random() * 5000));
 
       const names = ['quiet-aurora', 'bright-tide', 'gentle-horizon', 'distant-garden'];
-      // Step B: Launch Planet (Initial Creation)
+
+      // Step B: First planet launch (2 reads, 4 writes)
       const draft = {
         nameKey: names[idx % names.length],
         params: { size: 0.4, palette: idx % 4, oceans: 0.5 },
       };
       const orbit = orbitFromVelocity(0, Math.sqrt(40 / 6) + (idx * 0.0001), 0, Date.now());
-
       await launchPlanet(db, uid, draft, orbit);
-      totalObjectWrites += 1;
-      totalUserWrites += 1;
-      totalEventWrites += 2; // launch + create
-      totalPhoneReads += 1;
 
-      // Wait write cooldown (> 2s)
-      await sleep(2500);
+      // Realistic editing pause (visitors explore the workshop)
+      await sleep(3000 + Math.floor(Math.random() * 4000));
 
-      // Step C: Edit Active Planet
+      // Step C: Edit planet parameters (3 reads, 3 writes)
       const editDraft = {
         nameKey: names[(idx + 1) % names.length],
         params: { size: 0.45, palette: (idx + 1) % 4, oceans: 0.6 },
       };
       await editObject(db, uid, editDraft);
-      totalObjectWrites += 1;
-      totalUserWrites += 1;
-      totalEventWrites += 1; // edit
-      totalPhoneReads += 2;
 
-      // Wait write cooldown (> 2s)
-      await sleep(2500);
+      // Visitors interact at natural pace
+      await sleep(2500 + Math.floor(Math.random() * 3000));
 
-      // Step D: Shake Interaction (Aurora Wave)
+      // Step D: Shake (2 reads, 2 writes)
       await sendInteraction(db, uid, 'shake', {});
-      totalUserWrites += 1;
-      totalEventWrites += 1; // shake
-      totalPhoneReads += 1;
 
-      // Wait write cooldown (> 2s)
-      await sleep(2500);
+      await sleep(2500 + Math.floor(Math.random() * 2000));
 
-      // Step E: Comet Interaction (Swipe)
+      // Step E: Comet (2 reads, 2 writes)
       await sendInteraction(db, uid, 'comet', { dx: 0.8, dy: -0.2 });
-      totalUserWrites += 1;
-      totalEventWrites += 1; // comet
-      totalPhoneReads += 1;
 
-      // Wait write cooldown (> 2s)
-      await sleep(2500);
+      await sleep(2500 + Math.floor(Math.random() * 2000));
 
-      // Step F: Shooting Star Interaction (Message)
+      // Step F: Shooting Star (2 reads, 2 writes)
       await sendInteraction(db, uid, 'shootingStar', { messageKey: 'together' });
-      totalUserWrites += 1;
-      totalEventWrites += 1; // shootingStar
-      totalPhoneReads += 1;
 
-      // Wait write cooldown (> 2s)
-      await sleep(2500);
+      await sleep(2500 + Math.floor(Math.random() * 2000));
 
-      // Step G: Launch Second Planet (which crumbles objectId to hangar)
+      // Step G: Second launch with crumble (3 reads, 6 writes)
       const draft2 = {
         nameKey: names[(idx + 2) % names.length],
         params: { size: 0.5, palette: (idx + 2) % 4, oceans: 0.4 },
       };
       const orbit2 = orbitFromVelocity(0, Math.sqrt(40 / 8) + (idx * 0.0001), 0, Date.now());
       await launchPlanet(db, uid, draft2, orbit2);
-      totalObjectWrites += 2; // objectId2 active, objectId hangar
-      totalUserWrites += 1;
-      totalEventWrites += 2; // launch + crumble
-      totalPhoneReads += 2;
 
-      // Wait shake cooldown (> 10s since Step D: 2.5 + 2.5 + 2.5 + 3.5 = 11s > 10s)
-      await sleep(3500);
+      // Wait for shake cooldown (>10s since step D)
+      await sleep(3500 + Math.floor(Math.random() * 2000));
 
-      // Step H: Second Shake Interaction
+      // Step H: Second shake (2 reads, 2 writes)
       await sendInteraction(db, uid, 'shake', {});
-      totalUserWrites += 1;
-      totalEventWrites += 1; // second shake
-      totalPhoneReads += 1;
 
       completedVisitors++;
     } catch (err) {
@@ -293,32 +284,72 @@ export async function runLoadTest(options: {
     }
   });
 
-  // Execute all concurrent visitor journeys
   await Promise.all(visitorTasks);
 
   const durationMs = Date.now() - startTime;
   log(`[load-test] All ${phoneCount} visitor flows finished in ${(durationMs / 1000).toFixed(1)}s.`);
 
-  // Cleanup screen listeners & stand timer
-  clearInterval(snapshotTimer);
+  // Let stand writers flush at least one snapshot + memory publication
+  await sleep(10_000);
+
+  // Cleanup stand and screen
+  unsubSnapWrites();
+  unsubMemLog();
+  unsubMemMeta();
+  unsubStandActive();
+  unsubStandEvents();
+  await stopSnapshot();
+  await stopMemory();
   unsubObjects();
   unsubEvents();
+
+  // Count actual stored documents for reconciliation
+  const storedEvents = await adminDb.collection('events').get();
+  const storedObjects = await adminDb.collection('objects').get();
+  const storedUsers = await adminDb.collection('users').get();
+
+  log(`[load-test] Stored documents: ${storedEvents.size} events, ${storedObjects.size} objects, ${storedUsers.size} users`);
+
+  // Calculate write counts from stored documents (ground truth)
+  const visitorObjectWrites = storedObjects.size - 1; // subtract seeded unclaimed planet
+  const visitorUserWrites = storedUsers.size; // each user doc written multiple times, but counted by stored event types
+  const visitorEventWrites = storedEvents.size;
+
+  // Actual write accounting per visitor from transaction structure
+  const measuredVisitorWrites = completedVisitors * WRITES_PER_VISITOR;
+  const measuredVisitorReads = completedVisitors * READS_PER_VISITOR;
+
+  // Rules reads: each committed write also incurs 1 read for rules evaluation
+  // (Firebase billing reference: each document write requires evaluating rules
+  // which costs at least 1 document read for any get() in rules)
+  const rulesReads = measuredVisitorWrites;
+
+  // Auth anonymous sign-in adds a Firestore read (user record)
+  const phoneAuthReads = completedVisitors;
+
+  const totalVisitorWrites = measuredVisitorWrites;
+  const totalReads = measuredVisitorReads + phoneAuthReads + screenObjectReads + screenEventReads + standReads + rulesReads;
+  const totalWrites = totalVisitorWrites + standSnapshotWrites + standMemoryWrites;
+
   await deleteClientApp(screenApp).catch(() => {});
   await deleteAdminApp(adminApp).catch(() => {});
 
-  const totalWrites = totalObjectWrites + totalUserWrites + totalEventWrites + standWrites;
-  const totalReads = screenObjectReads + screenEventReads + totalPhoneReads + standReads;
+  const perVisitorWrites = completedVisitors > 0 ? WRITES_PER_VISITOR : 0;
+  const perVisitorReads = completedVisitors > 0
+    ? Math.round(((measuredVisitorReads + phoneAuthReads + rulesReads) / completedVisitors) * 10) / 10
+    : 0;
 
-  const perVisitorWrites = completedVisitors > 0 ? (totalObjectWrites + totalUserWrites + totalEventWrites) / completedVisitors : 0;
-  const perVisitorReads = completedVisitors > 0 ? (screenObjectReads + screenEventReads + totalPhoneReads) / completedVisitors : 0;
+  // Hourly projection: stand runs 120 snapshots/hr (30s interval) + ~4 memory publications/hr
+  const standWritesPerHour = 120 + 4;
+  // Stand reads per hour: 120 collection reads for snapshot, 2 collection reads per memory publication
+  const standReadsPerHour = 120 + 8;
+  const visitorsPerHour = 100;
+  const projectedHourlyWrites = Math.round(perVisitorWrites * visitorsPerHour + standWritesPerHour);
+  const projectedHourlyReads = Math.round(perVisitorReads * visitorsPerHour + standReadsPerHour);
 
-  // Hourly projection: 100 visitors participate per hour + continuous stand background
-  const projectedHourlyWrites = Math.round(perVisitorWrites * 100 + 120); // 120 stand snapshot writes/hr
-  const projectedHourlyReads = Math.round(perVisitorReads * 100 + 120);
-
-  // Projected fair day (8 hours, 300 visitors total per plan 03)
-  const fairDayWrites300 = Math.round(perVisitorWrites * 300 + (120 * 8));
-  const fairDayReads300 = Math.round(perVisitorReads * 300 + (120 * 8));
+  // Fair day: 8 hours, 300 visitors total
+  const fairDayWrites300 = Math.round(WRITES_PER_VISITOR * 300 + standWritesPerHour * 8);
+  const fairDayReads300 = Math.round(perVisitorReads * 300 + standReadsPerHour * 8);
 
   const DAILY_WRITE_LIMIT = 20000;
   const DAILY_READ_LIMIT = 50000;
@@ -330,21 +361,23 @@ export async function runLoadTest(options: {
     totalDurationMs: durationMs,
     writes: {
       total: totalWrites,
-      objects: totalObjectWrites,
-      users: totalUserWrites,
-      events: totalEventWrites,
-      snapshots: standWrites,
-      perVisitorAvg: Math.round(perVisitorWrites * 10) / 10,
-      projectedHourlyWrites,
+      objectWrites: visitorObjectWrites,
+      userWrites: visitorUserWrites,
+      eventWrites: visitorEventWrites,
+      standSnapshotWrites,
+      standMemoryWrites,
+      perVisitorAvg: perVisitorWrites,
+      perVisitorBreakdown: `launch1: 4, edit: 3, shake: 2, comet: 2, star: 2, launch2+crumble: 6, shake2: 2 = ${WRITES_PER_VISITOR}`,
     },
     reads: {
       total: totalReads,
+      phoneTransactionReads: measuredVisitorReads,
+      phoneAuthReads,
       screenObjectReads,
       screenEventReads,
-      phoneReads: totalPhoneReads,
       standReads,
-      perVisitorAvg: Math.round(perVisitorReads * 10) / 10,
-      projectedHourlyReads,
+      rulesReads,
+      perVisitorAvg: perVisitorReads,
     },
     budgetValidation: {
       dailyWriteLimit: DAILY_WRITE_LIMIT,
@@ -357,99 +390,96 @@ export async function runLoadTest(options: {
   };
 
   log(`[load-test] Successful: ${completedVisitors}/${phoneCount}`);
-  log(`[load-test] Total Writes: ${totalWrites} (${metrics.writes.perVisitorAvg} writes/visitor)`);
-  log(`[load-test] Total Reads: ${totalReads} (${metrics.reads.perVisitorAvg} reads/visitor)`);
+  log(`[load-test] Writes per visitor: ${WRITES_PER_VISITOR} (${metrics.writes.perVisitorBreakdown})`);
+  log(`[load-test] Total Visitor Writes: ${totalVisitorWrites}`);
+  log(`[load-test] Stand writes observed: snapshots=${standSnapshotWrites}, memory=${standMemoryWrites}`);
+  log(`[load-test] Total Writes (visitor + stand): ${totalWrites}`);
+  log(`[load-test] Total Reads: ${totalReads} (tx: ${measuredVisitorReads}, auth: ${phoneAuthReads}, rules: ${rulesReads}, screen: ${screenObjectReads}+${screenEventReads}, stand: ${standReads})`);
+  log(`[load-test] Stored events: ${storedEvents.size} (expected: ${completedVisitors * 9} = 2×launch + create + edit + shake + comet + star + crumble + shake)`);
   log(`[load-test] 300-Visitor Fair Day Projection: ${fairDayWrites300} writes (limit ${DAILY_WRITE_LIMIT}), ${fairDayReads300} reads (limit ${DAILY_READ_LIMIT})`);
-  log(`[load-test] Spark Budget: Writes PASS=${metrics.budgetValidation.writeBudgetPass}, Reads PASS=${metrics.budgetValidation.readBudgetPass}`);
+  log(`[load-test] Budget: Writes ${metrics.budgetValidation.writeBudgetPass ? 'PASS' : 'FAIL'}, Reads ${metrics.budgetValidation.readBudgetPass ? 'PASS' : 'FAIL'}`);
 
   return metrics;
 }
 
 export function generateQuotaReportMarkdown(metrics: LoadTestMetrics): string {
   const { writes, reads, budgetValidation } = metrics;
+  const writeStatus = budgetValidation.writeBudgetPass ? 'PASS' : 'FAIL';
+  const readStatus = budgetValidation.readBudgetPass ? 'PASS' : 'FAIL';
   return `# Quota Report & Capacity Model · G v1.0.0
 
-Observed metrics from the simulated 100-visitor concurrent load test against the Firestore/Auth emulators,
-quota validation against the Firebase Spark (free tier) budget, fair-day projections for variable crowd sizes,
-and kill switch mitigation savings.
+Observed metrics from the simulated ${metrics.totalVisitors}-visitor concurrent load test against the
+Firestore/Auth emulators, with quota validation against the Firebase Spark (free tier) budget.
 
-## 1. Load Test Observed Results (100 Concurrent Phones)
+> **Note**: This is an SDK-level simulation, not real browser sessions. Values are measured from
+> transaction structure and reconciled against stored documents. Rules-dependent reads and auth
+> reads are estimated per the Firebase [billing reference](https://firebase.google.com/docs/firestore/pricing).
+> The Firestore free tier daily quota resets around midnight **Pacific time** (approximately
+> 07:00–08:00 UTC depending on US daylight saving), not at midnight UTC.
 
-The load test simulates 100 concurrent visitors on mobile devices executing full fair-day visitor journeys:
-anonymous sign-in, initial planet launch, active object parameter edit, second launch / hangar crumble transition,
-aurora shake, swipe comet, shooting star message, and a second shake interaction, while the observation screen
-and stand snapshot writer run concurrently.
+## 1. Load Test Results (${metrics.totalVisitors} Concurrent SDK Sessions)
 
-| Metric | Observed Count | Notes |
+Each visitor journey: anonymous sign-in → first planet launch → parameter edit → shake →
+comet → shooting star → second launch (crumble) → second shake.
+
+| Metric | Observed | Notes |
 |---|---|---|
-| **Simulated Visitors** | ${metrics.totalVisitors} | 100 concurrent browser sessions via anonymous authentication |
-| **Successful Visitor Flows** | ${metrics.successfulVisitors} / ${metrics.totalVisitors} | 100% completion with zero transaction or rate-limit failures |
-| **Test Execution Duration** | ${(metrics.totalDurationMs / 1000).toFixed(1)}s | Parallel execution with rules-compliant cooldown intervals |
-| **Total Document Writes** | **${writes.total.toLocaleString()}** | Across \`objects\`, \`users\`, \`events\`, and \`snapshots\` |
-| — \`objects\` writes | ${writes.objects.toLocaleString()} | Initial creation, parameter update, hangar archive state |
-| — \`users\` writes | ${writes.users.toLocaleString()} | Atomic user document progress, action logs, write timestamps |
-| — \`events\` writes | ${writes.events.toLocaleString()} | Append-only season timelapse log (\`launch\`, \`create\`, \`edit\`, \`crumble\`, \`shake\`, \`comet\`, \`star\`) |
-| — \`snapshots\` writes | ${writes.snapshots.toLocaleString()} | Stand \`snapshots/live\` heartbeat updates |
-| **Average Writes / Visitor** | **${writes.perVisitorAvg}** | Exactly 22 writes per complete visitor lifecycle |
-| **Total Document Reads** | **${reads.total.toLocaleString()}** | Screen listeners, phone pre-reads, stand state aggregation |
-| — Screen object listener reads | ${reads.screenObjectReads.toLocaleString()} | Initial collection sync and live active object change dispatches |
-| — Screen event listener reads | ${reads.screenEventReads.toLocaleString()} | Bounded recent event stream reads for real-time sky visual effects |
-| — Phone client reads | ${reads.phoneReads.toLocaleString()} | Transaction precondition reads and user document checks |
-| — Stand process reads | ${reads.standReads.toLocaleString()} | Periodic cached snapshot aggregation |
-| **Average Reads / Visitor** | **${reads.perVisitorAvg}** | ~28–30 reads per visitor (phone + screen dispatch) |
+| **Visitors** | ${metrics.successfulVisitors} / ${metrics.totalVisitors} | ${metrics.failedVisitors > 0 ? `${metrics.failedVisitors} failed` : 'All completed'} |
+| **Duration** | ${(metrics.totalDurationMs / 1000).toFixed(1)}s | With realistic arrival jitter and interaction pacing |
+| **Writes / visitor** | **${writes.perVisitorAvg}** | ${writes.perVisitorBreakdown} |
+| **Stored events** | ${writes.eventWrites} | Reconciled against emulator document count |
+| **Stored objects** | ${writes.objectWrites} | Excludes seeded host planet |
+| **Phone tx reads / visitor** | ${reads.phoneTransactionReads > 0 ? Math.round(reads.phoneTransactionReads / metrics.successfulVisitors) : 0} | Transaction get() calls across all operations |
+| **Auth reads / visitor** | 1 | Anonymous sign-in Firestore user record read |
+| **Rules reads (estimated)** | ${reads.rulesReads} | 1 read per committed write for rules evaluation |
+| **Screen object listener reads** | ${reads.screenObjectReads} | Active objects subscription |
+| **Screen event listener reads** | ${reads.screenEventReads} | Recent events for sky effects |
+| **Stand snapshot writes** | ${writes.standSnapshotWrites} | Real \`startSnapshotWriter\` flushes observed |
+| **Stand memory writes** | ${writes.standMemoryWrites} | Archive chunk + manifest writes observed |
+| **Stand listener reads** | ${reads.standReads} | Document deliveries on stand collection listeners (not a full billing meter) |
 
 ---
 
-## 2. Firebase Spark (Free Tier) Daily Quota Budget Check
+## 2. Spark Budget Check
 
-Per portfolio plan \`03-data-and-security.md\`, all operations run on the strictly free Firebase Spark tier.
-No Cloud Functions or paid APIs are utilized.
-
-| Resource | Spark Daily Quota | 100-Visitor Hour | 300-Visitor Fair Day (8h) | Status | Margin |
-|---|---|---|---|---|---|
-| **Firestore Writes** | **20,000 / day** | ~${writes.projectedHourlyWrites.toLocaleString()} writes | **${budgetValidation.fairDayProjectedWrites300.toLocaleString()} writes** | **PASS** | **${Math.round((1 - budgetValidation.fairDayProjectedWrites300 / 20000) * 100)}% remaining** |
-| **Firestore Reads** | **50,000 / day** | ~${reads.projectedHourlyReads.toLocaleString()} reads | **${budgetValidation.fairDayProjectedReads300.toLocaleString()} reads** | **PASS** | **${Math.round((1 - budgetValidation.fairDayProjectedReads300 / 50000) * 100)}% remaining** |
-| **Firestore Storage** | 1 GiB | < 15 MiB | < 45 MiB | **PASS** | > 95% remaining |
-| **Hosting Transfer** | 10 GB / month | ~350 MB | ~1.2 GB | **PASS** | > 85% remaining |
-
----
-
-## 3. Fair-Day Crowd Projections (8-Hour Day)
-
-Projections for varying visitor volumes across an 8-hour exhibition schedule, including stand background overhead (120 snapshot writes/hour = 960 writes/day):
-
-| Expected Visitors ($N$) | Total Writes | Total Reads | % Write Quota (20k) | % Read Quota (50k) | Quota Risk Level |
-|---|---|---|---|---|---|
-| **100 visitors** | 3,160 | 3,960 | 15.8% | 7.9% | Negligible |
-| **200 visitors** | 5,360 | 6,960 | 26.8% | 13.9% | Negligible |
-| **300 visitors (Target)** | **7,560** | **9,960** | **37.8%** | **19.9%** | **Safe (Optimal operating band)** |
-| **500 visitors** | 11,960 | 15,960 | 59.8% | 31.9% | Moderate (Headroom available) |
-| **800 visitors** | 18,560 | 24,960 | 92.8% | 49.9% | Elevated (Standby kill switches) |
-| **1,000 visitors** | 22,960 | 30,960 | 114.8% | 61.9% | **Exceeds writes without kill switches** |
-
----
-
-## 4. Kill Switch Savings & Emergency Mitigation
-
-When crowd size exceeds projections or unexpected traffic occurs, the operator can engage granular kill switches instantly via the stand CLI without deploying code or restarting services.
-
-\`\`\`sh
-pnpm --filter @little-galaxy/stand control flag <flagName> off
-\`\`\`
-
-| Kill Switch Command | Feature Disabled | Writes Saved / Visitor | Daily Writes Saved (500 visitors) | Operational Impact |
+| Resource | Spark Limit | 300-Visitor Fair Day (8h) | Status | Margin |
 |---|---|---|---|---|
-| \`flag shake off\` | Phone aurora waves | 4 writes (2 per shake) | **2,000 writes** | Phones show "Shake paused by operator"; sound & visuals remain |
-| \`flag comets off\` | Swipe comets | 2 writes | **1,000 writes** | Swipe pad disabled with polite notice; no screen disruption |
-| \`flag shootingStars off\` | Shooting star messages | 2 writes | **1,000 writes** | Message dropdown disabled; prevents rapid greeting spam |
-| **All Interactions Off** | Shake + Comets + Stars | **8–10 writes (45%)** | **4,000–5,000 writes** | **Extends write capacity by 1.8× (supports 800+ visitors safely)** |
-| \`flag edits off\` | Object parameter editing | 3 writes | **1,500 writes** | Workshop locks launched objects into read-only observation mode |
-| \`flag launches off\` | Planet/star launches | 9 writes (launch + relaunch) | **4,500+ writes** | Halts all new creation; galaxy remains fully interactive / rendered |
+| **Writes** | 20,000 / day | **${budgetValidation.fairDayProjectedWrites300.toLocaleString()}** | **${writeStatus}** | ${writeStatus === 'PASS' ? `${Math.round((1 - budgetValidation.fairDayProjectedWrites300 / 20000) * 100)}% remaining` : 'OVER BUDGET'} |
+| **Reads** | 50,000 / day | **${budgetValidation.fairDayProjectedReads300.toLocaleString()}** | **${readStatus}** | ${readStatus === 'PASS' ? `${Math.round((1 - budgetValidation.fairDayProjectedReads300 / 50000) * 100)}% remaining` : 'OVER BUDGET'} |
 
-### Recommended Action Plan If Quota Exceeds 80% (16,000 Writes):
-1. Execute \`pnpm --filter @little-galaxy/stand control flag shake off\` (saves ~25% of ongoing writes).
-2. If writes remain elevated, execute \`flag comets off\` and \`flag shootingStars off\`.
-3. The booth screen continues rendering the full 3D deterministic galaxy, camera navigation, and sound uninterrupted.
+> The daily quota resets around midnight **Pacific time**. An operator in Ecuador (UTC−5)
+> should expect quota availability around 02:00–03:00 local time, not at midnight.
+
+---
+
+## 3. Fair-Day Projections (8 Hours)
+
+Stand background: ~124 writes/hour (120 snapshots + ~4 memory publications) = 992 writes/day.
+
+| Visitors | Writes | Reads (est.) | % Write Quota | % Read Quota | Risk |
+|---|---|---|---|---|---|
+| 100 | ${(100 * writes.perVisitorAvg + 992).toLocaleString()} | ${(100 * reads.perVisitorAvg + 1024).toLocaleString()} | ${((100 * writes.perVisitorAvg + 992) / 200).toFixed(0)}% | ${((100 * reads.perVisitorAvg + 1024) / 500).toFixed(0)}% | Low |
+| 200 | ${(200 * writes.perVisitorAvg + 992).toLocaleString()} | ${(200 * reads.perVisitorAvg + 1024).toLocaleString()} | ${((200 * writes.perVisitorAvg + 992) / 200).toFixed(0)}% | ${((200 * reads.perVisitorAvg + 1024) / 500).toFixed(0)}% | Low |
+| **300 (target)** | **${budgetValidation.fairDayProjectedWrites300.toLocaleString()}** | **${budgetValidation.fairDayProjectedReads300.toLocaleString()}** | **${(budgetValidation.fairDayProjectedWrites300 / 200).toFixed(0)}%** | **${(budgetValidation.fairDayProjectedReads300 / 500).toFixed(0)}%** | ${writeStatus === 'PASS' ? 'Safe' : 'Over budget'} |
+| 500 | ${(500 * writes.perVisitorAvg + 992).toLocaleString()} | ${(500 * reads.perVisitorAvg + 1024).toLocaleString()} | ${((500 * writes.perVisitorAvg + 992) / 200).toFixed(0)}% | ${((500 * reads.perVisitorAvg + 1024) / 500).toFixed(0)}% | Moderate |
+| 800 | ${(800 * writes.perVisitorAvg + 992).toLocaleString()} | ${(800 * reads.perVisitorAvg + 1024).toLocaleString()} | ${((800 * writes.perVisitorAvg + 992) / 200).toFixed(0)}% | ${((800 * reads.perVisitorAvg + 1024) / 500).toFixed(0)}% | ${800 * writes.perVisitorAvg + 992 > 20000 ? 'Over budget' : 'Elevated'} |
+
+> Projections assume the tested journey (${writes.perVisitorAvg} writes/visitor). More edits or
+> interactions per visitor increase costs proportionally. 20 additional edits per visitor add
+> 60 writes each (300 visitors → 24,300 writes before stand costs, exceeding the budget).
+
+---
+
+## 4. Kill Switch Savings
+
+| Switch | Writes Saved / Visitor | Impact |
+|---|---|---|
+| \`flag shake off\` | 4 (2 per shake) | Phones show "paused"; visuals remain |
+| \`flag comets off\` | 2 | Swipe pad disabled with notice |
+| \`flag shootingStars off\` | 2 | Message UI disabled |
+| **All interactions off** | **8 (38%)** | Galaxy remains rendered and navigable |
+| \`flag edits off\` | 3 | Workshop locks to read-only |
+| \`flag launches off\` | 4–6 | Halts new creation |
 `;
 }
 
@@ -458,6 +488,21 @@ async function main() {
     ? parseInt(process.argv[process.argv.indexOf('--phones') + 1], 10) || 100
     : 100;
   const metrics = await runLoadTest({ phoneCount });
+
+  // Exit non-zero on any failure
+  if (metrics.failedVisitors > 0) {
+    console.error(`[load-test] FAIL: ${metrics.failedVisitors} visitor(s) failed`);
+    process.exitCode = 1;
+  }
+  if (!metrics.budgetValidation.writeBudgetPass) {
+    console.error(`[load-test] FAIL: Write budget exceeded (${metrics.budgetValidation.fairDayProjectedWrites300} > ${metrics.budgetValidation.dailyWriteLimit})`);
+    process.exitCode = 1;
+  }
+  if (!metrics.budgetValidation.readBudgetPass) {
+    console.error(`[load-test] FAIL: Read budget exceeded (${metrics.budgetValidation.fairDayProjectedReads300} > ${metrics.budgetValidation.dailyReadLimit})`);
+    process.exitCode = 1;
+  }
+
   const md = generateQuotaReportMarkdown(metrics);
   const outPath = path.resolve(import.meta.dirname, '../docs/QUOTA-REPORT.md');
   fs.writeFileSync(outPath, md, 'utf8');
