@@ -211,6 +211,8 @@ service cloud.firestore {
         && resource.data.at > request.time - duration.value(120, 's');
       allow create: if signed() && validEvent(request.resource.data, eventId);
     }
+    match /seasons/{season}/meta/{document} { allow get: if season == 'bad-2026' && document == 'manifest'; }
+    match /seasons/{season}/log/{chunk} { allow get: if season == 'bad-2026'; }
     match /snapshots/{snapshotId} { allow get: if snapshotId == 'live'; }
     match /config/{configId} { allow get: if signed() && configId == 'live'; }
     // Assistant remains unavailable in this milestone; clients cannot create inbox/outbox docs.
