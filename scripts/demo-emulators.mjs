@@ -9,6 +9,16 @@ export function run(command, args, env = {}) {
     child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`${command} exited ${code}`)));
   });
 }
+export function availablePort() {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const port = probe.address().port;
+      probe.close(() => resolve(String(port)));
+    });
+  });
+}
 function portFree(port) {
   return new Promise((resolve) => {
     const probe = net.createServer();

@@ -15,7 +15,7 @@ const demoEnv = {
   VITE_FIREBASE_PROJECT_ID: 'demo-little-galaxy', VITE_FIREBASE_STORAGE_BUCKET: 'demo-little-galaxy.appspot.com',
   VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000', VITE_FIREBASE_APP_ID: 'demo-app',
 };
-const origin = 'http://127.0.0.1:4192';
+let origin;
 const launchOptions = { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] };
 
 async function build() {
@@ -51,7 +51,8 @@ async function acceptance() {
       res.writeHead(404).end('Release asset unavailable');
     }
   });
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(4192, '127.0.0.1', resolve); });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  origin = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch(launchOptions);
   const phoneContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
   const screenContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
