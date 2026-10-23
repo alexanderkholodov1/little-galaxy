@@ -17,9 +17,10 @@ import { sendInteraction, listenRecentEvents } from '../apps/web/src/interaction
 import { observeTransactions } from '../apps/web/src/firestore-observer';
 import { setUidProvider } from '../apps/web/src/session-uid';
 import { startSnapshotWriter } from '../apps/stand/src/snapshots';
-import { startMemoryWriter } from '../apps/stand/src/memory';
+import { buildSeason, startMemoryWriter } from '../apps/stand/src/memory';
 import { startMeteorScheduler, writeMeteorShower } from '../apps/stand/src/meteors';
 import fs from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 
 export interface LoadTestMetrics {
@@ -285,10 +286,6 @@ export async function runLoadTest(options: {
   if (screenObjects !== completedVisitors + 1 || screenEvents === 0) {
     throw new Error(`Screen content mismatch: ${screenObjects} objects, ${screenEvents} events`);
   }
-  const manifest = await adminDb.doc(`seasons/${SEASON}/meta/manifest`).get();
-  if (!manifest.exists || manifest.data()?.eventCount !== visitorEventsWritten + standMeteorWrites) {
-    throw new Error('Memory archive manifest did not catch up with committed events');
-  }
   if (standSnapshotWrites === 0 || standMeteorWrites === 0) throw new Error('Stand writer was not exercised');
 
   // Count actual stored documents for reconciliation
@@ -297,6 +294,19 @@ export async function runLoadTest(options: {
   const storedUsers = await adminDb.collection('users').get();
 
   log(`[load-test] Stored documents: ${storedEvents.size} events, ${storedObjects.size} objects, ${storedUsers.size} users`);
+
+  // The archive also contains baseline creation rows for operator-seeded objects.
+  const expectedArchive = buildSeason(storedObjects.docs, storedEvents.docs);
+  const manifest = await adminDb.doc(`seasons/${SEASON}/meta/manifest`).get();
+  if (!manifest.exists || !isDeepStrictEqual(manifest.data()?.manifest, expectedArchive.manifest)) {
+    throw new Error('Memory archive manifest did not match the final committed source state');
+  }
+  const archiveIds = Object.keys(expectedArchive.files);
+  const archiveFiles = await adminDb.getAll(...archiveIds.map((id) => adminDb.doc(`seasons/${SEASON}/log/${id}`)));
+  if (archiveFiles.some((file, i) => !file.exists || !isDeepStrictEqual(file.data(), expectedArchive.files[archiveIds[i]]))) {
+    throw new Error('Memory archive referenced missing or mismatched chunks');
+  }
+  log(`[load-test] Archive reconciled: ${expectedArchive.manifest.eventCount} rows including seed baselines, ${archiveFiles.length} matching chunks`);
 
   // Reconciliation assertion: 10 visitor events per completed journey + stand meteors
   const expectedEvents = visitorEventsWritten + standMeteorWrites;
@@ -495,7 +505,8 @@ star/moon host load, or load-test hangar relaunch is certified here.
 All production stand services run and errors fail the command. A meteor is explicitly
 written through its production transaction helper; the scheduler's natural first timer is
 not awaited. Screen content, snapshot output, event reconciliation and the archive manifest's
-final event count are asserted; archive browser playback is not exercised by this command.
+final manifest and every referenced chunk are compared with the committed sources, including
+operator-seed baseline creation rows. Archive browser playback is not exercised by this command.
 PASS means only that this scenario model fits the configured limits, not that the booth is
 capacity-certified. Physical phones, TV, campus Wi-Fi and production billing remain unverified.
 
