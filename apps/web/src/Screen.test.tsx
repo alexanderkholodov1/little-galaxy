@@ -205,6 +205,28 @@ it('enters DOM fullscreen on first F press after restored kiosk presentation', a
   }
 });
 
+it('supports kiosk presentation in timelapse replay scene with fullscreen toggle', async () => {
+  localStorage.setItem('galaxy.screen.context', JSON.stringify({
+    configuredScene: 'timelapse', lastActivity: Date.now(), kioskPresentation: true,
+  }));
+  const live = vi.mocked(useLiveConfig).mock.results[0]?.value ?? {
+    status: 'live',
+    config: { schemaVersion: 1, appVersion: '1.0.0', screenScene: 'timelapse' },
+  };
+  vi.mocked(useLiveConfig).mockReturnValue({
+    ...live,
+    status: 'live',
+    config: { ...live.config, screenScene: 'timelapse' },
+  });
+
+  await act(async () => root.render(<Screen language="en"/>));
+  const replaySection = container.querySelector('.screen-replay');
+  expect(replaySection).not.toBeNull();
+  expect(replaySection?.getAttribute('data-fullscreen')).toBe('true');
+  expect(container.querySelector('.replay-kiosk-controls .fullscreen-toggle')).not.toBeNull();
+  expect(container.querySelector('.memory-log')).not.toBeNull();
+});
+
 it('restores automatic cinematic scene and focused object before fitting the camera', async () => {
   const objects = syntheticObjects(1);
   localStorage.setItem('galaxy.screen.context', JSON.stringify({ configuredScene: 'galaxy', lastActivity: Date.now() - 60000, focused: objects[0].id }));
