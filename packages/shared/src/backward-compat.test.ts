@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  names,
-  objectName,
   orbitFromSwipe,
   orbitFromVelocity,
   planetDefaults,
@@ -10,8 +8,6 @@ import {
   replayScene,
   SEASON,
   validInteraction,
-  validOrbit,
-  validParams,
   messageKeys,
   type GalaxyObject,
   type LogChunk,
@@ -221,7 +217,7 @@ describe('backward-compatible document reads', () => {
 
     // Replay at t=3000: planet-1 has edited oceans=0.8
     const s3 = replay([logChunk], 3000);
-    expect(s3.find((o) => o.id === 'planet-1')?.params.oceans).toBe(0.8);
+    expect((s3.find((o) => o.id === 'planet-1')?.params as { oceans?: number })?.oceans).toBe(0.8);
 
     // Replay at t=4000: planet-1 hangared
     const s4 = replay([logChunk], 4000);

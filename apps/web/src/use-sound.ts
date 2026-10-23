@@ -18,7 +18,7 @@ export function useSound(count: number) {
       if (event.target instanceof Element && event.target.closest('.sound-controls button')) return;
       if (event.isTrusted) void sound.unlock();
     };
-    const visibility = () => { sound.setVolume(document.hidden ? 0 : volumeRef.current); };
+    const visibility = () => { sound.setVolume(document.hidden ? 0 : volumeRef.current, false); };
     document.addEventListener('pointerup', unlock);
     document.addEventListener('keydown', unlock);
     document.addEventListener('visibilitychange', visibility);

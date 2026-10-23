@@ -57,9 +57,11 @@ export function createSoundController(count: number, notify: (state: AudioState)
       engine?.setMix(muted, volume);
       if (!muted) void unlock();
     },
-    setVolume(value: number) {
+    setVolume(value: number, persist = true) {
       volume = value;
-      try { localStorage.setItem('galaxy.sound.volume', String(value)); } catch { /* Storage optional. */ }
+      if (persist) {
+        try { localStorage.setItem('galaxy.sound.volume', String(value)); } catch { /* Storage optional. */ }
+      }
       engine?.setMix(muted, volume);
     },
     dispose() { disposed = true; engine?.dispose(); if (context) void context.close().catch(() => {}); },

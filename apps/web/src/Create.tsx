@@ -67,9 +67,7 @@ export default function Create({ language }: { language: Language }) {
   const [hangarView, setHangarView] = useState<boolean>(() => {
     try { return localStorage.getItem('galaxy.workshop.hangar') === 'true'; } catch { return false; }
   });
-  const [inspect3D, setInspect3D] = useState(() => {
-    try { return localStorage.getItem('galaxy.workshop.inspect3D') === 'true'; } catch { return false; }
-  });
+  const [inspect3D, setInspect3D] = useState(false);
   const lastActivity = useRef(0);
   const markActivity = useCallback(() => { lastActivity.current = Date.now(); }, []);
   const [message, setMessage] = useState<keyof typeof text | null>(null);
@@ -92,9 +90,8 @@ export default function Create({ language }: { language: Language }) {
     try {
       localStorage.setItem('galaxy.workshop.step', workshopStep);
       localStorage.setItem('galaxy.workshop.hangar', String(hangarView));
-      localStorage.setItem('galaxy.workshop.inspect3D', String(inspect3D));
     } catch { /* Storage optional. */ }
-  }, [workshopStep, hangarView, inspect3D]);
+  }, [workshopStep, hangarView]);
 
   useEffect(() => {
     const onSave = () => {
@@ -102,7 +99,6 @@ export default function Create({ language }: { language: Language }) {
       try {
         localStorage.setItem('galaxy.workshop.step', workshopStep);
         localStorage.setItem('galaxy.workshop.hangar', String(hangarView));
-        localStorage.setItem('galaxy.workshop.inspect3D', String(inspect3D));
       } catch { /* Storage optional. */ }
     };
     window.addEventListener('galaxy:save-state', onSave);
