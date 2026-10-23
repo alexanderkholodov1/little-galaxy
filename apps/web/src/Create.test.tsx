@@ -283,3 +283,38 @@ it('waits through a shared-interaction cooldown and saves the current edit witho
     await act(async () => vi.advanceTimersByTimeAsync(5000)); expect(editObject).toHaveBeenCalledTimes(2);
   } finally { vi.useRealTimers(); vi.mocked(ownObjects).mockResolvedValue([]); vi.mocked(editObject).mockResolvedValue(undefined); }
 });
+it('pauses live edits cleanly when seasonOpen is false and shows honest closed status', async () => {
+  const { ownObjects, editObject } = await import('./galaxy-data');
+  const { presets, orbitFromVelocity } = await import('@little-galaxy/shared');
+  vi.mocked(ownObjects).mockResolvedValue([{ schemaVersion: 2, id: 'active', ownerUid: 'visitor', type: 'planet', nameKey: 'quiet-aurora', params: presets.planet[0], orbit: orbitFromVelocity(0, 2.58, 0, 0), status: 'active', createdAt: 0, updatedAt: 0, season: 'bad-2026' }]);
+  vi.mocked(editObject).mockReset().mockResolvedValue(undefined);
+  vi.useFakeTimers();
+  const baseLive = {
+    config: { schemaVersion: 1 as const, seasonOpen: true, launches: true, shake: true, comets: true, shootingStars: true, meteorShowers: true, screenScene: 'galaxy' as const, idleSeconds: 60 },
+    status: 'live' as const,
+    retry: () => {},
+  };
+  try {
+    vi.mocked(useLiveConfig).mockReturnValue({ ...baseLive, config: { ...baseLive.config, seasonOpen: false } });
+    await act(async () => root.render(<Create language="en"/>));
+    const roll = () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'New name')!.click();
+    await act(async () => roll());
+    await act(async () => vi.advanceTimersByTimeAsync(3000));
+    expect(editObject).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('The launch window is closed. Your design is saved here.');
+
+    vi.mocked(useLiveConfig).mockReturnValue(baseLive);
+    vi.mocked(editObject).mockRejectedValueOnce(new LaunchError('closed'));
+    await act(async () => root.render(<Create language="en"/>));
+    await act(async () => roll());
+    await act(async () => vi.advanceTimersByTimeAsync(2201));
+    expect(editObject).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('The launch window is closed. Your design is saved here.');
+    expect(container.textContent).not.toContain('Edit not confirmed');
+  } finally {
+    vi.useRealTimers();
+    vi.mocked(useLiveConfig).mockReturnValue(baseLive);
+    vi.mocked(ownObjects).mockResolvedValue([]);
+    vi.mocked(editObject).mockReset().mockResolvedValue(undefined);
+  }
+});
