@@ -3,7 +3,9 @@ import { expect, test } from '@playwright/test';
 import { seedDemo } from '../../scripts/demo-emulators.mjs';
 
 test('connected phone launch, edit, crumble, hangar relaunch and comet reach the screen', async ({ browser }) => {
-  test.setTimeout(60000);
+  // Leave room for cold Chromium/JVM startup on the shared 3.3 GB runner.
+  // Launch-to-render deadlines below remain two seconds.
+  test.setTimeout(180000);
   await seedDemo();
   const phoneContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
   const screenContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
@@ -45,5 +47,5 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     await phone.getByRole('button', { name: 'Throw a comet to the right', exact: true }).click();
     await expect(screen.locator('.sky-effects')).toHaveAttribute('data-effects', /comet/, { timeout: 2000 });
     expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  } finally { await phoneContext.close(); await screenContext.close(); }
+  } finally { await Promise.allSettled([phoneContext.close(), screenContext.close()]); }
 });
