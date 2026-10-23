@@ -103,15 +103,19 @@ export default function Screen({ language }: { language: Language }) {
 
   const toggleFullscreen = () => {
     if (typeof document === 'undefined') return;
-    if (kioskPresentation) {
+    const isDomFs = Boolean(document.fullscreenElement);
+    if (isDomFs) {
       setKioskPresentation(false);
-      if (document.fullscreenElement && document.exitFullscreen) {
+      if (document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});
       }
     } else {
       setKioskPresentation(true);
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
+      } else if (kioskPresentation) {
+        // Fallback for environments lacking requestFullscreen (e.g. tests)
+        setKioskPresentation(false);
       }
     }
   };
@@ -134,17 +138,7 @@ export default function Screen({ language }: { language: Language }) {
         if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         e.preventDefault();
-        if (kioskPresentation) {
-          setKioskPresentation(false);
-          if (document.fullscreenElement && document.exitFullscreen) {
-            document.exitFullscreen().catch(() => {});
-          }
-        } else {
-          setKioskPresentation(true);
-          if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen().catch(() => {});
-          }
-        }
+        toggleFullscreen();
       }
     };
     window.addEventListener('keydown', onKeyDown);

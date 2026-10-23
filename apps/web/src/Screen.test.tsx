@@ -159,6 +159,52 @@ it('restores kiosk presentation layout after reload without requiring DOM fullsc
   expect(container.querySelector('.fullscreen-toggle')?.textContent).toBe('Exit fullscreen');
 });
 
+it('enters DOM fullscreen on first F press after restored kiosk presentation', async () => {
+  const originalReq = document.documentElement.requestFullscreen;
+  const originalExit = document.exitFullscreen;
+  const mockReq = vi.fn().mockResolvedValue(undefined);
+  const mockExit = vi.fn().mockResolvedValue(undefined);
+  document.documentElement.requestFullscreen = mockReq;
+  document.exitFullscreen = mockExit;
+
+  try {
+    localStorage.setItem('galaxy.screen.context', JSON.stringify({
+      configuredScene: 'galaxy', lastActivity: Date.now(), kioskPresentation: true,
+    }));
+    await act(async () => root.render(<Screen language="en"/>));
+    const screenSection = container.querySelector('.live-screen')!;
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('true');
+
+    // First F press: DOM fullscreen was absent, so it enters DOM fullscreen rather than exiting kiosk
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    });
+    expect(mockReq).toHaveBeenCalledTimes(1);
+    expect(mockExit).not.toHaveBeenCalled();
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('true');
+
+    // Now simulate being in DOM fullscreen
+    Object.defineProperty(document, 'fullscreenElement', {
+      value: document.documentElement,
+      configurable: true,
+    });
+
+    // Second F press: now in DOM fullscreen, so it exits fullscreen and clears kiosk
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    });
+    expect(mockExit).toHaveBeenCalledTimes(1);
+    expect(screenSection.getAttribute('data-fullscreen')).toBe('false');
+  } finally {
+    document.documentElement.requestFullscreen = originalReq;
+    document.exitFullscreen = originalExit;
+    Object.defineProperty(document, 'fullscreenElement', {
+      value: null,
+      configurable: true,
+    });
+  }
+});
+
 it('restores automatic cinematic scene and focused object before fitting the camera', async () => {
   const objects = syntheticObjects(1);
   localStorage.setItem('galaxy.screen.context', JSON.stringify({ configuredScene: 'galaxy', lastActivity: Date.now() - 60000, focused: objects[0].id }));
