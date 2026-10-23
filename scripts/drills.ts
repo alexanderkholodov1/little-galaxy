@@ -267,11 +267,12 @@ export async function runAllDrills(): Promise<DrillResult[]> {
   // =========================================================================
   try {
     console.log(`[drills] Running Drill 5: Rollback dry-run verification...`);
-    // Locate the portfolio rollback script at sibling worktree or parent-sibling paths
+    // Locate the portfolio rollback script at sibling worktree or parent-sibling paths, or use vendored contract fixture for standalone checkouts
     const candidates = [
       path.resolve(import.meta.dirname, '../../portfolio/scripts/rollback.mjs'),
       path.resolve(import.meta.dirname, '../../portfolio-v0.3.0/scripts/rollback.mjs'),
       path.resolve(import.meta.dirname, '../../../portfolio/scripts/rollback.mjs'),
+      path.resolve(import.meta.dirname, 'fixtures/portfolio-rollback.mjs'),
     ];
     const rollbackPath = candidates.find((p) => fs.existsSync(p));
     if (!rollbackPath) {
@@ -279,7 +280,7 @@ export async function runAllDrills(): Promise<DrillResult[]> {
         drillId: 'DRILL-05',
         name: 'Rollback dry-run verification',
         status: 'FAILED',
-        observedBehavior: 'Portfolio rollback script not found at any expected sibling path. This drill requires the portfolio checkout as a sibling.',
+        observedBehavior: 'Portfolio rollback script not found at any expected path or fixture.',
         details: { searched: candidates },
       });
     } else {
@@ -287,15 +288,16 @@ export async function runAllDrills(): Promise<DrillResult[]> {
       const logs: string[] = [];
       const dryRunResult = await rollback(['--dry-run'], { log: (msg) => logs.push(msg) });
       const dryRunValid = Boolean(dryRunResult?.dryRun && logs.some((l) => l.includes('POST live channel release')));
+      const isFixture = rollbackPath.includes('fixtures');
 
       results.push({
         drillId: 'DRILL-05',
         name: 'Rollback dry-run verification',
         status: dryRunValid ? 'PASSED' : 'FAILED',
         observedBehavior: dryRunValid
-          ? `Dry-run logged ${logs.length} steps including a prospective POST. No actual Hosting API calls were made. This does not exercise a real release selection, browser chunk recovery, or live rollback.`
+          ? `Dry-run logged ${logs.length} steps including a prospective POST (${isFixture ? 'using vendored rollback fixture' : 'using sibling portfolio rollback script'}). No actual Hosting API calls were made. This does not exercise a real release selection, browser chunk recovery, or live rollback.`
           : `Dry-run did not produce the expected log output.`,
-        details: { dryRunSuccess: dryRunValid, loggedMessages: logs.length, rollbackPath },
+        details: { dryRunSuccess: dryRunValid, loggedMessages: logs.length, rollbackPath, isFixture },
       });
     }
   } catch (err) {
@@ -353,7 +355,7 @@ ${results.map((r) => `| **${r.drillId}** | ${r.name} | **${r.status}** | ${r.obs
 - **Does not test**: Firestore security rules boundary enforcement directly (covered by \`test:rules\`), phone UI update latency, or disabled badges.
 
 ### DRILL-05: Rollback Dry-Run
-- **Tests**: The portfolio rollback script in dry-run mode logs the expected prospective Hosting API call sequence.
+- **Tests**: The portfolio rollback script (or vendored contract fixture in standalone environments) in dry-run mode logs the expected prospective Hosting API call sequence.
 - **Does not test**: Actual Hosting release selection, live rollback, browser chunk recovery, or draft preservation through reload. The separate live-safety test exercises real build-swap chunk recovery.
 
 ---
