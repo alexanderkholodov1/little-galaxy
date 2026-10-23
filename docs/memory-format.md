@@ -109,6 +109,10 @@ manifest and object shards. Hashed log files may be immutable. Publish the compl
 atomically with the Galaxy payload, after reviewing the exported data. Do not rewrite missing JSON
 requests to the HTML app if avoidable; Galaxy recognizes an HTML rewrite as a missing static file.
 
+The ordinary fair home reads only `snapshots/live` once and displays its observation time; a refresh
+is explicit. Opening Replay loads the compact season. A present static manifest makes the home
+open the frozen timelapse automatically.
+
 Galaxy tries static JSON first. A 404 or HTML rewrite falls back to one public Firestore get per
 requested document; a present but malformed/incomplete static archive produces a designed error,
 not an event-collection scan. Successfully served static archives require **zero Firestore/Auth

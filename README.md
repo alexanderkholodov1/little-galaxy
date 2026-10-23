@@ -1,4 +1,14 @@
-# Little Galaxy · G v0.5.0
+# Little Galaxy · G v0.6.0
+
+An exact, scrubbed replay of the fair; permanent 3D object records with sound; and 1080×1920
+postcards rendered on the visitor's phone with a QR back to the object. Static season files take
+precedence over public, bounded Firestore archive chunks. The live fair home reads one aggregate
+snapshot; replay is an explicit action. Archived objects remain accessible without visitor sign-in.
+The stand maintains the archive and an emulator-only `freeze-season` CLI exports the same format.
+See [memory implementation and acceptance](docs/memory-status.md) and the
+[versioned format / P v1.1.0 contract](docs/memory-format.md). Physical Android/iPhone sharing and
+published-preview acceptance remain captain work.
+
 
 Shared aurora waves, swipe comets, twelve bilingual shooting-star messages, stand-scheduled meteor
 showers, live kill switches and five operator-controlled screen scenes. Phone writes have server
@@ -37,6 +47,8 @@ pnpm --filter @little-galaxy/stand run start
 # With the stand admin connection configured (demo emulator for local use):
 pnpm --filter @little-galaxy/stand control scene bigQr
 pnpm --filter @little-galaxy/stand control flag shake off
+# Emulator only; requires a fresh output directory (see memory-format.md):
+pnpm --filter @little-galaxy/stand freeze-season /absolute/fresh/output-directory
 pnpm run typecheck
 pnpm run lint
 pnpm run test
@@ -52,7 +64,7 @@ hangar acceptance remain unmeasured. The phone shows an immediate specimen; its 
 only when opened.
 
 Open `/galaxy/`. Routes also include `/galaxy/screen`, `/galaxy/create`, `/galaxy/talk` and
-`/galaxy/o/:id` (the home, talk and object pages retain their foundation stubs). English is the
+`/galaxy/o/:id` (only talk retains its foundation stub). English is the
 default; `?lang=es` overrides the saved preference. Language and
 appearance are saved when browser storage permits. The reference sky always stays dark.
 
