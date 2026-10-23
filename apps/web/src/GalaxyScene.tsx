@@ -6,25 +6,28 @@ import { worldPosition } from '@little-galaxy/shared';
 import type { RenderObject, SoundCandidate } from '@little-galaxy/shared';
 import { Vector3 } from 'three';
 import RichBodies from './RichBodies';
-function FitChart({ objects, focused }: { objects: RenderObject[]; focused?: string }) {
+function FitChart({ objects, focused, cinematic }: { objects: RenderObject[]; focused?: string; cinematic?: boolean }) {
   const { camera, size } = useThree();
   const object = useMemo(() => objects.find((o) => o.id === focused), [objects, focused]);
-  const points = useMemo(() => ({ position: new Vector3(), target: new Vector3() }), []);
-  useEffect(() => {
-    if (focused) return;
-    const { radius, center } = chartFrame(objects);
-    const distance = radius * 1.8 * Math.max(1, size.height / size.width);
-    camera.position.set(center[0], center[1] - distance * .4, center[2] + distance);
-    camera.lookAt(...center);
-    camera.updateProjectionMatrix();
-  }, [camera, objects, size, focused]);
-  useFrame((_, delta) => {
-    if (!object) return;
-    const pos = points.position.set(...worldPosition(object, Date.now()));
-    const distance = Math.max(4, object.params.size * 9) * Math.max(1, size.height / size.width);
-    points.target.set(pos.x, pos.y - distance * .3, pos.z + distance);
-    camera.position.lerp(points.target, 1 - Math.exp(-delta * 5));
-    camera.lookAt(pos);
+  const chart = useMemo(() => chartFrame(objects), [objects]);
+  const points = useMemo(() => ({ position: new Vector3(), target: new Vector3(), look: new Vector3() }), []);
+  const reduced = useMemo(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, []);
+  useFrame(({ clock }, delta) => {
+    const position = points.position;
+    if (object) {
+      position.set(...worldPosition(object, Date.now()));
+      const distance = Math.max(4, object.params.size * 9) * Math.max(1, size.height / size.width);
+      points.target.set(position.x, position.y - distance * .3, position.z + distance);
+    } else {
+      position.set(...chart.center);
+      const distance = chart.radius * 1.8 * Math.max(1, size.height / size.width);
+      const angle = cinematic && !reduced ? clock.elapsedTime * .035 : 0;
+      points.target.set(position.x + Math.sin(angle) * distance * .6, position.y - distance * .4, position.z + Math.cos(angle) * distance);
+    }
+    const blend = reduced ? 1 : 1 - Math.exp(-delta * 2);
+    camera.position.lerp(points.target, blend);
+    points.look.lerp(position, blend);
+    camera.lookAt(points.look);
   });
   return null;
 }
@@ -72,13 +75,14 @@ export default function GalaxyScene({
   label,
   unavailable,
   onFps,
-  focused, pet, onPick, onSoundCandidates,
+  focused, pet, onPick, onSoundCandidates, cinematic,
 }: {
   objects: RenderObject[];
   label: string;
   unavailable: string;
   onFps?: (fps: number) => void;
   focused?: string;
+  cinematic?: boolean;
   pet?: { id: string; at: number };
   onPick?: (id: string) => void;
   onSoundCandidates?: (objects: RenderObject[], candidates: SoundCandidate[]) => void;
@@ -101,7 +105,7 @@ export default function GalaxyScene({
       </mesh>
       <OrbitTrails objects={objects} />
       <RichBodies objects={objects} pet={pet} onPick={onPick} />
-      <FitChart objects={objects} focused={focused} />
+      <FitChart objects={objects} focused={focused} cinematic={cinematic} />
       <SoundSelection objects={objects} focused={focused} pet={pet} onUpdate={onSoundCandidates} />
       <Meter onFps={onFps} />
     </Canvas>
