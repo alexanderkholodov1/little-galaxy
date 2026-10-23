@@ -66,7 +66,10 @@ export default function Create({ language }: { language: Language }) {
   const [hangarView, setHangarView] = useState<boolean>(() => {
     try { return localStorage.getItem('galaxy.workshop.hangar') === 'true'; } catch { return false; }
   });
-  const [inspect3D, setInspect3D] = useState(() => savedMode('galaxy.workshop.inspect3D') === 'true');
+  const [inspect3D, setInspect3D] = useState(() => {
+    const saved = savedMode('galaxy.workshop.inspect3D');
+    return saved === null ? savedMode('galaxy.workshop.step') === 'specimen' : saved === 'true';
+  });
   const pointers = useRef(new Set<number>());
   const interactionBusy = useRef(false);
   const lastActivity = useRef(0);

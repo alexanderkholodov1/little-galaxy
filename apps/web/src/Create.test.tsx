@@ -397,3 +397,8 @@ it.each(['.swipe-window', '.comet-swipe'])('holds announced update throughout a 
     expect(updates.reload).toHaveBeenCalled();
   } finally { vi.useRealTimers(); }
 });
+it('recovers inspection from an older workshop specimen step before the explicit preference existed', async () => {
+  localStorage.setItem('galaxy.workshop.step', 'specimen');
+  await act(async () => root.render(<Create language="en" />));
+  expect(container.querySelector('[data-preview="procedural"]')).not.toBeNull();
+});
