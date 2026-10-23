@@ -9,12 +9,13 @@ const app = config ? initializeApp(config) : null;
 const auth = app ? getAuth(app) : null;
 export const firestore = app ? getFirestore(app) : null;
 
-const demoLoopback = config?.projectId === 'demo-little-galaxy' && ['127.0.0.1', 'localhost'].includes(window.location.hostname) && new URLSearchParams(window.location.search).get('emulators') === '1';
-export const isReadOnlySmoke = new URLSearchParams(window.location.search).get('smoke') === 'readonly';
+const browserLocation = typeof window === 'undefined' ? undefined : window.location;
+const demoLoopback = config?.projectId === 'demo-little-galaxy' && ['127.0.0.1', 'localhost'].includes(browserLocation?.hostname ?? '') && new URLSearchParams(browserLocation?.search).get('emulators') === '1';
+export const isReadOnlySmoke = new URLSearchParams(browserLocation?.search).get('smoke') === 'readonly';
 
 if ((emulators || demoLoopback) && auth && firestore) {
   // The page hostname also lets phones on the LAN reach the local emulators.
-  const host = window.location.hostname;
+  const host = browserLocation?.hostname ?? '127.0.0.1';
   connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
   connectFirestoreEmulator(firestore, host, 8080);
 }

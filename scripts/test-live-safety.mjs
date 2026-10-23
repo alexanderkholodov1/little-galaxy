@@ -129,6 +129,8 @@ async function acceptance() {
     await phone.waitForTimeout(1000);
     expect(await phone.evaluate(boots)).toBe(1); // Recent inspection action still protects recovery.
     await count(phone, 2); await count(screen, 2);
+    const recoveryAttempt = await phone.evaluate(() => sessionStorage.getItem('galaxy.reload_guard'));
+    expect(Number(recoveryAttempt)).toBeGreaterThan(0); // Proves production chunk recovery ran, beyond version polling.
     expect(await entry(phone)).not.toBe(entryA);
     expect(await entry(screen)).toBe(await entry(phone));
     await assertSurface(phone, screen, value, focused);
@@ -140,6 +142,7 @@ async function acceptance() {
     await expect.poll(() => missing.includes(`/galaxy/assets/${soundChunk}`)).toBe(true);
     await phone.waitForTimeout(1000);
     expect(await phone.evaluate(boots)).toBe(2);
+    expect(await phone.evaluate(() => sessionStorage.getItem('galaxy.reload_guard'))).toBe(recoveryAttempt);
     denied.clear();
     // Compare the first restored rendered frame with the last rendered frame before reload.
     // Later camera samples legitimately follow the moving planet and are not a continuity check.

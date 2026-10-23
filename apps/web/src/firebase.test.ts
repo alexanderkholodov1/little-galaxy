@@ -68,3 +68,11 @@ it('production rehearsal may connect only the explicit demo project on loopback'
   await import('./firebase');
   expect(mocks.connectAuth).not.toHaveBeenCalled(); expect(mocks.connectFirestore).not.toHaveBeenCalled();
 });
+it('allows production data helpers to import under Node without a browser window', async () => {
+  vi.stubGlobal('window', undefined);
+  try {
+    const module = await import('./firebase');
+    expect(module.isReadOnlySmoke).toBe(false);
+    expect(mocks.signIn).not.toHaveBeenCalled();
+  } finally { vi.unstubAllGlobals(); }
+});
