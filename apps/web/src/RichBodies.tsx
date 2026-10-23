@@ -206,6 +206,9 @@ export default function RichBodies({
     for (let i = 0; i < pool.meshes.length; i++) {
       const mesh = pool.meshes[i], count = pool.counts[i];
       mesh.count = count;
+      // Matrices and live counts change every frame (orbits, pets, edits, arrivals).
+      // Three reuses its sphere/scratch storage; refresh after the complete batch.
+      mesh.computeBoundingSphere();
       markLiveRange(mesh.instanceMatrix, count, pool.ranges[i][0]);
       for (let j = 0; j < attributes.length; j++) markLiveRange(mesh.geometry.getAttribute(attributes[j][0]), count, pool.ranges[i][j + 1]);
       materials[i].uniforms.clock.value = clock.elapsedTime;
