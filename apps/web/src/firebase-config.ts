@@ -1,7 +1,7 @@
 import type { FirebaseOptions } from 'firebase/app';
 
-export function resolveFirebaseConfig(env?: ImportMetaEnv): { config: FirebaseOptions | null; emulators: boolean } {
-  const emulators = Boolean(env?.DEV && env?.VITE_USE_EMULATORS === '1');
+export function resolveFirebaseConfig(env: ImportMetaEnv): { config: FirebaseOptions | null; emulators: boolean } {
+  const emulators = env.DEV && env.VITE_USE_EMULATORS === '1';
   if (emulators) return { emulators, config: {
     apiKey: 'demo-key', authDomain: 'demo-little-galaxy.firebaseapp.com', projectId: 'demo-little-galaxy',
     storageBucket: 'demo-little-galaxy.appspot.com', messagingSenderId: '000000000000', appId: 'demo-app',
