@@ -8,7 +8,7 @@ booth-speaker listening remain operator acceptance. This task does not authorize
 | --- | --- | --- |
 | Parametric Tone.js fingerprint, one scale | Done | `packages/shared/src/sound.ts`; D minor pentatonic, including the pet octave. Size lowers register and lengthens release; atmosphere changes the low-pass cutoff; mountains/craters change harmonic partials; oceans increase chorus; rings/corona feed reverb; temperature increases brightness; clouds soften attack; palette/moon colour change timbre. Every visual control reaches the audio graph. |
 | Phone and focused-screen petting | Done locally | The immediate SVG specimen and shared instanced renderer apply the same damped, volume-preserving squash/stretch spring. The 3D inspector loads only on explicit inspection; petting and audio unlock also work before opening it. Tap a phone specimen; select/tap a screen object to focus it, then tap again to pet. Equivalent labelled buttons support keyboard access. Pets use the fingerprint one octave up, a short envelope, and the existing voice slot. |
-| Eight-voice screen mix, global volume, phone mute, first-tap unlock | Partial acceptance | Eight monophonic slots; camera-frustum eligibility, distance bands and incumbent hysteresis; focused/petted/new objects take priority. Gentle staggered envelopes, shared reverb, master compressor and −6 dB limiter. Global volume/mute controls; phone mute persists with guarded storage. Native context resume and silent-buffer priming happen inside a trusted tap/key gesture before the lazy import. Chromium unlock/reload/failure tests pass; physical iPhone/Android unlock remains open. |
+| Eight-voice screen mix, global volume, phone mute, first-tap unlock | Partial acceptance | Eight monophonic slots; camera-frustum eligibility, a 10% incumbent relative-distance margin; focused/petted/new objects take priority. Gentle staggered envelopes, shared reverb, master compressor and −6 dB limiter. Global volume/mute controls; phone mute persists with guarded storage. Native context resume and silent-buffer priming happen inside a trusted tap/key gesture before the lazy import. Chromium unlock/reload/failure tests pass; physical iPhone/Android unlock remains open. |
 | Different designs; 50 active objects avoid muddy mix | Done locally; listening open | Offline renders use the production graph and allocator. Eight voices from 50 objects, full user volume, simultaneous ambient/pet stress; measured peak/RMS, zero clipping and differing spectra below. The operator still needs to judge timbre and balance through the actual booth speakers. |
 
 ## Audio contract
@@ -114,13 +114,78 @@ section below. This supersedes the original sound-branch verification and cleanu
 
 ## Operator acceptance remaining
 
-Use one Android and one iPhone: open the workshop with a fresh preference, verify silence before
-tapping, tap the specimen to unlock/pet, adjust all materials, mute, reload, and verify muted petting
-stays silent before unmuting. Repeat after backgrounding, interruption and an internal route change.
-On the booth screen enable sound, focus/pet an object, adjust global volume/mute and listen with
-50 active objects through the intended speakers. Record OS/browser/output and the results. A device
-that remains suspended should offer Enable sound again. Check deployed behavior when the captain
-publishes a preview; this local task performs no deployment. The v0.3 review fixes are now integrated. Existing v0.3 hardware acceptance remains operator work.
+**Open: no physical-device or subjective listening result has been recorded.** Automated
+Chromium/offline checks do not close these items. The captain supplies a deployed preview URL;
+this task does not deploy. Run the checklist on that preview, not a local synthetic-only build.
+Do not mark the sound milestone accepted until every row has a recorded result.
+
+Record each run: date, preview URL and commit, device/model, OS version, browser/version, output
+(built-in speaker / wired / Bluetooth / booth speaker model), hardware volume, app volume,
+step/result, and any retry needed. Leave unknown details as TODO. A failure stays open with its
+reproduction steps; a retry is recorded separately from first-tap success.
+
+Required configurations (each currently **TODO / unverified**):
+
+| Device | Browser | Output | Required checklist |
+| --- | --- | --- | --- |
+| Physical Android phone (model/OS: TODO) | Chrome stable (version: TODO) | Built-in speaker; repeat with intended visitor output if different | A1–A7 |
+| Physical iPhone (model/iOS: TODO) | Safari (version: TODO) | Built-in speaker; repeat with intended visitor output if different | A1–A7 |
+| Booth screen computer (model/OS: TODO) | Intended exhibition browser (name/version: TODO) | Actual booth speakers, at intended placement and room level | B1–B5 |
+
+Phone steps, on **both** listed phones:
+
+- [ ] **A1 — Cold visit / first tap.** Clear this preview origin's site data, close its tabs, and
+  open `/galaxy/create` with audible hardware volume and no saved mute. Listen for silence before
+  interaction. Tap the specimen once. Confirm sound unlocks without a second tap, the specimen
+  squashes, and a short higher pet note is audible (not only a long ambient note). Record first-tap
+  pass/fail. If suspended, record whether Enable sound appears and whether tapping it recovers.
+- [ ] **A2 — Materials / pets.** Compare planet Preset 1 and Preset 2 after allowing the audition
+  interval; repeat at the same size to compare material rather than pitch alone. Try star and moon.
+  Listen for distinguishable tone/attack/brightness, in-scale pitches and a short octave-up pet.
+  Tap rapidly, then pause at least 0.25 seconds and tap again: listen for bounded retriggers, no
+  clicks or runaway loudness, and a new pet after the pause. Repeat petting in Inspect in 3D;
+  enlarge the radius and tap its visible outer surface.
+- [ ] **A3 — Mute / reload / unmute.** Mute, reload, pet the SVG and 3D specimens, and wait at least
+  seven seconds: all remain silent and Unmute sound remains available. Unmute with a tap; confirm
+  sound returns without reloading. Mute again and confirm any effect tail fades to silence.
+- [ ] **A4 — Background / lock.** With sound enabled, background the browser for 15 seconds, return,
+  then lock the phone for 15 seconds and return. Listen for no background playback, burst of queued
+  notes, doubled mix or stuck tone. Pet on return; confirm recovery or an honest Enable sound retry.
+- [ ] **A5 — Interruption.** Interrupt active audio with a call or another audio app, end the
+  interruption and return. Pet and check sound resumes or offers a working Enable sound retry;
+  listen for stuck notes, duplicate voices, clicks or unexpected volume jumps. Record interruption
+  type and whether recovery needed a gesture.
+- [ ] **A6 — Route return.** While sounding, use the internal galaxy navigation to go from
+  `/galaxy/create` to `/galaxy/` and back to `/galaxy/create`. Listen for old-route audio to stop and no doubled graph on return. Pet to unlock
+  the new route, then repeat the round trip while muted; saved mute must keep the return silent.
+- [ ] **A7 — Record verdict.** Record A1–A6 separately, including device/browser/output details and
+  first-tap versus retry results. A suspended context with a working retry does not count as a
+  first-tap pass. Report any unrecovered state with exact steps.
+
+Booth listening steps (use **50 active objects** in the captain's authorized preview/test dataset;
+record the actual count and setup, with no production-data writes for this check):
+
+- [ ] **B1 — Enable / default level.** On `/galaxy/screen`, enable sound and start at app volume
+  **0.32**, with hardware volume set to the intended booth level. Listen for at least 60 seconds
+  from the visitor position: distinct breathing attacks and releases, audible differences between
+  objects, no persistent low/mid-frequency wash that masks individual tones, no clicks/distortion
+  or accumulating reverb. Record the room/output and an explicit muddy / clear verdict.
+- [ ] **B2 — Focus / pet.** Focus several different visible objects, then tap again or use Pet
+  focused object. Listen for the focused design and short higher pet to remain identifiable over
+  the mix. Return to Galaxy view; confirm no stuck note, abrupt loudness jump or duplicated mix.
+- [ ] **B3 — Full level.** Repeat B1–B2 at app volume **1.0** with unchanged hardware volume.
+  Listen for clipping/distortion, harsh peaks, masked pets and an indistinct sustained wash.
+  Record default and full-volume verdicts separately; unclipped offline samples do not prove clarity.
+- [ ] **B4 — Controls / lifecycle.** Sweep global volume down/up, mute/unmute, background/return and
+  leave/re-enter the screen route. Confirm smooth level changes, silence when muted/hidden,
+  recovery/retry on return, and no stacked voices or stuck tails. Return app volume to **0.32**.
+- [ ] **B5 — Record verdict.** Record B1–B4, the two compared designs, count, listening duration,
+  listener/operator, actual speakers/placement and room conditions. Explicitly answer whether the
+  designs sound different and the 50-object scene is clear at default and full level. Any muddy or
+  uncertain result leaves acceptance open for tuning and another listening run.
+
+Existing v0.3 hardware acceptance and captain-owned remote CI/portfolio updates remain open in
+[confirmed-review-fixes.md](confirmed-review-fixes.md); this checklist does not close them.
 
 ## Review-fix merge
 
@@ -169,3 +234,68 @@ The Playwright server and Auth/Firestore emulators shut down. Final `ss -ltn` in
 No deployment, push, PR, tag, read-only plan edit or assistant feature was performed.
 Captain work remains: portfolio plan/changelog update, remote CI/deployed verification when
 appropriate, physical Android/iPhone unlock/hangar round trips, booth GPU/TV measurement and listening.
+
+## Confirmed sound review corrections — 2026-10-23
+
+The confirmed code findings are fixed on `v0.4.0-sound`:
+
+- `dd582af`: every completed instance batch recomputes its picking sphere after both matrix and
+  live-count updates. Three reuses each mesh's sphere and module scratch storage after initial
+  creation; this adds no per-frame arrays/objects and retains pooled bodies and live upload ranges.
+  Production-frame/real-Three regressions pick the phone after radius 0.4 → 0.7 (ray x=1.8), a moved
+  screen body, and an arrival in a far batch previously raycast while empty.
+- `3dd831b`: the allocator gives incumbents a **10% relative-distance margin**, with explicit
+  interaction priority and deterministic ties. The distance-1 candidate now displaces a distance-60
+  incumbent; 5% changes retain membership and 20% improvements replace it at distances 5 and 60.
+  The original 500-frame jitter test remains unchanged and passes.
+- `a15f806`: last-pet time starts at negative infinity. The production scheduler/graph test emits
+  the first short octave-up pet at context age **0.23 s**, suppresses rapid repeats and accepts the
+  next pet after the 0.25 s interval. Browser audio nodes are doubled in this unit test; the real
+  production graph is still covered by the offline browser render.
+
+All five new regressions failed on the original implementation and pass with these changes.
+The acceptance checklist above is the action for finding 2; hardware/listening is **still open**.
+
+### Verification of the corrections
+
+Ran these exact commands sequentially from this worktree; all exited **0**. No Turbo task was
+served from cache. The Java heap cap applies to the rules emulator.
+
+```sh
+pnpm install --frozen-lockfile
+TURBO_FORCE=true pnpm run typecheck
+TURBO_FORCE=true pnpm run lint
+TURBO_FORCE=true PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.3.0/browsers GALAXY_SCREENSHOTS=/home/alexamaze/bad/work/fix-g-v0.4.0/v040 pnpm run test
+JAVA_TOOL_OPTIONS=-Xmx512m TURBO_FORCE=true pnpm run test:rules
+TURBO_FORCE=true pnpm run build:rehearsal
+```
+
+Typecheck/lint passed in all three packages. Tests: **27 shared, 9 stand, 85 web, 26 script,
+9 Chromium**. Rules: **116 passed**, `demo-little-galaxy`, followed by successful shutdown.
+Build: **2 tasks passed**, privacy gate **25 files**, workspace and built versions **0.4.0**.
+Existing large-chunk/Firebase import warnings remain. Main gzip is **274.35 kB**, deferred audio
+**61.76 kB**, rich renderer **4.25 kB** and Three/R3F **241.19 kB**.
+
+The unchanged 500-object synthetic browser test was run before the fix and in the full suite after:
+
+| Chromium SwiftShader, 1920×1080, DPR 1 | Mean FPS | Samples | Draw calls |
+| --- | ---: | --- | ---: |
+| Before | 13.775 | 13.3, 13.0, 12.2, 14.5, 15.1, 13.6, 14.9, 13.6 | 6 |
+| After | 15.100 | 15.3, 14.9, 14.2, 14.5, 15.9, 16.2, 14.3, 15.5 | 6 |
+
+This shared-machine software measurement does not establish a speedup or booth-GPU acceptance.
+The pooled renderer retains six draw calls; no steady-state frame allocation is added by the fix.
+The before-only command was:
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/home/alexamaze/bad/work/g-v0.3.0/browsers pnpm exec playwright test --config tests/ui/playwright.config.js -g '500 synthetic'
+```
+
+Focused iteration commands were `pnpm --filter @little-galaxy/web exec vitest run
+src/RichBodies.test.tsx src/sound-engine.test.ts` and `pnpm --filter @little-galaxy/shared exec
+vitest run src/sound.test.ts` (final results: **4/4** and **7/7**). The initial picking-only run used
+`pnpm --filter @little-galaxy/web exec vitest run src/RichBodies.test.tsx` and failed before the fix.
+Changed-file ESLint and `git diff --check` also passed. Logs (including expected red regressions),
+screenshots and offline measurement JSON are in `~/bad/work/fix-g-v0.4.0/`; checkpoint:
+`~/bad/checkpoints/fix-g-v0.4.0.md`. All started servers/emulators were stopped. No deployment or
+physical-device acceptance was performed. This section supersedes the earlier local test counts.

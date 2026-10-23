@@ -55,7 +55,7 @@ export function createSoundEngine(context: AudioContext, count: number) {
   Tone.setContext(toneContext);
   const graph = createSoundGraph(count);
   let objects: RenderObject[] = [], candidates: SoundCandidate[] = [], selected: string[] = [];
-  const slots = Array.from({ length: count }, () => ({ id: '', next: 0, petAt: 0, fingerprint: '' }));
+  const slots = Array.from({ length: count }, () => ({ id: '', next: 0, petAt: -Infinity, fingerprint: '' }));
   let muted = false, level = 0.32;
   const tick = () => {
     const now = Date.now(), time = Tone.now();

@@ -47,14 +47,14 @@ export interface SoundCandidate {
   newUntil?: number;
   pettedUntil?: number;
 }
-/** Hysteresis: incumbents survive minor distance changes. Interaction priority wins immediately.
- * Coarse distance bands prevent orbit/frame jitter from reshuffling the mix. No input-order ties. */
+/** Incumbents get a 10% relative-distance margin against orbit/frame jitter.
+ * Interaction priority wins immediately; a substantially nearer peer replaces an incumbent. */
 export function allocateVoices(candidates: SoundCandidate[], previous: string[], now: number): string[] {
   const retained = new Set(previous);
   return candidates.filter((c) => c.visible && Number.isFinite(c.distance) && c.distance >= 0)
-    .map((c) => ({ id: c.id, score: (c.focused ? 10000 : 0) + ((c.pettedUntil ?? 0) > now ? 20000 : 0)
-      + ((c.newUntil ?? 0) > now ? 1000 : 0) + (retained.has(c.id) ? 100 : 0) - Math.floor(c.distance / 10) * 10 }))
-    .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+    .map((c) => ({ id: c.id, priority: (c.focused ? 10000 : 0) + ((c.pettedUntil ?? 0) > now ? 20000 : 0)
+      + ((c.newUntil ?? 0) > now ? 1000 : 0), distance: c.distance * (retained.has(c.id) ? .9 : 1) }))
+    .sort((a, b) => b.priority - a.priority || a.distance - b.distance || a.id.localeCompare(b.id))
     .filter((c, i, all) => all.findIndex((v) => v.id === c.id) === i)
     .slice(0, MAX_SOUND_VOICES).map((c) => c.id);
 }
