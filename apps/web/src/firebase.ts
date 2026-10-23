@@ -27,3 +27,9 @@ export function startAnonymousSession(): Promise<void> {
   });
   return authentication;
 }
+
+export async function anonymousUid(): Promise<string> {
+  await startAnonymousSession();
+  if (!auth?.currentUser) throw new Error('Session unavailable');
+  return auth.currentUser.uid;
+}

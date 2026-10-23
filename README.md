@@ -1,7 +1,8 @@
-# Little Galaxy · G v0.1.0
+# Little Galaxy · G v0.2.0
 
-Galaxy foundations: five route stubs, a reference sky, anonymous identity, and a deny-all data boundary.
-No visitor objects, live subscriptions, voice, or creation flow are implemented in this milestone.
+Galaxy core: a shared 3D sky around a central star, a phone planet workshop, swipe launches,
+returning comets, atomic Firestore rules and a stand snapshot writer.
+See [the v0.2.0 handoff](docs/galaxy-core-status.md) for contracts, verification and open device acceptance.
 
 The plan of record is at `../portfolio/docs/plan/README.md` (the `main` branch).
 See [the local foundation handoff](docs/foundations-status.md) for G v0.1.0 evidence and outstanding setup.
@@ -14,7 +15,9 @@ Install dependencies first with pnpm 11.5.2 and Node 22.18 or newer:
 pnpm install
 ```
 
-Java 21 is required for `pnpm run test:rules`, which starts the Firestore emulator. Common commands:
+Java 21 is required for `pnpm run test:rules`, which starts the Firestore and Auth emulators.
+Install Chromium once with `pnpm exec playwright install chromium` before `pnpm run test`;
+CI installs Chromium and its system dependencies before the same step. Common commands:
 
 ```sh
 pnpm --filter @little-galaxy/web run dev
@@ -28,7 +31,8 @@ pnpm run privacy:rehearsal
 ```
 
 Open `/galaxy/`. Routes also include `/galaxy/screen`, `/galaxy/create`, `/galaxy/talk` and
-`/galaxy/o/:id`. English is the default; `?lang=es` overrides the saved preference. Language and
+`/galaxy/o/:id` (the home, talk and object pages retain their foundation stubs). English is the
+default; `?lang=es` overrides the saved preference. Language and
 appearance are saved when browser storage permits. The reference sky always stays dark.
 
 The portfolio provides `/profile.json` and `/tokens.css` at runtime. Missing files do not prevent use.
@@ -59,6 +63,16 @@ Emulator mode is development-only. Start local Firebase services against the iso
 pnpm exec firebase emulators:start --only firestore,auth --project demo-little-galaxy
 ```
 
+With the emulators running, open the synthetic season and optionally start the snapshot writer:
+
+```sh
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-little-galaxy pnpm run demo:seed
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-little-galaxy pnpm --filter @little-galaxy/stand start
+```
+
+`demo:seed` refuses any other host/project and never loads a credential. A missing or closed
+`config/live` denies launches; the stand does not automatically open a real season.
+
 Set `VITE_USE_EMULATORS=1` in the web development process before starting Vite. The application then
 uses project `demo-little-galaxy`; production builds reject `VITE_USE_EMULATORS` whenever it is set.
 Vite, preview and the default emulators bind to loopback. For an intentional phone test on a trusted
@@ -70,28 +84,31 @@ VITE_USE_EMULATORS=1 pnpm --filter @little-galaxy/web run dev:lan
 ```
 
 `firebase.lan.json` changes only the Auth/Firestore listener hosts to `0.0.0.0`; it retains the demo
-project selected by the script, deny-all rules and ports 8080/9099. Both SDKs use the page hostname,
+project selected by the script, the checked-in rules and ports 8080/9099. Both SDKs use the page hostname,
 so a phone can reach the laptop through its LAN address. Stop both processes after the test. Rules
-tests use the loopback configuration and isolated demo project, start only Firestore, and do not
-access live data.
+tests use the loopback configuration and isolated demo project, start Firestore and Auth, and do not
+access live data. Browser checks run separately with emulators stopped.
 
 The stand starts without credentials. If `GOOGLE_APPLICATION_CREDENTIALS` is set, firebase-admin uses
 that file through application-default credentials and requires `FIREBASE_PROJECT_ID` to be exported.
 Use the exact data-project ID from `VITE_FIREBASE_PROJECT_ID`, not an assumed display name. The rules
 release job reads that same repository variable and fails closed if it is missing.
 Keep the credential file outside public source and output; never put
-key contents in an environment variable or browser config. No stand data jobs run yet.
+key contents in an environment variable or browser config.
+The stand writes `snapshots/live` after its first active-object read and every 30 seconds,
+using one cached listener rather than rescanning the galaxy. It handles SIGINT/SIGTERM cleanup.
+In emulator mode it refuses non-`demo-` project IDs and does not load credentials.
 
 ## Build and delivery
 
 `apps/web/dist` is the release payload: unpack its contents under the portfolio's `dist/galaxy/`.
-The payload includes the bundled fonts' copyright and license notices in `licenses/`.
+The payload includes the fonts' OFL notices and QR encoder's MIT notice in `licenses/`.
 Vite fixes asset URLs to `/galaxy/`. Generated `version.json` contains `version`, `commit` (nullable
 outside a git checkout), and `builtAt` (UTC ISO timestamp). Build caching is disabled so this metadata
 describes that invocation.
 
 `.github/workflows/checks.yml` is the reusable, secretless checks workflow. Pull requests and pushes to
-`main` run typecheck, lint, unit tests, Firestore rules tests, the production build and the privacy gate,
+`main` run typecheck, lint, unit/browser tests, Firestore/Auth rules tests, the build and privacy gate,
 then upload `galaxy-dist`. On same-repository pull requests only, CI passes that artifact to a separate
 `preview` environment job. The preview job does not check out or execute pull-request code, and deploys
 only the expiring `pr-<number>` channel. Missing preview credentials produce a notice and skip deployment.
@@ -120,5 +137,5 @@ The design artifact is an observatory finding chart. Spectral 400 is the display
 Font License 1.1, with Georgia and Trebuchet MS as later fallbacks. The interface keeps a dark reference
 field, printed-chart typography and compact marginal annotations while preserving light and dark UI chrome.
 
-Preview and real-phone verification are required before claiming deployed behavior. Live creation and
-update recovery belong to later milestones; no editor state exists in this foundation.
+Preview and real-phone verification are required before claiming deployed behavior. The workshop saves its validated draft continuously and reads its own active object after reload.
+Complete live deploy recovery belongs to G v0.7.0. Two real phones and deployed acceptance remain open.

@@ -6,7 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from './App';
 import { startAnonymousSession } from './firebase';
 
-vi.mock('./firebase', () => ({ sessionConfigured: true, startAnonymousSession: vi.fn() }));
+vi.mock('./firebase', () => ({ firestore: null, anonymousUid: vi.fn(), sessionConfigured: true, startAnonymousSession: vi.fn() }));
+vi.mock('./GalaxyScene', () => ({ default: () => <canvas role="img" aria-label="Live galaxy" /> }));
 vi.mock('./Scene', () => ({ default: () => <canvas role="img" aria-label="Reference sky" /> }));
 
 let root: Root;
@@ -128,4 +129,11 @@ it('keeps scene messages outside image semantics', async () => {
   await render('/galaxy/');
   expect(container.querySelector('.sky-view')?.getAttribute('role')).toBeNull();
   expect(container.querySelector('figure')?.getAttribute('aria-label')).toBeNull();
+});
+
+it.each([
+  ['en', 'Make a planet on your phone.'], ['es', 'Crea un planeta en tu teléfono.'],
+])('describes the current home experience in %s', async (language, sentence) => {
+  await render(`/galaxy/?lang=${language}`);
+  expect(container.querySelector('.intro')?.textContent).toContain(sentence);
 });

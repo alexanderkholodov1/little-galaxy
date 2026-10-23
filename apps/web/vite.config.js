@@ -20,6 +20,8 @@ export default defineConfig(({ command, mode }) => {
             source: readFileSync(new URL(`./src/assets/fonts/${name}`, import.meta.url), 'utf8'),
           });
         }
+        this.emitFile({ type: 'asset', fileName: 'licenses/MIT-qrcode-generator.txt',
+          source: readFileSync(new URL('./src/assets/licenses/MIT-qrcode-generator.txt', import.meta.url), 'utf8') });
         const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
         const metadata = createVersionFile(pkg, env, () => execFileSync('git', ['rev-parse', 'HEAD'], {
           encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],

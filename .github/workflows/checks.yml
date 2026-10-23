@@ -25,7 +25,9 @@ jobs:
         run: pnpm run typecheck
       - name: Lint
         run: pnpm run lint
-      - name: Unit tests
+      - name: Install Chromium for browser checks
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Unit and browser tests
         run: pnpm run test
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:

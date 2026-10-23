@@ -9,3 +9,5 @@ private/
 !.env.example
 *-firebase-adminsdk-*.json
 *.log
+.ui-results/
+playwright-report/

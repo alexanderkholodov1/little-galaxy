@@ -8,8 +8,10 @@ import { copy } from './copy';
 import { applyTheme, resolveTheme, savedTheme, themeQuery } from './theme';
 import ReferenceSky from './ReferenceSky';
 import SessionLine from './SessionLine';
+import Create from './Create';
+import Screen from './Screen';
 
-type Page = 'home' | 'screen' | 'create' | 'talk' | 'object' | 'missing';
+type Page = 'home' | 'talk' | 'object' | 'missing';
 
 function PageContent({ page, text }: { page: Page; text: typeof copy.en | typeof copy.es }) {
   return (
@@ -18,7 +20,7 @@ function PageContent({ page, text }: { page: Page; text: typeof copy.en | typeof
         <h1>{text[`${page}Title`]}</h1>
         <p className="intro">{text[`${page}Text`]}</p>
       </section>
-      {(page === 'home' || page === 'screen') && (
+      {page === 'home' && (
         <figure className="sky-chart">
           <div className="sky-view">
             <ReferenceSky unavailable={text.unavailable} label={text.chart} loading={text.loadingSky} retry={text.retrySky} />
@@ -26,7 +28,7 @@ function PageContent({ page, text }: { page: Page; text: typeof copy.en | typeof
           <figcaption><span className="chart-cross" aria-hidden="true">+</span>{text.chartNote}</figcaption>
         </figure>
       )}
-      {(page === 'create' || page === 'talk') && <SessionLine text={text} />}
+      {page === 'talk' && <SessionLine text={text} />}
     </>
   );
 }
@@ -107,8 +109,8 @@ export default function App() {
       <main id="content">
         <Routes>
           <Route index element={<PageContent page="home" text={text} />} />
-          <Route path="screen" element={<PageContent page="screen" text={text} />} />
-          <Route path="create" element={<PageContent page="create" text={text} />} />
+          <Route path="screen" element={<Screen language={language} />} />
+          <Route path="create" element={<Create language={language} />} />
           <Route path="talk" element={<PageContent page="talk" text={text} />} />
           <Route path="o/:id" element={<PageContent page="object" text={text} />} />
           <Route path="*" element={<PageContent page="missing" text={text} />} />
