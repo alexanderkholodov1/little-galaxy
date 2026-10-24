@@ -1138,3 +1138,42 @@ it('merges simultaneous owners in the same shard without lost objects', async ()
   expect(skyBucket('alice')).toBe(skyBucket('quinn'));
   expect(Object.values(entries).map((entry) => entry.id).sort()).toEqual(ids.sort());
 });
+
+it('rejects entry 513 atomically while allowing an existing owner to replace at the shard cap', async () => {
+  const first = await launchPlanet(db(), 'alice', draft, orbit());
+  const shard = adminFirestore(admin).doc(`sky/${skyBucket('alice')}`);
+  const own = (await shard.get()).data().entries.alice;
+  const entries = { alice: own };
+  for (let i = 0; i < 511; i++) entries[`reserved-${i}`] = own;
+  await shard.set({ entries });
+  await ageUser(); await assertSucceeds(editObject(db(), 'alice', { ...draft, nameKey: 'bright-tide' }));
+  await assertFails(launchPlanet(db('quinn'), 'quinn', draft, orbit()));
+  expect((await shard.get()).data().entries.alice.id).toBe(first);
+  expect(Object.keys((await shard.get()).data().entries)).toHaveLength(512);
+  expect((await adminFirestore(admin).doc('users/quinn').get()).exists).toBe(false);
+  expect((await adminFirestore(admin).collection('objects').get()).size).toBe(1);
+});
+
+it('uses one transaction get per interaction while rules still enforce the live switches', async () => {
+  const { observeTransactions } = await import('../../apps/web/src/firestore-observer.ts');
+  const database = db(), reads = [];
+  const stop = observeTransactions(database, { attempt() {}, request() {}, read(path) { reads.push(path); } });
+  try { await sendInteraction(database, 'alice', 'shake', {}); }
+  finally { stop(); }
+  expect(reads).toEqual(['users/alice']);
+});
+
+it('avoids duplicate config gets on launch and edit while retaining rule-enforced closed errors', async () => {
+  const { observeTransactions } = await import('../../apps/web/src/firestore-observer.ts');
+  const database = db(), reads = [];
+  const stop = observeTransactions(database, { attempt() {}, request() {}, read(path) { reads.push(path); } });
+  try {
+    const id = await launchPlanet(database, 'alice', draft, orbit());
+    expect(reads).toEqual(['users/alice']); reads.length = 0;
+    await ageUser(); await editObject(database, 'alice', draft);
+    expect(reads).toEqual(['users/alice', `objects/${id}`]);
+    await ageUser(); await bypass((database) => updateDoc(doc(database, 'config', 'live'), { seasonOpen: false }));
+    await expect(launchPlanet(database, 'alice', draft, orbit())).rejects.toThrow('closed');
+    await expect(editObject(database, 'alice', draft)).rejects.toThrow('closed');
+  } finally { stop(); }
+});

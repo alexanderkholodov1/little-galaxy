@@ -45,3 +45,10 @@ it('keeps frozen home static-only', async () => {
   expect(await loadHome()).toEqual({ frozen: true });
   expect(getDoc).not.toHaveBeenCalled();
 });
+
+it('prefers static immutable log chunks even with a live manifest', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response(null, 404)).mockResolvedValueOnce(response({ format: 1, states: [], events: [] })));
+  vi.mocked(getDoc).mockResolvedValueOnce({ exists: () => true, data: () => manifest } as never);
+  expect((await loadSeason()).frozen).toBe(false);
+  expect(getDoc).toHaveBeenCalledTimes(1);
+});

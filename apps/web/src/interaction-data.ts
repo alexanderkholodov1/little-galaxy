@@ -1,20 +1,18 @@
 import { runObservedTransaction } from './firestore-observer';
 import { collection, doc, limitToLast, onSnapshot, orderBy, query, serverTimestamp, Timestamp, where } from 'firebase/firestore';
 import type { Firestore } from 'firebase/firestore';
-import { interactionClock, interactionCooldown, interactionFlag, MAX_INTERACTIONS_PER_DAY, utcDay, validInteraction } from '@little-galaxy/shared';
+import { interactionClock, interactionCooldown, MAX_INTERACTIONS_PER_DAY, utcDay, validInteraction } from '@little-galaxy/shared';
 import type { GalaxyUser, InteractionType } from '@little-galaxy/shared';
 import { waitForAnonymousUid } from './session-uid';
 export class InteractionError extends Error {
   constructor(public reason: 'cooldown' | 'closed' | 'limit' | 'offline', public retryAfter = 2200) { super(reason); }
 }
-/** Exactly two writes; no galaxy reads, event reads, object writes or offline gesture queue. */
+/** One user read and two writes. Commit-time rules read config and enforce kill switches atomically. */
 export async function sendInteraction(database: Firestore, uid: string, type: InteractionType, payload: Record<string, unknown>) {
   if (!validInteraction(type, payload)) throw new Error('Invalid interaction');
   const event = doc(collection(database, 'events'));
   await runObservedTransaction(database, async (tx) => {
     const ref = doc(database, 'users', uid), user = await tx.get(ref);
-    const config = await tx.get(doc(database, 'config', 'live'));
-    if (!config.data()?.seasonOpen || config.data()?.[interactionFlag[type]] !== true) throw new InteractionError('closed');
     const old = user.data() as GalaxyUser<Timestamp> | undefined;
     const now = Date.now(), day = utcDay(now), clock = interactionClock[type];
     const remaining = old ? Math.max(2000 - (now - old.lastWriteAt.toMillis()), interactionCooldown[type] - (now - old[clock].toMillis())) : 0;
@@ -26,6 +24,9 @@ export async function sendInteraction(database: Firestore, uid: string, type: In
       lastShakeAt: Timestamp.fromMillis(0), lastCometAt: Timestamp.fromMillis(0), lastStarAt: Timestamp.fromMillis(0) };
     tx.set(ref, { ...base, lastWriteAt: at, [clock]: at, interactionDay: day, interactionsToday: count, action: type, writeId: event.id });
     tx.set(event, { schemaVersion: 1, uid, objectId: base.activeObjectId, type, at, payload });
+  }).catch((error: unknown) => {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') throw new InteractionError('closed');
+    throw error;
   });
 }
 export interface ScreenEvent { id: string; type: string; objectId: string; at: number; payload: Record<string, unknown> }
@@ -38,7 +39,7 @@ export function readScreenEvent(id: string, data: Record<string, unknown>): Scre
   if (!['shake', 'comet', 'shootingStar', 'launch', 'relaunch', 'edit', 'meteorShower'].includes(data.type)) return null;
   return { id, type: data.type, objectId: data.objectId, at, payload };
 }
-/** Rebase every 45s; cursor from the last seen event to eliminate overlapping re-queries. Query reads at most 100 rows, never the season log. */
+/** Rebase every 90s; cursor from the last seen event to eliminate overlapping re-queries. Query reads at most 100 rows, never the season log. */
 export function listenRecentEvents(database: Firestore, next: (events: ScreenEvent[]) => void, error: () => void, observe?: (count: number) => void) {
   let stopped = false, unsubscribe: (() => void) | undefined, timer: ReturnType<typeof setInterval> | undefined;
   let generation = 0;
@@ -50,11 +51,12 @@ export function listenRecentEvents(database: Firestore, next: (events: ScreenEve
       unsubscribe?.();
       const current = ++generation;
       const now = Date.now();
-      const floor = now - 60_000;
+      const floor = now - 15_000;
       const cursor = lastSeenAt !== undefined && lastSeenAt > floor ? lastSeenAt : floor;
       for (const [id, at] of seen) if (at < now - 120_000) seen.delete(id);
       let receivedServer = false;
-      unsubscribe = onSnapshot(query(collection(database, 'events'), where('at', '>', Timestamp.fromMillis(cursor)),
+      unsubscribe = onSnapshot(query(collection(database, 'events'), where('at', lastSeenAt !== undefined && lastSeenAt >= floor ? '>=' : '>', Timestamp.fromMillis(cursor)),
+        where('type', 'in', ['launch', 'relaunch', 'shake', 'comet', 'shootingStar', 'meteorShower']),
         orderBy('at'), limitToLast(100)), { includeMetadataChanges: true }, (snapshot) => {
         if (stopped || current !== generation || snapshot.metadata.fromCache) return;
         observe?.(receivedServer ? snapshot.docChanges().length : Math.max(1, snapshot.size));
@@ -72,9 +74,14 @@ export function listenRecentEvents(database: Firestore, next: (events: ScreenEve
           if (event && event.at > Date.now() - 10_000 && event.at <= Date.now() + 5000) fresh.push(event);
         }
         next(fresh);
+        // Rebase before limit evictions repeatedly redeliver a full 100-row window.
+        // Inclusive cursor retains timestamp ties; seen IDs prevent duplicate effects.
+        if (snapshot.size >= 80 && lastSeenAt !== undefined && lastSeenAt > cursor) {
+          queueMicrotask(() => { if (!stopped && current === generation) attach(); });
+        }
       }, () => { if (!stopped && current === generation) error(); });
     };
-    attach(); timer = setInterval(attach, 45_000);
+    attach(); timer = setInterval(attach, 90_000);
   }).catch(() => { if (!stopped) error(); });
   return () => { stopped = true; generation++; unsubscribe?.(); clearInterval(timer); seen.clear(); lastSeenAt = undefined; };
 }
