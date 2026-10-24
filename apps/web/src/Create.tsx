@@ -263,6 +263,7 @@ export default function Create({ language }: { language: Language }) {
       setMessage('offline');
       return;
     }
+    sound.pet(specimen);
     lock.current = true;
     setBusy(true);
     setMessage('launching');
@@ -314,6 +315,7 @@ export default function Create({ language }: { language: Language }) {
     setEditState((state) => state === 'limited' ? 'limited' : 'pending');
     setRolledNames((keys) => new Set([...keys, draft.nameKey, next.nameKey]));
     setDraft(next);
+    sound.pet(specimen);
   }
   function change(field: string, value: number) {
     markActivity();

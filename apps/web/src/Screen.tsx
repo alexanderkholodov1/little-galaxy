@@ -27,6 +27,7 @@ export default function Screen({ language }: { language: Language }) {
   const { updateAvailable, reload } = useVersionWatcher({ appVersion: live.config.appVersion });
   const [reloading, setReloading] = useState(false);
   const soundAllowed = synthetic > 0 || (live.config.soundOnScreen !== false && live.config.sound !== false);
+  const sound = useSound(8, soundAllowed), soundEvent = sound.event;
   const spotlightEnabled = live.status === 'live' ? live.config.spotlight !== false : true;
   const [now, setNow] = useState(Date.now);
   const [restored] = useState(() => {
@@ -93,10 +94,15 @@ export default function Screen({ language }: { language: Language }) {
       setLastActivity(time);
       setEffects((old) => addEffects(old, events, time));
       const launch = [...events].reverse().find((e) => e.type === 'launch' || e.type === 'relaunch');
+      const fresh = events.filter((e) => time - e.at >= 0 && time - e.at < 2000);
+      if (live.config.seasonOpen) {
+        const arrival = [...fresh].reverse().find((e) => e.type === 'launch' || e.type === 'relaunch');
+        if (arrival && live.config.launches) soundEvent(arrival.objectId);
+        else if (live.config.comets && fresh.some((e) => e.type === 'comet')) soundEvent();
+      }
       if (launch && spotlightEnabled) setSpotlight({ id: launch.objectId, until: time + 8000 });
     }, () => setEventsFailed(true));
-  }, [synthetic, attempt, replaying, spotlightEnabled]);
-  const sound = useSound(8, soundAllowed);
+  }, [synthetic, attempt, replaying, spotlightEnabled, soundEvent, live.config.seasonOpen, live.config.launches, live.config.comets]);
   // Kiosk layout intent persists across reload/version recovery; DOM fullscreen needs a fresh gesture.
   const [kioskPresentation, setKioskPresentation] = useState(() => restored.kioskPresentation === true);
   const [mouseIdle, setMouseIdle] = useState(false);
