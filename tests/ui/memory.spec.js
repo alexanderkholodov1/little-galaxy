@@ -88,6 +88,17 @@ test('object page has distinct not-found and offline states with retry', async (
   await page.getByRole('button', { name: 'Retry', exact: true }).click(); await expect(page.getByRole('heading', { name: 'Object not found' })).toBeVisible();
 });
 
+test('permanent specimen uses the full page width on a desktop viewport', async ({ page }) => {
+  await staticMemory(page); await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/galaxy/o/${object.id}?lang=es`);
+  const canvas = page.locator('.permanent-specimen canvas');
+  await expect(canvas).toBeVisible();
+  // The record spans the whole main grid, so the specimen is not squeezed into one narrow column.
+  const record = await page.locator('.object-record').boundingBox();
+  const main = await page.locator('main').boundingBox();
+  expect(record.width).toBeGreaterThan(main.width * 0.9);
+  expect((await canvas.boundingBox()).width).toBeGreaterThan(400);
+});
 test('screen timelapse keeps its join QR inside the booth viewport', async ({ page }) => {
   await staticMemory(page); await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/galaxy/screen?synthetic=12&scene=timelapse');

@@ -4,6 +4,8 @@
 
 - Keep booth scenes uncovered under reduced motion and expire stationary shooting-star messages;
   add Chromium regressions and audit all reduced-motion rules.
+- Let permanent object pages and the memory log span the page grid, so the 3D specimen is no longer
+  squeezed into a narrow column on desktop; add a desktop layout regression.
 - Reserve the software and asset rights for Alexander Kholodov, with UNLICENSED/private package
   metadata and third-party license preservation.
 - Introduce the project to fair evaluators with real application screenshots, architecture,
