@@ -28,6 +28,7 @@ it.each(['en', 'es'] as const)('renders the live sky without a stand in %s and c
   await act(async () => receive([], false));
   expect(container.textContent).not.toMatch(/No connection|Sin conexión|Invalid Date/);
   expect(container.querySelector('canvas')).not.toBeNull();
+  expect(container.querySelector('.sky-empty')?.textContent).toContain(language === 'es' ? 'La primera órbita puede ser tuya.' : 'The first orbit could be yours.');
   expect(container.querySelector('a')?.getAttribute('href')).toBe(`/create?lang=${language}`);
   await act(async () => container.querySelectorAll('button')[1].click());
   expect(container.textContent).toContain('Season replay');
@@ -52,4 +53,18 @@ it('never authenticates for a frozen static home', async () => {
   await act(async () => root.render(<MemoryRouter><Home language="en"/></MemoryRouter>));
   expect(container.textContent).toContain('Season replay');
   expect(listenActive).not.toHaveBeenCalled();
+});
+
+it('does not infer an empty sky from cache, preserves a known sky offline and recovers', async () => {
+  await act(async () => root.render(<MemoryRouter><Home language="en"/></MemoryRouter>));
+  await act(async () => receive([], true));
+  expect(container.querySelector('.sky-empty')).toBeNull();
+  expect(container.textContent).not.toContain('No connection');
+  await act(async () => receive([], false));
+  expect(container.querySelector('.sky-empty')).not.toBeNull();
+  await act(async () => window.dispatchEvent(new Event('offline')));
+  expect(container.textContent).toContain('No connection');
+  expect(container.querySelector('canvas')).not.toBeNull();
+  await act(async () => receive([], false));
+  expect(container.textContent).not.toMatch(/No connection|Invalid Date/);
 });

@@ -397,3 +397,9 @@ button:disabled { opacity: .6; cursor: wait; }
   min-height: 44px;
 }
 
+
+/* Empty finding chart: a single unoccupied orbit invites the next observer. */
+.sky-empty { position: absolute; left: clamp(20px, 5vw, 64px); bottom: 8%; max-width: min(32ch, 85%); pointer-events: none; }
+.sky-empty svg { color: #5fccf3; opacity: .8; }
+.sky-empty p { font: 400 clamp(1.75rem, 4vw, 3rem)/1.12 var(--font-display); margin: 8px 0 16px; }
+.sky-empty span { font-size: 1.125rem; line-height: 1.4; color: #e1eaf4; }
