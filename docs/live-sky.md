@@ -29,17 +29,32 @@ One shard write per launch/relaunch/edit atomically replaces the owner's entry.
 Replacement never exposes two simultaneous active bodies. Listener billing is per
 changed document, irrespective of the number of bodies in that shard.
 
-Conservatively add 900 rule-dependent reads to require the matching shard in each
-object mutation, and 300 reads for possible increased screen deliveries (do not
-subtract the old direct-query allowance). Two stand contenders check every 30 s:
-960 leader transaction reads + 960 follower checks, 960 heartbeat writes in eight
-hours. Reserve another 4,800 reads for one workshop host-catalog query per phone, 300
-for phone config startup, 1,200 for initial inventory queries plus both post-launch
-inventory refreshes, and 300 for archived moon-host lookups. Total
-fair model: **41,974 reads / 9,420 writes**. Keep one screen and both contenders running for the remaining 16 hours, with the
-season closed (no scheduled meteors): add 3,840 lease reads, 1,280 empty-event rebase
-reads, 1,920 lease writes and 1,920 legacy snapshot writes. Full quota day:
-**47,094 reads / 13,260 writes**. Headroom: 2,906 reads / 6,740 writes; not a capacity guarantee. A second
+## Final alpha rehearsal and whole-day budget
+
+The final alpha emulator run completed **100/100 visitors in 48.4 seconds**:
+782 transaction callbacks (including retries), 1,790 transaction gets, 3,566 modeled
+rule-dependent reads, 301 sky-shard deliveries, 1,566 event deliveries and 1,813
+stand reads: **9,036 combined observed/modelled reads**. Visitor writes are now 24
+per journey, including three sky mirrors; combined writes were 2,506. The archive
+reconciled 1,002 rows including seed baselines across 18 matching chunk/shard files.
+These are SDK observations and rule-path estimates, not billing telemetry.
+
+The updated QUOTA-REPORT projects that measured burst to 300 visitors / eight
+hours: **27,808 reads / 8,511 writes** for source transactions, one screen and
+enrichment writers. It includes the actual retry ratio, mirror dependencies and
+screen shard deliveries; do not add those again. Add the phone costs separately:
+4,800 initial Home shard reads, 1,800 change deliveries, 4,800 workshop host-catalog
+reads, 300 config reads, 1,200 initial/post-launch inventory reads and 300 possible
+archived moon-host lookups: **13,200 reads**.
+
+Two stand contenders check every 30 seconds: 960 leader transaction reads + 960
+follower checks, and 960 heartbeat writes during eight hours. Fair model:
+**42,928 reads / 9,471 writes**. Keep one screen and both contenders running for
+the remaining 16 hours, with the season closed (no scheduled meteors): add 3,840
+lease reads, 1,280 empty-event rebase reads, 1,920 lease writes and 1,920 legacy
+snapshot writes. Full quota day: **48,048 reads / 13,311 writes**. Headroom:
+**1,952 reads / 6,689 writes**; a narrow scenario fit, not a capacity guarantee.
+A second
 three-minute visit per visitor adds 6,600 scenario reads before another workshop session. Long-lived background phone
 tabs, widespread reconnects, maximum daily interaction budgets, skewed arrival
 bursts, archive republications and repeated stand restarts can exceed this model.

@@ -47,3 +47,22 @@ The real implementations are `scripts/deploy-local.mjs` and `scripts/rollback.mj
 ## Verification boundaries
 
 The required final verification is recorded in `~/bad/checkpoints/fix-g-v0.7.0.md` and the builder's final report. Logs under `~/bad/work/fix-g-v0.7.0/` distinguish failing pre-fix regressions from final checks. Local release swapping validates the client and static artifact behavior; a real Hosting promotion/rollback, CI execution and physical-phone acceptance remain captain/operator work.
+
+
+## Alpha.1 Vivo acceptance
+
+Home and Screen now read client-maintained owner shards, independent of stand
+snapshots. Cached data is unconfirmed until a server response; a confirmed empty
+sky is valid. The alpha.1 local replay passed 273 unit/script cases, 26 surface
+browser cases, two connected journeys, 187 emulator rules cases, five drills and
+the 100-visitor load rehearsal. Native click to rendered booth frame was 1,672 ms.
+Production A→B→A swapping and locally hosted read-only smoke passed, retaining
+held-gesture protection, drafts, camera, focus, volume and bounded recovery.
+
+The schema/rules transition from pre-alpha clients requires a closed season and
+one-time sky migration; it is not a zero-interruption legacy-client migration.
+Beacon/laptop credentials and service activation, actual hardware failover, remote
+CI and production deployment remain captain/operator work. See
+[the full command/results record](alpha1-status.md), [quota decision](live-sky.md)
+and RUNBOOK sections 11–12. No portfolio files, deployed rules or Hosting releases
+were changed by this builder.

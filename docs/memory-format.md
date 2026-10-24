@@ -116,8 +116,9 @@ automatically, without connecting to live Firebase services.
 Galaxy tries static JSON first. A 404 or HTML rewrite falls back to one public Firestore get per
 requested document; a present but malformed/incomplete static archive produces a designed error,
 not an event-collection scan. Successfully served static archives require **zero Firestore/Auth
-requests**. Network failure is shown as unavailable with retry. EN/ES and theme use the ordinary
-portfolio shell. `/profile.json` supplies the real header/socials; absent content is not invented.
+requests**. Network failure is shown as unavailable with retry. EN/ES and theme use the full-viewport Galaxy
+shell. `/profile.json` supplies the corner sheet and end-of-experience links; missing
+profile links remain visible TODOs, never invented content.
 No portfolio files are changed by this worktree task.
 
 ### Alpha.1 live entry

@@ -109,7 +109,7 @@ export FIREBASE_PROJECT_ID=little-galaxy
 pnpm --filter @little-galaxy/stand start
 ```
 
-Do not print or commit the key. The stand immediately publishes `snapshots/live` after its first healthy object read, including an empty sky, independently of `config/live`. Before the booth starts, Home says “The sky opens when the booth starts.” A failed connection still offers Retry.
+Do not print or commit the key. The elected stand publishes the legacy `snapshots/live` after its first healthy object read, independently of `config/live`. Home and Screen use client-maintained sky shards and remain live with both contenders stopped. A confirmed empty sky invites creation; only a real connection failure offers Retry.
 
 ### Step 2: Initialize once, then open season (secondary terminal)
 
@@ -125,7 +125,7 @@ pnpm --filter @little-galaxy/stand control scene galaxy
 ### Step 3: Screen kiosk
 1. On the TV browser: `https://alexanderkholodov.web.app/galaxy/screen`
 2. Press **F** or click **Fullscreen / Pantalla completa**.
-3. Confirm portfolio header/nav are hidden and the cursor hides after 2.5s idle.
+3. Confirm the galaxy fills the viewport, the corner mark opens links and the cursor hides after 2.5s idle.
 4. After a version reload, immersive layout restores from `localStorage`; browser DOM fullscreen may need **F** again.
 
 ### Step 4: Phone join test
@@ -142,8 +142,9 @@ pnpm --filter @little-galaxy/stand control scene galaxy
 - [ ] TV: screen on TV, press `F`, no taskbar.
 - [ ] Cursor hides after 2.5s idle.
 - [ ] QR scanned from ~2 m.
-- [ ] Sound at comfortable ambient level.
-- [ ] Stand logs clean; `snapshots/live` updating.
+- [ ] Sound enabled deliberately; sparse responses at a comfortable volume.
+- [ ] Home and Screen receive a phone launch/edit with both stands stopped.
+- [ ] Restart enrichment contenders; one leader heartbeat advances and its archive/snapshot logs stay clean.
 - [ ] Backup video: only after a verified `--mode rehearsal` recording (or OBS) has been played back; do not treat a demo/synthetic clip as backup (Section 8).
 
 ---
@@ -214,7 +215,7 @@ export FIREBASE_PROJECT_ID=little-galaxy
 pnpm --filter @little-galaxy/stand start
 ```
 
-Expect a line like `Little Galaxy stand v1.0.0-alpha.1 | languages: en, es | default: en`. Snapshot writer resumes `snapshots/live`.
+Expect a line like `Little Galaxy stand v1.0.0-alpha.1 | languages: en, es | default: en`. Only the elected leader logs `Stand enrichment leadership acquired.` and resumes archive/legacy snapshot/meteor services. With the section 11 systemd setup, use `systemctl --user restart galaxy-stand.service` instead of launching an extra process. The live sky does not pause during this restart.
 
 ---
 
@@ -322,7 +323,7 @@ When production static files are published at `/galaxy/season/bad-2026/`:
 
 ---
 
-## 11. Command Verification Scope
+## Appendix: Earlier Command Verification Scope
 
 The following is a reproducible command recipe, not an observed physical-phone transcript. Replace `/path/to/galaxy-checkout` in **each** terminal. E0 uses `firebase.lan.json` through the package script, binding Auth and Firestore to all interfaces as well as Vite. Use a trusted rehearsal network; allow inbound TCP 4177, 8080 and 9099 and disable Wi-Fi client isolation. Keep all terminals open until rehearsal is finished.
 
@@ -463,7 +464,9 @@ portfolio/Hosting credentials or copy another project's key.
    admin-only `leases/stand`: one random process owner, `heartbeatAt` advancing
    every 30 seconds, `expiresAt` 90 seconds ahead. Healthy follower checks add
    reads, not heartbeat writes. Only one process starts archive/snapshot/meteor
-   listeners. Clocks must be synchronized (OS network time enabled).
+   listeners. Clocks must be synchronized (OS network time enabled). Start Beacon
+   first if it should initially lead; a recovered Beacon does not preempt a healthy
+   laptop leader. Leadership changes on release/expiry, not machine preference.
 8. Rehearse failure: stop Beacon's service, verify the laptop becomes owner within
    30 seconds after graceful release, then restart Beacon and confirm no duplicate
    leader. For a crash/partition, takeover occurs within approximately 120 seconds

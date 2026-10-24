@@ -29,7 +29,7 @@ These are real browser captures from the delivery report’s local rehearsal; th
 flowchart LR
   Phone["Phone workshop · React / TypeScript"] -->|"Anonymous Auth + validated writes"| Data["Firebase Auth + Firestore"]
   Data -->|"Bounded live listeners"| Screen["Booth sky · Three.js / React Three Fiber"]
-  Data <-->|"Aggregate snapshots + archive"| Stand["Booth laptop · Node.js stand"]
+  Data <-->|"Aggregate snapshots + archive"| Stand["Beacon / laptop · leased Node stand"]
   Shared["Shared schemas + orbital model"] -.-> Phone
   Shared -.-> Screen
   Shared -.-> Stand
