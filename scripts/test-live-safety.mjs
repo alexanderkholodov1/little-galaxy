@@ -102,7 +102,8 @@ async function acceptance() {
     await screen.goto(`${origin}/galaxy/screen?emulators=1&debug=1`);
     await expect(screen.locator('.creator-count')).toHaveText('0', { timeout: 30000 });
     await phone.goto(`${origin}/galaxy/create?emulators=1`);
-    const launch = phone.locator('.launch-desk > button');
+    const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
+    await phone.locator('[data-step=launch]').click();
     await expect(launch).toBeEnabled({ timeout: 30000 });
     await phone.locator('[data-step=launch]').click();
     await launch.click();

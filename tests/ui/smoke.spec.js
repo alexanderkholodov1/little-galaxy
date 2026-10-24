@@ -17,8 +17,10 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles')), { timeout: 30000 }).toBeGreaterThan(0);
     const trianglesBefore = Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles'));
     await phone.goto('/galaxy/create');
-    const launch = phone.locator('.launch-desk > button');
+    const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
+    await phone.locator('[data-step=launch]').click();
     await expect(launch).toBeEnabled({ timeout: 30000 });
+    await phone.locator('[data-step=parameters]').click();
     await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
     const name = await phone.locator('.planet-specimen').getAttribute('aria-label');
     const started = Date.now();
@@ -61,8 +63,10 @@ test('offline phone retains its draft, reconnects without auto-launch, and launc
   try {
     const phone = await context.newPage();
     await phone.goto('/galaxy/create');
-    const launch = phone.locator('.launch-desk > button');
+    const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
+    await phone.locator('[data-step=launch]').click();
     await expect(launch).toBeEnabled({ timeout: 30000 });
+    await phone.locator('[data-step=parameters]').click();
     await context.setOffline(true);
     expect(await phone.evaluate(() => navigator.onLine)).toBe(false);
     await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
@@ -76,6 +80,7 @@ test('offline phone retains its draft, reconnects without auto-launch, and launc
     await expect.poll(() => phone.evaluate(() => navigator.onLine)).toBe(true);
     await phone.reload();
     await expect(launch).toBeEnabled({ timeout: 30000 });
+    await phone.locator('[data-step=parameters]').click();
     expect(await phone.evaluate(() => JSON.parse(localStorage.getItem('galaxy.draft.v1')))).toEqual(JSON.parse(draft));
     await phone.locator('[data-step=parameters]').click();
     await expect(phone.getByRole('slider', { name: 'Radius' })).toHaveValue(radius);
