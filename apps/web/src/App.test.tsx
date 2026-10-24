@@ -155,3 +155,16 @@ it('marks the shell with data-page="screen" on the screen route', async () => {
   expect(container.querySelector('.app-shell')?.getAttribute('data-page')).toBe('screen');
 });
 
+
+it('keeps identity links inside a closed glass sheet and opens them from the corner mark', async () => {
+  await render('/galaxy/create');
+  expect(container.querySelector('header')).toBeNull();
+  const sheet = container.querySelector('dialog')!;
+  expect(sheet.hasAttribute('open')).toBe(false);
+  const mark = container.querySelector<HTMLButtonElement>('.galaxy-mark')!;
+  await act(async () => mark.click());
+  expect(sheet.hasAttribute('open')).toBe(true);
+  expect(mark.getAttribute('aria-expanded')).toBe('true');
+  await act(async () => container.querySelector<HTMLButtonElement>('.sheet-close')!.click());
+  expect(sheet.hasAttribute('open')).toBe(false);
+});

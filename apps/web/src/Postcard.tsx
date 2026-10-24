@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Language, MemoryObject } from '@little-galaxy/shared';
+import ExperienceLinks from './ExperienceLinks';
 import { createPostcard, downloadPostcard, sharePostcard } from './postcard';
 export default function Postcard({ object, language }: { object: MemoryObject; language: Language }) {
   const es = language === 'es';
@@ -22,5 +23,6 @@ export default function Postcard({ object, language }: { object: MemoryObject; l
     }}>{state === 'rendering' ? (es ? 'Dibujando postal…' : 'Drawing postcard…') : file ? (es ? 'Volver a dibujar' : 'Redraw postcard') : (es ? 'Crear postal' : 'Create postcard')}</button>
     {file && <><button disabled={state === 'sharing'} onClick={() => { setState('sharing'); void sharePostcard(file).then(setState).catch(() => setState('failed')); }}>{es ? 'Compartir postal' : 'Share postcard'}</button><button onClick={() => { downloadPostcard(file); setState('downloaded'); }}>{es ? 'Descargar PNG' : 'Download PNG'}</button></>}
     <p role="status">{state === 'failed' ? (es ? 'No se pudo preparar o compartir. Reintenta o descarga el PNG si está disponible.' : 'Could not prepare or share. Retry, or download the PNG if available.') : state === 'ready' ? (es ? 'Postal lista. Toca Compartir.' : 'Postcard ready. Tap Share.') : state === 'shared' ? (es ? 'Postal compartida.' : 'Postcard shared.') : state === 'downloaded' ? (es ? 'Descarga iniciada.' : 'Download started.') : state === 'cancelled' ? (es ? 'Se canceló. Tu postal sigue lista.' : 'Cancelled. Your postcard is still ready.') : ''}</p>
+    <ExperienceLinks language={language}/>
   </section>;
 }

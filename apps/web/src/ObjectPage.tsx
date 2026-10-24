@@ -5,6 +5,7 @@ import type { Language, MemoryObject } from '@little-galaxy/shared';
 import { loadMemoryObject } from './season-data';
 import { useSound } from './use-sound';
 import SoundControls from './SoundControls';
+import ExperienceLinks from './ExperienceLinks';
 import ErrorBoundary from './ErrorBoundary';
 const Preview = lazy(() => import('./ObjectPreview'));
 const Postcard = lazy(() => import('./Postcard'));
@@ -41,5 +42,6 @@ export default function ObjectPage({ language }: { language: Language }) {
         </div></div>
       </>}
     <Link className="memory-return" to={`/?lang=${language}`}>{es ? 'Volver a la galaxia' : 'Return to the galaxy'}</Link>
+    <ExperienceLinks language={language}/>
   </article>;
 }

@@ -75,7 +75,9 @@ export function createSoundEngine(context: AudioContext, count: number) {
   }
   return {
     // Rendering, camera changes, edits and initial object delivery never schedule notes.
-    update(next: RenderObject[], _eligible: SoundCandidate[]) {
+    update(next: RenderObject[], eligible: SoundCandidate[]) {
+      // Keep the renderer/controller contract; eligibility never schedules background notes.
+      void eligible;
       objects = next;
       if (pending && (pending.until < Date.now() || objects.some((o) => o.id === pending!.id))) {
         const cue = pending; pending = undefined;

@@ -246,11 +246,11 @@ export default function Create({ language }: { language: Language }) {
     if (restoredView.current || inventoryState === 'loading') return;
     restoredView.current = true;
     const target = document.getElementById(`workshop-${workshopStep}`);
-    if (workshopStep !== 'parameters') { target?.scrollIntoView?.(); target?.focus({ preventScroll: true }); }
+    if (workshopStep !== 'parameters') target?.focus({ preventScroll: true });
   }, [inventoryState, workshopStep]);
   function selectStep(step: string) {
     markActivity(); setWorkshopStep(step); setHangarView(step === 'hangar');
-    document.getElementById(`workshop-${step}`)?.scrollIntoView?.({ behavior: 'smooth' });
+    requestAnimationFrame(() => document.getElementById(`workshop-${step}`)?.focus({ preventScroll: true }));
   }
   async function refresh(uid: string) {
     const all = await ownObjects(firestore!, uid);
@@ -279,6 +279,7 @@ export default function Create({ language }: { language: Language }) {
       const id = await launchPlanet(firestore, uid, draft, { ...orbit, hostId });
       setDeparted(inventory.filter((o) => o.status === 'active').map((o) => renderObject(o.id, o)));
       setSpecimen(id);
+      setWorkshopStep('parameters');
       setEditing(true);
       remember('edit', id);
       baseline.current = JSON.stringify(draft);
@@ -334,15 +335,14 @@ export default function Create({ language }: { language: Language }) {
           {language === 'es' ? 'Nueva versión disponible. Se actualizará en reposo tras guardar tus cambios.' : 'New version available. Updates when idle after your changes are saved.'}
         </p>
       )}
-      {active && <a className="memory-return" href={`/galaxy/o/${active.id}?lang=${language}`}>{language === 'es' ? 'Tu página permanente y postal' : 'Your permanent page and postcard'}</a>}
       <div className="workshop-title">
         <p className="eyebrow">{text.desk}</p>
         <h1>{text.create}</h1>
       </div>
       <nav aria-label={language === 'es' ? 'Pasos del taller' : 'Workshop steps'}>
-        {(['parameters', 'specimen', 'launch', 'hangar'] as const).filter((step) => step !== 'launch' || !editing).map((step, i) =>
-          <button key={step} aria-current={workshopStep === step ? 'step' : undefined} onClick={() => selectStep(step)}>
-            {i + 1} / {step === 'parameters' ? rich.material : step === 'specimen' ? text.preview : step === 'launch' ? text.swipe : rich.hangar}
+        {(['parameters', 'specimen', 'launch', 'hangar', 'interactions'] as const).filter((step) => step !== 'launch' || !editing).map((step, i) =>
+          <button key={step} data-step={step} aria-current={workshopStep === step ? 'step' : undefined} onClick={() => selectStep(step)}>
+            {i + 1} / {({ parameters: language === 'es' ? 'Diseñar' : 'Design', specimen: language === 'es' ? 'Mirar' : 'Inspect', launch: language === 'es' ? 'Lanzar' : 'Launch', hangar: 'Hangar', interactions: language === 'es' ? 'Jugar' : 'Play' })[step]}
           </button>)}
       </nav>
       <figure id="workshop-specimen" tabIndex={-1} className="planet-specimen" aria-label={objectName(draft.nameKey, language)}>
@@ -472,6 +472,7 @@ export default function Create({ language }: { language: Language }) {
             <button
               onClick={() => {
                 setEditing(false);
+                setWorkshopStep('parameters');
                 remember('design');
               }}
             >
@@ -608,14 +609,17 @@ export default function Create({ language }: { language: Language }) {
           </ul>
         )}
         <p>{rich.rocks}</p>
+      </section>
+      <Suspense fallback={<p>{text.loading}</p>}><Interactions language={language} config={live.config} status={live.status} retry={live.retry} disabled={busy || editSaving} onBusyChange={(value) => { interactionBusy.current = value; markActivity(); }} /></Suspense>
+      <div className="workshop-status">
         {message && (
           <p role="status" className="launch-feedback">
             {text[message]}
           </p>
         )}
-      </section>
-      <Suspense fallback={<p>{text.loading}</p>}><Interactions language={language} config={live.config} status={live.status} retry={live.retry} disabled={busy || editSaving} onBusyChange={(value) => { interactionBusy.current = value; markActivity(); }} /></Suspense>
-      <SessionLine text={copy[language]} />
+        <SessionLine text={copy[language]} />
+        {active && <a className="memory-return" href={`/galaxy/o/${active.id}?lang=${language}`}>{language === 'es' ? 'Tu página permanente y postal' : 'Your permanent page and postcard'}</a>}
+      </div>
     </section>
   );
 }

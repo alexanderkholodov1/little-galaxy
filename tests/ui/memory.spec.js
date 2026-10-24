@@ -48,7 +48,7 @@ test('permanent hangared specimen renders its postcard, offers file sharing and 
   await page.goto(`/galaxy/o/${object.id}?lang=es`);
   await expect(page.getByRole('heading', { name: 'Aurora tranquila', exact: true })).toBeVisible();
   await expect(page.getByText('En el hangar · conservado para siempre')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Red de prueba' })).toHaveAttribute('href', 'https://example.com/test');
+  await expect(page.locator('.object-record > .experience-links').getByRole('link', { name: 'Red de prueba' })).toHaveAttribute('href', 'https://example.com/test');
   await expect(page.locator('.permanent-specimen canvas')).toBeVisible();
   await page.getByRole('button', { name: 'Crear postal', exact: true }).click();
   await expect(page.getByText('Postal lista. Toca Compartir.')).toBeVisible({ timeout: 25000 });
