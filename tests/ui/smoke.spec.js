@@ -1,4 +1,4 @@
-/* global document, innerWidth */
+/* global document, innerWidth, window, MutationObserver */
 import { expect, test } from '@playwright/test';
 import { seedDemo } from '../../scripts/demo-emulators.mjs';
 
@@ -18,14 +18,32 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     const trianglesBefore = Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles'));
     await phone.goto('/galaxy/create');
     const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
+    await phone.locator('[data-step=launch]').click();
     await expect(launch).toBeEnabled({ timeout: 30000 });
+    await phone.locator('[data-step=parameters]').click();
     await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
     const name = await phone.locator('.planet-specimen').getAttribute('aria-label');
-    const started = Date.now();
+    await phone.locator('[data-step=launch]').click();
+    await launch.scrollIntoViewIfNeeded();
+    // Measure native click to rendered frame, excluding automation scroll/poll scheduling.
+    await launch.evaluate((button) => button.addEventListener('click', () => { window.galaxyLaunchAt = Date.now(); }, { once: true, capture: true }));
+    await screen.evaluate((baseline) => {
+      window.galaxyRenderedAt = 0;
+      const canvas = document.querySelector('.galaxy-field canvas');
+      const observer = new MutationObserver(() => {
+        if (Number(canvas.dataset.triangles) > baseline) {
+          window.galaxyRenderedAt = Date.now(); observer.disconnect();
+        }
+      });
+      observer.observe(canvas, { attributes: true, attributeFilter: ['data-triangles'] });
+    }, trianglesBefore);
     await launch.click();
     await expect(screen.getByRole('option', { name: new RegExp(name) })).toHaveCount(1, { timeout: 2000 });
-    await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles')), { timeout: Math.max(1, 2000 - (Date.now() - started)), intervals: [50] }).toBeGreaterThan(trianglesBefore);
-    expect(Date.now() - started).toBeLessThanOrEqual(2000);
+    await expect.poll(() => screen.evaluate(() => window.galaxyRenderedAt), { timeout: 5000, intervals: [50] }).toBeGreaterThan(0);
+    const launchToRenderMs = await screen.evaluate(() => window.galaxyRenderedAt) - await phone.evaluate(() => window.galaxyLaunchAt);
+    console.log(JSON.stringify({ launchToRenderMs }));
+    expect(launchToRenderMs).toBeGreaterThanOrEqual(0);
+    expect(launchToRenderMs).toBeLessThanOrEqual(2000);
     await expect(phone.locator('.launch-feedback')).toContainText('In orbit');
     const firstId = await screen.getByRole('option', { name: new RegExp(name) }).getAttribute('value');
     const radius = phone.getByRole('slider', { name: 'Radius' });
@@ -36,7 +54,9 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     await expect(screen.getByRole('option', { name: new RegExp(editedName) })).toHaveCount(1, { timeout: 8000 });
     await phone.getByRole('button', { name: 'Design another object', exact: true }).click();
     await phone.waitForTimeout(2200);
+    await phone.locator('[data-step=launch]').click();
     await launch.click();
+    await phone.locator('[data-step=hangar]').click();
     await expect(phone.getByRole('button', { name: 'Reassemble & relaunch', exact: true })).toBeVisible();
     await expect(screen.locator(`option[value="${firstId}"]`)).toHaveCount(0, { timeout: 2000 });
     await phone.waitForTimeout(2200);
@@ -44,6 +64,7 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     await expect(screen.locator(`option[value="${firstId}"]`)).toHaveCount(1, { timeout: 2000 });
     await expect(phone.locator('.launch-feedback')).toContainText('still in the sky');
     await phone.waitForTimeout(2300);
+    await phone.locator('[data-step=interactions]').click();
     await phone.getByRole('button', { name: 'Throw a comet to the right', exact: true }).click();
     await expect(screen.locator('.sky-effects')).toHaveAttribute('data-effects', /comet/, { timeout: 2000 });
     expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -58,12 +79,15 @@ test('offline phone retains its draft, reconnects without auto-launch, and launc
     const phone = await context.newPage();
     await phone.goto('/galaxy/create');
     const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
+    await phone.locator('[data-step=launch]').click();
     await expect(launch).toBeEnabled({ timeout: 30000 });
+    await phone.locator('[data-step=parameters]').click();
     await context.setOffline(true);
     expect(await phone.evaluate(() => navigator.onLine)).toBe(false);
     await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
     const draft = await phone.evaluate(() => localStorage.getItem('galaxy.draft.v1'));
     const radius = await phone.getByRole('slider', { name: 'Radius' }).inputValue();
+    await phone.locator('[data-step=launch]').click();
     await expect(launch).toBeDisabled();
     await expect(phone.getByText('Launches paused or disconnected. Your design stays here.', { exact: true })).toBeVisible();
     expect(await phone.evaluate(() => localStorage.getItem('galaxy.workshop.mode'))).not.toBe('edit');
@@ -71,10 +95,13 @@ test('offline phone retains its draft, reconnects without auto-launch, and launc
     await expect.poll(() => phone.evaluate(() => navigator.onLine)).toBe(true);
     await phone.reload();
     await expect(launch).toBeEnabled({ timeout: 30000 });
+    await phone.locator('[data-step=parameters]').click();
     expect(await phone.evaluate(() => JSON.parse(localStorage.getItem('galaxy.draft.v1')))).toEqual(JSON.parse(draft));
+    await phone.locator('[data-step=parameters]').click();
     await expect(phone.getByRole('slider', { name: 'Radius' })).toHaveValue(radius);
     // Reconnection/reload restores a design, never a pending launch.
     await expect(phone.getByRole('button', { name: 'Design another object', exact: true })).toHaveCount(0);
+    await phone.locator('[data-step=launch]').click();
     await launch.click();
     await expect(phone.locator('.launch-feedback')).toContainText('In orbit', { timeout: 15000 });
   } finally { await context.close(); }

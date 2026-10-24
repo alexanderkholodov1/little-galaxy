@@ -1,6 +1,6 @@
 // This entire module (including Tone) is fetched only after the native gesture unlock.
 import * as Tone from 'tone';
-import { allocateVoices, midiHz, soundFingerprint, MAX_SOUND_VOICES } from '@little-galaxy/shared';
+import { midiHz, presets, soundFingerprint, MAX_SOUND_VOICES } from '@little-galaxy/shared';
 import type { RenderObject, SoundCandidate, SoundFingerprint } from '@little-galaxy/shared';
 
 /** One monophonic oscillator per slot, including pets. No extra pet synth or effect tail voices. */
@@ -41,7 +41,7 @@ export function createSoundGraph(count = MAX_SOUND_VOICES) {
       s.filter.frequency.setValueAtTime(fp.filterHz, time);
       s.chorus.wet.setValueAtTime(fp.chorus, time);
       s.send.gain.setValueAtTime(fp.shimmer, time);
-      // Pets replace this slot's ambient envelope; they never add a ninth voice.
+      // Pet responses reuse a slot; they never add a ninth voice.
       s.synth.triggerAttackRelease(midiHz(pet ? fp.petMidi : fp.midi), pet ? 0.14 : 1.6, time, pet ? 0.85 : 0.45);
     },
     dispose() {
@@ -54,52 +54,48 @@ export function createSoundEngine(context: AudioContext, count: number) {
   const toneContext = new Tone.Context(context);
   Tone.setContext(toneContext);
   const graph = createSoundGraph(count);
-  let objects: RenderObject[] = [], candidates: SoundCandidate[] = [], selected: string[] = [];
-  const slots = Array.from({ length: count }, () => ({ id: '', next: 0, petAt: -Infinity, fingerprint: '' }));
-  let muted = false, level = 0.32;
-  const tick = () => {
-    const now = Date.now(), time = Tone.now();
-    selected = allocateVoices(candidates, selected, now).slice(0, count);
-    for (const slot of slots) {
-      if (!selected.includes(slot.id)) {
-        if (slot.id) graph.slots[slots.indexOf(slot)].synth.triggerRelease(time);
-        slot.id = ''; slot.next = time + 0.2; slot.fingerprint = '';
-      }
-    }
-    for (const id of selected) {
-      if (slots.some((s) => s.id === id)) continue;
-      const slot = slots.find((s) => !s.id);
-      if (slot) { slot.id = id; slot.next = time + slots.indexOf(slot) * 0.23; }
-    }
-    slots.forEach((slot, i) => {
-      const object = objects.find((o) => o.id === slot.id);
-      if (!object || muted) return;
-      const fingerprint = soundFingerprint(object.type ?? 'planet', object.params), key = JSON.stringify(fingerprint);
-      if (slot.fingerprint && slot.fingerprint !== key) slot.next = Math.min(slot.next, time + 0.25);
-      slot.fingerprint = key;
-      if (time < slot.next) return;
-      graph.play(i, fingerprint, time);
-      slot.next = time + 6 + i * 0.21;
-    });
-  };
-  const timer = window.setInterval(tick, 120);
+  let objects: RenderObject[] = [];
+  const slots = Array.from({ length: count }, () => ({ id: '', petAt: -Infinity }));
+  let muted = false, level = 0.32, cursor = 0, lastEvent = -Infinity;
+  let pending: { id: string; until: number } | undefined;
+  function play(id: string | undefined, pet: boolean) {
+    if (muted || level <= 0) return;
+    const object = objects.find((o) => o.id === id);
+    if (id && !object) return;
+    const time = Tone.now();
+    if (!pet && time - lastEvent < 4) return;
+    let index = slots.findIndex((s) => s.id === id);
+    if (index < 0) { index = cursor++ % count; slots[index] = { id: id ?? '', petAt: -Infinity }; }
+    const slot = slots[index];
+    if (pet && time - slot.petAt < .25) return;
+    const fingerprint = object ? soundFingerprint(object.type ?? 'planet', object.params)
+      : soundFingerprint('star', presets.star[0]);
+    graph.play(index, fingerprint, time + .01, pet);
+    if (pet) slot.petAt = time; else lastEvent = time;
+  }
   return {
-    update(next: RenderObject[], eligible: SoundCandidate[]) { objects = next; candidates = eligible; },
+    // Rendering, camera changes, edits and initial object delivery never schedule notes.
+    update(next: RenderObject[], eligible: SoundCandidate[]) {
+      // Keep the renderer/controller contract; eligibility never schedules background notes.
+      void eligible;
+      objects = next;
+      if (pending && (pending.until < Date.now() || objects.some((o) => o.id === pending!.id))) {
+        const cue = pending; pending = undefined;
+        if (cue.until >= Date.now()) play(cue.id, false);
+      }
+    },
     setMix(mute: boolean, value: number) {
       muted = mute; level = Math.min(1, Math.max(0, value));
+      if (muted || level <= 0) pending = undefined;
       graph.volume.gain.rampTo(muted ? 0 : level, 0.15);
     },
-    pet(id: string) {
-      if (muted) return;
-      candidates = candidates.map((c) => c.id === id ? { ...c, pettedUntil: Date.now() + 3000 } : c);
-      tick();
-      const index = slots.findIndex((s) => s.id === id), object = objects.find((o) => o.id === id);
-      if (index < 0 || !object) return;
-      const time = Tone.now(), slot = slots[index];
-      if (time - slot.petAt < 0.25) return;
-      graph.play(index, soundFingerprint(object.type ?? 'planet', object.params), time + 0.01, true);
-      slot.petAt = time; slot.next = time + 4;
+    pet(id: string) { play(id, true); },
+    // Booth events are explicit and globally spaced. No history playback after unlock.
+    event(id?: string) {
+      if (muted || level <= 0) return;
+      if (id && !objects.some((o) => o.id === id)) pending = { id, until: Date.now() + 2000 };
+      else play(id, false);
     },
-    dispose() { window.clearInterval(timer); graph.dispose(); void toneContext.dispose(); },
+    dispose() { pending = undefined; graph.dispose(); void toneContext.dispose(); },
   };
 }

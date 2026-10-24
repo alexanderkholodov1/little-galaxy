@@ -1,0 +1,52 @@
+name: Release on merge
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Distinct merges must not replace each other in GitHub's single pending slot.
+  group: galaxy-release-on-merge-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      create: ${{ steps.plan.outputs.create }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - name: Decide from the merged package version and existing tags
+        id: plan
+        run: node scripts/verify-release.js --plan
+      - name: Tag the exact merge commit
+        if: steps.plan.outputs.create == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.plan.outputs.tag }}
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA"
+
+  release:
+    needs: tag
+    if: needs.tag.outputs.create == 'true'
+    # GITHUB_TOKEN tags do not emit a second workflow event. Call the full release here.
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit

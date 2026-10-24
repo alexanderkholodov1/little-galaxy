@@ -97,3 +97,24 @@ it.each(['public', 'signed'])('%s season surface permits gets only and denies ev
   await assertFails(getDoc(doc(db, 'seasons/bad-2026/meta/other')));
   await assertFails(getDoc(doc(db, 'seasons/bad-2026/log/internal')));
 });
+
+it('restarts from archived chunks with bounded source reads and preserves timestamp ties and new events', async () => {
+  const { publishSeason } = await import('../../apps/stand/src/memory.ts');
+  const base = Date.now() - 10_000;
+  const batch = admin.batch();
+  for (let i = 0; i < 100; i++) batch.set(admin.doc(`events/restart-${i}`), {
+    schemaVersion: 1, type: 'shake', objectId: '', uid: 'test', payload: {}, at: Timestamp.fromMillis(base + i),
+  });
+  await batch.commit();
+  const original = await readSeason(admin); await publishSeason(admin, original);
+  let reads = 0; const errors = [];
+  const stop = startMemoryWriter(admin, () => errors.push('failed'), 10, (n) => { reads += n; });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(errors).toEqual([]); expect(reads).toBeLessThan(35);
+    await admin.doc('events/restart-new').set({ schemaVersion: 1, type: 'shake', objectId: '', payload: {}, at: Timestamp.now() });
+    const expected = await readSeason(admin);
+    await expect.poll(async () => (await admin.doc('seasons/bad-2026/meta/manifest').get()).data().manifest).toEqual(expected.manifest);
+    expect(errors).toEqual([]);
+  } finally { await stop(); }
+});

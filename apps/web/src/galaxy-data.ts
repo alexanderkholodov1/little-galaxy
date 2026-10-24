@@ -1,6 +1,8 @@
 import { runObservedTransaction } from './firestore-observer';
 import {
   collection,
+  FieldPath,
+  limit,
   doc,
   getDoc,
   getDocs,
@@ -20,6 +22,7 @@ import {
   SCHEMA_VERSION,
   SEASON,
   utcDay,
+  skyBucket,
 } from '@little-galaxy/shared';
 import type {
   GalaxyObject,
@@ -43,7 +46,20 @@ export class LaunchError extends Error {
     super(reason);
   }
 }
-/** The same production batch is exercised by the rules/latency tests. No galaxy subscription on phones. */
+/** Successful commits let rules read the switch once; only a denial needs a diagnostic read. */
+async function launchFailure(database: Firestore, error: unknown, flag: 'launches' | 'edits'): Promise<never> {
+  if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+    const flags = await getDoc(doc(database, 'config', 'live'));
+    if (!flags.data()?.seasonOpen || (flag === 'launches' && !flags.data()?.launches)) throw new LaunchError('closed');
+  }
+  throw error;
+}
+/** Replace exactly one owner entry without reading/contending on the whole shard. */
+function mirror(tx: Parameters<Parameters<typeof runObservedTransaction>[1]>[0], database: Firestore, uid: string, id: string, data: object) {
+  tx.set(doc(database, 'sky', skyBucket(uid)), { entries: { [uid]: { id, data } } },
+    { mergeFields: [new FieldPath('entries', uid)] });
+}
+/** The production transaction is also exercised by rules/latency tests. */
 export async function launchPlanet(
   database: Firestore,
   uid: string,
@@ -58,9 +74,6 @@ export async function launchPlanet(
     const old = userDoc.exists() ? (userDoc.data() as GalaxyUser<Timestamp>) : null;
     const previous = old?.activeObjectId ? await tx.get(doc(database, 'objects', old.activeObjectId)) : null;
     const host = draft.type === 'moon' ? await tx.get(doc(database, 'objects', orbit.hostId)) : null;
-    const flags = await tx.get(doc(database, 'config', 'live'));
-    if (!flags.exists() || !flags.data().seasonOpen || !flags.data().launches)
-      throw new LaunchError('closed');
     const now = Date.now();
     const day = utcDay(now);
     if (old && now - old.lastWriteAt.toMillis() < 2000) throw new LaunchError('cooldown');
@@ -97,6 +110,7 @@ export async function launchPlanet(
       writeId: event.id,
     };
     tx.set(target, object);
+    mirror(tx, database, uid, target.id, object);
     tx.set(userRef, user);
     const base = { schemaVersion: SCHEMA_VERSION, uid, at, objectId: target.id, payload: object };
     tx.set(event, { ...base, type: 'launch' });
@@ -111,7 +125,7 @@ export async function launchPlanet(
         payload: archived,
       });
     }
-  });
+  }).catch((error: unknown) => launchFailure(database, error, 'launches'));
   return target.id;
 }
 export async function ownActive(database: Firestore, uid: string): Promise<GalaxyObject | null> {
@@ -120,6 +134,7 @@ export async function ownActive(database: Firestore, uid: string): Promise<Galax
   const active = await getDoc(doc(database, 'objects', user.data().activeObjectId as string));
   return readObject(active.data());
 }
+const skyCache = new WeakMap<Firestore, { at: number; hosts: RenderObject[] }>();
 export function listenActive(
   database: Firestore,
   next: (objects: RenderObject[], fromCache: boolean) => void,
@@ -130,22 +145,30 @@ export function listenActive(
   let generation = 0;
   const hosts = new Map<string, RenderObject>();
   let receivedServer = false;
+  let epoch = 0, authenticated = false;
+  let resume: ReturnType<typeof setTimeout> | undefined;
   let unsubscribe: (() => void) | undefined;
-  void waitForAnonymousUid().then(() => {
-    if (stopped) return;
+  const hidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden';
+  function connect() {
+    if (stopped || hidden() || !authenticated || unsubscribe) return;
+    receivedServer = false;
+    const subscription = ++epoch;
     unsubscribe = onSnapshot(
-      query(collection(database, 'objects'), where('status', '==', 'active')),
+      query(collection(database, 'sky'), limit(16)),
       { includeMetadataChanges: true },
       (snapshot) => {
+        if (stopped || subscription !== epoch) return;
         if (!snapshot.metadata.fromCache) {
           observe?.(receivedServer ? snapshot.docChanges().length : Math.max(1, snapshot.size));
           receivedServer = true;
         }
         const current = ++generation;
-        const active = snapshot.docs.flatMap((document) => {
-          const data = readObject(document.data());
-          return data ? [renderObject(document.id, data)] : [];
-        });
+        const active = snapshot.docs.flatMap((document) => Object.values(document.data().entries ?? {}).flatMap((value) => {
+          const entry = value as { id: string; data: unknown };
+          const data = readObject(entry.data);
+          return data ? [renderObject(entry.id, data)] : [];
+        }));
+        if (!snapshot.metadata.fromCache) skyCache.set(database, { at: performance.now(), hosts: active.filter((o) => o.type === 'planet' || o.type === 'star') });
         const ids = new Set(active.map((o) => o.id));
         const missing = new Set(active.filter((o) => o.type === 'moon' && !ids.has(o.orbit.hostId)).map((o) => o.orbit.hostId));
         for (const id of hosts.keys()) if (!missing.has(id)) hosts.delete(id);
@@ -160,10 +183,18 @@ export function listenActive(
         })).then((parents) => {
           if (!stopped && current === generation) next([...active, ...parents], snapshot.metadata.fromCache);
         }).catch(() => { if (!stopped && current === generation) error(); });
-      }, () => { generation++; if (!stopped) error(); },
+      }, () => { if (!stopped && subscription === epoch) { generation++; error(); } },
     );
-  }).catch(() => { if (!stopped) error(); });
-  return () => { stopped = true; generation++; hosts.clear(); unsubscribe?.(); };
+  }
+  function visibility() {
+    clearTimeout(resume);
+    if (hidden()) { epoch++; generation++; unsubscribe?.(); unsubscribe = undefined; }
+    else resume = setTimeout(connect, 1000);
+  }
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', visibility);
+  void waitForAnonymousUid().then(() => { authenticated = true; connect(); }).catch(() => { if (!stopped) error(); });
+  return () => { stopped = true; epoch++; generation++; hosts.clear(); clearTimeout(resume); unsubscribe?.();
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', visibility); };
 }
 
 export function renderObject(id: string, data: GalaxyObject): RenderObject {
@@ -190,19 +221,24 @@ export async function ownObjects(
     return object ? [{ ...object, id: d.id }] : [];
   });
 }
-/** One small snapshot read on phones; no collection subscription. Host writes are checked again by rules. */
-export async function availableHosts(database: Firestore): Promise<RenderObject[]> {
-  const snapshot = await getDoc(doc(database, 'snapshots', 'live'));
-  const objects = snapshot.data()?.objects;
-  return Array.isArray(objects)
-    ? objects.filter((o) => o && typeof o.id === 'string' && ['planet', 'star'].includes(o.type))
-    : [];
+/** A finite shard read for workshop host choices; rules still validate the selected host. */
+export async function availableHosts(database: Firestore, observe?: (count: number) => void): Promise<RenderObject[]> {
+  await waitForAnonymousUid();
+  const cached = skyCache.get(database);
+  if (cached && performance.now() - cached.at < 300_000) return cached.hosts;
+  return readHostCatalog(database, observe);
+}
+export async function readHostCatalog(database: Firestore, observe?: (count: number) => void): Promise<RenderObject[]> {
+  const snapshot = await getDocs(query(collection(database, 'sky'), limit(16)));
+  observe?.(Math.max(1, snapshot.size));
+  return snapshot.docs.flatMap((shard) => Object.values(shard.data().entries ?? {}).flatMap((value) => {
+    const entry = value as { id: string; data: unknown }, data = readObject(entry.data);
+    return data && ['planet', 'star'].includes(data.type) ? [renderObject(entry.id, data)] : [];
+  }));
 }
 export async function editObject(database: Firestore, uid: string, draft: Draft): Promise<void> {
   const event = doc(collection(database, 'events'));
   await runObservedTransaction(database, async (tx) => {
-    const flags = await tx.get(doc(database, 'config', 'live'));
-    if (!flags.exists() || !flags.data()?.seasonOpen) throw new LaunchError('closed');
     const userRef = doc(database, 'users', uid),
       user = await tx.get(userRef);
     if (!user.exists()) throw new LaunchError('closed');
@@ -223,6 +259,7 @@ export async function editObject(database: Firestore, uid: string, draft: Draft)
       nameKey: draft.nameKey,
       updatedAt: at,
     };
+    mirror(tx, database, uid, target.id, body);
     tx.update(userRef, { action: 'edit', writeId: event.id, lastWriteAt: at, editDay: day, editsToday });
     tx.update(target, {
       schemaVersion: OBJECT_SCHEMA_VERSION,
@@ -238,7 +275,7 @@ export async function editObject(database: Firestore, uid: string, draft: Draft)
       at,
       payload: body,
     });
-  });
+  }).catch((error: unknown) => launchFailure(database, error, 'edits'));
 }
 export async function relaunchObject(database: Firestore, uid: string, objectId: string): Promise<void> {
   const event = doc(collection(database, 'events'));
@@ -250,8 +287,6 @@ export async function relaunchObject(database: Firestore, uid: string, objectId:
     if (!u.activeObjectId) throw new LaunchError('closed');
     const target = await tx.get(doc(database, 'objects', objectId));
     const previous = await tx.get(doc(database, 'objects', u.activeObjectId));
-    const flags = await tx.get(doc(database, 'config', 'live'));
-    if (!flags.data()?.launches || !flags.data()?.seasonOpen) throw new LaunchError('closed');
     const now = Date.now(),
       day = utcDay(now),
       count = u.launchDay === day ? u.launchesToday + 1 : 1;
@@ -270,6 +305,7 @@ export async function relaunchObject(database: Firestore, uid: string, objectId:
       launchDay: day,
       launchesToday: count,
     });
+    mirror(tx, database, uid, objectId, active);
     tx.update(target.ref, { status: 'active', updatedAt: at });
     tx.update(previous.ref, { status: 'hangar', updatedAt: at });
     tx.set(event, { schemaVersion: SCHEMA_VERSION, uid, type: 'relaunch', objectId, at, payload: active });
@@ -281,5 +317,5 @@ export async function relaunchObject(database: Firestore, uid: string, objectId:
       at,
       payload: archived,
     });
-  });
+  }).catch((error: unknown) => launchFailure(database, error, 'launches'));
 }

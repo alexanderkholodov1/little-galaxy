@@ -37,5 +37,5 @@ export function runObservedTransaction<T>(database: Firestore, update: (tx: Tran
     // The callback completed and will submit this write set; a later retry can submit it again.
     observer.request([...writes]);
     return result;
-  });
+  }, { maxAttempts: 10 });
 }

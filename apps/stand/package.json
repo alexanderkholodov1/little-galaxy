@@ -2,13 +2,14 @@
   "name": "@little-galaxy/stand",
   "private": true,
   "type": "module",
-  "version": "1.0.1",
+  "version": "1.0.0-alpha.1",
   "scripts": {
     "start": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --pool=threads",
+    "migrate-sky": "tsx src/index.ts migrate-sky",
     "control": "tsx src/index.ts control",
     "freeze-season": "tsx src/index.ts freeze-season"
   },
@@ -19,5 +20,6 @@
   "devDependencies": {
     "@types/node": "^22.20.5",
     "tsx": "^4.23.15"
-  }
+  },
+  "license": "UNLICENSED"
 }

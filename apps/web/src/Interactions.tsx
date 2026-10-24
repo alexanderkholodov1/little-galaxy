@@ -77,7 +77,7 @@ export default function Interactions({ language, config, status, retry, disabled
     } catch { if (mounted.current) setMotion('unavailable'); }
   }
   const label = (type: InteractionType, title: string) => wait(type) ? `${title} · ${text.wait} ${wait(type)} ${text.seconds}` : title;
-  return <section className="interactions">
+  return <section id="workshop-interactions" tabIndex={-1} className="interactions">
     <p className="eyebrow">04 / {text.title}</p>
     <h2>{text.title}</h2>
     {status !== 'live' ? <p role="status">{text[status === 'loading' ? 'loading' : 'failed']} {status === 'failed' && <button onClick={retry}>{text.retry}</button>}</p>

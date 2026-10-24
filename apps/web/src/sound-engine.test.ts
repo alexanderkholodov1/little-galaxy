@@ -35,3 +35,33 @@ it('plays the first pet below 0.25s context age and throttles only subsequent ra
     expect(pets()).toHaveLength(2);
   } finally { engine.dispose(); }
 });
+
+it('stays silent across initial delivery, parameter/camera updates and elapsed minutes', () => {
+  vi.useFakeTimers(); audio.notes.mockClear(); audio.time = 0;
+  const engine = createSoundEngine({} as AudioContext, 8), objects = syntheticObjects(50);
+  try {
+    engine.update(objects, objects.map((o) => ({ id: o.id, visible: true, distance: 1 })));
+    for (const time of [6, 12, 60, 300]) {
+      audio.time = time; vi.advanceTimersByTime(60_000);
+      engine.update(objects.slice().reverse(), [{ id: objects[0].id, visible: true, distance: 2, focused: true }]);
+    }
+    expect(audio.notes).not.toHaveBeenCalled(); expect(vi.getTimerCount()).toBe(0);
+    engine.pet(objects[0].id); expect(audio.notes).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(60_000); expect(audio.notes).toHaveBeenCalledOnce();
+  } finally { engine.dispose(); vi.useRealTimers(); }
+});
+it('plays sparse arrival/comet events once, suppresses muted events and expires pending arrivals', () => {
+  vi.useFakeTimers(); audio.notes.mockClear(); audio.time = 0;
+  const engine = createSoundEngine({} as AudioContext, 8), objects = syntheticObjects(2);
+  try {
+    engine.event(objects[0].id); expect(audio.notes).not.toHaveBeenCalled();
+    engine.update(objects, []); expect(audio.notes).toHaveBeenCalledOnce();
+    engine.event(objects[1].id); engine.event(); expect(audio.notes).toHaveBeenCalledOnce();
+    audio.time = 4; engine.event(); expect(audio.notes).toHaveBeenCalledTimes(2);
+    audio.time = 8; engine.setMix(true, .32); engine.event(); engine.pet(objects[0].id);
+    expect(audio.notes).toHaveBeenCalledTimes(2);
+    engine.setMix(false, .32); engine.event('late'); vi.advanceTimersByTime(2100);
+    engine.update([...objects, { ...objects[0], id: 'late' }], []);
+    expect(audio.notes).toHaveBeenCalledTimes(2);
+  } finally { engine.dispose(); vi.useRealTimers(); }
+});

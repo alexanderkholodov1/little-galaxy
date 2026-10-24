@@ -18,11 +18,7 @@ it('runs the documented startup and every scene, flag and timing through the act
     await database.doc('config/live').delete(); await database.doc('snapshots/live').delete();
     stand = spawn('pnpm', ['--filter', '@little-galaxy/stand', 'start'], { env, detached: true, stdio: 'ignore' });
     await expect.poll(async () => (await database.doc('snapshots/live').get()).exists, { timeout: 30_000 }).toBe(true);
-    expect((await database.doc('config/live').get()).exists).toBe(false);
-    const { stdout } = await control('init');
     const initial = (await database.doc('config/live').get()).data();
-    expect(stdout).toContain('Created config/live:');
-    for (const [key, value] of Object.entries(initial)) expect(stdout).toContain(`${JSON.stringify(key)}: ${JSON.stringify(value)}`);
     expect(initial.seasonOpen).toBe(false);
     await expect(control('init')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('refuses to overwrite') });
     expect((await database.doc('config/live').get()).data()).toEqual(initial);
@@ -43,6 +39,16 @@ it('runs the documented startup and every scene, flag and timing through the act
       await control('timing', key, value);
       expect((await database.doc('config/live').get()).data()[key]).toBe(Number(value));
     }
+    const beforeInspect = (await database.doc('config/live').get()).updateTime;
+    const { stdout } = await execute('pnpm', ['--filter', '@little-galaxy/stand', 'exec', 'tsx', 'src/index.ts', 'github-control'],
+      { env: { ...env, SKY_ACTION: 'inspect', SKY_KEY: '', SKY_VALUE: '' }, timeout: 30_000 });
+    const report = JSON.parse(stdout.slice(stdout.indexOf('{')));
+    expect(report.activeObjects).toBe(0);
+    expect(report.shards).toHaveLength(16);
+    expect(report).toHaveProperty('marker');
+    expect(stdout).not.toContain('prior season setting restored');
+    expect((await database.doc('config/live').get()).updateTime).toEqual(beforeInspect);
+
   } finally {
     if (stand?.pid) {
       const exited = once(stand, 'exit'); process.kill(-stand.pid, 'SIGTERM'); await exited;

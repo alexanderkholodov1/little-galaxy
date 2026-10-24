@@ -12,3 +12,5 @@ private/
 .ui-results/
 playwright-report/
 .live-safety/
+
+.alpha1-evidence/

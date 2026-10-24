@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSoundController, savedSoundMute, savedSoundVolume } from './sound-controller';
-const engine = vi.hoisted(() => ({ update: vi.fn(), setMix: vi.fn(), pet: vi.fn(), dispose: vi.fn() }));
+const engine = vi.hoisted(() => ({ update: vi.fn(), setMix: vi.fn(), pet: vi.fn(), event: vi.fn(), dispose: vi.fn() }));
 const createEngine = vi.hoisted(() => vi.fn(() => engine));
 vi.mock('./sound-engine', () => ({ createSoundEngine: createEngine }));
 const resume = vi.fn(), close = vi.fn(), start = vi.fn();
@@ -99,5 +99,16 @@ it('operator suppression also wins a pending audio import', async () => {
   const controller = createSoundController(8, vi.fn());
   const pending = controller.unlock(); controller.setAllowed(false); finish(); await pending;
   expect(engine.setMix).toHaveBeenLastCalledWith(true, 0.32);
+  controller.dispose();
+});
+
+it('never unlocks or replays history for a booth event and respects operator suppression', async () => {
+  const controller = createSoundController(8, vi.fn());
+  controller.event('arrival'); expect(contexts).toBe(0); expect(engine.event).not.toHaveBeenCalled();
+  await controller.unlock();
+  expect(engine.event).not.toHaveBeenCalled();
+  controller.event('fresh'); expect(engine.event).toHaveBeenCalledWith('fresh');
+  controller.setAllowed(false); controller.event('blocked');
+  expect(engine.event).toHaveBeenCalledTimes(1);
   controller.dispose();
 });

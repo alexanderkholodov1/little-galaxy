@@ -1,6 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { expect, it, vi } from 'vitest';
-import { compactSnapshot, startSnapshotWriter } from './snapshots.js';
+import { compactSnapshot, startSnapshotWriter, writeSnapshot } from './snapshots.js';
 import { orbitFromSwipe, SEASON } from '@little-galaxy/shared';
 it('strips owner IDs and timestamps, ignores incompatible versions and never includes hangar', () => {
   const object = {
@@ -45,26 +45,26 @@ it('invalidates failed listeners, backs off and publishes only new listener stat
   const listeners: { next: (s: { docs: [] }) => void; fail: () => void }[] = [];
   const unsubscribe = vi.fn();
   const set = vi.fn().mockResolvedValue(undefined);
-  const database = { doc: () => ({ set }), collection: () => ({ where: () => ({ onSnapshot: (next: typeof listeners[number]['next'], fail: () => void) => { listeners.push({ next, fail }); return unsubscribe; } }) }) };
+  const database = { doc: () => ({ set, get: async () => ({ data: () => undefined }) }), collection: () => ({ where: () => ({ onSnapshot: (next: typeof listeners[number]['next'], fail: () => void) => { listeners.push({ next, fail }); return unsubscribe; } }) }) };
   const error = vi.fn();
   const stop = startSnapshotWriter(database as unknown as Firestore, error, 100);
   try {
     listeners[0].next({ docs: [] }); await vi.advanceTimersByTimeAsync(100);
-    expect(set).toHaveBeenCalledTimes(2);
+    expect(set).toHaveBeenCalledTimes(1);
     listeners[0].fail();
     await vi.advanceTimersByTimeAsync(999);
-    expect(listeners).toHaveLength(1); expect(set).toHaveBeenCalledTimes(2);
+    expect(listeners).toHaveLength(1); expect(set).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1); expect(listeners).toHaveLength(2);
     listeners[0].next({ docs: [] }); // A late callback cannot restore stale state.
     listeners[1].fail();
     await vi.advanceTimersByTimeAsync(1999); expect(listeners).toHaveLength(2);
-    expect(set).toHaveBeenCalledTimes(2);
+    expect(set).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1); expect(listeners).toHaveLength(3);
     listeners[2].next({ docs: [] }); await vi.advanceTimersByTimeAsync(100);
-    expect(set).toHaveBeenCalledTimes(4);
+    expect(set).toHaveBeenCalledTimes(1);
     listeners[2].fail(); await stop();
     await vi.advanceTimersByTimeAsync(60000); expect(listeners).toHaveLength(3);
-    expect(set).toHaveBeenCalledTimes(4); expect(error).toHaveBeenCalledTimes(3);
+    expect(set).toHaveBeenCalledTimes(1); expect(error).toHaveBeenCalledTimes(3);
     expect(unsubscribe).toHaveBeenCalledTimes(3);
   } finally { await stop(); vi.useRealTimers(); }
 });
@@ -81,4 +81,11 @@ it('includes a hangared moon host as a normal body without counting its owner tw
   expect(snapshot.activeCount).toBe(1); expect(snapshot.creators).toBe(1);
   expect(JSON.stringify(snapshot)).not.toContain('visitor');
   expect(compactSnapshot(docs.slice(0, 2)).objects).toEqual([]);
+});
+
+it('does not refresh the portfolio timestamp when a new process sees identical persisted content', async () => {
+  const state = compactSnapshot([]), set = vi.fn().mockResolvedValue(undefined);
+  const database = { doc: () => ({ set, get: async () => ({ data: () => ({ ...state, at: 'old-content-time' }) }) }) };
+  await writeSnapshot(database as unknown as Firestore, state);
+  expect(set).not.toHaveBeenCalled();
 });

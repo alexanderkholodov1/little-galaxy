@@ -17,6 +17,7 @@ test('phone workshop at 375px: draft, theme, Spanish, pointer swipe and offline 
   await expect(radius).toHaveValue('0.41');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await context.setOffline(true);
+  await page.locator('[data-step=launch]').click();
   await expect(page.getByRole('button', { name: 'Launch in a gentle orbit' })).toBeDisabled();
   await expect(page.locator('.launch-desk')).toContainText('Launches paused or disconnected');
   const window = await page.locator('.swipe-window').boundingBox();
@@ -53,6 +54,7 @@ test('rich controls stay bounded at 375px and never offer a text input', async (
   await page.goto('/galaxy/create');
   await page.getByRole('button', { name: 'Inspect in 3D', exact: true }).click();
   await expect(page.locator('.planet-specimen canvas')).toBeVisible();
+  await page.locator('[data-step=parameters]').click();
   for (const type of ['Star', 'Moon', 'Planet']) {
     await page.getByRole('button', { name: type, exact: true }).click();
     await page.getByRole('button', { name: 'Preset 2', exact: true }).click();

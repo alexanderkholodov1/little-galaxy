@@ -47,6 +47,7 @@ test('idle cinematic scene keeps the QR and phone controls explain an unavailabl
   await expect(page.locator('.galaxy-field')).toHaveAttribute('data-scene', 'cinematic');
   await expect(page.locator('.join-qr')).toBeVisible();
   await page.goto('/galaxy/create');
+  await page.locator('[data-step=interactions]').click();
   await expect(page.locator('.interactions')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send an aurora wave', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Send shooting star', exact: true })).toBeDisabled();
@@ -71,6 +72,7 @@ test('open interaction log at 375px keeps swipe, permission fallback and message
     Object.defineProperty(window, 'DeviceMotionEvent', { configurable: true, value: { requestPermission: () => Promise.resolve('denied') } });
   });
   await page.goto('/galaxy/create?lang=es');
+  await page.locator('[data-step=interactions]').click();
   await expect(page.locator('.comet-swipe')).toBeVisible();
   await page.getByRole('button', { name: 'Activar agitar el teléfono', exact: true }).click();
   await expect(page.locator('.interactions')).toContainText('Movimiento no disponible');

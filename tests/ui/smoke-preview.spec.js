@@ -1,4 +1,3 @@
-/* global document */
 import { expect, test } from '@playwright/test';
 import { installReadOnlyRoutes } from './read-only.js';
 
@@ -15,7 +14,8 @@ test('hosted surface smoke enforces read-only requests before transmission', asy
       await expect(page.locator('h1').first()).toBeVisible();
       if (path === 'screen') { await expect(page.locator('.join-qr')).toBeVisible(); await expect(page.locator('.galaxy-field')).toBeVisible(); }
       if (path === 'create') await expect(page.locator('.planet-specimen')).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= 375)).toBe(true);
+      // Resolve the document again if recovery replaces its execution context.
+      await expect(page.locator('html')).toHaveJSProperty('scrollWidth', 375);
     }
     // The application must suppress anonymous creation itself, rather than depend on a network failure.
     expect(blocked).toEqual([]);

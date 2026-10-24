@@ -35,21 +35,20 @@ it('does not spend Firestore reads for malformed static files or invalid IDs', a
   expect(getDoc).not.toHaveBeenCalled();
 });
 
-it('keeps the live fair entry to one aggregate snapshot read until replay is requested', async () => {
+it('checks static memory without consulting a stand snapshot or authenticating', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(null, 404)));
-  vi.mocked(getDoc).mockResolvedValue({ exists: () => true, data: () => ({ schemaVersion: 1, objects: [], at: { toMillis: () => 1000 } }) } as never);
-  expect(await loadHome()).toEqual({ frozen: false, objects: [], at: 1000 });
-  expect(getDoc).toHaveBeenCalledOnce(); expect(getDoc).toHaveBeenCalledWith('snapshots/live');
+  expect(await loadHome()).toEqual({ frozen: false });
+  expect(getDoc).not.toHaveBeenCalled();
+});
+it('keeps frozen home static-only', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(manifest)));
+  expect(await loadHome()).toEqual({ frozen: true });
+  expect(getDoc).not.toHaveBeenCalled();
 });
 
-it('distinguishes a reachable missing snapshot from permission and network failures', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(null, 404)));
-  vi.mocked(getDoc).mockResolvedValueOnce({ exists: () => false } as never);
-  expect(await loadHome()).toEqual({ frozen: false, missing: true });
-  for (const code of ['permission-denied', 'unavailable']) {
-    vi.mocked(getDoc).mockRejectedValueOnce(new Error(code));
-    await expect(loadHome()).rejects.toThrow(code);
-  }
-  vi.mocked(getDoc).mockResolvedValueOnce({ exists: () => true, data: () => ({ schemaVersion: 99 }) } as never);
-  await expect(loadHome()).rejects.toThrow('No live snapshot');
+it('prefers static immutable log chunks even with a live manifest', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response(null, 404)).mockResolvedValueOnce(response({ format: 1, states: [], events: [] })));
+  vi.mocked(getDoc).mockResolvedValueOnce({ exists: () => true, data: () => manifest } as never);
+  expect((await loadSeason()).frozen).toBe(false);
+  expect(getDoc).toHaveBeenCalledTimes(1);
 });

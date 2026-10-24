@@ -67,6 +67,7 @@ async function acceptance() {
     }
   }, { timeout: 45000 }).toBe(value);
   const assertSurface = async (phone, screen, value, focused) => {
+    await phone.locator('[data-step=parameters]').click();
     await expect(phone.getByRole('slider', { name: 'Radius' })).toHaveValue(value);
     await expect(phone.locator('.planet-specimen canvas')).toBeVisible();
     await expect(screen.locator('.galaxy-field canvas')).toBeVisible();
@@ -102,7 +103,9 @@ async function acceptance() {
     await expect(screen.locator('.creator-count')).toHaveText('0', { timeout: 30000 });
     await phone.goto(`${origin}/galaxy/create?emulators=1`);
     const launch = phone.getByRole('button', { name: 'Launch in a gentle orbit', exact: true });
+    await phone.locator('[data-step=launch]').click();
     await expect(launch).toBeEnabled({ timeout: 30000 });
+    await phone.locator('[data-step=launch]').click();
     await launch.click();
     await expect(phone.locator('.launch-feedback')).toContainText('In orbit');
     await expect(screen.locator('select option')).toHaveCount(2);
@@ -118,6 +121,7 @@ async function acceptance() {
     const entryA = await entry(phone);
     // Hold a real launch gesture across the version poll and reload deadline.
     const swipe = phone.locator('.swipe-window');
+    await phone.locator('[data-step=launch]').click();
     await swipe.scrollIntoViewIfNeeded();
     const box = await swipe.boundingBox();
     await phone.mouse.move(box.x + 20, box.y + 20); await phone.mouse.down();

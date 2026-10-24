@@ -47,6 +47,9 @@ describe('generateQuotaReportMarkdown', () => {
     expect(md).not.toMatch(/\|\s*\*\*Writes\*\*.*\*\*PASS\*\*/);
     expect(md).toContain('25,000');
     expect(md).toContain('Pacific time');
+    expect(md).toContain('Phone reconnections');
+    expect(md).toContain('Stand restart / failover');
+    expect(md).toContain('75%');
   });
 
   it('renders PASS when budgets succeed and all visitors complete', () => {
