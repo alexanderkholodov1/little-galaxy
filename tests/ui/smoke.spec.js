@@ -23,8 +23,8 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     await phone.locator('[data-step=parameters]').click();
     await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
     const name = await phone.locator('.planet-specimen').getAttribute('aria-label');
-    const started = Date.now();
     await phone.locator('[data-step=launch]').click();
+    const started = Date.now();
     await launch.click();
     await expect(screen.getByRole('option', { name: new RegExp(name) })).toHaveCount(1, { timeout: 2000 });
     await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles')), { timeout: Math.max(1, 2000 - (Date.now() - started)), intervals: [50] }).toBeGreaterThan(trianglesBefore);

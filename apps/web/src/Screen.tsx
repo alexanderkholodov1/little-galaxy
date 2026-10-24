@@ -205,6 +205,7 @@ export default function Screen({ language }: { language: Language }) {
   }, [join]);
   useEffect(() => {
     if (!firestore || synthetic || replaying) return;
+    let confirmed = false;
     const timeout = window.setTimeout(() => setState('failed'), 8000);
     const offline = () => setState('failed');
     window.addEventListener('offline', offline);
@@ -212,11 +213,11 @@ export default function Screen({ language }: { language: Language }) {
       firestore,
       (value, fromCache) => {
         // An empty local cache is not evidence that the server's galaxy is empty.
-        if (fromCache && value.length === 0) return;
+        if (fromCache && value.length === 0 && !confirmed) return;
         setObjects(value);
         setKnown(true);
-        setState(fromCache ? 'failed' : 'live');
-        if (!fromCache) window.clearTimeout(timeout);
+        setState(fromCache ? (confirmed || !navigator.onLine ? 'failed' : 'loading') : 'live');
+        if (!fromCache) { confirmed = true; window.clearTimeout(timeout); }
       },
       () => setState('failed'),
     );

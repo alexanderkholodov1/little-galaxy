@@ -14,7 +14,7 @@ export default function Home({ language }: { language: Language }) {
   const [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0), [replay, setReplay] = useState(false);
   useEffect(() => {
     if (replay) return;
-    const controller = new AbortController(); let active = true; let stop: (() => void) | undefined;
+    const controller = new AbortController(); let active = true, confirmed = false; let stop: (() => void) | undefined;
     const offline = () => setFailed(true);
     window.addEventListener('offline', offline);
     const timeout = setTimeout(() => { if (active) setFailed(true); controller.abort(); }, 12000);
@@ -23,9 +23,10 @@ export default function Home({ language }: { language: Language }) {
       if (result.frozen) { setData(result); setFailed(false); clearTimeout(timeout); return; }
       if (!firestore) throw new Error('No live connection');
       stop = listenActive(firestore, (objects, fromCache) => {
-        if (!active || (fromCache && !objects.length)) return;
+        if (!active || (fromCache && !objects.length && !confirmed)) return;
         setData((previous) => ({ frozen: false, objects, at: fromCache ? previous?.at : Date.now() }));
-        setFailed(fromCache); if (!fromCache) clearTimeout(timeout);
+        if (!fromCache) { confirmed = true; setFailed(false); clearTimeout(timeout); }
+        else if (confirmed || !navigator.onLine) setFailed(true);
       }, () => { if (active) setFailed(true); });
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; controller.abort(); clearTimeout(timeout); stop?.(); window.removeEventListener('offline', offline); };

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Home from './Home';
 import { loadHome } from './season-data';
 import { listenActive } from './galaxy-data';
+import { syntheticObjects } from '@little-galaxy/shared';
 vi.mock('./firebase', () => ({ firestore: {} }));
 vi.mock('./galaxy-data', () => ({ listenActive: vi.fn() }));
 vi.mock('./season-data', () => ({ loadHome: vi.fn() }));
@@ -67,4 +68,15 @@ it('does not infer an empty sky from cache, preserves a known sky offline and re
   expect(container.querySelector('canvas')).not.toBeNull();
   await act(async () => receive([], false));
   expect(container.textContent).not.toMatch(/No connection|Invalid Date/);
+});
+
+it('keeps the initial nonempty cache unconfirmed without inventing a connection failure', async () => {
+  await act(async () => root.render(<MemoryRouter><Home language="en"/></MemoryRouter>));
+  await act(async () => receive(syntheticObjects(1), true));
+  expect(container.textContent).toContain('Unconfirmed');
+  expect(container.textContent).not.toContain('No connection');
+  await act(async () => receive([], false));
+  await act(async () => receive([], true));
+  expect(container.textContent).toContain('No connection');
+  expect(container.querySelector('canvas')).not.toBeNull();
 });
