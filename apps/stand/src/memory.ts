@@ -1,6 +1,9 @@
+import { checkFence } from './lease.js';
+import type { StandFence } from './lease.js';
 import { createHash } from 'node:crypto';
 import { CHUNK_BYTES, compareIds, objectBucket, readLog, readManifest, readMemoryObject, readObject, readObjects, SEASON } from '@little-galaxy/shared';
 import type { LogChunk, MemoryEvent, MemoryObject, ObjectChunk, SeasonData } from '@little-galaxy/shared';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 type Source = { id: string; data(): unknown };
 function millis(value: unknown): number {
@@ -83,14 +86,15 @@ export async function readSeason(database: Firestore): Promise<SeasonData> {
     return buildSeason(objects.docs, events.docs);
   }, { readOnly: true });
 }
-export async function publishSeason(database: Firestore, season: SeasonData, observe?: (count: number) => void, onWrite?: (count: number) => void) {
+export async function publishSeason(database: Firestore, season: SeasonData, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence) {
   // Only changed mutable shards are rewritten. Log chunks are immutable and reusable across revisions.
   const manifestRef = database.doc(`seasons/${SEASON}/meta/manifest`);
   observe?.(1);
-  const previous = await manifestRef.get();
+  return database.runTransaction(async (batch) => {
+  if (fence) { observe?.(1); await checkFence(database, batch, fence); }
+  const previous = await batch.get(manifestRef);
   const old = previous.data();
   const hashes = Object.fromEntries(Object.entries(season.files).map(([id, data]) => [id, createHash('sha256').update(JSON.stringify(data)).digest('hex')]));
-  const batch = database.batch();
   let writes = 0;
   for (const [id, data] of Object.entries(season.files)) if (old?.hashes?.[id] !== hashes[id]) {
     batch.set(database.doc(`seasons/${SEASON}/log/${id}`), data); writes++;
@@ -98,21 +102,69 @@ export async function publishSeason(database: Firestore, season: SeasonData, obs
   if (writes || JSON.stringify(old?.manifest) !== JSON.stringify(season.manifest)) {
     if (writes > 450) throw new Error('Archive needs a larger publish strategy');
     batch.set(manifestRef, { ...season.manifest, manifest: season.manifest, hashes });
-    await batch.commit();
-    onWrite?.(writes + 1);
+    return writes + 1;
   }
+  return 0;
+  }).then((writes) => { if (writes) onWrite?.(writes); });
 }
-/** One cached listener per source; serialize/debounce publication and stop all work on shutdown. */
-export function startMemoryWriter(database: Firestore, onError: () => void, delay = 30_000, observe?: (count: number) => void, onWrite?: (count: number) => void) {
-  let objects: Source[] | undefined, events: Source[] | undefined, timer: ReturnType<typeof setTimeout> | undefined;
-  let pending = Promise.resolve(), stopped = false;
-  const flush = () => {
-    if (stopped || !objects || !events) return;
-    const a = objects, b = events;
-    pending = pending.then(() => publishSeason(database, buildSeason(a, b), observe, onWrite)).catch(onError);
-  };
-  const schedule = () => { if (!timer) timer = setTimeout(() => { timer = undefined; flush(); }, delay); };
-  const a = database.collection('objects').onSnapshot((s) => { observe?.(s.docChanges().length || (s.empty ? 1 : 0)); objects = s.docs; schedule(); }, onError);
-  const b = database.collection('events').onSnapshot((s) => { observe?.(s.docChanges().length || (s.empty ? 1 : 0)); events = s.docs; schedule(); }, onError);
-  return async () => { stopped = true; clearTimeout(timer); a(); b(); await pending; };
+/** Hydrate one coherent public revision rather than rereading the private source history. */
+async function archivedSources(database: Firestore, observe?: (count: number) => void) {
+  return database.runTransaction(async (tx) => {
+    observe?.(1);
+    const snapshot = await tx.get(database.doc(`seasons/${SEASON}/meta/manifest`));
+    const objects = new Map<string, Source>(), events = new Map<string, Source>();
+    let objectAt = 0, eventAt = 0;
+    if (snapshot.exists) {
+      const manifest = readManifest(snapshot.data());
+      const ids = [...manifest.objects, ...manifest.log];
+      observe?.(ids.length);
+      const files = await tx.getAll(...ids.map((id) => database.doc(`seasons/${SEASON}/log/${id}`)));
+      const restore = (o: MemoryObject) => ({ ...o, ownerUid: o.unclaimed ? '' : 'archived', schemaVersion: 2 });
+      for (const file of files.slice(0, manifest.objects.length)) for (const o of readObjects(file.data()).objects) {
+        objects.set(o.id, { id: o.id, data: () => restore(o) }); objectAt = Math.max(objectAt, o.updatedAt);
+      }
+      for (const file of files.slice(manifest.objects.length)) {
+        const chunk = readLog(file.data());
+        for (const [id, at, type, objectId, state] of chunk.events) {
+          if (id === `seed-${objectId}`) continue;
+          const payload = typeof state === 'number' ? restore(chunk.states[state]) : state;
+          events.set(id, { id, data: () => ({ schemaVersion: 1, at, type, objectId, payload }) });
+          eventAt = Math.max(eventAt, at);
+        }
+      }
+    }
+    return { objects, events, objectAt, eventAt };
+  }, { readOnly: true });
+}
+/** Inclusive timestamp boundaries retain simultaneous commits; IDs deduplicate overlap. */
+export function startMemoryWriter(database: Firestore, onError: () => void, delay = 30_000, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence) {
+  let timer: ReturnType<typeof setTimeout> | undefined, stopped = false;
+  let pending = Promise.resolve();
+  const stops: (() => void)[] = [];
+  const ready = archivedSources(database, observe).then(({ objects, events, objectAt, eventAt }) => {
+    if (stopped) return;
+    let gotObjects = false, gotEvents = false;
+    const schedule = () => {
+      if (!gotObjects || !gotEvents || timer) return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        if (stopped) return;
+        const a = [...objects.values()], b = [...events.values()];
+        pending = pending.then(() => publishSeason(database, buildSeason(a, b), observe, onWrite, fence)).catch(onError);
+      }, delay);
+    };
+    const a = database.collection('objects').where('updatedAt', '>=', Timestamp.fromMillis(objectAt));
+    const b = database.collection('events').where('at', '>=', Timestamp.fromMillis(eventAt));
+    stops.push(a.onSnapshot((s) => {
+      observe?.(s.docChanges().length || (s.empty ? 1 : 0));
+      for (const d of s.docs) objects.set(d.id, d);
+      gotObjects = true; schedule();
+    }, onError));
+    stops.push(b.onSnapshot((s) => {
+      observe?.(s.docChanges().length || (s.empty ? 1 : 0));
+      for (const d of s.docs) events.set(d.id, d);
+      gotEvents = true; schedule();
+    }, onError));
+  }).catch(onError);
+  return async () => { stopped = true; clearTimeout(timer); stops.forEach((stop) => stop()); await ready; await pending; };
 }

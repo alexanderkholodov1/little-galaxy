@@ -33,11 +33,11 @@ try {
       await getFirestore().terminate();
       console.log(`${process.argv[3] === 'init' ? 'Created' : 'Updated'} config/live: ${JSON.stringify(written, null, 2)}`);
     } else {
-      const stop = startLeasedStand(getFirestore(), () => {
+      const stop = startLeasedStand(getFirestore(), (fence) => {
       console.log('Stand enrichment leadership acquired.');
-      const stopMemory = startMemoryWriter(getFirestore(), () => console.error('Memory archive unavailable. Check source schema and capacity.'));
-      const stopMeteors = startMeteorScheduler(getFirestore(), () => console.error('Meteor scheduler unavailable. Check connection and live timing.'));
-      const stopSnapshot = startSnapshotWriter(getFirestore(), () => console.error('Snapshot unavailable. Check connection or snapshot capacity.'));
+      const stopMemory = startMemoryWriter(getFirestore(), () => console.error('Memory archive unavailable. Check source schema and capacity.'), undefined, undefined, undefined, fence);
+      const stopMeteors = startMeteorScheduler(getFirestore(), () => console.error('Meteor scheduler unavailable. Check connection and live timing.'), undefined, undefined, undefined, undefined, fence);
+      const stopSnapshot = startSnapshotWriter(getFirestore(), () => console.error('Snapshot unavailable. Check connection or snapshot capacity.'), undefined, undefined, undefined, fence);
       return async () => { console.log('Stand enrichment leadership stopped.'); await Promise.all([stopSnapshot(), stopMeteors(), stopMemory()]); };
       }, () => console.error('Stand lease unavailable; enrichment paused.'));
       const shutdown = () => { void stop().then(() => getFirestore().terminate()).then(() => process.exit(0)); };

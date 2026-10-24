@@ -1,3 +1,5 @@
+import { checkFence } from './lease.js';
+import type { StandFence } from './lease.js';
 import { Buffer } from 'node:buffer';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -32,22 +34,34 @@ export function compactSnapshot(documents: { id: string; data(): unknown }[]): O
     throw new Error('Snapshot needs sharding before the next write');
   return snapshot;
 }
+export async function writeSnapshot(database: Firestore, state: Omit<LiveSnapshot, 'at'>, fence?: StandFence) {
+  if (!fence) { await database.doc('snapshots/live').set({ ...state, at: FieldValue.serverTimestamp() }); return; }
+  await database.runTransaction(async (tx) => {
+    await checkFence(database, tx, fence);
+    tx.set(database.doc('snapshots/live'), { ...state, at: FieldValue.serverTimestamp() });
+  });
+}
 /** Publish only a healthy listener's state; reconnect with bounded exponential backoff. */
-export function startSnapshotWriter(database: Firestore, onError: () => void, interval = 30_000, observe?: (count: number) => void, onWrite?: (count: number) => void) {
+export function startSnapshotWriter(database: Firestore, onError: () => void, interval = 30_000, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence) {
   let latest: Omit<LiveSnapshot, 'at'> | undefined;
+  let published: string | undefined;
+  let initialized = false;
   let pending: Promise<void> | undefined;
   let stopped = false;
   let generation = 0;
   let failures = 0;
   let revision = 0;
   const hosts = new Map<string, { id: string; data(): unknown }>();
-  let timer: ReturnType<typeof setInterval> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let unsubscribe: (() => void) | undefined;
   async function flush() {
     if (stopped || !latest || pending) return;
     const state = latest;
-    pending = database.doc('snapshots/live').set({ ...state, at: FieldValue.serverTimestamp() }).then(() => { onWrite?.(1); }).catch(onError);
+    const content = JSON.stringify(state);
+    if (content === published) return;
+    if (fence) observe?.(1);
+    pending = writeSnapshot(database, state, fence).then(() => { published = content; onWrite?.(1); }).catch(onError);
     await pending;
     pending = undefined;
   }
@@ -57,7 +71,7 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
     const failed = () => {
       if (stopped || current !== generation) return;
       generation++; latest = undefined;
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
       timer = undefined;
       unsubscribe?.(); unsubscribe = undefined;
       onError();
@@ -82,9 +96,10 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
           return document;
         })).then((parents) => {
           if (stopped || current !== generation || update !== revision) return;
-          latest = compactSnapshot([...snapshot.docs, ...parents]);
+          latest = compactSnapshot([...snapshot.docs, ...parents].sort((a, b) => a.id.localeCompare(b.id)));
           failures = 0;
-          if (!timer) { void flush(); timer = setInterval(() => { void flush(); }, interval); }
+          if (!initialized) { initialized = true; void flush(); }
+          else if (!timer) timer = setTimeout(() => { timer = undefined; void flush(); }, interval);
         }).catch(() => { if (update === revision) failed(); });
       }, failed);
     } catch { failed(); }
@@ -92,7 +107,7 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
   connect();
   return async () => {
     stopped = true; generation++; latest = undefined;
-    if (timer) clearInterval(timer);
+    if (timer) clearTimeout(timer);
     if (retry) clearTimeout(retry);
     unsubscribe?.();
     await pending;

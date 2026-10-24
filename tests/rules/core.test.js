@@ -481,7 +481,7 @@ it('two real anonymous Auth clients launch; a third screen listener receives bot
     for (const app of apps) await deleteApp(app);
   }
 });
-it('admin snapshot writer publishes compact state on its interval against the demo emulator', async () => {
+it('admin snapshot writer debounces content changes and leaves an unchanged timestamp intact', async () => {
   const id = await launchPlanet(db(), 'alice', draft, orbit());
   let errors = 0;
   const stop = startSnapshotWriter(
@@ -498,9 +498,8 @@ it('admin snapshot writer publishes compact state on its interval against the de
     const first = (await adminFirestore(admin).doc('snapshots/live').get()).data();
     expect(first.objects[0].id).toBe(id);
     expect(first.objects[0].ownerUid).toBeUndefined();
-    await expect
-      .poll(async () => (await adminFirestore(admin).doc('snapshots/live').get()).data()?.at.toMillis())
-      .toBeGreaterThan(first.at.toMillis());
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect((await adminFirestore(admin).doc('snapshots/live').get()).data().at.toMillis()).toBe(first.at.toMillis());
     await launchPlanet(db('bob'), 'bob', draft, orbit());
     await expect
       .poll(async () => (await adminFirestore(admin).doc('snapshots/live').get()).data()?.activeCount)
