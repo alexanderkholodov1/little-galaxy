@@ -1,6 +1,6 @@
 # Portfolio runtime contract
 
-The portfolio publishes `/tokens.css` and `/profile.json` at the same origin as
+The portfolio publishes `/tokens.css` at the same origin as
 `/galaxy/`. This document is the handoff for coordinated P v0.1.0. The plan of
 record remains `../portfolio/docs/plan/` on `main`; its architecture and CHANGELOG
 should record this implementation contract in the coordinated portfolio change.
@@ -37,54 +37,19 @@ contrast is 12.635:1 (light) and 15.275:1 (dark); action text is 6.949:1 and
 10.095:1 respectively. The reference scene stays dark with local sky, star,
 message and retry-control colors, independent of portfolio theme tokens.
 
-## `/profile.json`
+## Credits in the game
 
-The endpoint serves JSON. The consumer sends `Accept: application/json`, aborts
-after five seconds, and treats network errors, unsuccessful HTTP responses,
-invalid JSON and an invalid top-level profile as unavailable. No invented
-personal information is substituted.
+The game does not fetch `/profile.json` or render profile/social navigation.
+Every game route has a small `Credits` / `Créditos` control with a 44px target.
+It opens a closable native dialog containing only the localized game name,
+`Alexander Kholodov · USFQ`, and one portfolio home link (`/` in English,
+`/es/` in Spanish). Escape closes it; focus stays inside while open and returns
+to the control on close. Permanent object pages contain no extra profile links.
+This supersedes the former corner identity mark and profile sheet (operator
+correction, 2026-10-24). Palette/type tokens remain shared with the portfolio.
 
-```json
-{
-  "name": "Public portfolio name",
-  "role": { "en": "Public role", "es": "Rol público" },
-  "nav": [
-    {
-      "href": { "en": "/", "es": "/es/" },
-      "label": { "en": "Portfolio", "es": "Portafolio" }
-    }
-  ],
-  "socials": [
-    { "href": "https://example.com/", "label": "Public social label" }
-  ],
-  "links": []
-}
-```
-
-- The root must be an object with a nonempty string `name`; surrounding name
-  whitespace is trimmed. `role` is optional portfolio content, reserved for a
-  role line; this foundation consumer does not render it. Unknown fields are
-  ignored. The example is a schema illustration, not operator content.
-- `links`, `nav` and `socials` are optional arrays, combined in that order.
-  Invalid entries are skipped. Duplicates with the same resolved EN and ES href
-  pair keep their first occurrence. Absent arrays produce an empty link list.
-- Each entry requires `href` as either a string shared by both languages, or
-  an object with safe strings for **both** `en` and `es`. The current language
-  selects the href. An unsafe or missing language rejects the entire entry.
-- Safe hrefs are root-relative paths beginning with a single `/`, or absolute
-  `https:` URLs. Protocol-relative URLs, other schemes, whitespace, backslashes
-  and control characters are rejected. Hrefs are not trimmed into validity.
-- `label` is a nonempty string shared by both languages, or an object requiring
-  nonempty `en`. Missing/empty `es` falls back to English. Labels are trimmed and
-  rendered as text, never HTML.
-- When the profile or its links are unavailable, the navigation falls back to
-  `Portfolio` at `/` in English and `Portafolio` at `/es/` in Spanish. The signature
-  always points to that language's portfolio root and uses `name` if available,
-  otherwise `Collective Galaxy` / `Galaxia Colectiva`.
-
-Implementation evidence: `apps/web/src/profile.ts`, `profile.test.ts`,
-`App.test.tsx`, and `styles.css`.
-
+Implementation evidence: `App.tsx`, `App.test.tsx`, `styles.css`, and the viewport
+acceptance journey in `tests/ui/viewport.spec.js`.
 
 ## Memory / P v1.1.0
 

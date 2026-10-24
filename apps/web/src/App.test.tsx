@@ -54,35 +54,36 @@ it.each([
 ])('renders %s and uses a session only on writing routes', async (path, title, session) => {
   await render(path as string);
   expect(container.querySelector('h1')?.textContent).toBe(title);
-  expect(container.querySelector('.signature')?.textContent).toBe('Collective Galaxy');
+  expect(container.querySelector('.credits-card h2')?.textContent).toBe('Collective Galaxy');
   expect(Boolean(container.querySelector('.session-line'))).toBe(session);
   expect(startAnonymousSession).toHaveBeenCalledTimes(session ? 1 : 0);
   expect(container.textContent).not.toContain('G / 0.1.0');
 });
 
-it('keeps language through navigation and localizes title, signature and portfolio fallback', async () => {
+it('keeps language preference and localizes the title, credits and portfolio home', async () => {
   await render('/galaxy/?lang=es');
   expect(document.documentElement.lang).toBe('es');
   expect(document.title).toBe('Galaxia Colectiva');
-  expect(container.querySelector('.signature')?.textContent).toBe('Galaxia Colectiva');
-  expect(container.querySelector('.signature')?.getAttribute('href')).toBe('/es/');
-  expect(container.querySelector('.profile-links a')?.getAttribute('href')).toBe('/es/');
+  expect(container.querySelector('.credits-card h2')?.textContent).toBe('Galaxia Colectiva');
+  expect(container.querySelector('.credits-card a')?.getAttribute('href')).toBe('/es/');
   expect(localStorage.getItem('galaxy.language')).toBe('es');
   await act(async () => container.querySelector<HTMLButtonElement>('button[lang="en"]')!.click());
-  const create = container.querySelector<HTMLAnchorElement>('a[href="/galaxy/create?lang=en"]')!;
-  await act(async () => create.click());
-  expect(window.location.pathname).toBe('/galaxy/create');
   expect(document.title).toBe('Collective Galaxy');
   expect(localStorage.getItem('galaxy.language')).toBe('en');
 });
 
-it('selects portfolio hrefs in the current language', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ name: 'Chart owner', links: [
-    { href: { en: '/about/', es: '/es/about/' }, label: { en: 'About', es: 'Acerca de' } },
+it('ignores profile identity and social links throughout the game', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ name: 'Chart owner', socials: [
+    { href: 'https://example.com/social', label: 'Social' },
   ] }) }));
   await render('/galaxy/create?lang=es');
-  expect(container.querySelector('.signature')?.textContent).toBe('Chart owner');
-  expect(container.querySelector('a[href="/es/about/"]')?.textContent).toBe('Acerca de');
+  const card = container.querySelector('.credits-card')!;
+  expect(card.textContent).toContain('Alexander Kholodov · USFQ');
+  expect(card.querySelectorAll('a')).toHaveLength(1);
+  expect(card.querySelector('a')?.getAttribute('href')).toBe('/es/');
+  expect(container.textContent).not.toContain('Chart owner');
+  expect(container.querySelector('a[href="https://example.com/social"]')).toBeNull();
+  expect(fetch).not.toHaveBeenCalledWith('/profile.json', expect.anything());
 });
 
 it('follows OS changes without persisting them, then persists only an explicit choice', async () => {
@@ -124,7 +125,7 @@ it('retries using the visible connection control', async () => {
 
 it('removes the session and its online handler when leaving a writing route', async () => {
   await render('/galaxy/create');
-  await act(async () => container.querySelector<HTMLAnchorElement>('.galaxy-nav a')!.click());
+  await act(async () => { window.history.pushState(null, '', '/galaxy/'); window.dispatchEvent(new PopStateEvent('popstate')); });
   expect(container.querySelector('footer')).toBeNull();
   await act(async () => window.dispatchEvent(new Event('online')));
   expect(startAnonymousSession).toHaveBeenCalledTimes(1);
@@ -143,28 +144,23 @@ it.each([
   expect(container.querySelector('h1')?.textContent).toContain(sentence);
 });
 
-it('does not advertise talk in the visible navigation while preserving the route', async () => {
-  await render('/galaxy');
-  const navLinks = Array.from(container.querySelectorAll('.galaxy-nav a')).map((a) => a.getAttribute('href'));
-  expect(navLinks).toEqual(['/galaxy?lang=en', '/galaxy/screen?lang=en', '/galaxy/create?lang=en']);
-  expect(container.querySelector('.galaxy-nav a[href*="talk"]')).toBeNull();
-});
-
 it('marks the shell with data-page="screen" on the screen route', async () => {
   await render('/galaxy/screen');
   expect(container.querySelector('.app-shell')?.getAttribute('data-page')).toBe('screen');
 });
 
 
-it('keeps identity links inside a closed glass sheet and opens them from the corner mark', async () => {
+it('keeps attribution inside a closed credits card and opens it from a text control', async () => {
   await render('/galaxy/create');
   expect(container.querySelector('header')).toBeNull();
   const sheet = container.querySelector('dialog')!;
   expect(sheet.hasAttribute('open')).toBe(false);
-  const mark = container.querySelector<HTMLButtonElement>('.galaxy-mark')!;
+  const mark = container.querySelector<HTMLButtonElement>('.credits-toggle')!;
   await act(async () => mark.click());
   expect(sheet.hasAttribute('open')).toBe(true);
+  expect(mark.textContent).toBe('Credits');
+  expect(mark.querySelector('svg')).toBeNull();
   expect(mark.getAttribute('aria-expanded')).toBe('true');
-  await act(async () => container.querySelector<HTMLButtonElement>('.sheet-close')!.click());
+  await act(async () => container.querySelector<HTMLButtonElement>('.credits-close')!.click());
   expect(sheet.hasAttribute('open')).toBe(false);
 });

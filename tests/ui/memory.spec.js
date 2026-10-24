@@ -48,7 +48,13 @@ test('permanent hangared specimen renders its postcard, offers file sharing and 
   await page.goto(`/galaxy/o/${object.id}?lang=es`);
   await expect(page.getByRole('heading', { name: 'Aurora tranquila', exact: true })).toBeVisible();
   await expect(page.getByText('En el hangar · conservado para siempre')).toBeVisible();
-  await expect(page.locator('.object-record > .experience-links').getByRole('link', { name: 'Red de prueba' })).toHaveAttribute('href', 'https://example.com/test');
+  await expect(page.locator('.experience-links')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Créditos', exact: true }).click();
+  const credits = page.getByRole('dialog', { name: 'Créditos', exact: true });
+  await expect(credits).toContainText('Alexander Kholodov · USFQ');
+  await expect(credits.getByRole('link')).toHaveCount(1);
+  await expect(credits.getByRole('link')).toHaveAttribute('href', '/es/');
+  await page.keyboard.press('Escape');
   await expect(page.locator('.permanent-specimen canvas')).toBeVisible();
   await page.getByRole('button', { name: 'Crear postal', exact: true }).click();
   await expect(page.getByText('Postal lista. Toca Compartir.')).toBeVisible({ timeout: 25000 });
@@ -74,6 +80,7 @@ test('permanent hangared specimen renders its postcard, offers file sharing and 
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Compartir postal', exact: true }).click();
   expect((await download).suggestedFilename()).toBe('galaxy-memory-planet.png');
+  await expect(page.locator('a[href="https://example.com/test"]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   for (const button of await page.locator('.object-record button').all()) expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
   if (artifact) await page.screenshot({ path: `${artifact}/memory-object-postcard-375-es.png`, fullPage: true });

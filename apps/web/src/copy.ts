@@ -1,6 +1,6 @@
 export const copy = {
   en: {
-    portfolio: 'Portfolio', language: 'Language', theme: 'Appearance', light: 'Light', dark: 'Dark',
+    credits: 'Credits', portfolio: 'Portfolio', language: 'Language', theme: 'Appearance', light: 'Light', dark: 'Dark',
     nav: 'Galaxy pages', home: 'Galaxy', screen: 'Screen', create: 'Create', talk: 'Talk',
     productName: 'Collective Galaxy',
     homeTitle: 'A shared sky.',
@@ -20,7 +20,7 @@ export const copy = {
     skip: 'Skip to content',
   },
   es: {
-    portfolio: 'Portafolio', language: 'Idioma', theme: 'Apariencia', light: 'Claro', dark: 'Oscuro',
+    credits: 'Créditos', portfolio: 'Portafolio', language: 'Idioma', theme: 'Apariencia', light: 'Claro', dark: 'Oscuro',
     nav: 'Páginas de la galaxia', home: 'Galaxia', screen: 'Pantalla', create: 'Crear', talk: 'Hablar',
     productName: 'Galaxia Colectiva',
     homeTitle: 'Un cielo compartido.',
