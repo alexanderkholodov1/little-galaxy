@@ -133,7 +133,7 @@ jobs:
       - name: Deploy Firestore rules
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-rules.json
-        run: pnpm exec firebase deploy --only firestore:rules --project "${FIREBASE_PROJECT_ID:?Missing data-project ID}" --non-interactive
+        run: pnpm exec firebase deploy --only firestore:rules,firestore:indexes --project "${FIREBASE_PROJECT_ID:?Missing data-project ID}" --non-interactive
       - name: Remove data-project credentials
         if: always()
         shell: bash
