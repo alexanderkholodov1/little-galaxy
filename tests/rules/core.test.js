@@ -35,7 +35,8 @@ import { initializeApp as adminApp, deleteApp as deleteAdminApp } from 'firebase
 import { getFirestore as adminFirestore } from 'firebase-admin/firestore';
 import { sendInteraction, listenRecentEvents } from '../../apps/web/src/interaction-data.ts';
 import { messageKeys } from '../../packages/shared/src/index.ts';
-import { applyControl } from '../../apps/stand/src/control.ts';
+import { applyControl, initialConfig } from '../../apps/stand/src/control.ts';
+import { readConfig } from '../../apps/web/src/live-config.ts';
 import { startMeteorScheduler, writeMeteorShower } from '../../apps/stand/src/meteors.ts';
 import { startSnapshotWriter } from '../../apps/stand/src/snapshots.ts';
 vi.mock('../../apps/web/src/firebase.ts', () => ({ anonymousUid: vi.fn().mockResolvedValue('screen') }));
@@ -1043,4 +1044,36 @@ it('does not permit signing out to write a valid interaction batch', async () =>
   const database = env.unauthenticatedContext().firestore();
   await assertFails(setDoc(doc(database, 'users', 'alice'), { schemaVersion: 1, action: 'shake' }));
   await assertFails(setDoc(doc(database, 'events', 'anonymous'), { schemaVersion: 1, uid: 'alice', objectId: '', at: serverTimestamp(), type: 'shake', payload: {} }));
+});
+
+it('init provisions the exact closed season once, supports client reads and permits launch only after explicit opening', async () => {
+  const database = adminFirestore(admin), ref = database.doc('config/live');
+  await ref.delete();
+  expect(await applyControl(database, ['init'])).toEqual(initialConfig());
+  const config = (await assertSucceeds(getDoc(doc(db(), 'config', 'live')))).data();
+  expect(config).toEqual(initialConfig());
+  expect(config.season).toBe('bad-2026'); expect(config.appVersion).toBe('1.0.1');
+  expect(readConfig(config).seasonOpen).toBe(false);
+  await assertFails((await launchBatch(db())).commit());
+  await expect(applyControl(database, ['init'])).rejects.toThrow('refuses to overwrite');
+  expect((await ref.get()).data()).toEqual(config);
+  await applyControl(database, ['flag', 'seasonOpen', 'on']);
+  const open = readConfig((await getDoc(doc(db(), 'config', 'live'))).data());
+  for (const flag of ['launches','edits','shake','comets','shootingStars','meteorShowers','soundOnScreen','sound','spotlight']) expect(open[flag]).toBe(true);
+  await assertSucceeds(launchPlanet(db(), 'alice', draft, orbit()));
+  await expect(applyControl(database, ['init'])).rejects.toThrow('refuses to overwrite');
+  expect((await ref.get()).data()).toEqual({ ...config, seasonOpen: true });
+});
+it('stand publishes its first empty snapshot before the interval without any config', async () => {
+  const database = adminFirestore(admin);
+  await database.doc('config/live').delete();
+  const failures = [], stop = startSnapshotWriter(database, () => failures.push(true), 3_600_000);
+  try {
+    await expect.poll(async () => (await database.doc('snapshots/live').get()).exists).toBe(true);
+    const snapshot = (await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'snapshots', 'live')))).data();
+    expect(snapshot).toMatchObject({ schemaVersion: 1, objects: [], activeCount: 0, creators: 0 });
+    expect(snapshot.at.toMillis()).toBeGreaterThan(Date.now() - 10_000);
+    expect((await database.doc('config/live').get()).exists).toBe(false);
+    expect(failures).toEqual([]);
+  } finally { await stop(); }
 });

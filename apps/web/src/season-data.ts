@@ -38,11 +38,12 @@ export async function loadMemoryObject(id: string, signal?: AbortSignal): Promis
 }
 
 /** The ordinary fair entry reads one aggregate snapshot; replay is an explicit, bounded load. */
-export async function loadHome(signal?: AbortSignal): Promise<{ frozen: boolean; objects?: RenderObject[]; at?: number }> {
+export async function loadHome(signal?: AbortSignal): Promise<{ frozen: boolean; missing?: boolean; objects?: RenderObject[]; at?: number }> {
   const manifest = await staticFile('manifest', signal);
   if (manifest !== null) { readManifest(manifest); return { frozen: true }; }
   if (!firestore) throw new Error('No live connection');
   const result = await getDoc(doc(firestore, 'snapshots', 'live'));
+  if (!result.exists()) return { frozen: false, missing: true };
   const snapshot = result.data();
   if (!snapshot || snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.objects)) throw new Error('No live snapshot');
   const objects = snapshot.objects.map((value: RenderObject) => {
