@@ -1,5 +1,9 @@
 # Fair-Day Runbook · Collective Galaxy (G v1.0.2)
 
+**Alpha.1:** the live sky works with both stands stopped. Stand startup below is optional
+enrichment. Before the first alpha publication follow section 11 for migration and Beacon/laptop
+failover; never provision credentials as part of a builder run.
+
 **Plan of record reference**: `portfolio/docs/plan/05-live-deploys-and-ops.md` § Fair-day runbook.
 
 ---
@@ -375,3 +379,101 @@ gray capture padding. The retained PNGs are `decoded-first.png` and `decoded-las
 that scratch directory. This short probe is not the booth's long rehearsal backup. Actual
 campus/production backup recording, physical playback and QR scanning remain operator steps.
 All probe-started browsers, stand/web processes and emulators were stopped.
+
+## 11. Alpha.1 live sky, Beacon and automatic laptop backup
+
+The home and booth read `sky/0`…`sky/f` directly; launch/edit/relaunch transactions
+maintain them under rules. Both stands may be stopped without taking the sky down.
+Archive/timelapse publication, legacy snapshots and scheduled meteors require one
+leader. Operator controls are independent admin commands and do not need leadership.
+See [live-sky.md](live-sky.md) for quota assumptions and failure boundaries.
+
+### Before the first alpha.1 publication
+
+1. The captain stages the release and rules through the reviewed release workflow.
+   Existing pre-alpha phone transactions do not write shards and will be rejected
+   by the new reciprocal rules. Close the season before activating these rules,
+   preserve saved drafts, and let the old clients' version watcher offer a safe
+   update. Reopen only after the alpha artifact is served and both views pass the
+   read-only check. This is a compatibility boundary, not a zero-interruption rollout.
+2. With the operator's admin environment exported, run:
+   ```sh
+   pnpm --filter @little-galaxy/stand control flag seasonOpen off
+   pnpm --filter @little-galaxy/stand migrate-sky
+   ```
+   Migration refuses an open season, validates sources and atomically writes all
+   16 shards. Never run it while writes are open. It includes pre-alpha active
+   objects and unclaimed operator seeds. It does not alter objects or open config.
+3. Open Home and Screen with both stands stopped. Confirm an existing object (or
+   a valid empty sky). Reopen explicitly with `control flag seasonOpen on` and
+   confirm a new phone launch/edit appears on both without a stand. Start the
+   enrichment processes after this check. No migration repeats on ordinary restart.
+
+### Missing Beacon credential: exact operator steps (none executed by this task)
+
+Beacon currently has no Galaxy admin key. The operator must supply it; do not use
+portfolio/Hosting credentials or copy another project's key.
+
+1. In Google Cloud Console, select the **data project matching the repository's
+   VITE_FIREBASE_PROJECT_ID**. In IAM & Admin → Service Accounts, select or create
+   a dedicated Galaxy stand service account. Grant **Cloud Datastore User**
+   (`roles/datastore.user`) on that data project; no Hosting or project-owner role.
+2. Service account → Keys → Add key → Create new key → JSON, on the operator's
+   trusted machine. Transfer that file securely to Beacon. Never paste its contents
+   into chat, shell arguments, environment values, Git or browser files. If an
+   existing approved key is available, transfer that instead of creating another.
+3. On each machine, as the operator, place its approved key at a private absolute
+   path outside the checkout/public output, readable only by the stand user
+   (directory mode 700, key mode 600). Use the same data project on both machines.
+   Set `GOOGLE_APPLICATION_CREDENTIALS` to its **path**, never its contents.
+4. Install Node ≥22.18, pnpm 11.5.2 and the pinned dependencies in the selected
+   release checkout. Test the stand once in a terminal, then stop it with SIGTERM.
+   No emulator variables may be present for the production service.
+5. Install this user systemd unit as `~/.config/systemd/user/galaxy-stand.service`
+   on Beacon and the Linux laptop (substitute all three operator-owned paths and
+   the actual data project ID; `pnpm` must be an absolute executable path):
+   ```ini
+   [Unit]
+   Description=Collective Galaxy enrichment contender
+   After=network-online.target
+   Wants=network-online.target
+
+   [Service]
+   Type=simple
+   WorkingDirectory=/absolute/path/to/release-checkout
+   Environment=FIREBASE_PROJECT_ID=ACTUAL_DATA_PROJECT_ID
+   Environment=GOOGLE_APPLICATION_CREDENTIALS=/absolute/private/galaxy-stand.json
+   ExecStart=/absolute/path/to/pnpm --filter @little-galaxy/stand start
+   Restart=on-failure
+   RestartSec=15
+   TimeoutStopSec=30
+   KillSignal=SIGTERM
+   UMask=0077
+
+   [Install]
+   WantedBy=default.target
+   ```
+   On a non-systemd laptop, run the identical stand command in the operator's
+   supervised session with those two exports. It is still an automatic contender.
+6. On Beacon, enable user lingering only if the operator wants it running after
+   logout: `loginctl enable-linger "$USER"`. Then on both systemd hosts:
+   `systemctl --user daemon-reload` and
+   `systemctl --user enable --now galaxy-stand.service`.
+7. Inspect `journalctl --user -u galaxy-stand.service` and Firestore Console's
+   admin-only `leases/stand`: one random process owner, `heartbeatAt` advancing
+   every 30 seconds, `expiresAt` 90 seconds ahead. Healthy follower checks add
+   reads, not heartbeat writes. Only one process starts archive/snapshot/meteor
+   listeners. Clocks must be synchronized (OS network time enabled).
+8. Rehearse failure: stop Beacon's service, verify the laptop becomes owner within
+   30 seconds after graceful release, then restart Beacon and confirm no duplicate
+   leader. For a crash/partition, takeover occurs within approximately 120 seconds
+   of the last heartbeat (90-second expiry plus a 30-second poll). Home/Screen
+   should continue receiving visitor writes throughout. Check quota in Console.
+9. To stop enrichment, run `systemctl --user stop galaxy-stand.service` on both.
+   To revoke access, stop both and remove the approved key in IAM; delete its local
+   copies via the operator's normal secure procedure. No client config changes.
+
+A lease deadline stops local services when renewal stalls. A write already sent by
+an old leader cannot be atomically fenced by the admin SDK after a network partition;
+check archive continuity after recovery. Beacon/laptop installation, credential
+provisioning, production migration and physical failover remain operator acceptance.

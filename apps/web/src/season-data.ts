@@ -1,6 +1,6 @@
 import { doc, getDoc } from 'firebase/firestore';
-import { objectBucket, readLog, readManifest, readObjects, readObject, planetDefaults, SEASON, safeId } from '@little-galaxy/shared';
-import type { LogChunk, MemoryObject, SeasonManifest, RenderObject, PlanetParams } from '@little-galaxy/shared';
+import { objectBucket, readLog, readManifest, readObjects, SEASON, safeId } from '@little-galaxy/shared';
+import type { LogChunk, MemoryObject, SeasonManifest } from '@little-galaxy/shared';
 import { firestore } from './firebase';
 const base = `/galaxy/season/${SEASON}`;
 /** A missing static file may be a Hosting SPA rewrite. HTML is absence, malformed JSON is an error. */
@@ -37,22 +37,9 @@ export async function loadMemoryObject(id: string, signal?: AbortSignal): Promis
   return readObjects(data).objects.find((o) => o.id === id) ?? null;
 }
 
-/** The ordinary fair entry reads one aggregate snapshot; replay is an explicit, bounded load. */
-export async function loadHome(signal?: AbortSignal): Promise<{ frozen: boolean; missing?: boolean; objects?: RenderObject[]; at?: number }> {
+/** Frozen seasons remain static-only; the current sky is a client listener in Home. */
+export async function loadHome(signal?: AbortSignal): Promise<{ frozen: boolean }> {
   const manifest = await staticFile('manifest', signal);
   if (manifest !== null) { readManifest(manifest); return { frozen: true }; }
-  if (!firestore) throw new Error('No live connection');
-  const result = await getDoc(doc(firestore, 'snapshots', 'live'));
-  if (!result.exists()) return { frozen: false, missing: true };
-  const snapshot = result.data();
-  if (!snapshot || snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.objects)) throw new Error('No live snapshot');
-  const objects = snapshot.objects.map((value: RenderObject) => {
-    const type = value.type ?? 'planet';
-    const object = readObject({ ...value, type, params: type === 'planet' ? planetDefaults(value.params as PlanetParams) : value.params, ownerUid: 'public', status: 'active', schemaVersion: 2, season: SEASON });
-    if (!safeId(value.id) || !object) throw new Error('Invalid snapshot object');
-    return { ...value, type, params: object.params };
-  });
-  const at = snapshot.at?.toMillis?.();
-  if (!Number.isFinite(at)) throw new Error('No snapshot timestamp');
-  return { frozen: false, objects, at };
+  return { frozen: false };
 }

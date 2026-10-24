@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --pool=threads",
+    "migrate-sky": "tsx src/index.ts migrate-sky",
     "control": "tsx src/index.ts control",
     "freeze-season": "tsx src/index.ts freeze-season"
   },

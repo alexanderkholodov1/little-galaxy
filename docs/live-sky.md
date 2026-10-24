@@ -5,7 +5,7 @@ prerequisite for seeing objects. The stand enriches it and may be absent indefin
 
 ## Evidence and scenario
 
-The committed QUOTA-REPORT measured 100 emulator visitors: 21 visitor writes per
+The baseline `v1.0.2-delivery:docs/QUOTA-REPORT.md` measured 100 emulator visitors: 21 visitor writes per
 journey, 1,600 transaction gets, 2,800 modeled rule dependencies, 202 active-object
 and 1,904 recent-event deliveries. Its 300-visitor, eight-hour projection is 25,654
 reads / 7,560 writes, including one screen and stand/archive work. These are SDK
@@ -32,9 +32,11 @@ Conservatively add 900 rule-dependent reads to require the matching shard in eac
 object mutation, and 300 reads for possible increased screen deliveries (do not
 subtract the old direct-query allowance). Two stand contenders check every 30 s:
 960 leader transaction reads + 960 follower checks, 960 heartbeat writes in eight
-hours. Total fair model: **35,362 reads / 9,420 writes**. Adding the remaining
-16 hours of lease polling gives **39,202 reads / 11,340 writes** for that calendar
-day. Headroom: 10,798 reads / 8,660 writes; not a capacity guarantee. A second
+hours. Reserve another 4,800 reads for one workshop host-catalog query per phone, 600
+for phone config/inventory startup, and 300 for archived moon-host lookups. Total
+fair model: **40,962 reads / 9,420 writes**. Adding the remaining 16 hours of lease
+polling gives **44,802 reads / 11,340 writes** for that calendar day. Headroom:
+5,198 reads / 8,660 writes; not a capacity guarantee. A second
 three-minute visit per visitor adds up to 6,488 reads. Long-lived background phone
 tabs, widespread reconnects, maximum daily interaction budgets, skewed arrival
 bursts, archive republications and repeated stand restarts can exceed this model.

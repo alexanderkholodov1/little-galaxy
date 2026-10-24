@@ -118,6 +118,9 @@ export async function runLoadTest(options: {
     season: SEASON,
   });
 
+  const seed = await adminDb.doc('objects/unclaimed-planet-alpha').get();
+  if (seed.exists) await adminDb.doc('sky/f').set({ entries: { 'unclaimed-planet-alpha': { id: seed.id, data: seed.data() } } });
+
   log(`[load-test] Seeded config/live and unclaimed host planet.`);
 
   // 2. Setup Screen Listeners (real production subscription paths)
@@ -202,7 +205,7 @@ export async function runLoadTest(options: {
       };
       const orbit = orbitFromVelocity(0, Math.sqrt(40 / 6) + (idx * 0.0001), 0, Date.now());
       await launchPlanet(db, uid, draft, orbit);
-      visitorCommittedWrites += 4;
+      visitorCommittedWrites += 5;
       visitorEventsWritten += 2;
 
       // Realistic editing pause (visitors explore the workshop)
@@ -214,7 +217,7 @@ export async function runLoadTest(options: {
         params: { size: 0.45, palette: ((idx + 1) % 4) as 0 | 1 | 2 | 3, oceans: 0.6 },
       };
       await editObject(db, uid, editDraft);
-      visitorCommittedWrites += 3;
+      visitorCommittedWrites += 4;
       visitorEventsWritten += 1;
 
       // Visitors interact at natural pace
@@ -248,7 +251,7 @@ export async function runLoadTest(options: {
       };
       const orbit2 = orbitFromVelocity(0, Math.sqrt(40 / 8) + (idx * 0.0001), 0, Date.now());
       await launchPlanet(db, uid, draft2, orbit2);
-      visitorCommittedWrites += 6;
+      visitorCommittedWrites += 7;
       visitorEventsWritten += 3;
 
       // Wait for shake cooldown (>10s since step D)
@@ -363,7 +366,7 @@ export async function runLoadTest(options: {
       standMemoryWrites,
       standMeteorWrites,
       perVisitorAvg: perVisitorWrites,
-      perVisitorBreakdown: `launch1: 4, edit: 3, shake: 2, comet: 2, star: 2, launch2+crumble: 6, shake2: 2 = ${perVisitorWrites}`,
+      perVisitorBreakdown: `launch1: 5, edit: 4, shake: 2, comet: 2, star: 2, launch2+crumble: 7, shake2: 2 = ${perVisitorWrites}`,
     },
     reads: {
       total: totalReads,

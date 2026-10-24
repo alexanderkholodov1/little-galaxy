@@ -37,7 +37,7 @@ flowchart LR
   Portfolio --> Hosting["Firebase Hosting · /galaxy/"]
 ```
 
-The phone and screen share deterministic orbital math and validated schemas. The booth laptop maintains aggregate snapshots and archives without Cloud Functions; the project uses Firebase’s Spark tier. Deny-by-default rules enforce ownership, write budgets and operator switches. Only the portfolio deploys the complete public site.
+The phone and screen share deterministic orbital math and validated schemas. Phones maintain 16 live sky shards atomically with their object writes. Home and Screen listen directly, even with both stands off. A leased stand on Beacon or its laptop backup maintains archives and legacy snapshots without Cloud Functions; the project uses Firebase’s Spark tier. Deny-by-default rules enforce ownership, write budgets and operator switches. Only the portfolio deploys the complete public site.
 
 ## Quality evidence
 
@@ -168,8 +168,8 @@ key contents in an environment variable or browser config.
 The stand also schedules ambient meteor events (default 6–15 minutes, only when `seasonOpen` and
 `meteorShowers` are true). Its `control` command updates scenes, timing and kill switches through
 the admin SDK; clients cannot write config. See the v0.5.0 handoff for the allowlisted commands.
-The stand writes `snapshots/live` after its first active-object read and every 30 seconds,
-using one cached listener rather than rescanning the galaxy. It handles SIGINT/SIGTERM cleanup.
+The elected stand (admin-only `leases/stand`, 30-second heartbeat / 90-second expiry) writes `snapshots/live` after its first active-object read and every 30 seconds,
+using one cached listener rather than rescanning the galaxy. That legacy snapshot is not used by the live home or screen. See [live sky design](docs/live-sky.md) and [Beacon setup and migration](docs/RUNBOOK.md#11-alpha1-live-sky-beacon-and-automatic-laptop-backup). It handles SIGINT/SIGTERM cleanup.
 In emulator mode it refuses non-`demo-` project IDs and does not load credentials.
 
 ## Build and delivery

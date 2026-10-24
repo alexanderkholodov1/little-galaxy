@@ -1,6 +1,8 @@
 import { runObservedTransaction } from './firestore-observer';
 import {
   collection,
+  FieldPath,
+  limit,
   doc,
   getDoc,
   getDocs,
@@ -20,6 +22,7 @@ import {
   SCHEMA_VERSION,
   SEASON,
   utcDay,
+  skyBucket,
 } from '@little-galaxy/shared';
 import type {
   GalaxyObject,
@@ -43,7 +46,12 @@ export class LaunchError extends Error {
     super(reason);
   }
 }
-/** The same production batch is exercised by the rules/latency tests. No galaxy subscription on phones. */
+/** Replace exactly one owner entry without reading/contending on the whole shard. */
+function mirror(tx: Parameters<Parameters<typeof runObservedTransaction>[1]>[0], database: Firestore, uid: string, id: string, data: object) {
+  tx.set(doc(database, 'sky', skyBucket(uid)), { entries: { [uid]: { id, data } } },
+    { mergeFields: [new FieldPath('entries', uid)] });
+}
+/** The production transaction is also exercised by rules/latency tests. */
 export async function launchPlanet(
   database: Firestore,
   uid: string,
@@ -97,6 +105,7 @@ export async function launchPlanet(
       writeId: event.id,
     };
     tx.set(target, object);
+    mirror(tx, database, uid, target.id, object);
     tx.set(userRef, user);
     const base = { schemaVersion: SCHEMA_VERSION, uid, at, objectId: target.id, payload: object };
     tx.set(event, { ...base, type: 'launch' });
@@ -134,7 +143,7 @@ export function listenActive(
   void waitForAnonymousUid().then(() => {
     if (stopped) return;
     unsubscribe = onSnapshot(
-      query(collection(database, 'objects'), where('status', '==', 'active')),
+      query(collection(database, 'sky'), limit(16)),
       { includeMetadataChanges: true },
       (snapshot) => {
         if (!snapshot.metadata.fromCache) {
@@ -142,10 +151,11 @@ export function listenActive(
           receivedServer = true;
         }
         const current = ++generation;
-        const active = snapshot.docs.flatMap((document) => {
-          const data = readObject(document.data());
-          return data ? [renderObject(document.id, data)] : [];
-        });
+        const active = snapshot.docs.flatMap((document) => Object.values(document.data().entries ?? {}).flatMap((value) => {
+          const entry = value as { id: string; data: unknown };
+          const data = readObject(entry.data);
+          return data ? [renderObject(entry.id, data)] : [];
+        }));
         const ids = new Set(active.map((o) => o.id));
         const missing = new Set(active.filter((o) => o.type === 'moon' && !ids.has(o.orbit.hostId)).map((o) => o.orbit.hostId));
         for (const id of hosts.keys()) if (!missing.has(id)) hosts.delete(id);
@@ -190,13 +200,14 @@ export async function ownObjects(
     return object ? [{ ...object, id: d.id }] : [];
   });
 }
-/** One small snapshot read on phones; no collection subscription. Host writes are checked again by rules. */
+/** A finite shard read for workshop host choices; rules still validate the selected host. */
 export async function availableHosts(database: Firestore): Promise<RenderObject[]> {
-  const snapshot = await getDoc(doc(database, 'snapshots', 'live'));
-  const objects = snapshot.data()?.objects;
-  return Array.isArray(objects)
-    ? objects.filter((o) => o && typeof o.id === 'string' && ['planet', 'star'].includes(o.type))
-    : [];
+  await waitForAnonymousUid();
+  const snapshot = await getDocs(query(collection(database, 'sky'), limit(16)));
+  return snapshot.docs.flatMap((shard) => Object.values(shard.data().entries ?? {}).flatMap((value) => {
+    const entry = value as { id: string; data: unknown }, data = readObject(entry.data);
+    return data && ['planet', 'star'].includes(data.type) ? [renderObject(entry.id, data)] : [];
+  }));
 }
 export async function editObject(database: Firestore, uid: string, draft: Draft): Promise<void> {
   const event = doc(collection(database, 'events'));
@@ -223,6 +234,7 @@ export async function editObject(database: Firestore, uid: string, draft: Draft)
       nameKey: draft.nameKey,
       updatedAt: at,
     };
+    mirror(tx, database, uid, target.id, body);
     tx.update(userRef, { action: 'edit', writeId: event.id, lastWriteAt: at, editDay: day, editsToday });
     tx.update(target, {
       schemaVersion: OBJECT_SCHEMA_VERSION,
@@ -270,6 +282,7 @@ export async function relaunchObject(database: Firestore, uid: string, objectId:
       launchDay: day,
       launchesToday: count,
     });
+    mirror(tx, database, uid, objectId, active);
     tx.update(target.ref, { status: 'active', updatedAt: at });
     tx.update(previous.ref, { status: 'hangar', updatedAt: at });
     tx.set(event, { schemaVersion: SCHEMA_VERSION, uid, type: 'relaunch', objectId, at, payload: active });
