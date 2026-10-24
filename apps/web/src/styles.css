@@ -232,7 +232,13 @@ button:disabled { opacity: .6; cursor: wait; }
 @media (max-width: 720px) { .interaction-row { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
 .version-crossfade { position: fixed; inset: 0; z-index: 9999; pointer-events: all; background: #050c16; animation: version-fade-in 600ms forwards; }
 @keyframes version-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .scene-crossfade, .star-message, .version-crossfade { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .scene-crossfade { animation: none; opacity: 0; }
+  /* Keep the six-second lifetime without translation or a moving fade. */
+  .star-message { animation: star-message-still 6s steps(1, end) both; }
+  .version-crossfade { animation: none; opacity: 1; }
+}
+@keyframes star-message-still { from { opacity: 1; } to { opacity: 0; } }
 
 .update-notice {
   font-family: var(--font-body);
