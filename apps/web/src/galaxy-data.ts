@@ -50,7 +50,7 @@ export class LaunchError extends Error {
 async function launchFailure(database: Firestore, error: unknown, flag: 'launches' | 'edits'): Promise<never> {
   if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
     const flags = await getDoc(doc(database, 'config', 'live'));
-    if (!flags.data()?.seasonOpen || flags.data()?.[flag] === false || (flag === 'launches' && !flags.data()?.launches)) throw new LaunchError('closed');
+    if (!flags.data()?.seasonOpen || (flag === 'launches' && !flags.data()?.launches)) throw new LaunchError('closed');
   }
   throw error;
 }
