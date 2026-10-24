@@ -8,5 +8,6 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --pool=threads"
-  }
+  },
+  "license": "UNLICENSED"
 }

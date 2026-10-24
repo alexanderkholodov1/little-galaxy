@@ -200,3 +200,10 @@ hangar relaunches reassemble it. Both count toward the rules-enforced five launc
 Moons can orbit your own planets or operator-seeded unclaimed planets; details are in the v0.3.0 handoff.
 Live-safe deploy resilience, chunk-load recovery, and automated verification belong to G v0.7.0.
 Fair-day operational readiness, 100-phone load testing, failure-mode drills, runbook, booth screen kiosk presentation, and backup video recording belong to G v1.0.0. Physical booth laptop rehearsal and real-phone acceptance remain captain work.
+
+## License
+
+Copyright (c) 2026 Alexander Kholodov. All rights reserved.
+No permission is granted to use, copy, modify or distribute the software or its assets
+except viewing the source on GitHub. See [LICENSE](LICENSE). Third-party components
+retain their own licenses, including the fonts’ OFL notices.
