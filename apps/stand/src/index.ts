@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process';
+import { releaseSky, restoreSkySeason } from './release-sky.js';
 import { objectFeed } from './object-feed.js';
 import { readFileSync } from 'node:fs';
 import { getApps } from 'firebase-admin/app';
@@ -13,15 +15,29 @@ import { applyControl, controlPatch } from './control.js';
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 try {
   const control = process.argv[2] === 'control';
+  const release = process.argv[2] === 'release-sky';
+  const restore = process.argv[2] === 'restore-season';
+  if ((release || restore) && process.argv.length !== 3) throw new Error('Release commands accept no arguments.');
   const migrate = process.argv[2] === 'migrate-sky';
   const freeze = process.argv[2] === 'freeze-season';
   if (migrate && process.argv.length !== 3) throw new Error('migrate-sky accepts no arguments.');
   if (freeze) validateFreeze(process.argv.slice(3), process.env);
-  if (process.argv.length > 2 && !control && !freeze && !migrate) throw new Error('Unknown command');
+  if (process.argv.length > 2 && !control && !freeze && !migrate && !release && !restore) throw new Error('Unknown command');
   if (control) controlPatch(process.argv.slice(3));
   console.log(startStand(version));
   if (getApps().length) {
-    if (migrate) {
+    if (release || restore) {
+      try {
+        if (restore) await restoreSkySeason(getFirestore());
+        else await releaseSky(getFirestore(), () => new Promise<void>((resolve, reject) => {
+          const child = spawn('pnpm', ['exec', 'firebase', 'deploy', '--only', 'firestore:rules,firestore:indexes',
+            '--project', process.env.FIREBASE_PROJECT_ID!, '--non-interactive'], { stdio: 'inherit', cwd: new URL('../../../', import.meta.url) });
+          child.once('error', () => reject(new Error('Could not start Firestore deployment.')));
+          child.once('exit', (code) => code === 0 ? resolve() : reject(new Error('Firestore deployment failed.')));
+        }));
+      } finally { await getFirestore().terminate(); }
+      console.log('Release sky controls complete; prior season setting restored.');
+    } else if (migrate) {
       await migrateSky(getFirestore());
       await getFirestore().terminate();
       console.log('Live sky migration complete; season remains closed.');
@@ -45,7 +61,7 @@ try {
       const shutdown = () => { void stop().then(() => getFirestore().terminate()).then(() => process.exit(0)); };
       process.once('SIGINT', shutdown); process.once('SIGTERM', shutdown);
     }
-  } else if (control || migrate) throw new Error('No admin connection');
+  } else if (control || migrate || release || restore) throw new Error('No admin connection');
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Stand command failed: ${message}`);

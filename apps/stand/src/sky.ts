@@ -1,7 +1,9 @@
 import type { Firestore } from 'firebase-admin/firestore';
+import { skyMigrationPath } from './release-sky.js';
 import { readObject, skyBucket } from '@little-galaxy/shared';
-/** Operator-only migration. Close launches AND edits first; do not run concurrently with client writes. */
+/** One-time backfill. The completion marker and all shards commit atomically. */
 export async function migrateSky(database: Firestore) {
+  if ((await database.doc(skyMigrationPath).get()).data()?.complete) return false;
   const config = await database.doc('config/live').get();
   if (config.data()?.seasonOpen) throw new Error('Close the season before migrating the sky.');
   const objects = await database.collection('objects').where('status', '==', 'active').get();
@@ -19,5 +21,7 @@ export async function migrateSky(database: Firestore) {
   }
   const batch = database.batch();
   shards.forEach((entries, i) => batch.set(database.doc(`sky/${i.toString(16)}`), { entries }));
+  batch.set(database.doc(skyMigrationPath), { complete: true }, { merge: true });
   await batch.commit();
+  return true;
 }

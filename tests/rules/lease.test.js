@@ -86,6 +86,7 @@ it('runs only one service set with two healthy contenders and releases it on shu
   expect(errors).toEqual([]);
 });
 it('migrates legacy and seeded active objects only while closed and preserves exact source records', async () => {
+  await database.doc('migrations/sky-v1').delete();
   await database.recursiveDelete(database.collection('objects'));
   const data = { schemaVersion: 2, ownerUid: 'alice', type: 'planet', nameKey: 'quiet-aurora',
     params: planetDefaults({ size: .4, palette: 0, oceans: .5 }), orbit: orbitFromVelocity(0, 2.58, 0, Date.now()),
