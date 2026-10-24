@@ -13,7 +13,7 @@ provisioning was performed. Local tests never certify the current public deploym
 | 2. Beacon and laptop enrichment | Code and emulator acceptance done; production activation pending. Firestore server readTime elects the leader; 90-second heartbeats renew a 360-second expiry. Every production enrichment transaction checks owner, fencing token and server expiry. A transient renewal failure retains services until the monotonic deadline. Tests cover a contender ten minutes ahead, stale writer rejection, grace, failover and cleanup. RUNBOOK section 11 gives the operator steps; no keys were created or read. |
 | 3. Empty and connection states | Done locally. A confirmed empty sky renders 3D and an EN/ES creation invitation. Initial cached bodies are unconfirmed; actual connection loss retains the last sky with retry. Empty data or stopped enrichment is not a connection error. |
 | 4. Sound | Done locally. No repeating note timer remains. Initial delivery, rendering and unlock are silent. Phone design/launch/touch actions request responses; fresh booth arrivals/comets are spaced at least four seconds apart, and pets are throttled. Operator suppression and eight monophonic slots remain. Unit and browser evidence covers silence, sparse events, unlock, mute, volume and unclipped offline rendering. |
-| 5. Full viewport and identity | Done locally. A 44px corner mark opens a native glass dialog with supplied profile/navigation links; Escape restores focus. Postcard and object views reuse the supplied links, with visible TODOs for missing content. The document never scrolls; measurement/history/detail panes can scroll internally. Browser cases cover 375×812, 390×844 and 1440×900. Workshop, hangar, shared effects, replay, postcard, object pages, kiosk, kill switches and live-safe recovery remain exercised. |
+| 5. Full viewport and identity | Done locally. A 44px Credits control opens a native dialog with the game title, Alexander Kholodov · USFQ, and one same-site portfolio link; Escape restores focus. Object and postcard views have no profile or social links. The document never scrolls; measurement/history/detail panes can scroll internally. Browser cases cover 375×812, 390×844 and 1440×900. Workshop, hangar, shared effects, replay, postcard, object pages, kiosk, kill switches and live-safe recovery remain exercised. |
 | 6. Exact-tag release chain | Done in code; remote execution pending captain. All three package versions are `1.0.0-alpha.1`. The guard accepts exact positive `v1.0.0-alpha.N` tags; publishing adds `--prerelease --latest=false`. After publication, the final step posts `galaxy-release`, `client_payload.tag = GITHUB_REF_NAME`, to `alexanderkholodov1/portfolio` using `PORTFOLIO_DISPATCH_TOKEN`. RUNBOOK section 12 documents authorization and retry boundaries. |
 
 ## Original alpha replay before independent review
@@ -62,7 +62,7 @@ Earlier runs stopped at real failures; they were corrected rather than hidden:
 - First typecheck found obsolete Home test fixtures after removing the stand snapshot dependency.
 - The first full rules run passed 184/186 cases. The shard partition originally exhausted Firestore's 1,000-expression limit in a moon round trip; four bit tests replaced up to 15 regex checks. Lease test deadlines were shorter than real emulator transaction retries; production remains 30/90 seconds. Core rules subsequently passed 175/175; lease cases passed 4/4.
 - Lint caught an unused renderer eligibility parameter after removing ambient scheduling; the retained controller signature now explicitly ignores that input.
-- A viewport fixture expected the wrong profile label. Later full runs caught hidden-pane selectors and a replay canvas selector that also matched the effects canvas. Named controls and the historical-sky image role now identify the intended elements.
+- An earlier viewport fixture expected an obsolete identity label; the current journey checks Credits. Later full runs caught hidden-pane selectors and a replay canvas selector that also matched the effects canvas. Named controls and the historical-sky image role now identify the intended elements.
 - The connected journey exposed launch confirmation overriding a player-selected pane. A deferred-launch component regression and the real journey verify the fix.
 - Node-side latency initially included automation scrolling/poll scheduling. The same 2,000 ms gate now measures a native click timestamp and the first rendered-frame mutation in the two browser pages. Separate targeted acceptance measured 1,348 ms; the ordered replay measured 1,672 ms.
 
@@ -102,7 +102,7 @@ arguments (one worker):
 
 ```sh
 pnpm exec playwright test --config tests/ui/playwright.config.js tests/ui/viewport.spec.js tests/ui/home.spec.js tests/ui/sound.spec.js
-# Four passed; one profile-fixture label corrected.
+# Historical run: four passed; the obsolete identity fixture was later replaced by Credits checks.
 pnpm exec playwright test --config tests/ui/playwright.config.js tests/ui/viewport.spec.js
 # Passed after fixture correction and again after asserting the full booth field bounds.
 ```
@@ -220,3 +220,9 @@ The declared events type+at index still requires captain provisioning before act
 Emulators do not validate production index availability. Real phones, TV, campus Wi-Fi,
 Node 22 remote CI and physical failover remain operator acceptance. No requested code fix
 is left open. The quota scenario does not certify arbitrary additional sessions or traffic.
+
+## Alpha.1 navigation decision (2026-10-24)
+
+The captain keeps the current navigation for alpha.1: Home links to the workshop;
+the booth screen is opened directly by its `/galaxy/screen` URL. Credits contains
+only the portfolio return link. Navigation will be defined by the later redesign.

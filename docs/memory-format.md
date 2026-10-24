@@ -117,8 +117,9 @@ Galaxy tries static JSON first. A 404 or HTML rewrite falls back to one public F
 requested document; a present but malformed/incomplete static archive produces a designed error,
 not an event-collection scan. Successfully served static archives require **zero Firestore/Auth
 requests**. Network failure is shown as unavailable with retry. EN/ES and theme use the full-viewport Galaxy
-shell. `/profile.json` supplies the corner sheet and end-of-experience links; missing
-profile links remain visible TODOs, never invented content.
+shell. The small Credits dialog contains only the game name, Alexander Kholodov · USFQ,
+and one same-site portfolio link. No profile fetch, profile sheet, social links or
+end-of-experience identity links are part of the game; see `portfolio-contract.md`.
 No portfolio files are changed by this worktree task.
 
 ### Alpha.1 live entry

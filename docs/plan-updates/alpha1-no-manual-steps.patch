@@ -1,6 +1,8 @@
+diff --git a/docs/plan/01-product-spec.md b/docs/plan/01-product-spec.md
+index c952238..ae75b23 100644
 --- a/docs/plan/01-product-spec.md
 +++ b/docs/plan/01-product-spec.md
-@@ -24,8 +24,9 @@
+@@ -24,8 +24,9 @@ the galaxy (e.g. a new star lights nearby planets) but never damage someone else
  | `/galaxy` | Anyone, any time | Live view during the fair (from the aggregated snapshot); after the fair, the frozen season + timelapse |
  | `/galaxy/o/{id}` | Anyone, forever | Permanent page of one object |
 
@@ -12,7 +14,7 @@
 
  ## Approved features
 
-@@ -101,7 +102,7 @@
+@@ -101,7 +102,7 @@ All views carry the portfolio header with the operator's profile and social link
  - **Timelapse:** the birth of the galaxy replayed object by object from the event log, with scrubber,
    speed and pause. Exact, not approximate. Must remain viewable on the portfolio for years.
  - **Permanent object pages** `/galaxy/o/{id}`: the object in 3D, its sound, name, date, and the
@@ -21,9 +23,11 @@
  - **Postcard:** at the end, the visitor gets an image of their object (1080×1920) with its name,
    "Be a Dragon 2026" and a QR/link to its permanent page; shared via the Web Share API when available,
    otherwise downloaded. Ready for Instagram stories.
+diff --git a/docs/plan/02-architecture.md b/docs/plan/02-architecture.md
+index 1a834c7..341e4e0 100644
 --- a/docs/plan/02-architecture.md
 +++ b/docs/plan/02-architecture.md
-@@ -107,9 +107,21 @@
+@@ -107,9 +107,23 @@ cross-origin isolation for Godot web exports) scoped to their path.
    portfolio site containing only the galaxy build (channels never touch production). Needs secret
    with deploy rights to project `alexanderkholodov` (ideally a deploy-only "Firebase Hosting Admin"
    service account; only the operator can create it).
@@ -34,7 +38,8 @@
    `galaxy-dist-vX.Y.Z.tar.gz` (+ `version.json`) to a GitHub Release. Also deploys
 -  `firestore.rules` to the data project (rules changes always require operator approval, see 05).
 +  rules and indexes to the data project after the existing environment approval. The first sky
-+  migration saves/closes `seasonOpen`, validates sources/ownership/capacity before deployment,
++  migration first checks deploy CLI authentication/project visibility without writes,
++  then saves/closes `seasonOpen`, validates sources/ownership/capacity before deployment,
 +  then commits an admin-only completion marker atomically with new shards and restores the saved
 +  flag. Missing config is created with closed defaults without overwriting existing settings.
 +  Failures after deployment begins keep the season closed until migration succeeds. Existing
@@ -42,12 +47,13 @@
 +  exact package-version tag at the current tip of main. Emergency controls have no release pending
 +  slot and an explicit close supersedes the saved flag transactionally. GitHub Actions provides season/kill-switch/scene/timing and recovery controls, validated
 +  by the stand parser, using the same environment and existing secret; no laptop key or release
-+  commands. See Galaxy RUNBOOK §11 for one-time IAM console grants and interruption recovery.
++  commands. Read-only inspect prints the marker and validation counts; post-deploy
++  failures retain both the root cause and closed-season recovery instructions. See Galaxy RUNBOOK §11 for one-time IAM console grants and interruption recovery.
 +  Only the exact published tag is dispatched to portfolio for production Hosting.
 
  **portfolio repo (GitHub Actions):**
  - On PR: build Astro + assemble games from `games.json` → preview channel.
-@@ -148,8 +160,9 @@
+@@ -148,8 +162,9 @@ channel, and promotes to live only on confirmation. Used by the assistant's fix
    always dark (D10).
  - Design per `C:\My Files\AKLabs\CASPIAN\governance\DESIGN-DOCTRINE.md`.
 
@@ -61,9 +67,11 @@
 +or render social/profile navigation. A small accessible Credits / Créditos control on
 +every game route opens only the game name, Alexander Kholodov · USFQ and the localized
 +portfolio home link. Escape closes the card and returns focus; targets are at least 44px.
+diff --git a/docs/plan/03-data-and-security.md b/docs/plan/03-data-and-security.md
+index ed39fbd..e510a88 100644
 --- a/docs/plan/03-data-and-security.md
 +++ b/docs/plan/03-data-and-security.md
-@@ -41,6 +41,10 @@
+@@ -41,6 +41,10 @@ every ~30 s by `apps/stand`. Public viewers of `/galaxy` and the portfolio's liv
  one document** instead of every object.
 
  ### `config/live` (written by stand / operator only)
@@ -74,9 +82,11 @@
  `appVersion`, feature flags / kill switches (`comets`, `shake`, `shootingStars`, `launches`,
  `assistantPublic`…), `screenScene`, `ownerUid`, `seasonOpen` (bool).
 
+diff --git a/docs/plan/08-decisions.md b/docs/plan/08-decisions.md
+index e1a0abc..da60102 100644
 --- a/docs/plan/08-decisions.md
 +++ b/docs/plan/08-decisions.md
-@@ -50,3 +50,12 @@
+@@ -50,3 +50,15 @@
  Superseded (2026-10-14): D2 — the operator requires a strictly free brain; nothing paid or able to silently become paid is allowed. The Anthropic API key requirement is not allowed; cut G v0.8.0 first if no strictly free brain is viable.
 
  Superseded (2026-10-15): D14 — the operator confirmed the data project is `little-galaxy`; no naming decision remains.
@@ -89,12 +99,22 @@
 +  validate all migration sources before deployment and recover through Operate the sky.
 +- Game attribution appears only in a small Credits / Créditos card: game name,
 +  Alexander Kholodov · USFQ, one portfolio home link. Remove profile and social links.
++
++- Alpha.1 keeps Home linking to the workshop and opens the booth screen by URL.
++  The later redesign defines navigation (captain decision, 2026-10-24).
+diff --git a/docs/plan/CHANGELOG.md b/docs/plan/CHANGELOG.md
+index a53fa19..3c33f63 100644
 --- a/docs/plan/CHANGELOG.md
 +++ b/docs/plan/CHANGELOG.md
-@@ -2,6 +2,18 @@
-
+@@ -3,6 +3,24 @@
  Every change to `docs/plan/` after it was written. Newest first.
  Format: `YYYY-MM-DD — <what changed> — <why> — decided by <operator | agent>`.
+
++- 2026-10-24 — Preflight deploy CLI access before season writes, retain post-deploy
++  root causes, add read-only migration inspection and explicit Console/break-glass
++  recovery instructions; remove retired profile integration and keep alpha.1 Home
++  → workshop / direct booth URL navigation until redesign — re-review minors and
++  captain navigation decision; instructed and decided by operator.
 +
 +- 2026-10-24 — Validate migrations before deployment, retain a closed season on post-deploy
 +  failure, initialize missing config on server startup, isolate emergency controls, guard
@@ -107,6 +127,7 @@
 +  recoverable sky migration and dispatches the exact release to portfolio. Controls move to
 +  reviewed GitHub Actions using existing credentials. One-time data/index IAM grants replace
 +  laptop release commands and polling tag scripts — instructed and decided by operator.
-
++
  - 2026-10-22 — Recorded the operator's decisions of 2026-10-22 in `08-decisions.md` with his
    words: objective "todo el juego y todo lo planificado listo" for 2026-10-23; the assistant is out
+   of Be A Dragon ("ni hagamos NADA del asistente como parte del galaxy, sino como mas bien parte del

@@ -1,7 +1,7 @@
 export const copy = {
   en: {
     credits: 'Credits', portfolio: 'Portfolio', language: 'Language', theme: 'Appearance', light: 'Light', dark: 'Dark',
-    nav: 'Galaxy pages', home: 'Galaxy', screen: 'Screen', create: 'Create', talk: 'Talk',
+    home: 'Galaxy', screen: 'Screen', create: 'Create', talk: 'Talk',
     productName: 'Collective Galaxy',
     homeTitle: 'A shared sky.',
     homeText: 'Make a planet on your phone. Launch it into the sky we share.',
@@ -21,7 +21,7 @@ export const copy = {
   },
   es: {
     credits: 'Créditos', portfolio: 'Portafolio', language: 'Idioma', theme: 'Apariencia', light: 'Claro', dark: 'Oscuro',
-    nav: 'Páginas de la galaxia', home: 'Galaxia', screen: 'Pantalla', create: 'Crear', talk: 'Hablar',
+    home: 'Galaxia', screen: 'Pantalla', create: 'Crear', talk: 'Hablar',
     productName: 'Galaxia Colectiva',
     homeTitle: 'Un cielo compartido.',
     homeText: 'Crea un planeta en tu teléfono. Lánzalo al cielo que compartimos.',

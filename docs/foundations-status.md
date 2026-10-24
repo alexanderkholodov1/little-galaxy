@@ -9,7 +9,7 @@ to verify setup during the Beacon night session.
 | --- | --- | --- |
 | Repository contracts and plan pointer | `AGENTS.md` and `CLAUDE.md` match the plan templates; both point to the portfolio plan. | None locally. |
 | pnpm + Turbo monorepo | Locked workspace with `apps/web`, `apps/stand`, and `packages/shared`; build, typecheck, lint and test scripts. | None locally. |
-| Vite + React + TS + R3F shell | `/galaxy` basename, screen/create/talk/object stubs, EN/ES preference, light/dark chrome, lazy reference sky, same-origin profile header with safe fallbacks. Route and preference tests are in `apps/web/src/`. | Portfolio must serve its actual `/profile.json` and `/tokens.css`. Deployed preview and real phones remain unverified. |
+| Vite + React + TS + R3F shell | `/galaxy` basename, screen/create/talk/object stubs, EN/ES preference, light/dark chrome, lazy reference sky, small Credits dialog with game name, attribution and one same-site portfolio link. Route and preference tests are in `apps/web/src/`. | Portfolio supplies `/tokens.css`; Galaxy does not fetch profile data. Deployed preview and real phones remain unverified. |
 | Firebase foundation | Firestore/Auth emulator configuration, recursive deny-all rules and emulator harness, six public config variables, development-only demo config, deduplicated anonymous sign-in. | G2 live settings, G3 public configuration and G4 setup cannot be verified locally. The plan records earlier operator setup, but the six real build variables are unavailable in this session. |
 | CI preview and tagged release | Reusable checks include rules tests; preview-only Hosting configuration; matching-tag/main guards; tarball, metadata and checksums; environment-gated rules deployment before publishing. | Repository variables, two environment secrets, rules environment protection, actual GitHub Actions execution, and operator-authorized release/deployment. |
 | Build metadata | Vite emits `version.json` with package version, commit and UTC build time. | None locally; production build still requires G3 values. |
@@ -44,9 +44,8 @@ to verify setup during the Beacon night session.
 - Preserve the missing-config build failure. Automatically substituting example
   Firebase values would turn an absent external setup into a misleading release.
   Use `build:rehearsal` for an explicitly synthetic payload.
-- Keep the candidate's same-origin profile schema and CSS token fallbacks. This
-  allows isolated shell development without inventing operator identity or links;
-  `portfolio-contract.md` records the exact implementation handoff.
+- Keep CSS token fallbacks and the Credits contract in `portfolio-contract.md`.
+  There is no profile sheet, profile fetch or social navigation in the game.
 - Include both unmodified OFL notices in every built payload because the payload
   redistributes their font binaries independently of the source checkout.
 - Session status describes authentication only: the foundation's deny-all rules

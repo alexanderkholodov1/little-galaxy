@@ -5,7 +5,8 @@
 - Keep Home and Screen live through client-maintained Firestore sky shards without a stand.
 - Elect one Beacon/laptop enrichment leader; document migration and operator credential setup.
 - Invite creation in an empty sky, keep phone sound action-driven, and remove recurring booth notes.
-- Fill the viewport, move identity/navigation into a corner glass sheet and retain profile exits.
+- Fill the viewport, keep attribution in a small Credits dialog with one portfolio link.
+- Preflight deploy CLI access before season writes; retain migration root causes and provide read-only inspection.
 - Publish alpha tags as pre-releases and dispatch the exact published tag to portfolio.
 
 
