@@ -3,33 +3,53 @@ name: Galaxy release
 on:
   push:
     tags: ['v*']
+  workflow_call:
+    inputs:
+      tag:
+        description: Exact existing release tag
+        required: true
+        type: string
 
 permissions:
   contents: read
+
+concurrency:
+  group: galaxy-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   guard:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      commit: ${{ steps.version.outputs.commit }}
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
           persist-credentials: false
       - name: Require a commit on main
-        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+        run: git merge-base --is-ancestor HEAD origin/main
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Verify release version
+        id: version
         run: node scripts/verify-release.js
 
   checks:
     needs: guard
     uses: ./.github/workflows/checks.yml
+    with:
+      ref: ${{ needs.guard.outputs.commit }}
 
   build:
-    needs: checks
+    needs: [guard, checks]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -41,17 +61,19 @@ jobs:
           name: galaxy-dist
           path: dist
       - name: Pack and checksum release files
+        env:
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
         shell: bash
         run: |
-          tar -czf "galaxy-dist-${GITHUB_REF_NAME}.tar.gz" -C dist .
+          tar -czf "galaxy-dist-${RELEASE_TAG}.tar.gz" -C dist .
           cp dist/version.json version.json
-          sha256sum "galaxy-dist-${GITHUB_REF_NAME}.tar.gz" version.json > SHA256SUMS
+          sha256sum "galaxy-dist-${RELEASE_TAG}.tar.gz" version.json > SHA256SUMS
       - name: Upload release files
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-files
           path: |
-            galaxy-dist-${{ github.ref_name }}.tar.gz
+            galaxy-dist-${{ needs.guard.outputs.tag }}.tar.gz
             version.json
             SHA256SUMS
           if-no-files-found: error
@@ -59,7 +81,7 @@ jobs:
 
   publish:
     # A release appears only once the rules it relies on are live.
-    needs: [build, deploy-rules]
+    needs: [guard, build, deploy-rules]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -72,32 +94,38 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
+          PRERELEASE: ${{ needs.guard.outputs.prerelease }}
         shell: bash
         run: |
           options=()
-          if [[ "$GITHUB_REF_NAME" == v1.0.0-alpha.* ]]; then
+          if [[ "$PRERELEASE" == true ]]; then
             options+=(--prerelease --latest=false)
           fi
-          gh release create "$GITHUB_REF_NAME" \
-            "galaxy-dist-${GITHUB_REF_NAME}.tar.gz" version.json SHA256SUMS \
-            --title "$GITHUB_REF_NAME" --generate-notes --verify-tag \
+          gh release create "$RELEASE_TAG" \
+            "galaxy-dist-${RELEASE_TAG}.tar.gz" version.json SHA256SUMS \
+            --title "$RELEASE_TAG" --generate-notes --verify-tag \
             --repo "$GITHUB_REPOSITORY" "${options[@]}"
       - name: Dispatch the exact published release to portfolio
         env:
           GH_TOKEN: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
         shell: bash
         run: |
           : "${GH_TOKEN:?Set PORTFOLIO_DISPATCH_TOKEN for the portfolio repository}"
-          jq -n --arg tag "$GITHUB_REF_NAME" \
+          jq -n --arg tag "$RELEASE_TAG" \
             '{event_type: "galaxy-release", client_payload: {tag: $tag}}' | \
             gh api --method POST repos/alexanderkholodov1/portfolio/dispatches --input -
 
   deploy-rules:
     # The operator must be configured as the required reviewer for this environment.
-    needs: build
+    needs: [guard, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: little-galaxy-rules
+    concurrency:
+      group: galaxy-sky-admin
+      cancel-in-progress: false
     env:
       FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
     permissions:
@@ -105,6 +133,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.guard.outputs.commit }}
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -122,6 +151,7 @@ jobs:
           JAVA_TOOL_OPTIONS: -Xmx512m
         run: pnpm run test:rules
       - name: Write data-project credentials
+        id: credentials
         shell: bash
         env:
           FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY }}
@@ -130,10 +160,22 @@ jobs:
           umask 177
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY" > "$RUNNER_TEMP/little-galaxy-rules.json"
           chmod 600 "$RUNNER_TEMP/little-galaxy-rules.json"
-      - name: Deploy Firestore rules
+      - name: Deploy rules and indexes and migrate the sky with flag restoration
+        timeout-minutes: 8
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-rules.json
-        run: pnpm exec firebase deploy --only firestore:rules,firestore:indexes --project "${FIREBASE_PROJECT_ID:?Missing data-project ID}" --non-interactive
+        run: pnpm --filter @little-galaxy/stand exec tsx src/index.ts release-sky
+      - name: Recover the prior season setting even after cancellation or failure
+        if: always() && steps.credentials.outcome == 'success'
+        timeout-minutes: 2
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-rules.json
+        run: |
+          if ! pnpm --filter @little-galaxy/stand exec tsx src/index.ts restore-season; then
+            echo '::error::SEASON RESTORATION FAILED. Run Operate the sky: restore-season.'
+            echo 'SEASON RESTORATION FAILED: use Operate the sky → restore-season.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
       - name: Remove data-project credentials
         if: always()
         shell: bash
