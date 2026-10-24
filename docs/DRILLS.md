@@ -13,10 +13,10 @@ listed below and **not yet run**.
 
 | Drill | Scenario | Status | What was actually tested |
 |---|---|---|---|
-| **DRILL-01** | Orbit position advances deterministically without network | **PASSED** | positionAt(orbit, t) computed two positions 200ms apart: delta=0.515369. Same timestamp reproduced identical coordinates: deterministic=true. No server call was made. |
-| **DRILL-02** | Draft JSON round-trip and launch from restored data | **PASSED** | Draft serialized to 74 bytes, restored, and launched as object kKpjcAeDcVdNyNA4eesZ (status: active). Round-trip fidelity: true. This verifies the data path but does not exercise actual localStorage, offline network interruption, or browser reload. |
-| **DRILL-03** | Snapshot staleness detection and timestamp recovery | **PASSED** | Wrote snapshot with timestamp 95s ago (stale=true). Updated timestamp; new age 0s (recovered=true). This verifies Firestore timestamp mechanics but does not start/crash/restart an actual stand process or open a public viewer. |
-| **DRILL-04** | Kill switch config update and helper-level enforcement | **PASSED** | Set config/live shake=false via applyControl. sendInteraction threw "closed" (blocked=true). Re-enabled shake=true; sendInteraction succeeded (restored=true). The helper reads config/live and rejects before writing. Separate rules tests verify boundary enforcement; this drill verifies the config update propagates to the client helper. |
+| **DRILL-01** | Orbit position advances deterministically without network | **PASSED** | positionAt(orbit, t) computed two positions 201ms apart: delta=0.517944. Same timestamp reproduced identical coordinates: deterministic=true. No server call was made. |
+| **DRILL-02** | Draft JSON round-trip and launch from restored data | **PASSED** | Draft serialized to 74 bytes, restored, and launched as object 7mBrQNhDIJW0o7gpOeBE (status: active). Round-trip fidelity: true. This verifies the data path but does not exercise actual localStorage, offline network interruption, or browser reload. |
+| **DRILL-03** | Snapshot staleness detection and timestamp recovery | **PASSED** | Wrote snapshot with timestamp 95s ago (stale=true). Updated timestamp; new age 0s (recovered=true). This verifies timestamp mechanics, not liveness: snapshots/live.at is last content publication and can remain old while healthy. It does not start/crash/restart a stand or open a public viewer. |
+| **DRILL-04** | Kill switch rule enforcement and helper feedback | **PASSED** | Set config/live shake=false via applyControl. sendInteraction threw "closed" (blocked=true). Re-enabled shake=true; sendInteraction succeeded (restored=true). Commit-time rules reject the disabled write; the helper reports closed. This drill verifies the config change and closed feedback together. |
 | **DRILL-05** | Rollback dry-run verification | **PASSED** | Dry-run logged 5 steps including a prospective POST (using vendored rollback fixture). No actual Hosting API calls were made. This does not exercise a real release selection, browser chunk recovery, or live rollback. |
 
 ---
@@ -36,7 +36,7 @@ listed below and **not yet run**.
 - **Does not test**: Actual stand process start/crash/restart, public viewer UI, or recovery timing.
 
 ### DRILL-04: Kill Switch Enforcement
-- **Tests**: `applyControl` updates `config/live`; the client helper reads the flag and rejects before writing; re-enabling restores the operation.
+- **Tests**: `applyControl` updates `config/live`; commit rules read the flag and reject disabled writes; the helper reports closed; re-enabling restores the operation.
 - **Does not test**: Firestore security rules boundary enforcement directly (covered by `test:rules`), phone UI update latency, or disabled badges.
 
 ### DRILL-05: Rollback Dry-Run

@@ -1,3 +1,8 @@
+import { objectFeed } from '../apps/stand/src/object-feed';
+import { claimLease } from '../apps/stand/src/lease';
+import { measureQuotaProbes } from './quota-probes';
+import { fairDayModel, fairDayMarkdown, liveSkyMarkdown } from './quota-model';
+import type { QuotaProbes } from './quota-probes';
 import { initializeApp as initClientApp, deleteApp as deleteClientApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInAnonymously } from 'firebase/auth';
 import {
@@ -24,6 +29,8 @@ import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 
 export interface LoadTestMetrics {
+  probes?: QuotaProbes;
+  archivePublications?: number;
   totalVisitors: number;
   successfulVisitors: number;
   failedVisitors: number;
@@ -149,16 +156,20 @@ export async function runLoadTest(options: {
   // 3. Start actual stand services: snapshot writer, memory archive writer, and meteor scheduler
   let standSnapshotWrites = 0;
   let standMemoryWrites = 0;
+  let archivePublications = 0;
   let standMeteorWrites = 0;
   let standReads = 0;
 
+  const fence = await claimLease(adminDb, 'load-test');
+  if (!fence) throw new Error('Load test lease unavailable');
+  const feed = objectFeed();
   const observeStand = (n: number) => { standReads += n; };
-  const stopSnapshot = startSnapshotWriter(adminDb, () => serviceErrors.push('snapshot'), 8_000, observeStand, (n) => { standSnapshotWrites += n; });
-  const stopMemory = startMemoryWriter(adminDb, () => serviceErrors.push('memory'), 8_000, observeStand, (n) => { standMemoryWrites += n; });
-  const stopMeteors = startMeteorScheduler(adminDb, () => serviceErrors.push('meteors'), Math.random, undefined, observeStand, (n) => { standMeteorWrites += n; });
+  const stopSnapshot = startSnapshotWriter(adminDb, () => serviceErrors.push('snapshot'), 8_000, observeStand, (n) => { standSnapshotWrites += n; }, fence, feed.subscribe);
+  const stopMemory = startMemoryWriter(adminDb, () => serviceErrors.push('memory'), 8_000, observeStand, (n) => { standMemoryWrites += n; archivePublications++; }, fence, feed.publish);
+  const stopMeteors = startMeteorScheduler(adminDb, () => serviceErrors.push('meteors'), Math.random, undefined, observeStand, (n) => { standMeteorWrites += n; }, fence);
   cleanup.push(stopSnapshot, stopMemory, stopMeteors);
   // Exercise the real transaction writer without waiting for the production timer window.
-  await writeMeteorShower(adminDb, observeStand, (n) => { standMeteorWrites += n; });
+  await writeMeteorShower(adminDb, observeStand, (n) => { standMeteorWrites += n; }, fence);
 
   // 4. Run Concurrent Visitors with realistic pacing and instrumented operations
   const startTime = Date.now();
@@ -335,11 +346,11 @@ export async function runLoadTest(options: {
   const projections = [100, 200, 300, 500, 800].map((visitors) => {
     const scale = visitors / denominator;
     const memoryWrites = Math.ceil(standMemoryWrites * scale);
-    const screenReads = Math.ceil((screenObjectDocReads + screenEventDocReads) * scale) + 640;
+    const screenReads = Math.ceil((screenObjectDocReads + screenEventDocReads) * scale) + 320;
     const projectedStandReads = Math.ceil(standReads * scale) + 60;
     return {
       visitors, memoryWrites, screenReads, standReads: projectedStandReads,
-      writes: Math.ceil(visitorCommittedWrites * scale) + 960 + memoryWrites + 60,
+      writes: Math.ceil(visitorCommittedWrites * scale) + Math.ceil(standSnapshotWrites * scale) + memoryWrites + 60,
       reads: Math.ceil((visitorTransactionReads + visitorRulesReads) * scale) + screenReads + projectedStandReads,
     };
   });
@@ -351,8 +362,10 @@ export async function runLoadTest(options: {
   const DAILY_WRITE_LIMIT = 20000;
   const DAILY_READ_LIMIT = 50000;
 
+  await stopSnapshot(); await stopMemory(); await stopMeteors(); stopActive(); stopRecent();
+  const probes = await measureQuotaProbes(adminDb, screenDb, fence, expectedArchive, storedObjects.docs[0].id);
   const metrics: LoadTestMetrics = {
-    transactionAttempts, commitRequests, projections,
+    probes, archivePublications, transactionAttempts, commitRequests, projections,
     totalVisitors: phoneCount,
     successfulVisitors: completedVisitors,
     failedVisitors,
@@ -387,6 +400,14 @@ export async function runLoadTest(options: {
     },
   };
 
+  const wholeDay = fairDayModel(metrics);
+  metrics.reads.perVisitorAvg = wholeDay.reads / 300;
+  metrics.budgetValidation.fairDayProjectedReads300 = wholeDay.reads;
+  metrics.budgetValidation.fairDayProjectedWrites300 = wholeDay.writes;
+  metrics.budgetValidation.readBudgetPass = wholeDay.reads <= DAILY_READ_LIMIT * .75;
+  metrics.budgetValidation.writeBudgetPass = wholeDay.writes <= DAILY_WRITE_LIMIT * .75;
+  log(`[load-test] Whole-day quota: ${wholeDay.reads} reads, ${wholeDay.writes} writes; 75% ceilings 37500/15000`);
+  log(`[load-test] Measured probes: ${JSON.stringify(probes)}`);
   log(`[load-test] Successful: ${completedVisitors}/${phoneCount}`);
   log(`[load-test] Writes per visitor: ${perVisitorWrites} (${metrics.writes.perVisitorBreakdown})`);
   log(`[load-test] Total Visitor Writes: ${totalVisitorWrites}`);
@@ -394,7 +415,7 @@ export async function runLoadTest(options: {
   log(`[load-test] Total Writes (visitor + stand): ${totalWrites}`);
   log(`[load-test] Total Reads: ${totalReads} (tx: ${visitorTransactionReads}, rules: ${visitorRulesReads}, screen: ${screenObjectDocReads}+${screenEventDocReads}, stand: ${standReads})`);
   log(`[load-test] Stored events: ${storedEvents.size} (expected: ${expectedEvents} = ${visitorEventsWritten} visitor + ${standMeteorWrites} meteor)`);
-  log(`[load-test] 300-Visitor Fair Day Projection: ${fairDayWrites300} writes (limit ${DAILY_WRITE_LIMIT}), ${fairDayReads300} reads (limit ${DAILY_READ_LIMIT})`);
+  log(`[load-test] 300-Visitor Fair Day Projection: ${wholeDay.writes} writes (75% ceiling ${DAILY_WRITE_LIMIT * .75}), ${wholeDay.reads} reads (75% ceiling ${DAILY_READ_LIMIT * .75})`);
   log(`[load-test] Budget: Writes ${metrics.budgetValidation.writeBudgetPass ? 'PASS' : 'FAIL'}, Reads ${metrics.budgetValidation.readBudgetPass ? 'PASS' : 'FAIL'}`);
 
   return metrics;
@@ -409,123 +430,43 @@ export function generateQuotaReportMarkdown(metrics: LoadTestMetrics): string {
   const { writes, reads, budgetValidation: budget } = metrics;
   return `# Quota Report & Capacity Model · G v1.0.0-alpha.1
 
-Generated by the load command, which prints this entire report. SDK operation counters and
-listener deliveries are observed; rules reads and fair-day projections are modeled, not billing telemetry.
-Anonymous Auth does not read Firestore. Provisioning, reconciliation queries and diagnostic
-checks are test overhead, excluded from workload totals. Stand writes are counted when
-the production writer SDK promises fulfill; shutdown awaits pending commits before reconciliation.
+Generated by scripts/load-test.ts from the demo emulator run. SDK reads/writes are observed;
+rule dependencies and day projections are models, not production billing telemetry.
 
-## Burst observations
-
-| Metric | Value |
-|---|---:|
-| Visitors | ${metrics.successfulVisitors} / ${metrics.totalVisitors} (${metrics.failedVisitors ? `${metrics.failedVisitors} failed` : 'All completed'}) |
-| Journey duration, seconds | ${(metrics.totalDurationMs / 1000).toFixed(1)} |
-| Transaction callback attempts | ${metrics.transactionAttempts} |
-| Completed callbacks / proposed commit requests | ${metrics.commitRequests} |
-| Transaction get calls, all attempts | ${reads.phoneTransactionReads} |
-| Modeled rules dependencies, all proposed requests | ${reads.rulesReads} |
-| Screen live-sky shard deliveries | ${reads.screenObjectReads} |
-| Screen moving-cursor event deliveries | ${reads.screenEventReads} |
-| Stand reads (source deliveries + manifest/config/meteor gets) | ${reads.standReads} |
-| Combined observed reads + modeled dependencies | ${reads.total} |
-| Committed visitor writes / completed visitor | ${writes.perVisitorAvg} |
-| Visitor write structure | ${writes.perVisitorBreakdown} |
-| Stored visitor-created objects (excluding seed) | ${writes.objectWrites} |
-| Stored events (visitor and meteor, reconciled) | ${writes.eventWrites} |
-| Stand snapshot writes | ${writes.standSnapshotWrites} |
-| Stand memory shard/chunk/manifest writes | ${writes.standMemoryWrites} |
-| Stand meteor writes | ${writes.standMeteorWrites} |
+| Measured burst | Result |
+| --- | ---: |
+| Visitors | ${metrics.successfulVisitors}/${metrics.totalVisitors} (${metrics.failedVisitors ? `${metrics.failedVisitors} failed` : 'All completed'}) |
+| Duration | ${(metrics.totalDurationMs / 1000).toFixed(1)} seconds |
+| Transaction attempts / proposed commits | ${metrics.transactionAttempts} / ${metrics.commitRequests} |
+| Transaction gets / rule dependencies | ${reads.phoneTransactionReads} / ${reads.rulesReads} |
+| Screen sky / recent event deliveries | ${reads.screenObjectReads} / ${reads.screenEventReads} |
+| Stand reads (including transactional fencing) | ${reads.standReads} |
+| Combined reads | ${reads.total} |
+| Visitor writes per journey | ${writes.perVisitorAvg} |
+| Snapshot / archive / meteor writes | ${writes.standSnapshotWrites} / ${writes.standMemoryWrites} / ${writes.standMeteorWrites} |
 | Combined workload writes | ${writes.total} |
 
-## Explicit rules dependency model
+${fairDayMarkdown(metrics)}
 
-Dependencies are a per-proposed-commit union of document paths, de-duplicated within that
-request. Written documents still count when rules call getAfter on them. resource and
-request.resource themselves do not add reads. This central-orbit planet journey has no host
-getAfter. SDK transaction gets are separate direct reads and do not replace dependent reads.
-
-| Request | Distinct dependent paths | Modeled reads |
-|---|---|---:|
-| First launch | config/live; after user; after new object; launch event; create event; after sky shard | 6 |
-| Edit | config/live; after user; after object; edit event; after sky shard | 5 |
-| Each interaction | config/live; after user; interaction event | 3 |
-| Second launch + crumble | config/live; user (get + getAfter); new object; old object; launch, create, crumble events; after sky shard | 8 |
-
-createObject uses afterUser, config and create-event matching; activeTransition uses the new
-object and launch event, plus archivedMatches for the old object/crumble event. Event payload
-checks read the object after the write. updateObject/crumble also read the pre-write user;
-this model counts that user path once alongside afterUser. Edit and interaction user rules
-match their event; event rules check afterUser and config, with objectPayload only for edit.
-Active object writes also require the exact owner entry in the matching sky shard; the
-shard rules read the same user/object paths, already included in each request union.
-Repeated accesses to the same dependent document in one request count once per the
-[Firebase pricing reference](https://firebase.google.com/docs/firestore/pricing#cloud_firestore_security_rules).
-
-The observer counts each tx.get invocation before it settles, even when it fails; each retry
-callback starts a new attempt. Completed callbacks contribute the union of their write paths
-plus config/live: this exactly describes the dependencies above for the tested operations.
-A proposed commit aborted before rule evaluation may overcount; denied/short-circuited rules
-and backend caching cannot be measured by this SDK model. This is not a billing meter.
-
-The sky counter measures delivered shard documents, not the number of objects inside them.
-Production screen subscriptions supply the actual counters, including their moving cursor
-and rebases. Each fresh server subscription counts its initial result set (or the empty-query
-minimum), even after a cache callback; subsequent metadata-only callbacks add nothing.
-Stand counters cover snapshot active objects, memory all objects/events, archive
-manifest reads, meteor config listener and meteor transaction attempts. Delivery counters
-include document updates and removals; bounded-query evictions can overestimate billed reads.
-Reconnect/cache/billing behavior is not established by emulator deliveries.
-
-## One projection dataset: burst-scaled scenario over an eight-hour window
-
-| Visitors | Writes | Reads (estimate) | Memory writes | Screen reads | Stand reads |
-|---|---:|---:|---:|---:|---:|
-${metrics.projections.map((row) => `| ${row.visitors} | ${row.writes.toLocaleString()} | ${row.reads.toLocaleString()} | ${row.memoryWrites} | ${row.screenReads} | ${row.standReads} |`).join('\n')}
-
-| Resource | Daily Spark limit | Target scenario | Model result |
-|---|---:|---:|---|
+| Resource | Daily Spark limit | Whole-day model | 75% margin check |
+| --- | ---: | ---: | --- |
 | **Writes** | ${budget.dailyWriteLimit.toLocaleString()} | **${budget.fairDayProjectedWrites300.toLocaleString()}** | **${budget.writeBudgetPass ? 'PASS' : 'FAIL'}** |
 | **Reads** | ${budget.dailyReadLimit.toLocaleString()} | **${budget.fairDayProjectedReads300.toLocaleString()}** | **${budget.readBudgetPass ? 'PASS' : 'FAIL'}** |
 
-Every row uses the same measured per-visitor write, attempt-read, dependency and listener
-ratios, scaled by completed visitors and rounded up. Snapshot allowance is 960 writes
-(every 30 seconds over eight hours); meteor allowance is 60 writes plus 60 transaction
-reads. Screen allowance adds 640 empty-query minimum reads (a rebase every 45 seconds).
-The meteor allowance is a scenario assumption, not a measured shower frequency.
-Memory writes scale from the observed burst. Stand/source listener totals also scale from
-the burst, so baseline seed/config reads are conservatively repeated with the scaling factor.
-All target summary values come from the target row of this same dataset.
+Visitor journey: ${writes.perVisitorBreakdown}. Direct gets count every attempt, including retries.
+Rule reads union each proposed commit's config/live, after user/object/event and sky mirror paths;
+repeated access to the same dependency counts once per request. This SDK model cannot measure
+backend caching, short-circuit denial costs or production reconnect billing. Empty queries count
+at least one; metadata-only deliveries count zero after the first server result. Removed query
+rows are conservatively included in delivery counts. Instrumentation/setup/reconciliation and
+probe fixture writes are excluded from the visitor workload; probes are listed separately.
 
-## Known limitations — sustained fair-day acceptance remains partial
-
-The projection above covers source transactions, one screen and enrichment writers. Phone
-Home listeners, workshop catalogs/inventory/config, two-node lease polling and the idle
-remainder of the day are modeled separately in [live-sky.md](live-sky.md). PASS here
-is not a whole-day quota guarantee. That model must also fit before opening the season.
-
-Arrivals are compressed into a five-second burst; visitors follow one planet-only journey.
-Snapshot and memory test cadence is eight seconds; production uses thirty seconds. Archive
-publication batches changes and rewrites changed shards/chunks, so spreading arrivals across
-the day can produce a different number of publications, manifest reads and memory writes.
-Linear burst scaling is not an upper bound on that production cost. Extra empty queries,
-reconnects, edits, phones' inventory/config subscriptions and alternate host journeys can
-increase costs beyond this estimate. No sustained eight-hour run, latency/retry distribution,
-star/moon host load, or load-test hangar relaunch is certified here.
-
-All production stand services run and errors fail the command. A meteor is explicitly
-written through its production transaction helper; the scheduler's natural first timer is
-not awaited. The screen must deliver the expected active-object count and recent events (counts
-only, not identities or payloads); the stand must commit at least one snapshot, but the
-snapshots/live payload is not compared with the final active objects. Stored events are
-reconciled one by one, and the archive's final manifest and every referenced chunk are compared
-with the committed sources, including operator-seed baseline creation rows. Archive browser
-playback is not exercised by this command.
-PASS means only that this scenario model fits the configured limits, not that the booth is
-capacity-certified. Physical phones, TV, campus Wi-Fi and production billing remain unverified.
-
-Firestore daily quota resets around midnight **Pacific time**, not UTC. Application interaction
-counters use UTC days separately. See the provider's free quota documentation before opening.
+The 100-phone burst is scaled by completed visitors. It is not a sustained eight-hour or physical
+phone/Wi-Fi acceptance. All source events and archive files reconcile exactly; service errors fail
+the command. Snapshot writes include first publication and actual content changes, not a heartbeat.
+Static chunks are tried before live chunks; the day model budgets the full live fallback anyway.
+Additional sessions or reconnects beyond the stated allowances can exceed this scenario. Close
+interaction switches before exhaustion. Firebase quota resets around midnight Pacific time.
 `;
 }
 
@@ -541,15 +482,16 @@ async function main() {
     process.exitCode = 1;
   }
   if (!metrics.budgetValidation.writeBudgetPass) {
-    console.error(`[load-test] FAIL: Write budget exceeded (${metrics.budgetValidation.fairDayProjectedWrites300} > ${metrics.budgetValidation.dailyWriteLimit})`);
+    console.error(`[load-test] FAIL: 75% write ceiling exceeded (${metrics.budgetValidation.fairDayProjectedWrites300} > ${metrics.budgetValidation.dailyWriteLimit * .75})`);
     process.exitCode = 1;
   }
   if (!metrics.budgetValidation.readBudgetPass) {
-    console.error(`[load-test] FAIL: Read budget exceeded (${metrics.budgetValidation.fairDayProjectedReads300} > ${metrics.budgetValidation.dailyReadLimit})`);
+    console.error(`[load-test] FAIL: 75% read ceiling exceeded (${metrics.budgetValidation.fairDayProjectedReads300} > ${metrics.budgetValidation.dailyReadLimit * .75})`);
     process.exitCode = 1;
   }
 
   const md = generateQuotaReportMarkdown(metrics);
+  fs.writeFileSync(path.resolve(import.meta.dirname, '../docs/live-sky.md'), liveSkyMarkdown(metrics), 'utf8');
   const outPath = path.resolve(import.meta.dirname, '../docs/QUOTA-REPORT.md');
   fs.writeFileSync(outPath, md, 'utf8');
   console.log(md);
