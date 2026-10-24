@@ -17,7 +17,7 @@ test('game views fit 375px, 390px and desktop; corner sheet traps focus and rest
         }
         await page.locator('[data-step=parameters]').click();
       }
-      if (name === 'memory') await expect(page.locator('.memory-field canvas')).toBeVisible();
+      if (name === 'memory') await expect(page.locator('.memory-field canvas[role=img]')).toBeVisible();
       if (name === 'screen') {
         await expect(page.locator('.galaxy-field canvas')).toBeVisible();
         const field = await page.locator('.galaxy-field').boundingBox();

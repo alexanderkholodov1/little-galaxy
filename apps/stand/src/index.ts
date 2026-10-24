@@ -14,6 +14,7 @@ try {
   const control = process.argv[2] === 'control';
   const migrate = process.argv[2] === 'migrate-sky';
   const freeze = process.argv[2] === 'freeze-season';
+  if (migrate && process.argv.length !== 3) throw new Error('migrate-sky accepts no arguments.');
   if (freeze) validateFreeze(process.argv.slice(3), process.env);
   if (process.argv.length > 2 && !control && !freeze && !migrate) throw new Error('Unknown command');
   if (control) controlPatch(process.argv.slice(3));
@@ -42,7 +43,7 @@ try {
       const shutdown = () => { void stop().then(() => getFirestore().terminate()).then(() => process.exit(0)); };
       process.once('SIGINT', shutdown); process.once('SIGTERM', shutdown);
     }
-  } else if (control) throw new Error('No admin connection');
+  } else if (control || migrate) throw new Error('No admin connection');
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Stand command failed: ${message}`);
