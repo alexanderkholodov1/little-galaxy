@@ -48,7 +48,7 @@ The phone and screen share deterministic orbital math and validated schemas. The
 
 ## Evaluation documents
 
-The captain will add the final PDFs to this same delivery change before review is complete:
+The delivery documents for the evaluation:
 
 - [Technical report · Informe Little Galaxy](docs/delivery/Informe-Little-Galaxy.pdf)
 - [Fair poster · Poster Little Galaxy](docs/delivery/Poster-Little-Galaxy.pdf)

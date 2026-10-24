@@ -1,13 +1,11 @@
 # Evaluation delivery documents
 
-The captain adds the approved final PDFs to this directory in the same delivery PR. They are
-pending and intentionally absent in this worker commit; the links become available when copied.
-Do not substitute drafts or empty PDF placeholders.
+The approved final PDFs live in this directory. Do not substitute drafts or empty PDF placeholders.
 
 | Final filename | Purpose | Status |
 |---|---|---|
-| [Informe-Little-Galaxy.pdf](Informe-Little-Galaxy.pdf) | Technical report: project, architecture, implementation and evidence with limitations | Pending captain copy |
-| [Poster-Little-Galaxy.pdf](Poster-Little-Galaxy.pdf) | Fair poster for visitors and evaluators | Pending captain copy |
+| [Informe-Little-Galaxy.pdf](Informe-Little-Galaxy.pdf) | Technical report: project, architecture, implementation and evidence with limitations | Included |
+| [Poster-Little-Galaxy.pdf](Poster-Little-Galaxy.pdf) | Fair poster for visitors and evaluators | Included |
 | [Presentacion-Little-Galaxy.pdf](Presentacion-Little-Galaxy.pdf) | Presentation slides for the evaluation | Pending captain copy |
 
 `img/galaxia-tv.png` and `img/telefono-create.png` are unchanged real application captures copied
