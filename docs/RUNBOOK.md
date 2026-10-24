@@ -462,23 +462,30 @@ portfolio/Hosting credentials or copy another project's key.
    `systemctl --user enable --now galaxy-stand.service`.
 7. Inspect `journalctl --user -u galaxy-stand.service` and Firestore Console's
    admin-only `leases/stand`: one random process owner, `heartbeatAt` advancing
-   every 30 seconds, `expiresAt` 90 seconds ahead. Healthy follower checks add
+   every 90 seconds, `expiresAt` 360 seconds ahead (Firestore server time). Healthy follower checks add
    reads, not heartbeat writes. Only one process starts archive/snapshot/meteor
-   listeners. Clocks must be synchronized (OS network time enabled). Start Beacon
+   listeners. Lease authority uses server readTime; host clock skew cannot steal leadership. Start Beacon
    first if it should initially lead; a recovered Beacon does not preempt a healthy
    laptop leader. Leadership changes on release/expiry, not machine preference.
 8. Rehearse failure: stop Beacon's service, verify the laptop becomes owner within
-   30 seconds after graceful release, then restart Beacon and confirm no duplicate
-   leader. For a crash/partition, takeover occurs within approximately 120 seconds
-   of the last heartbeat (90-second expiry plus a 30-second poll). Home/Screen
+   90 seconds after graceful release, then restart Beacon and confirm no duplicate
+   leader. For a crash/partition, takeover occurs within approximately 450 seconds
+   of the last heartbeat (360-second expiry plus a 90-second poll). Home/Screen
    should continue receiving visitor writes throughout. Check quota in Console.
 9. To stop enrichment, run `systemctl --user stop galaxy-stand.service` on both.
    To revoke access, stop both and remove the approved key in IAM; delete its local
    copies via the operator's normal secure procedure. No client config changes.
 
-A lease deadline stops local services when renewal stalls. A write already sent by
-an old leader cannot be atomically fenced by the admin SDK after a network partition;
-check archive continuity after recovery. Beacon/laptop installation, credential
+A monotonic deadline stops local services at the last confirmed lease duration; transient
+renewal failures retain services until that deadline. All production enrichment writes
+check the owner, persistent fencing token and server-time expiry in the write transaction.
+A concurrent takeover conflicts with old writes; stale transaction retries are rejected.
+The portfolio still reads snapshots/live (creators/at): content changes debounce for 120s,
+with no idle heartbeat writes. Its at is a content publication time, not a liveness signal.
+Archive writes debounce for 120s; restarts hydrate public chunks and query only the inclusive
+source timestamp boundary/new records. Install the declared events type+at composite index
+as part of the captain's normal release procedure before activating this build.
+Check archive continuity after recovery. Beacon/laptop installation, credential
 provisioning, production migration and physical failover remain operator acceptance.
 
 

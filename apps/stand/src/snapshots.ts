@@ -1,3 +1,4 @@
+import type { ObjectSource } from './object-feed.js';
 import { checkFence } from './lease.js';
 import type { StandFence } from './lease.js';
 import { Buffer } from 'node:buffer';
@@ -34,15 +35,26 @@ export function compactSnapshot(documents: { id: string; data(): unknown }[]): O
     throw new Error('Snapshot needs sharding before the next write');
   return snapshot;
 }
-export async function writeSnapshot(database: Firestore, state: Omit<LiveSnapshot, 'at'>, fence?: StandFence) {
-  if (!fence) { await database.doc('snapshots/live').set({ ...state, at: FieldValue.serverTimestamp() }); return; }
-  await database.runTransaction(async (tx) => {
-    await checkFence(database, tx, fence);
-    tx.set(database.doc('snapshots/live'), { ...state, at: FieldValue.serverTimestamp() });
+export async function writeSnapshot(database: Firestore, state: Omit<LiveSnapshot, 'at'>, fence?: StandFence, observe?: (count: number) => void) {
+  const ref = database.doc('snapshots/live');
+  const unchanged = (old: Record<string, unknown> | undefined) => old?.schemaVersion === state.schemaVersion
+    && old.creators === state.creators && old.activeCount === state.activeCount
+    && JSON.stringify(old.objects) === JSON.stringify(state.objects);
+  if (!fence) {
+    observe?.(1);
+    if (unchanged((await ref.get()).data())) return false;
+    await ref.set({ ...state, at: FieldValue.serverTimestamp() }); return true;
+  }
+  return database.runTransaction(async (tx) => {
+    observe?.(1); await checkFence(database, tx, fence);
+    observe?.(1); const previous = await tx.get(ref);
+    if (unchanged(previous.data())) return false;
+    tx.set(ref, { ...state, at: FieldValue.serverTimestamp() }); return true;
   });
 }
 /** Publish only a healthy listener's state; reconnect with bounded exponential backoff. */
-export function startSnapshotWriter(database: Firestore, onError: () => void, interval = 30_000, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence) {
+export const SNAPSHOT_DEBOUNCE_MS = 120_000;
+export function startSnapshotWriter(database: Firestore, onError: () => void, interval = SNAPSHOT_DEBOUNCE_MS, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence, source?: (next: (docs: ObjectSource[]) => void) => (() => void)) {
   let latest: Omit<LiveSnapshot, 'at'> | undefined;
   let published: string | undefined;
   let initialized = false;
@@ -60,10 +72,12 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
     const state = latest;
     const content = JSON.stringify(state);
     if (content === published) return;
-    if (fence) observe?.(1);
-    pending = writeSnapshot(database, state, fence).then(() => { published = content; onWrite?.(1); }).catch(onError);
+    pending = writeSnapshot(database, state, fence, observe).then((wrote) => { published = content; if (wrote) onWrite?.(1); }).catch(onError);
     await pending;
     pending = undefined;
+    if (!stopped && latest && JSON.stringify(latest) !== published && !timer) {
+      timer = setTimeout(() => { timer = undefined; void flush(); }, interval);
+    }
   }
   function connect() {
     if (stopped) return;
@@ -78,9 +92,9 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
       retry = setTimeout(connect, Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5)));
     };
     try {
-      unsubscribe = database.collection('objects').where('status', '==', 'active').onSnapshot((snapshot) => {
+      const next = (snapshot: { docs: ObjectSource[]; docChanges(): unknown[]; empty: boolean }) => {
         if (stopped || current !== generation) return;
-        observe?.(snapshot.docChanges().length || (snapshot.empty ? 1 : 0));
+        if (!source) observe?.(snapshot.docChanges().length || (snapshot.empty ? 1 : 0));
         const update = ++revision;
         const ids = new Set(snapshot.docs.map((d) => d.id));
         const missing = new Set(snapshot.docs.flatMap((d) => {
@@ -101,7 +115,10 @@ export function startSnapshotWriter(database: Firestore, onError: () => void, in
           if (!initialized) { initialized = true; void flush(); }
           else if (!timer) timer = setTimeout(() => { timer = undefined; void flush(); }, interval);
         }).catch(() => { if (update === revision) failed(); });
-      }, failed);
+      };
+      unsubscribe = source
+        ? source((docs) => next({ docs, empty: docs.length === 0, docChanges: () => [] }))
+        : database.collection('objects').where('status', '==', 'active').onSnapshot(next, failed);
     } catch { failed(); }
   }
   connect();

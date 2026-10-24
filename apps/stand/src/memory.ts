@@ -89,8 +89,8 @@ export async function readSeason(database: Firestore): Promise<SeasonData> {
 export async function publishSeason(database: Firestore, season: SeasonData, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence) {
   // Only changed mutable shards are rewritten. Log chunks are immutable and reusable across revisions.
   const manifestRef = database.doc(`seasons/${SEASON}/meta/manifest`);
-  observe?.(1);
   return database.runTransaction(async (batch) => {
+  observe?.(1);
   if (fence) { observe?.(1); await checkFence(database, batch, fence); }
   const previous = await batch.get(manifestRef);
   const old = previous.data();
@@ -137,7 +137,8 @@ async function archivedSources(database: Firestore, observe?: (count: number) =>
   }, { readOnly: true });
 }
 /** Inclusive timestamp boundaries retain simultaneous commits; IDs deduplicate overlap. */
-export function startMemoryWriter(database: Firestore, onError: () => void, delay = 30_000, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence) {
+export const MEMORY_DEBOUNCE_MS = 120_000;
+export function startMemoryWriter(database: Firestore, onError: () => void, delay = MEMORY_DEBOUNCE_MS, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence, onObjects?: (docs: Source[]) => void) {
   let timer: ReturnType<typeof setTimeout> | undefined, stopped = false;
   let pending = Promise.resolve();
   const stops: (() => void)[] = [];
@@ -155,16 +156,25 @@ export function startMemoryWriter(database: Firestore, onError: () => void, dela
     };
     const a = database.collection('objects').where('updatedAt', '>=', Timestamp.fromMillis(objectAt));
     const b = database.collection('events').where('at', '>=', Timestamp.fromMillis(eventAt));
-    stops.push(a.onSnapshot((s) => {
-      observe?.(s.docChanges().length || (s.empty ? 1 : 0));
+    return a.get().then((s) => {
+      if (stopped) return;
+      observe?.(Math.max(1, s.size));
       for (const d of s.docs) objects.set(d.id, d);
-      gotObjects = true; schedule();
-    }, onError));
-    stops.push(b.onSnapshot((s) => {
+      gotObjects = true;
+      stops.push(b.onSnapshot((s) => {
       observe?.(s.docChanges().length || (s.empty ? 1 : 0));
-      for (const d of s.docs) events.set(d.id, d);
+      for (const d of s.docs) {
+        events.set(d.id, d);
+        const e = d.data();
+        if (['create', 'launch', 'edit', 'crumble', 'relaunch'].includes(e.type) && readObject(e.payload)) {
+          const old = objects.get(e.objectId)?.data() as { updatedAt: unknown } | undefined;
+          if (!old || millis(e.payload.updatedAt) >= millis(old.updatedAt)) objects.set(e.objectId, { id: e.objectId, data: () => e.payload });
+        }
+      }
+      onObjects?.([...objects.values()]);
       gotEvents = true; schedule();
     }, onError));
+    });
   }).catch(onError);
   return async () => { stopped = true; clearTimeout(timer); stops.forEach((stop) => stop()); await ready; await pending; };
 }
