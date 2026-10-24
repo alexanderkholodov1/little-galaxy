@@ -13,6 +13,13 @@ export function initialConfig() {
     meteorMinSeconds: 360, meteorMaxSeconds: 900, screenScene: 'galaxy' as const,
   };
 }
+/** Every server can start first; concurrent startups never replace live settings. */
+export async function ensureLiveConfig(database: Firestore) {
+  await database.runTransaction(async (tx) => {
+    const ref = database.doc('config/live');
+    if (!(await tx.get(ref)).exists) tx.create(ref, initialConfig());
+  });
+}
 export function controlPatch(args: string[]): Record<string, string | boolean | number> {
   if (args.length === 1 && args[0] === 'init') return initialConfig();
   const [command, key, value, ...extra] = args;
@@ -34,13 +41,20 @@ export function controlPatch(args: string[]): Record<string, string | boolean | 
 export async function applyControl(database: Firestore, args: string[]) {
   const patch = controlPatch(args);
   await database.runTransaction(async (tx) => {
-    const ref = database.doc('config/live'), snapshot = await tx.get(ref);
+    const ref = database.doc('config/live'), markerRef = database.doc('migrations/sky-v1');
+    const [snapshot, marker] = await tx.getAll(ref, markerRef);
     if (args[0] === 'init') {
       if (snapshot.exists) throw new Error('config/live already exists; init refuses to overwrite it.');
       tx.create(ref, patch);
       return;
     }
     if (!snapshot.exists) throw new Error('Run control init first. Then explicitly open with control flag seasonOpen on.');
+    if (marker.data()?.seasonOpenBefore !== undefined && patch.seasonOpen !== undefined) {
+      if (patch.seasonOpen) throw new Error('Cannot open the season during migration recovery. Complete the release and restore-season first.');
+      // A deliberate emergency close supersedes the saved flag. Both restoration
+      // and this command read these documents, so Firestore retries any race.
+      tx.update(markerRef, { seasonOpenBefore: false });
+    }
     const config = { ...snapshot.data(), ...patch };
     if ((config.meteorMinSeconds ?? 360) > (config.meteorMaxSeconds ?? 900)) throw new Error('Meteor minimum must not exceed maximum.');
     tx.update(ref, patch);

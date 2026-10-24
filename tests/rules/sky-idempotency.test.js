@@ -8,6 +8,7 @@ it('does not rewrite a completed migration even when the season stays closed', a
   const app = initializeApp({ projectId: 'demo-little-galaxy' }, 'sky-idempotency'); const db = getFirestore(app);
   try {
     await db.recursiveDelete(db.collection('objects'));
+    await db.recursiveDelete(db.collection('sky'));
     await db.doc('migrations/sky-v1').delete();
     await db.doc('config/live').set({ seasonOpen: false });
     await migrateSky(db);

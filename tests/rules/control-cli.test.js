@@ -18,11 +18,7 @@ it('runs the documented startup and every scene, flag and timing through the act
     await database.doc('config/live').delete(); await database.doc('snapshots/live').delete();
     stand = spawn('pnpm', ['--filter', '@little-galaxy/stand', 'start'], { env, detached: true, stdio: 'ignore' });
     await expect.poll(async () => (await database.doc('snapshots/live').get()).exists, { timeout: 30_000 }).toBe(true);
-    expect((await database.doc('config/live').get()).exists).toBe(false);
-    const { stdout } = await control('init');
     const initial = (await database.doc('config/live').get()).data();
-    expect(stdout).toContain('Created config/live:');
-    for (const [key, value] of Object.entries(initial)) expect(stdout).toContain(`${JSON.stringify(key)}: ${JSON.stringify(value)}`);
     expect(initial.seasonOpen).toBe(false);
     await expect(control('init')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('refuses to overwrite') });
     expect((await database.doc('config/live').get()).data()).toEqual(initial);

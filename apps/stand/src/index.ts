@@ -12,7 +12,7 @@ import { migrateSky } from './sky.js';
 import { startStand } from './stand.js';
 import { startSnapshotWriter } from './snapshots.js';
 import { startMeteorScheduler } from './meteors.js';
-import { applyControl, controlPatch } from './control.js';
+import { applyControl, controlPatch, ensureLiveConfig } from './control.js';
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 try {
   if (process.argv[2] === 'github-control') {
@@ -55,6 +55,7 @@ try {
       await getFirestore().terminate();
       console.log(`${process.argv[3] === 'init' ? 'Created' : 'Updated'} config/live: ${JSON.stringify(written, null, 2)}`);
     } else {
+      await ensureLiveConfig(getFirestore());
       const stop = startLeasedStand(getFirestore(), (fence) => {
       console.log('Stand enrichment leadership acquired.');
       const feed = objectFeed();
