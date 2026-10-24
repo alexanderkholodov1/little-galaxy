@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-alpha.1 — Vivo
+
+- Keep Home and Screen live through client-maintained Firestore sky shards without a stand.
+- Elect one Beacon/laptop enrichment leader; document migration and operator credential setup.
+- Invite creation in an empty sky, keep phone sound action-driven, and remove recurring booth notes.
+- Fill the viewport, move identity/navigation into a corner glass sheet and retain profile exits.
+- Publish alpha tags as pre-releases and dispatch the exact published tag to portfolio.
+
+
 ## 1.0.2 — 2026-10-24
 
 - Keep booth scenes uncovered under reduced motion and expire stationary shooting-star messages;

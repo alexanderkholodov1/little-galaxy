@@ -72,11 +72,25 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          "galaxy-dist-${GITHUB_REF_NAME}.tar.gz" version.json SHA256SUMS
-          --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
-          --repo "$GITHUB_REPOSITORY"
+        shell: bash
+        run: |
+          options=()
+          if [[ "$GITHUB_REF_NAME" == v1.0.0-alpha.* ]]; then
+            options+=(--prerelease --latest=false)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            "galaxy-dist-${GITHUB_REF_NAME}.tar.gz" version.json SHA256SUMS \
+            --title "$GITHUB_REF_NAME" --generate-notes --verify-tag \
+            --repo "$GITHUB_REPOSITORY" "${options[@]}"
+      - name: Dispatch the exact published release to portfolio
+        env:
+          GH_TOKEN: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
+        shell: bash
+        run: |
+          : "${GH_TOKEN:?Set PORTFOLIO_DISPATCH_TOKEN for the portfolio repository}"
+          jq -n --arg tag "$GITHUB_REF_NAME" \
+            '{event_type: "galaxy-release", client_payload: {tag: $tag}}' | \
+            gh api --method POST repos/alexanderkholodov1/portfolio/dispatches --input -
 
   deploy-rules:
     # The operator must be configured as the required reviewer for this environment.
@@ -104,6 +118,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Re-run Firestore rules tests
+        env:
+          JAVA_TOOL_OPTIONS: -Xmx512m
         run: pnpm run test:rules
       - name: Write data-project credentials
         shell: bash

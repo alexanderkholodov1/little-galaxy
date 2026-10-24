@@ -1,4 +1,4 @@
-# Fair-Day Runbook · Collective Galaxy (G v1.0.2)
+# Fair-Day Runbook · Collective Galaxy (G v1.0.0-alpha.1)
 
 **Alpha.1:** the live sky works with both stands stopped. Stand startup below is optional
 enrichment. Before the first alpha publication follow section 11 for migration and Beacon/laptop
@@ -214,7 +214,7 @@ export FIREBASE_PROJECT_ID=little-galaxy
 pnpm --filter @little-galaxy/stand start
 ```
 
-Expect a line like `Little Galaxy stand v1.0.2 | languages: en, es | default: en`. Snapshot writer resumes `snapshots/live`.
+Expect a line like `Little Galaxy stand v1.0.0-alpha.1 | languages: en, es | default: en`. Snapshot writer resumes `snapshots/live`.
 
 ---
 
@@ -239,7 +239,7 @@ Rollback restores the previous Hosting release pointer. It does not change `game
 
 ```sh
 cd /path/to/portfolio-checkout
-pnpm run deploy-local --galaxy ../galaxy-v1.0.2
+pnpm run deploy-local --galaxy ../galaxy-alpha1
 ```
 
 Read-only hosted smoke from Galaxy:
@@ -477,3 +477,38 @@ A lease deadline stops local services when renewal stalls. A write already sent 
 an old leader cannot be atomically fenced by the admin SDK after a network partition;
 check archive continuity after recovery. Beacon/laptop installation, credential
 provisioning, production migration and physical failover remain operator acceptance.
+
+
+## 12. Exact-tag release dispatch (chain b)
+
+The captain alone publishes tags. `verify-release.js` accepts stable `vX.Y.Z` or
+positive, non-zero-padded `v1.0.0-alpha.N`, exactly matching the web package version.
+The tag must still belong to main. Checks build `version.json` from that version;
+the final release uses the checked artifact after reviewed rules publication.
+Alpha tags use `gh release create --prerelease --latest=false`, so existing stable
+tags/releases are neither moved nor implicitly selected.
+
+Only after `gh release create` succeeds, the final publish step posts:
+
+```json
+{
+  "event_type": "galaxy-release",
+  "client_payload": { "tag": "v1.0.0-alpha.1" }
+}
+```
+
+The tag is the exact `GITHUB_REF_NAME`, not a highest-semver/latest-release lookup.
+The destination is `alexanderkholodov1/portfolio`'s `repository_dispatch` endpoint.
+The step uses repository secret `PORTFOLIO_DISPATCH_TOKEN`; the operator reports it
+already exists. It must authorize dispatch to that destination (fine-grained token:
+portfolio repository Contents write permission; classic token: appropriate repo
+scope). The token is exposed only to the final dispatch step and never to a build.
+Missing/expired authorization or a non-2xx response fails the publish job. That
+failure leaves the already-published release intact; it does not imply a Hosting
+update. For a dispatch-only retry, the captain can run the same `gh api` request
+with the **original exact tag** after checking the release exists. Re-running the
+entire publish job encounters an existing release and is not an idempotent retry.
+
+The portfolio receiver, exact-artifact validation, main-branch production policy and
+Hosting deployment are a separate captain task. No repository dispatch or other
+GitHub/Hosting mutation was executed by this builder.

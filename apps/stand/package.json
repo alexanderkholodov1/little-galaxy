@@ -2,7 +2,7 @@
   "name": "@little-galaxy/stand",
   "private": true,
   "type": "module",
-  "version": "1.0.2",
+  "version": "1.0.0-alpha.1",
   "scripts": {
     "start": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",

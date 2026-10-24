@@ -33,7 +33,7 @@ flowchart LR
   Shared["Shared schemas + orbital model"] -.-> Phone
   Shared -.-> Screen
   Shared -.-> Stand
-  Release["GitHub release + dispatch"] --> Portfolio["Portfolio · latest release + rollback"]
+  Release["GitHub release + dispatch"] --> Portfolio["Portfolio · exact dispatched tag + rollback"]
   Portfolio --> Hosting["Firebase Hosting · /galaxy/"]
 ```
 
@@ -190,7 +190,8 @@ Fork pull requests never enter the preview job.
 A `v*` tag must point to a commit contained in `main` and match the web package version. The release then
 runs the full reusable checks. A read-only build job packages `galaxy-dist-vX.Y.Z.tar.gz`, copies
 `version.json`, and creates `SHA256SUMS`; only the final publish job receives `contents: write` and creates
-the GitHub Release. A separate `little-galaxy-rules` environment job re-runs the rules tests before
+the GitHub Release (alpha tags are pre-releases). Its final step dispatches `galaxy-release`
+with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`; see RUNBOOK section 12. A separate `little-galaxy-rules` environment job re-runs the rules tests before
 deploying only `firestore.rules` to the data project. The operator must be configured as that environment's
 required reviewer. Only the portfolio deploys production Hosting and performs Hosting rollback; see the
 [release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure).

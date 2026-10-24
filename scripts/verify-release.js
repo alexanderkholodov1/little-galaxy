@@ -3,8 +3,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export function verifyRelease(tag, version) {
-  if (!tag || !/^v\d+\.\d+\.\d+$/u.test(tag) || tag !== `v${version}`) {
-    throw new Error('Release tag must be vX.Y.Z and match the web package version.');
+  if (!tag || !/^v(?:\d+\.\d+\.\d+|1\.0\.0-alpha\.[1-9]\d*)$/u.test(tag) || tag !== `v${version}`) {
+    throw new Error('Release tag must be vX.Y.Z or v1.0.0-alpha.N and match the web package version.');
   }
   return tag;
 }
