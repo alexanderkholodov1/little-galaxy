@@ -1,4 +1,4 @@
-# Fair-Day Runbook · Collective Galaxy (G v1.0.1)
+# Fair-Day Runbook · Collective Galaxy (G v1.0.2)
 
 **Plan of record reference**: `portfolio/docs/plan/05-live-deploys-and-ops.md` § Fair-day runbook.
 
@@ -211,7 +211,7 @@ export FIREBASE_PROJECT_ID=little-galaxy
 pnpm --filter @little-galaxy/stand start
 ```
 
-Expect a line like `Little Galaxy stand v1.0.1 | languages: en, es | default: en`. Snapshot writer resumes `snapshots/live`.
+Expect a line like `Little Galaxy stand v1.0.2 | languages: en, es | default: en`. Snapshot writer resumes `snapshots/live`.
 
 ---
 
@@ -259,7 +259,7 @@ Rollback restores the previous Hosting release pointer. It does not change `game
 
 ```sh
 cd /path/to/portfolio-checkout
-pnpm run deploy-local --galaxy ../galaxy-v1.0.1
+pnpm run deploy-local --galaxy ../galaxy-v1.0.2
 ```
 
 Read-only hosted smoke from Galaxy:
