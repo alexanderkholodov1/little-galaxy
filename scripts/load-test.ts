@@ -198,7 +198,7 @@ export async function runLoadTest(options: {
 
       const names = ['quiet-aurora', 'bright-tide', 'gentle-horizon', 'distant-garden'] as const;
 
-      // Step B: First planet launch (4 writes, 2 events)
+      // Step B: First planet launch (5 writes including the sky shard, 2 events)
       const draft = {
         nameKey: names[idx % names.length],
         params: { size: 0.4, palette: (idx % 4) as 0 | 1 | 2 | 3, oceans: 0.5 },
@@ -211,7 +211,7 @@ export async function runLoadTest(options: {
       // Realistic editing pause (visitors explore the workshop)
       await sleep(3000 + Math.floor(Math.random() * 4000));
 
-      // Step C: Edit planet parameters (3 writes, 1 event)
+      // Step C: Edit planet parameters (4 writes including the sky shard, 1 event)
       const editDraft = {
         nameKey: names[(idx + 1) % names.length],
         params: { size: 0.45, palette: ((idx + 1) % 4) as 0 | 1 | 2 | 3, oceans: 0.6 },
@@ -244,7 +244,7 @@ export async function runLoadTest(options: {
 
       await sleep(2500 + Math.floor(Math.random() * 2000));
 
-      // Step G: Second launch with crumble (6 writes, 3 events)
+      // Step G: Second launch with crumble (7 writes including the sky shard, 3 events)
       const draft2 = {
         nameKey: names[(idx + 2) % names.length],
         params: { size: 0.5, palette: ((idx + 2) % 4) as 0 | 1 | 2 | 3, oceans: 0.4 },
@@ -425,7 +425,7 @@ the production writer SDK promises fulfill; shutdown awaits pending commits befo
 | Completed callbacks / proposed commit requests | ${metrics.commitRequests} |
 | Transaction get calls, all attempts | ${reads.phoneTransactionReads} |
 | Modeled rules dependencies, all proposed requests | ${reads.rulesReads} |
-| Screen active-object deliveries | ${reads.screenObjectReads} |
+| Screen live-sky shard deliveries | ${reads.screenObjectReads} |
 | Screen moving-cursor event deliveries | ${reads.screenEventReads} |
 | Stand reads (source deliveries + manifest/config/meteor gets) | ${reads.standReads} |
 | Combined observed reads + modeled dependencies | ${reads.total} |
@@ -447,16 +447,18 @@ getAfter. SDK transaction gets are separate direct reads and do not replace depe
 
 | Request | Distinct dependent paths | Modeled reads |
 |---|---|---:|
-| First launch | config/live; after user; after new object; launch event; create event | 5 |
-| Edit | config/live; after user; after object; edit event | 4 |
+| First launch | config/live; after user; after new object; launch event; create event; after sky shard | 6 |
+| Edit | config/live; after user; after object; edit event; after sky shard | 5 |
 | Each interaction | config/live; after user; interaction event | 3 |
-| Second launch + crumble | config/live; user (get + getAfter); new object; old object; launch, create, crumble events | 7 |
+| Second launch + crumble | config/live; user (get + getAfter); new object; old object; launch, create, crumble events; after sky shard | 8 |
 
 createObject uses afterUser, config and create-event matching; activeTransition uses the new
 object and launch event, plus archivedMatches for the old object/crumble event. Event payload
 checks read the object after the write. updateObject/crumble also read the pre-write user;
 this model counts that user path once alongside afterUser. Edit and interaction user rules
 match their event; event rules check afterUser and config, with objectPayload only for edit.
+Active object writes also require the exact owner entry in the matching sky shard; the
+shard rules read the same user/object paths, already included in each request union.
 Repeated accesses to the same dependent document in one request count once per the
 [Firebase pricing reference](https://firebase.google.com/docs/firestore/pricing#cloud_firestore_security_rules).
 
@@ -466,6 +468,7 @@ plus config/live: this exactly describes the dependencies above for the tested o
 A proposed commit aborted before rule evaluation may overcount; denied/short-circuited rules
 and backend caching cannot be measured by this SDK model. This is not a billing meter.
 
+The sky counter measures delivered shard documents, not the number of objects inside them.
 Production screen subscriptions supply the actual counters, including their moving cursor
 and rebases. Each fresh server subscription counts its initial result set (or the empty-query
 minimum), even after a cache callback; subsequent metadata-only callbacks add nothing.
@@ -495,6 +498,11 @@ the burst, so baseline seed/config reads are conservatively repeated with the sc
 All target summary values come from the target row of this same dataset.
 
 ## Known limitations — sustained fair-day acceptance remains partial
+
+The projection above covers source transactions, one screen and enrichment writers. Phone
+Home listeners, workshop catalogs/inventory/config, two-node lease polling and the idle
+remainder of the day are modeled separately in [live-sky.md](live-sky.md). PASS here
+is not a whole-day quota guarantee. That model must also fit before opening the season.
 
 Arrivals are compressed into a five-second burst; visitors follow one planet-only journey.
 Snapshot and memory test cadence is eight seconds; production uses thirty seconds. Archive

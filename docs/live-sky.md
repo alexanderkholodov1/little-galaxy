@@ -12,18 +12,19 @@ reads / 7,560 writes, including one screen and stand/archive work. These are SDK
 observations and a scenario model, not production billing measurements.
 
 For the new phone sky assume 300 distinct visitors, one three-minute sky session
-each, uniformly distributed across eight hours: 1.875 simultaneous phone listeners.
+each, uniformly distributed across eight hours: 1.875 simultaneous phone listeners on average; budget two concurrent listeners for
+the evenly spaced scenario. This is not an upper bound for random bursts.
 Assume a growing sky with 150 objects on average at connection, 300 finally; each
 visitor performs the measured two-launch/one-edit journey. Reconnects and additional
 sessions are separate costs. Daily Spark allowances: 50,000 reads / 20,000 writes.
 
 | Additional phone sky model | Initial reads | Change reads | Additional visitor writes |
 | --- | ---: | ---: | ---: |
-| Direct active-object queries | 300 × 150 = 45,000 | at least 900 × 1.875 = 1,688 | 0 |
-| 16 aggregate shards | at most 300 × 16 = 4,800 | at most 900 × 1.875 = 1,688 | 900 |
+| Direct active-object queries | 300 × 150 = 45,000 | 900 × 2 = 1,800 | 0 |
+| 16 aggregate shards | at most 300 × 16 = 4,800 | 900 × 2 = 1,800 | 900 |
 
 Direct queries already exceed 50,000 reads when added to the measured baseline
-(72,342), even before reconnections or rule reads. Choose **16 aggregate shards**.
+(72,454), even before reconnections or rule reads. Choose **16 aggregate shards**.
 One shard write per launch/relaunch/edit atomically replaces the owner's entry.
 Replacement never exposes two simultaneous active bodies. Listener billing is per
 changed document, irrespective of the number of bodies in that shard.
@@ -32,15 +33,23 @@ Conservatively add 900 rule-dependent reads to require the matching shard in eac
 object mutation, and 300 reads for possible increased screen deliveries (do not
 subtract the old direct-query allowance). Two stand contenders check every 30 s:
 960 leader transaction reads + 960 follower checks, 960 heartbeat writes in eight
-hours. Reserve another 4,800 reads for one workshop host-catalog query per phone, 600
-for phone config/inventory startup, and 300 for archived moon-host lookups. Total
-fair model: **40,962 reads / 9,420 writes**. Adding the remaining 16 hours of lease
-polling gives **44,802 reads / 11,340 writes** for that calendar day. Headroom:
-5,198 reads / 8,660 writes; not a capacity guarantee. A second
-three-minute visit per visitor adds up to 6,488 reads. Long-lived background phone
+hours. Reserve another 4,800 reads for one workshop host-catalog query per phone, 300
+for phone config startup, 1,200 for initial inventory queries plus both post-launch
+inventory refreshes, and 300 for archived moon-host lookups. Total
+fair model: **41,974 reads / 9,420 writes**. Keep one screen and both contenders running for the remaining 16 hours, with the
+season closed (no scheduled meteors): add 3,840 lease reads, 1,280 empty-event rebase
+reads, 1,920 lease writes and 1,920 legacy snapshot writes. Full quota day:
+**47,094 reads / 13,260 writes**. Headroom: 2,906 reads / 6,740 writes; not a capacity guarantee. A second
+three-minute visit per visitor adds 6,600 scenario reads before another workshop session. Long-lived background phone
 tabs, widespread reconnects, maximum daily interaction budgets, skewed arrival
 bursts, archive republications and repeated stand restarts can exceed this model.
-Observe Firebase usage; close interaction switches before quota exhaustion.
+Public replay and permanent pages spend additional document reads; consult the live
+manifest's actual chunk count rather than assuming five reads for every season.
+Those optional views are outside the base model. A late leader failover can reread
+roughly 3,000 historical events plus 600 source objects, exceeding the remaining
+read headroom. These costs cannot all be promised within Spark. Observe Firebase
+usage; close interaction switches before quota exhaustion and avoid repeated stand
+restarts.
 
 An idle 24-hour day with one screen, two contenders and no visitors/changes costs
 at most 5,760 lease reads + 1,920 empty recent-event rebases + initial source/config/

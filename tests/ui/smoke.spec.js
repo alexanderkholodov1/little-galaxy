@@ -1,4 +1,4 @@
-/* global document, innerWidth */
+/* global document, innerWidth, window, MutationObserver */
 import { expect, test } from '@playwright/test';
 import { seedDemo } from '../../scripts/demo-emulators.mjs';
 
@@ -24,11 +24,26 @@ test('connected phone launch, edit, crumble, hangar relaunch and comet reach the
     await phone.getByRole('button', { name: 'Preset 2', exact: true }).click();
     const name = await phone.locator('.planet-specimen').getAttribute('aria-label');
     await phone.locator('[data-step=launch]').click();
-    const started = Date.now();
+    await launch.scrollIntoViewIfNeeded();
+    // Measure native click to rendered frame, excluding automation scroll/poll scheduling.
+    await launch.evaluate((button) => button.addEventListener('click', () => { window.galaxyLaunchAt = Date.now(); }, { once: true, capture: true }));
+    await screen.evaluate((baseline) => {
+      window.galaxyRenderedAt = 0;
+      const canvas = document.querySelector('.galaxy-field canvas');
+      const observer = new MutationObserver(() => {
+        if (Number(canvas.dataset.triangles) > baseline) {
+          window.galaxyRenderedAt = Date.now(); observer.disconnect();
+        }
+      });
+      observer.observe(canvas, { attributes: true, attributeFilter: ['data-triangles'] });
+    }, trianglesBefore);
     await launch.click();
     await expect(screen.getByRole('option', { name: new RegExp(name) })).toHaveCount(1, { timeout: 2000 });
-    await expect.poll(async () => Number(await screen.locator('.galaxy-field canvas').getAttribute('data-triangles')), { timeout: Math.max(1, 2000 - (Date.now() - started)), intervals: [50] }).toBeGreaterThan(trianglesBefore);
-    expect(Date.now() - started).toBeLessThanOrEqual(2000);
+    await expect.poll(() => screen.evaluate(() => window.galaxyRenderedAt), { timeout: 5000, intervals: [50] }).toBeGreaterThan(0);
+    const launchToRenderMs = await screen.evaluate(() => window.galaxyRenderedAt) - await phone.evaluate(() => window.galaxyLaunchAt);
+    console.log(JSON.stringify({ launchToRenderMs }));
+    expect(launchToRenderMs).toBeGreaterThanOrEqual(0);
+    expect(launchToRenderMs).toBeLessThanOrEqual(2000);
     await expect(phone.locator('.launch-feedback')).toContainText('In orbit');
     const firstId = await screen.getByRole('option', { name: new RegExp(name) }).getAttribute('value');
     const radius = phone.getByRole('slider', { name: 'Radius' });

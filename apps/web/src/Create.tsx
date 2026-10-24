@@ -279,7 +279,7 @@ export default function Create({ language }: { language: Language }) {
       const id = await launchPlanet(firestore, uid, draft, { ...orbit, hostId });
       setDeparted(inventory.filter((o) => o.status === 'active').map((o) => renderObject(o.id, o)));
       setSpecimen(id);
-      setWorkshopStep('parameters');
+      setWorkshopStep((step) => step === 'launch' ? 'parameters' : step);
       setEditing(true);
       remember('edit', id);
       baseline.current = JSON.stringify(draft);
