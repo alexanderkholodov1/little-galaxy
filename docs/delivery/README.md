@@ -6,7 +6,7 @@ The approved final PDFs live in this directory. Do not substitute drafts or empt
 |---|---|---|
 | [Informe-Little-Galaxy.pdf](Informe-Little-Galaxy.pdf) | Technical report: project, architecture, implementation and evidence with limitations | Included |
 | [Poster-Little-Galaxy.pdf](Poster-Little-Galaxy.pdf) | Fair poster for visitors and evaluators | Included |
-| [Presentacion-Little-Galaxy.pdf](Presentacion-Little-Galaxy.pdf) | Presentation slides for the evaluation | Pending captain copy |
+| [Presentacion-Little-Galaxy.pdf](Presentacion-Little-Galaxy.pdf) | Presentation slides for the evaluation | Included |
 
 `img/galaxia-tv.png` and `img/telefono-create.png` are unchanged real application captures copied
 from the delivery report assets (local rehearsal, 2026-10-24). They show the booth sky and phone
