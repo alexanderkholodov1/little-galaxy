@@ -1052,7 +1052,7 @@ it('init provisions the exact closed season once, supports client reads and perm
   expect(await applyControl(database, ['init'])).toEqual(initialConfig());
   const config = (await assertSucceeds(getDoc(doc(db(), 'config', 'live')))).data();
   expect(config).toEqual(initialConfig());
-  expect(config.season).toBe('bad-2026'); expect(config.appVersion).toBe('1.0.1');
+  expect(config.season).toBe('bad-2026'); expect(config.appVersion).toBe(JSON.parse(await readFile(new URL('../../apps/stand/package.json', import.meta.url), 'utf8')).version);
   expect(readConfig(config).seasonOpen).toBe(false);
   await assertFails((await launchBatch(db())).commit());
   await expect(applyControl(database, ['init'])).rejects.toThrow('refuses to overwrite');
