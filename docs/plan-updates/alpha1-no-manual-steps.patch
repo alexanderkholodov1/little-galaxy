@@ -1,0 +1,37 @@
+--- a/docs/plan/02-architecture.md
++++ b/docs/plan/02-architecture.md
+@@ -107,9 +107,17 @@
+   portfolio site containing only the galaxy build (channels never touch production). Needs secret
+   with deploy rights to project `alexanderkholodov` (ideally a deploy-only "Firebase Hosting Admin"
+   service account; only the operator can create it).
+-- On tag `vX.Y.Z` (after the version PR is merged): build with base `/galaxy/` → attach
++- On a Galaxy version PR merge to `main`: CI creates the missing exact package-version tag on
++  the merge commit and calls the reusable release workflow (external tag pushes remain supported).
++  Alpha/beta releases are prereleases. Build with base `/galaxy/` → attach
+   `galaxy-dist-vX.Y.Z.tar.gz` (+ `version.json`) to a GitHub Release. Also deploys
+-  `firestore.rules` to the data project (rules changes always require operator approval, see 05).
++  rules and indexes to the data project after the existing environment approval. The first sky
++  migration saves/closes/restores `seasonOpen`, commits an admin-only completion marker with the
++  shards, and is a no-op on later releases. A failed restoration retains recovery state and fails
++  loudly. GitHub Actions provides season/kill-switch/scene/timing and recovery controls, validated
++  by the stand parser, using the same environment and existing secret; no laptop key or release
++  commands. See Galaxy RUNBOOK §11 for one-time IAM console grants and interruption recovery.
++  Only the exact published tag is dispatched to portfolio for production Hosting.
+ 
+ **portfolio repo (GitHub Actions):**
+ - On PR: build Astro + assemble games from `games.json` → preview channel.
+--- a/docs/plan/CHANGELOG.md
++++ b/docs/plan/CHANGELOG.md
+@@ -2,6 +2,12 @@
+ 
+ Every change to `docs/plan/` after it was written. Newest first.
+ Format: `YYYY-MM-DD — <what changed> — <why> — decided by <operator | agent>`.
++
++- 2026-10-24 — Galaxy releases start on the operator's version-PR merge; CI creates the exact
++  package tag, obtains existing environment approval, deploys rules/indexes, performs a one-time
++  recoverable sky migration and dispatches the exact release to portfolio. Controls move to
++  reviewed GitHub Actions using existing credentials. One-time data/index IAM grants replace
++  laptop release commands and polling tag scripts — instructed and decided by operator.
+ 
+ - 2026-10-22 — Recorded the operator's decisions of 2026-10-22 in `08-decisions.md` with his
+   words: objective "todo el juego y todo lo planificado listo" for 2026-10-23; the assistant is out

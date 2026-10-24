@@ -8,7 +8,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: galaxy-release-on-merge
+  # Distinct merges must not replace each other in GitHub's single pending slot.
+  group: galaxy-release-on-merge-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:

@@ -389,26 +389,102 @@ Archive/timelapse publication, legacy snapshots and scheduled meteors require on
 leader. Operator controls are independent admin commands and do not need leadership.
 See [live-sky.md](live-sky.md) for quota assumptions and failure boundaries.
 
-### Before the first alpha.1 publication
+### Release path: merge and approve in GitHub
 
-1. The captain stages the release and rules through the reviewed release workflow.
-   Existing pre-alpha phone transactions do not write shards and will be rejected
-   by the new reciprocal rules. Close the season before activating these rules,
-   preserve saved drafts, and let the old clients' version watcher offer a safe
-   update. Reopen only after the alpha artifact is served and both views pass the
-   read-only check. This is a compatibility boundary, not a zero-interruption rollout.
-2. With the operator's admin environment exported, run:
-   ```sh
-   pnpm --filter @little-galaxy/stand control flag seasonOpen off
-   pnpm --filter @little-galaxy/stand migrate-sky
-   ```
-   Migration refuses an open season, validates sources and atomically writes all
-   16 shards. Never run it while writes are open. It includes pre-alpha active
-   objects and unclaimed operator seeds. It does not alter objects or open config.
-3. Open Home and Screen with both stands stopped. Confirm an existing object (or
-   a valid empty sky). Reopen explicitly with `control flag seasonOpen on` and
-   confirm a new phone launch/edit appears on both without a stand. Start the
-   enrichment processes after this check. No migration repeats on ordinary restart.
+The captain merges the version PR. A push to main reads `apps/web/package.json`:
+if `v<version>` already exists it does nothing; otherwise CI creates that exact tag
+on the merge commit and calls the full release workflow directly. No polling
+machine, laptop key, terminal command or manual tag is part of this path.
+External tag pushes still invoke the same release workflow; guards require the
+exact package version and a commit on main. Alpha and beta releases are prereleases.
+
+1. Merge the reviewed PR. Follow **Release on merge** in GitHub Actions. All normal
+   checks and the privacy gate run before the data-project job.
+2. Approve the existing **little-galaxy-rules** environment when GitHub requests it.
+   The job uses the existing `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY` secret.
+   Before the first backfill only, it atomically records the current `seasonOpen`
+   value and closes writes. It deploys rules and indexes, backfills the 16 shards,
+   then restores that exact value, including an originally closed season.
+3. The migration commits `migrations/sky-v1.complete` with all shards. A successful
+   rerun or later release leaves both config and shards untouched while still
+   deploying rules/indexes. The marker is admin-only; clients cannot read or write
+   it. Existing objects and seeds remain the source for the first backfill.
+4. After rules/migration succeed, CI publishes the checked artifact as a GitHub
+   Release and dispatches its exact tag to portfolio. Portfolio owns production
+   Hosting. This repository never deploys production Hosting.
+5. Verify the deployed preview and production Home/Screen on real phones before
+   accepting the rollout. Old pre-alpha transactions omit reciprocal shards and
+   will be rejected after the new rules; their saved drafts and version watcher
+   allow a safe update. A restored open season can precede portfolio publication:
+   this compatibility boundary can briefly reject old-client writes.
+
+Deployment or migration errors fail the job after attempting restoration. An
+always-run second recovery step retries restoration before removing the temporary
+credential file. If Firestore is unreachable or the runner disappears, automatic
+restoration cannot be guaranteed: the failed run remains red and the saved value
+stays in `migrations/sky-v1.seasonOpenBefore`. Use **Operate the sky → restore-season**
+(clear key and value), approve the environment, and check the green result. This
+recovery action is idempotent. Never delete the migration marker to retry a release.
+Use GitHub **Re-run failed jobs** after correcting IAM or connectivity; re-running
+the entire merge workflow sees its existing tag and skips release creation. A
+second push of an already tagged version deliberately skips release creation.
+
+### One-time release service-account IAM (Google Cloud Console only)
+
+In Google Cloud Console select the **data project matching the repository variable
+VITE_FIREBASE_PROJECT_ID** (normally `little-galaxy`), then **IAM & Admin → IAM**.
+Locate the principal used by the existing GitHub environment secret, normally
+`firebase-adminsdk-<suffix>@<data-project-id>.iam.gserviceaccount.com`; a dedicated
+account may instead be `<account-id>@<data-project-id>.iam.gserviceaccount.com`.
+Match the email in **IAM & Admin → Service Accounts** to the account originally
+used for that secret. Do not inspect, print or replace the key to identify it.
+
+Click the principal's **Edit principal** pencil → **Add another role**, add only
+missing roles from this list, then **Save**. Existing equivalent grants may already
+cover some permissions; the builder has not inspected live IAM.
+
+| Console role | Role ID | Why this release identity needs it |
+| --- | --- | --- |
+| Cloud Datastore User | `roles/datastore.user` | Read objects/config; write migration shards/marker and close/restore season flags; execute GitHub controls. This is the new data-write requirement. |
+| Cloud Datastore Index Admin | `roles/datastore.indexAdmin` | List, create/update and remove declared Firestore indexes during the release. This is the index-deploy requirement. |
+| Firebase Rules Admin | `roles/firebaserules.admin` | Compile and publish Firestore rulesets/releases; keep the existing reviewed rules deployment permission. |
+| Firebase Viewer | `roles/firebase.viewer` | Firebase CLI project discovery (`firebase.projects.get`) and read-only API/service checks for the existing Firebase project. |
+| Service Usage Consumer | `roles/serviceusage.serviceUsageConsumer` | Use the data project as the quota project (`serviceusage.services.use`) for the pinned CLI's API checks, which send `x-goog-user-project`. |
+
+No Owner, Editor, Hosting Admin, service-agent role or billing upgrade is needed.
+The data project's Firestore and Rules APIs/database already exist; deployment
+must not depend on enabling paid services. GitHub tagging/release permissions are
+job-scoped `contents: write`; data jobs use `contents: read`. Portfolio dispatch
+continues to use its existing separate `PORTFOLIO_DISPATCH_TOKEN`.
+
+Role references: [Firestore IAM](https://firebase.google.com/docs/firestore/security/iam),
+[Rules IAM](https://docs.cloud.google.com/iam/docs/roles-permissions/firebaserules),
+[Firebase Viewer](https://docs.cloud.google.com/iam/docs/roles-permissions/firebase)
+[Service Usage Consumer](https://docs.cloud.google.com/iam/docs/roles-permissions/serviceusage)
+and [Firebase CLI prerequisites](https://firebase.google.com/docs/projects/iam/permissions).
+These are project IAM grants, not new credentials or external services.
+
+### Operate the sky from GitHub
+
+Open this repository's **Actions → Operate the sky → Run workflow**, select **main**,
+enter the action/key/value, and approve **little-galaxy-rules**. Dispatches from
+other branches are skipped. Controls and release migrations share a concurrency
+group, so an operator flag change cannot race a release's restoration.
+
+| Action | Key | Value |
+| --- | --- | --- |
+| `flag` | `seasonOpen`, `launches`, `edits`, `shake`, `comets`, `shootingStars`, `meteorShowers`, `soundOnScreen`, `sound`, `spotlight` | `on` or `off` |
+| `scene` | `galaxy`, `bigQr`, `spotlight`, `cinematic`, `timelapse` | empty |
+| `timing` | `idleSeconds`, `meteorMinSeconds`, `meteorMaxSeconds` | seconds within the stand's bounds |
+| `init` | empty | empty; create missing config once, closed; refuses overwrite |
+| `restore-season` | empty | empty; restore a release's saved flag after interruption |
+
+Inputs reach the stand as data and are validated against its own control parser;
+there is no separate workflow allowlist of flags. Invalid keys/values fail before
+opening an admin connection. `sound` updates the existing sound alias and screen
+flag together. The result appears in the workflow log. These controls need no stand
+daemon, laptop terminal or local admin key. The optional enrichment service setup
+below is independent of the release path.
 
 ### Missing Beacon credential: exact operator steps (none executed by this task)
 
@@ -484,19 +560,20 @@ The portfolio still reads snapshots/live (creators/at): content changes debounce
 with no idle heartbeat writes. Its at is a content publication time, not a liveness signal.
 Archive writes debounce for 120s; restarts hydrate public chunks and query only the inclusive
 source timestamp boundary/new records. Install the declared events type+at composite index
-as part of the captain's normal release procedure before activating this build.
+automatically in the reviewed release job before publishing this build.
 Check archive continuity after recovery. Beacon/laptop installation, credential
-provisioning, production migration and physical failover remain operator acceptance.
+provisioning and physical failover remain operator acceptance; migration is automated by the reviewed release job.
 
 
 ## 12. Exact-tag release dispatch (chain b)
 
-The captain alone publishes tags. `verify-release.js` accepts stable `vX.Y.Z` or
-positive, non-zero-padded `v1.0.0-alpha.N`, exactly matching the web package version.
-The tag must still belong to main. Checks build `version.json` from that version;
-the final release uses the checked artifact after reviewed rules publication.
-Alpha tags use `gh release create --prerelease --latest=false`, so existing stable
-tags/releases are neither moved nor implicitly selected.
+A merge to main creates a missing package-version tag in CI and calls `release.yml`
+with that exact tag. Tags remain immutable; an existing version is skipped.
+`verify-release.js` accepts stable `vX.Y.Z` or `vX.Y.Z-alpha.N`/`vX.Y.Z-beta.N`
+(positive non-zero-padded N), exactly matching the web package version. The tagged
+commit must belong to main. All checkout/build/deploy jobs use the verified tag's
+commit, including reusable calls whose event ref is main. Alpha/beta publication
+uses `--prerelease --latest=false`, preserving the stable latest release.
 
 Only after `gh release create` succeeds, the final publish step posts:
 
@@ -507,18 +584,16 @@ Only after `gh release create` succeeds, the final publish step posts:
 }
 ```
 
-The tag is the exact `GITHUB_REF_NAME`, not a highest-semver/latest-release lookup.
+The tag comes from the release guard, never a highest-semver/latest lookup.
 The destination is `alexanderkholodov1/portfolio`'s `repository_dispatch` endpoint.
-The step uses repository secret `PORTFOLIO_DISPATCH_TOKEN`; the operator reports it
-already exists. It must authorize dispatch to that destination (fine-grained token:
-portfolio repository Contents write permission; classic token: appropriate repo
-scope). The token is exposed only to the final dispatch step and never to a build.
-Missing/expired authorization or a non-2xx response fails the publish job. That
-failure leaves the already-published release intact; it does not imply a Hosting
-update. For a dispatch-only retry, the captain can run the same `gh api` request
-with the **original exact tag** after checking the release exists. Re-running the
-entire publish job encounters an existing release and is not an idempotent retry.
+Repository secret `PORTFOLIO_DISPATCH_TOKEN` must authorize dispatch to that repo
+(fine-grained Contents write, or the existing appropriate classic repo scope).
+It reaches only the final dispatch step. Missing/expired authorization or a non-2xx
+response fails publication; this does not imply a Hosting update. If release
+publication succeeded but dispatch failed, use GitHub **Re-run failed jobs** after
+correcting authorization. The publish job verifies the existing assets against
+the checked checksums before repeating dispatch; it never overwrites them.
+An incomplete or mismatched existing release fails loudly for review.
 
-The portfolio receiver, exact-artifact validation, main-branch production policy and
-Hosting deployment are a separate captain task. No repository dispatch or other
-GitHub/Hosting mutation was executed by this builder.
+The portfolio receiver and its production policy remain separately owned. This
+builder performed no GitHub dispatch, rule/index deployment or Hosting mutation.
