@@ -1,4 +1,7 @@
-# Alpha.1 release automation: local evidence
+# Alpha.1 release automation: prior-round local evidence
+
+Historical evidence for commits .18–.23. Release recovery, initialization, queueing and
+credits behaviour below are superseded by [the review fixes](alpha1-fix-review-status.md).
 
 2026-10-24. Scope: release-on-merge, reviewed sky migration/recovery, GitHub controls,
 and console-only release IAM. No push, tag, GitHub settings change, dispatch,

@@ -23,15 +23,14 @@ Este manual contiene las instrucciones operativas para **Galaxia Colectiva** en 
       export FIREBASE_PROJECT_ID=little-galaxy
       pnpm --filter @little-galaxy/stand start
       ```
-   2. Terminal B — inicializar una sola vez y abrir explícitamente (repetir exports; no hereda la Terminal A):
+   2. Terminal B — explicitly open the season (repeat exports; Terminal A does not share them):
       ```sh
       cd /ruta/al/checkout/galaxy
       export GOOGLE_APPLICATION_CREDENTIALS=/ruta/a/private/serviceAccountKey.json
       export FIREBASE_PROJECT_ID=little-galaxy
-      pnpm --filter @little-galaxy/stand control init
       pnpm --filter @little-galaxy/stand control flag seasonOpen on
       ```
-      `control init` crea `config/live` para `bad-2026`, imprime el documento y deja `seasonOpen` apagado. Todas las interacciones están habilitadas; el asistente sigue apagado. Si el documento ya existe, rechaza la operación sin modificarlo: omitir `init` en los siguientes arranques. El stand publica `snapshots/live` al recibir su primera lectura, incluso sin configuración ni objetos.
+      Stand startup creates missing `config/live` with closed defaults and preserves existing settings. Explicitly open only when ready. The optional `control init` command refuses to overwrite an existing document.
    3. En la TV: abrir `https://alexanderkholodov.web.app/galaxy/screen`, pulsar **F** para el modo quiosco (el cursor se oculta a los 2.5 s). Tras un reload, el layout quiosco se restaura automáticamente; pulsar **F** restaura de inmediato la pantalla completa del navegador.
    4. Probar desde el teléfono: escanear el QR, lanzar un planeta y confirmar que aparece en la TV.
 3. **Durante el día**: escenas y kill switches vía `control`; monitorear cuota Spark; rollback desde el checkout de portfolio.
@@ -75,7 +74,7 @@ export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
 export FIREBASE_PROJECT_ID=demo-little-galaxy
 pnpm --filter @little-galaxy/stand start
 
-# Start E3 below to initialize and open the season before opening the screen.
+# Start E3 below to explicitly open the season before opening the screen.
 # Terminal E2 — web client configured for demo emulators
 # VITE_USE_EMULATORS=1 selects the demo project and emulator connections.
 # --host 0.0.0.0 allows real phones on the same Wi-Fi to scan the QR code and connect.
@@ -86,14 +85,14 @@ pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
 For screen testing on the booth laptop, open `http://127.0.0.1:4177/galaxy/screen` and press **F**.
 For real phone rehearsal across Wi-Fi, open `http://<laptop-lan-ip>:4177/galaxy/screen` (e.g. `192.168.1.50:4177`) so the on-screen join QR code encodes the reachable LAN IP.
 
-After the stand starts, initialize once and open the season from a dedicated control terminal (Terminal E3). Then open the screen and test a phone:
+After the stand creates any missing configuration, open the season from a dedicated control terminal (Terminal E3). Then open the screen and test a phone:
 
 ```sh
 # Terminal E3 — controls (requires explicit emulator exports)
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
 export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
 export FIREBASE_PROJECT_ID=demo-little-galaxy
-pnpm --filter @little-galaxy/stand control init # first time only
+# Stand startup creates config/live if absent; existing settings are preserved.
 pnpm --filter @little-galaxy/stand control flag seasonOpen on
 pnpm --filter @little-galaxy/stand control scene galaxy
 ```
@@ -111,13 +110,13 @@ pnpm --filter @little-galaxy/stand start
 
 Do not print or commit the key. The elected stand publishes the legacy `snapshots/live` after its first healthy object read, independently of `config/live`. Home and Screen use client-maintained sky shards and remain live with both contenders stopped. A confirmed empty sky invites creation; only a real connection failure offers Retry.
 
-### Step 2: Initialize once, then open season (secondary terminal)
+### Step 2: Explicitly open the season (secondary terminal)
 
 ```sh
 cd /path/to/galaxy-checkout
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/private/serviceAccountKey.json
 export FIREBASE_PROJECT_ID=little-galaxy
-pnpm --filter @little-galaxy/stand control init # first time only
+# Stand startup creates config/live if absent; existing settings are preserved.
 pnpm --filter @little-galaxy/stand control flag seasonOpen on
 pnpm --filter @little-galaxy/stand control scene galaxy
 ```
@@ -351,12 +350,12 @@ pnpm --filter @little-galaxy/web exec vite --host 0.0.0.0 --port 4177
 ```
 
 ```sh
-# E3: initialize once, then explicitly open (before screen and phone test)
+# E3: explicitly open (startup already creates missing config)
 cd /path/to/galaxy-checkout
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
 export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
 export FIREBASE_PROJECT_ID=demo-little-galaxy
-pnpm --filter @little-galaxy/stand control init # first time only
+# Stand startup creates config/live if absent; existing settings are preserved.
 pnpm --filter @little-galaxy/stand control flag seasonOpen on
 pnpm --filter @little-galaxy/stand control scene galaxy
 ```
@@ -392,7 +391,7 @@ See [live-sky.md](live-sky.md) for quota assumptions and failure boundaries.
 ### Release path: merge and approve in GitHub
 
 The captain merges the version PR. A push to main reads `apps/web/package.json`:
-if `v<version>` already exists it does nothing; otherwise CI creates that exact tag
+if `v<version>` already exists it skips with an Actions notice and run summary; otherwise CI creates that exact tag
 on the merge commit and calls the full release workflow directly. No polling
 machine, laptop key, terminal command or manual tag is part of this path.
 External tag pushes still invoke the same release workflow; guards require the
@@ -402,9 +401,14 @@ exact package version and a commit on main. Alpha and beta releases are prerelea
    checks and the privacy gate run before the data-project job.
 2. Approve the existing **little-galaxy-rules** environment when GitHub requests it.
    The job uses the existing `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY` secret.
-   Before the first backfill only, it atomically records the current `seasonOpen`
-   value and closes writes. It deploys rules and indexes, backfills the 16 shards,
-   then restores that exact value, including an originally closed season.
+   If `config/live` is missing, the release creates the documented defaults below
+   transactionally without overwriting any existing document. No prior dispatch is
+   required for the first merge. Before the first backfill only, it atomically saves
+   `seasonOpen` and closes writes. It dry-runs all active sources, ownership keys and
+   shard capacity while closed, and refuses pre-existing shards without a completed
+   marker. Only then does it persist `deploymentStarted`, deploy rules and indexes,
+   backfill the 16 shards atomically and restore the saved flag (including closed).
+   An explicit operator close during this window supersedes the saved open flag.
 3. The migration commits `migrations/sky-v1.complete` with all shards. A successful
    rerun or later release leaves both config and shards untouched while still
    deploying rules/indexes. The marker is admin-only; clients cannot read or write
@@ -418,16 +422,51 @@ exact package version and a commit on main. Alpha and beta releases are prerelea
    allow a safe update. A restored open season can precede portfolio publication:
    this compatibility boundary can briefly reject old-client writes.
 
-Deployment or migration errors fail the job after attempting restoration. An
-always-run second recovery step retries restoration before removing the temporary
-credential file. If Firestore is unreachable or the runner disappears, automatic
-restoration cannot be guaranteed: the failed run remains red and the saved value
-stays in `migrations/sky-v1.seasonOpenBefore`. Use **Operate the sky → restore-season**
-(clear key and value), approve the environment, and check the green result. This
-recovery action is idempotent. Never delete the migration marker to retry a release.
-Use GitHub **Re-run failed jobs** after correcting IAM or connectivity; re-running
-the entire merge workflow sees its existing tag and skips release creation. A
-second push of an already tagged version deliberately skips release creation.
+Validation failures before deployment restore the prior season setting. Once
+`deploymentStarted` is persisted, any deployment failure (including rules applied
+but indexes failed) or incomplete migration **keeps the season closed**. The red
+job and summary point to **Operate the sky**. Automatic recovery and manual
+`restore-season` both refuse to reopen an incomplete post-deploy migration. Inspect
+and repair the source/configuration, keep `seasonOpen off`, then **Re-run failed
+jobs** on the current release; successful migration permits restoration. Never
+delete the marker or shards to bypass recovery. After a runner interruption before
+deploy, or after successful migration but failed restoration, **Operate the sky →
+restore-season** (empty key/value) safely restores the saved setting.
+
+Both deployment and publication fetch the current tip of `main` and refuse unless
+the tag equals `v` plus its web package version. Dispatch rechecks this boundary.
+Historical `v1.0.0` and `v1.0.1` tags do not determine the current alpha version.
+A stale run must remain red: run the current version's release instead. Releases
+serialize their data jobs in `galaxy-sky-releases`; controls have no concurrency
+pending slot and cannot be cancelled by a queued release. GitHub can still replace
+an older pending **release** with a newer release: inspect cancelled release jobs
+and retry only if the exact current-main version guard permits it.
+
+Known alpha limitations from review:
+- **MINOR-1:** the workflow's main-branch `if` is a convenience, not a security
+  boundary. Restrict the **little-galaxy-rules** environment's deployment branches
+  to `main` and retain the operator as required reviewer. If external tag-push
+  releases are needed, explicitly allow `v*` tags too; otherwise they are blocked.
+- **MINOR-2:** no watchdog runs after runner loss or a Firestore outage. Recovery
+  state remains in the marker; inspect the red run and use the recovery flow above.
+- **MINOR-3 (fixed for supported controls):** an explicit `seasonOpen off` through
+  Operate the sky updates the retained saved flag in the same transaction, so a
+  later restoration stays closed. Direct Console/Admin SDK edits bypass this
+  coordination and can still be superseded by recovery; use Operate the sky.
+- **MINOR-5:** **Re-run failed jobs** reuses the exact `release-files` artifact,
+  retained for **7 days**. A full rebuild is not byte-identical (timestamps) and
+  fails checksum comparison if the release already exists. After artifact expiry,
+  recover through a newly reviewed version release; do not overwrite published bytes.
+
+Initial defaults (`initialConfig`, shared by release and stand startup): schema 1,
+season `bad-2026`, the stand package's `appVersion`, **seasonOpen false**, launches,
+edits, comets, shake, shooting stars, meteor showers, screen sound, sound alias and
+spotlight enabled; public assistant disabled; idle 60 seconds; meteors 360–900
+seconds; scene `galaxy`. The stand also creates these only if missing on startup.
+An existing document is never overwritten; open the season explicitly when ready.
+IAM grants and environment restrictions/reviewer must be set before the first merge;
+there is no required `init` dispatch. Live IAM and GitHub approval behaviour still
+need the first approved run to verify them.
 
 ### One-time release service-account IAM (Google Cloud Console only)
 
@@ -468,8 +507,10 @@ These are project IAM grants, not new credentials or external services.
 
 Open this repository's **Actions → Operate the sky → Run workflow**, select **main**,
 enter the action/key/value, and approve **little-galaxy-rules**. Dispatches from
-other branches are skipped. Controls and release migrations share a concurrency
-group, so an operator flag change cannot race a release's restoration.
+other branches are normally skipped; enforce the environment branch policy above.
+Controls execute independently of release queues. Transactions coordinate config
+and migration recovery: emergency close takes precedence, other flags are preserved,
+and `seasonOpen on` is refused while a migration recovery flag remains.
 
 | Action | Key | Value |
 | --- | --- | --- |
@@ -477,7 +518,7 @@ group, so an operator flag change cannot race a release's restoration.
 | `scene` | `galaxy`, `bigQr`, `spotlight`, `cinematic`, `timelapse` | empty |
 | `timing` | `idleSeconds`, `meteorMinSeconds`, `meteorMaxSeconds` | seconds within the stand's bounds |
 | `init` | empty | empty; create missing config once, closed; refuses overwrite |
-| `restore-season` | empty | empty; restore a release's saved flag after interruption |
+| `restore-season` | empty | empty; restore saved flag only before deployment or after completed migration |
 
 Inputs reach the stand as data and are validated against its own control parser;
 there is no separate workflow allowlist of flags. Invalid keys/values fail before
