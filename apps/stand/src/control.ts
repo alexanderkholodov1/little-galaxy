@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import type { Firestore } from 'firebase-admin/firestore';
 import { SEASON, screenScenes } from '@little-galaxy/shared';
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+export const controlFlags = ['launches', 'edits', 'comets', 'shake', 'shootingStars', 'meteorShowers', 'soundOnScreen', 'sound', 'spotlight', 'seasonOpen'];
+
 export function initialConfig() {
   return {
     schemaVersion: 1 as const, season: SEASON, appVersion: version,
@@ -16,7 +18,7 @@ export function controlPatch(args: string[]): Record<string, string | boolean | 
   const [command, key, value, ...extra] = args;
   if (!extra.length && command === 'scene' && screenScenes.includes(key as typeof screenScenes[number]) && value === undefined)
     return { screenScene: key };
-  if (!extra.length && command === 'flag' && ['launches','edits','comets','shake','shootingStars','meteorShowers','soundOnScreen','sound','spotlight','seasonOpen'].includes(key)
+  if (!extra.length && command === 'flag' && controlFlags.includes(key)
     && ['on','off'].includes(value)) {
     const flagVal = value === 'on';
     if (key === 'sound') return { soundOnScreen: flagVal, sound: flagVal };

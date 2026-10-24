@@ -1,0 +1,63 @@
+name: Operate the sky
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Stand control action (clear key and value for init or restore-season)
+        type: choice
+        options: [flag, scene, timing, init, restore-season]
+        required: true
+        default: flag
+      key:
+        description: Flag or timing name; scene name for scene; empty for init or restore-season
+        type: string
+        default: seasonOpen
+      value:
+        description: on/off for flags; seconds for timing; empty for scene, init or restore-season
+        type: string
+        default: 'off'
+
+permissions:
+  contents: read
+
+jobs:
+  control:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: little-galaxy-rules
+    concurrency:
+      group: galaxy-sky-admin
+      cancel-in-progress: false
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install pinned dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Write data-project credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY }}
+        run: |
+          : "${FIREBASE_PROJECT_ID:?Set the data-project VITE_FIREBASE_PROJECT_ID repository variable}"
+          umask 177
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY" > "$RUNNER_TEMP/little-galaxy-rules.json"
+          chmod 600 "$RUNNER_TEMP/little-galaxy-rules.json"
+      - name: Validate with the stand parser and apply the control
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-rules.json
+          SKY_ACTION: ${{ inputs.action }}
+          SKY_KEY: ${{ inputs.key }}
+          SKY_VALUE: ${{ inputs.value }}
+        run: pnpm --filter @little-galaxy/stand exec tsx src/index.ts github-control
+      - name: Remove data-project credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/little-galaxy-rules.json"

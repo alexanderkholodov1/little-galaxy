@@ -1,3 +1,4 @@
+import { githubControlArgs } from './github-control.js';
 import { spawn } from 'node:child_process';
 import { releaseSky, restoreSkySeason } from './release-sky.js';
 import { objectFeed } from './object-feed.js';
@@ -14,6 +15,10 @@ import { startMeteorScheduler } from './meteors.js';
 import { applyControl, controlPatch } from './control.js';
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 try {
+  if (process.argv[2] === 'github-control') {
+    if (process.argv.length !== 3) throw new Error('GitHub controls accept only dispatch environment inputs.');
+    process.argv.splice(2, 1, ...githubControlArgs(process.env.SKY_ACTION, process.env.SKY_KEY, process.env.SKY_VALUE));
+  }
   const control = process.argv[2] === 'control';
   const release = process.argv[2] === 'release-sky';
   const restore = process.argv[2] === 'restore-season';
