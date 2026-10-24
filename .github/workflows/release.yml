@@ -78,6 +78,17 @@ jobs:
           --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
           --repo "$GITHUB_REPOSITORY"
 
+      - name: Notify portfolio of the published release
+        env:
+          GH_TOKEN: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo '::error::PORTFOLIO_DISPATCH_TOKEN is required to notify alexanderkholodov1/portfolio of this release.' >&2
+            exit 1
+          fi
+          gh api --method POST repos/alexanderkholodov1/portfolio/dispatches \
+            -f event_type=galaxy-released -f "client_payload[tag]=$GITHUB_REF_NAME"
+
   deploy-rules:
     # The operator must be configured as the required reviewer for this environment.
     needs: build
