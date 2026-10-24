@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { appendFile } from 'node:fs/promises';
+import { readFile, appendFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';

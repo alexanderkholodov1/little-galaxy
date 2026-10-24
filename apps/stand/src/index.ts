@@ -45,7 +45,7 @@ try {
     } else if (migrate) {
       await migrateSky(getFirestore());
       await getFirestore().terminate();
-      console.log('Live sky migration complete; season remains closed.');
+      console.log('Live sky migration complete; season setting unchanged.');
     } else if (freeze) {
       await freezeSeason(getFirestore(), process.argv[3]);
       await getFirestore().terminate();

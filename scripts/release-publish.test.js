@@ -7,7 +7,7 @@ import { isPrerelease } from './verify-release.js';
 
 const workflow = await readFile(process.env.RELEASE_WORKFLOW_SOURCE || new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
 function step(name) {
-  const block = workflow.split(`      - name: ${name}\n`)[1].split(/\n      - name:/u)[0];
+  const block = workflow.split(`      - name: ${name}\n`)[1].split(/\n {6}- name:/u)[0];
   return block.split('        run: |\n')[1].split('\n').map((line) => line.replace(/^ {10}/u, '')).join('\n');
 }
 

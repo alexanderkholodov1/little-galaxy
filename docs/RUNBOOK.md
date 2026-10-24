@@ -1,8 +1,8 @@
 # Fair-Day Runbook · Collective Galaxy (G v1.0.0-alpha.1)
 
 **Alpha.1:** the live sky works with both stands stopped. Stand startup below is optional
-enrichment. Before the first alpha publication follow section 11 for migration and Beacon/laptop
-failover; never provision credentials as part of a builder run.
+enrichment. Section 11 covers the merge/approval release path, one-time console IAM,
+GitHub controls and optional Beacon/laptop failover setup.
 
 **Plan of record reference**: `portfolio/docs/plan/05-live-deploys-and-ops.md` § Fair-day runbook.
 
@@ -459,7 +459,7 @@ continues to use its existing separate `PORTFOLIO_DISPATCH_TOKEN`.
 
 Role references: [Firestore IAM](https://firebase.google.com/docs/firestore/security/iam),
 [Rules IAM](https://docs.cloud.google.com/iam/docs/roles-permissions/firebaserules),
-[Firebase Viewer](https://docs.cloud.google.com/iam/docs/roles-permissions/firebase)
+[Firebase Viewer](https://docs.cloud.google.com/iam/docs/roles-permissions/firebase),
 [Service Usage Consumer](https://docs.cloud.google.com/iam/docs/roles-permissions/serviceusage)
 and [Firebase CLI prerequisites](https://firebase.google.com/docs/projects/iam/permissions).
 These are project IAM grants, not new credentials or external services.
@@ -559,8 +559,8 @@ A concurrent takeover conflicts with old writes; stale transaction retries are r
 The portfolio still reads snapshots/live (creators/at): content changes debounce for 120s,
 with no idle heartbeat writes. Its at is a content publication time, not a liveness signal.
 Archive writes debounce for 120s; restarts hydrate public chunks and query only the inclusive
-source timestamp boundary/new records. Install the declared events type+at composite index
-automatically in the reviewed release job before publishing this build.
+source timestamp boundary/new records. The reviewed release job deploys the declared
+events type+at composite index before publishing this build.
 Check archive continuity after recovery. Beacon/laptop installation, credential
 provisioning and physical failover remain operator acceptance; migration is automated by the reviewed release job.
 
