@@ -31,8 +31,7 @@ Este manual contiene las instrucciones operativas para **Galaxia Colectiva** en 
    3. En la TV: abrir `https://alexanderkholodov.web.app/galaxy/screen`, pulsar **F** para el modo quiosco (el cursor se oculta a los 2.5 s). Tras un reload, el layout quiosco se restaura automáticamente; pulsar **F** restaura de inmediato la pantalla completa del navegador.
    4. Probar desde el teléfono: escanear el QR, lanzar un planeta y confirmar que aparece en la TV.
 3. **Durante el día**: escenas y kill switches vía `control`; monitorear cuota Spark; rollback desde el checkout de portfolio.
-4. **Actualizaciones**: merge a `main` → tag de la versión correspondiente → GitHub Release publicada → evento `galaxy-released` → portfolio resuelve y redespliega la última release. No fijar una versión: se puede probar y actualizar antes y durante la feria. El secreto `PORTFOLIO_DISPATCH_TOKEN` es obligatorio; si falta, falla la notificación. Para revertir, ejecutar `pnpm run rollback` desde portfolio (sección 7); restaura el Hosting anterior sin cerrar el desarrollo ni impedir nuevas releases.
-5. **Cierre**: cerrar temporada con `seasonOpen off`. La exportación estática reproducible hoy es el ensayo `freeze-season` **solo contra emulador demo** (sección 10). La publicación de producción en `/galaxy/season/…` es un hito posterior; verificar el timelapse estático cuando ese camino exista.
+4. **Cierre**: cerrar temporada con `seasonOpen off`. La exportación estática reproducible hoy es el ensayo `freeze-season` **solo contra emulador demo** (sección 10). La publicación de producción en `/galaxy/season/…` es un hito posterior; verificar el timelapse estático cuando ese camino exista.
 
 ---
 
@@ -216,29 +215,6 @@ Expect a line like `Little Galaxy stand v1.0.2 | languages: en, es | default: en
 ---
 
 ## 7. Emergency Rollback Procedure
-
-### Release to production
-
-Merge the reviewed Galaxy branch to `main`, then create its matching `vX.Y.Z` tag. The release
-workflow verifies the tag/main relationship, runs all checks, packages the build, and deploys
-Firestore rules through the operator-reviewed environment before publishing the GitHub Release.
-Immediately after publication it sends `repository_dispatch` to `alexanderkholodov1/portfolio`,
-with event type `galaxy-released` and `client_payload: { "tag": "vX.Y.Z" }`. The portfolio's receiver
-resolves the latest published release, validates its artifact and redeploys the complete portfolio
-with Galaxy. Galaxy never deploys production Hosting itself. The receiver must be present on the
-portfolio's default branch before this flow can complete end to end.
-
-Configure repository secret `PORTFOLIO_DISPATCH_TOKEN` with access to the portfolio dispatch endpoint
-with **Contents: write** on portfolio (the operator provisions the fine-grained token).
-GitHub's [dispatch endpoint documentation](https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event)
-requires Contents write; Actions write alone is insufficient. An empty secret fails with an explicit error;
-an API rejection also fails the job. Publication has already happened in either case: repair the
-credential and retry the notification against the existing tag instead of recreating the release.
-
-Do not freeze a release in `games.json`: testing, updates and new releases remain available before
-and during the fair. Rollback is a portfolio operation restoring the previous Hosting version;
-it does not delete a Galaxy release or prevent future updates. After an emergency rollback,
-coordinate the next portfolio redeploy because resolving latest again can reintroduce that release.
 
 From the portfolio checkout (sibling of Galaxy), use the forms that pnpm 11 accepts — **do not** insert an extra `--` before flags:
 
