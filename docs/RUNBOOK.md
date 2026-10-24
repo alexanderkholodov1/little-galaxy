@@ -403,7 +403,10 @@ exact package version and a commit on main. Alpha and beta releases are prerelea
    The job uses the existing `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY` secret.
    If `config/live` is missing, the release creates the documented defaults below
    transactionally without overwriting any existing document. No prior dispatch is
-   required for the first merge. Before the first backfill only, it atomically saves
+   required for the first merge. Before any season/marker writes, the deploy CLI
+   authenticates and reads the target project with read-only `apps:list --project`;
+   failure leaves all season/recovery data untouched and fails loudly. This proves
+   visibility, not every deploy permission. Before the first backfill only, it atomically saves
    `seasonOpen` and closes writes. It dry-runs all active sources, ownership keys and
    shard capacity while closed, and refuses pre-existing shards without a completed
    marker. Only then does it persist `deploymentStarted`, deploy rules and indexes,
@@ -425,13 +428,44 @@ exact package version and a commit on main. Alpha and beta releases are prerelea
 Validation failures before deployment restore the prior season setting. Once
 `deploymentStarted` is persisted, any deployment failure (including rules applied
 but indexes failed) or incomplete migration **keeps the season closed**. The red
-job and summary point to **Operate the sky**. Automatic recovery and manual
-`restore-season` both refuse to reopen an incomplete post-deploy migration. Inspect
-and repair the source/configuration, keep `seasonOpen off`, then **Re-run failed
-jobs** on the current release; successful migration permits restoration. Never
-delete the marker or shards to bypass recovery. After a runner interruption before
-deploy, or after successful migration but failed restoration, **Operate the sky →
-restore-season** (empty key/value) safely restores the saved setting.
+job retains the original deploy/migration error alongside the recovery failure.
+Automatic recovery and manual `restore-season` both refuse to reopen an incomplete
+post-deploy migration. Run **Operate the sky → inspect** (empty key/value) to print
+`migrations/sky-v1`, `seasonOpen`, active/unsupported/duplicate-owner counts, existing
+shard count, and each computed shard's entry/byte counts and limits. Inspection is
+read-only and its validation result uses the same checks as the migration. Keep
+`seasonOpen off` with the `flag` action while investigating. Repairs are reviewed
+**Firestore Console** (or separately reviewed Admin SDK) edits, not workflow actions:
+- Unsupported source: review active `objects` against the supported schema; repair
+  the invalid record before retrying.
+- Multiple active objects for one owner: reconcile the conflicting active records
+  with the operator; preserve the intended specimen and archive before editing.
+- Capacity exceeded: review per-shard counts/bytes (512 entries, 600,000 bytes);
+  reconcile sources or ship a reviewed capacity/design change. Do not truncate data.
+- Existing shards without a completed marker: stop and compare them with the source
+  objects. Export/backup both first. Only after confirming the shards are disposable
+  remnants, remove those specific shards in Console before retrying; do not delete
+  live visitor entries or set `complete` manually to bypass validation.
+- Invalid config or recovery state: review `config/live` and the marker in Console;
+  preserve the saved season setting and correct only the diagnosed invalid field.
+
+Then **Re-run failed jobs** on the current release; successful migration permits
+restoration. Never delete the migration marker to bypass recovery. After a runner
+interruption before deploy, or successful migration but failed restoration,
+**Operate the sky → restore-season** (empty key/value) safely restores the saved
+setting.
+
+**Break glass, only when deployment is verified unchanged:** if deployment failed
+before any rules change and cannot be retried in time, the operator must verify in
+Firebase Console's Rules release/history that the previously deployed rules are
+still active (and verify indexes were unchanged). A successful CLI visibility
+preflight alone is not that proof. With the season closed, record the failed run,
+current rules release and marker, then in **Firestore Console → migrations/sky-v1**
+remove only `deploymentStarted`; retain `seasonOpenBefore`, the marker and shards.
+Run **Operate the sky → restore-season** with empty key/value. If rules may have
+changed, do not clear that field: keep the season closed and recover through a
+successful current release. Direct Console edits bypass emergency-close coordination;
+use `flag seasonOpen off` first if restoration must remain closed.
 
 Both deployment and publication fetch the current tip of `main` and refuse unless
 the tag equals `v` plus its web package version. Dispatch rechecks this boundary.
@@ -518,6 +552,7 @@ and `seasonOpen on` is refused while a migration recovery flag remains.
 | `scene` | `galaxy`, `bigQr`, `spotlight`, `cinematic`, `timelapse` | empty |
 | `timing` | `idleSeconds`, `meteorMinSeconds`, `meteorMaxSeconds` | seconds within the stand's bounds |
 | `init` | empty | empty; create missing config once, closed; refuses overwrite |
+| `inspect` | empty | empty; read-only migration marker, source and shard validation counts |
 | `restore-season` | empty | empty; restore saved flag only before deployment or after completed migration |
 
 Inputs reach the stand as data and are validated against its own control parser;

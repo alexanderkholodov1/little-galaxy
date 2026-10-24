@@ -1,10 +1,11 @@
 import { initializeApp, deleteApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { beforeAll, afterAll, beforeEach, expect, it } from 'vitest';
-import { migrateSky } from '../../apps/stand/src/sky.ts';
-import { releaseSky, prepareSkyMigration, restoreSkySeason } from '../../apps/stand/src/release-sky.ts';
+import { inspectSky, migrateSky } from '../../apps/stand/src/sky.ts';
+import { releaseSky as runReleaseSky, prepareSkyMigration, restoreSkySeason } from '../../apps/stand/src/release-sky.ts';
 import { orbitFromVelocity, planetDefaults } from '../../packages/shared/src/index.ts';
 import { applyControl, initialConfig, ensureLiveConfig } from '../../apps/stand/src/control.ts';
+const releaseSky = (db, deploy) => runReleaseSky(db, deploy, async () => {});
 let app, db;
 beforeAll(() => {
   if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Demo emulator required');
@@ -16,7 +17,11 @@ beforeEach(async () => {
   await db.doc('migrations/sky-v1').delete();
   await db.doc('config/live').set({ seasonOpen: true, edits: true });
 });
-afterAll(async () => { await db.terminate(); await deleteApp(app); });
+afterAll(async () => {
+  // Recovery fixtures must not block later CLI suites sharing the demo project.
+  await db.doc('migrations/sky-v1').delete();
+  await db.terminate(); await deleteApp(app);
+});
 const snapshot = async () => (await db.getAll(db.doc('config/live'), db.doc('migrations/sky-v1'), ...Array.from({ length: 16 }, (_, i) => db.doc(`sky/${i.toString(16)}`))))
   .map((doc) => [doc.data(), doc.updateTime]);
 it('migrates once and makes second releases and direct reruns write nothing', async () => {
@@ -144,6 +149,12 @@ it.each(['duplicate', 'capacity', 'bytes'])('rejects %s sources before deploying
     }
   }
   if (failure === 'duplicate') await batch.commit();
+  const report = await inspectSky(db);
+  expect(report.unsupportedObjects).toBe(0);
+  expect(report.duplicateOwners).toBe(failure === 'duplicate' ? 1 : 0);
+  expect(report.activeObjects).toBe(failure === 'duplicate' ? 2 : failure === 'capacity' ? 513 : 1);
+  if (failure === 'capacity') expect(Math.max(...report.shards.map((shard) => shard.entries))).toBe(513);
+  if (failure === 'bytes') expect(Math.max(...report.shards.map((shard) => shard.bytes))).toBeGreaterThan(600_000);
   let deployed = false;
   await expect(releaseSky(db, async () => { deployed = true; })).rejects.toThrow(failure === 'duplicate' ? 'Multiple active objects' : 'capacity exceeded');
   expect(deployed).toBe(false);
@@ -190,4 +201,39 @@ it('retains the original flag on retry after interruption before migration', asy
     await db.doc('config/live').update({ edits: false });
   });
   expect((await db.doc('config/live').get()).data()).toEqual({ seasonOpen: true, edits: false });
+});
+
+it('leaves every document untouched when CLI authentication/project preflight fails', async () => {
+  const before = await snapshot();
+  let deployed = false;
+  await expect(runReleaseSky(db, async () => { deployed = true; }, async () => {
+    expect(await snapshot()).toEqual(before);
+    throw new Error('Firebase CLI preflight failed: project inaccessible');
+  })).rejects.toThrow('Firebase CLI preflight failed');
+  expect(deployed).toBe(false);
+  expect(await snapshot()).toEqual(before);
+});
+it('retains the migration root cause and closed-season recovery message together', async () => {
+  const error = await releaseSky(db, async () => {
+    await db.doc('objects/broken').set({ status: 'active' });
+  }).catch((error) => error);
+  expect(error.message).toContain('Unsupported source object');
+  expect(error.message).toContain('SEASON KEPT CLOSED');
+  expect(error.cause.message).toBe('Unsupported source object');
+});
+it('inspects validation counts and recovery state without writing any documents', async () => {
+  await prepareSkyMigration(db);
+  await db.doc('objects/broken').set({ status: 'active' });
+  const before = await snapshot();
+  const { inspectSky } = await import('../../apps/stand/src/sky.ts');
+  expect(typeof inspectSky).toBe('function');
+  const report = await inspectSky(db);
+  expect(report.marker).toEqual({ seasonOpenBefore: true });
+  expect(report.seasonOpen).toBe(false);
+  expect(report.activeObjects).toBe(1);
+  expect(report.unsupportedObjects).toBe(1);
+  expect(report.existingShards).toBe(0);
+  expect(report.shards).toHaveLength(16);
+  expect(report.validationError).toBe('Unsupported source object');
+  expect(await snapshot()).toEqual(before);
 });

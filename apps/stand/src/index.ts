@@ -1,5 +1,5 @@
 import { githubControlArgs } from './github-control.js';
-import { spawn } from 'node:child_process';
+import { firebaseDeploy, firebasePreflight } from './firebase-cli.js';
 import { releaseSky, restoreSkySeason } from './release-sky.js';
 import { objectFeed } from './object-feed.js';
 import { readFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { freezeSeason, validateFreeze } from './freeze-season.js';
 import { startMemoryWriter } from './memory.js';
 import { startLeasedStand } from './lease.js';
-import { migrateSky } from './sky.js';
+import { inspectSky, migrateSky } from './sky.js';
 import { startStand } from './stand.js';
 import { startSnapshotWriter } from './snapshots.js';
 import { startMeteorScheduler } from './meteors.js';
@@ -21,27 +21,25 @@ try {
   }
   const control = process.argv[2] === 'control';
   const release = process.argv[2] === 'release-sky';
+  const inspect = process.argv[2] === 'inspect';
   const restore = process.argv[2] === 'restore-season';
-  if ((release || restore) && process.argv.length !== 3) throw new Error('Release commands accept no arguments.');
+  if ((release || restore || inspect) && process.argv.length !== 3) throw new Error('Release commands accept no arguments.');
   const migrate = process.argv[2] === 'migrate-sky';
   const freeze = process.argv[2] === 'freeze-season';
   if (migrate && process.argv.length !== 3) throw new Error('migrate-sky accepts no arguments.');
   if (freeze) validateFreeze(process.argv.slice(3), process.env);
-  if (process.argv.length > 2 && !control && !freeze && !migrate && !release && !restore) throw new Error('Unknown command');
+  if (process.argv.length > 2 && !control && !freeze && !migrate && !release && !restore && !inspect) throw new Error('Unknown command');
   if (control) controlPatch(process.argv.slice(3));
   console.log(startStand(version));
   if (getApps().length) {
-    if (release || restore) {
+    if (release || restore || inspect) {
       try {
         if (restore) await restoreSkySeason(getFirestore());
-        else await releaseSky(getFirestore(), () => new Promise<void>((resolve, reject) => {
-          const child = spawn('pnpm', ['exec', 'firebase', 'deploy', '--only', 'firestore:rules,firestore:indexes',
-            '--project', process.env.FIREBASE_PROJECT_ID!, '--non-interactive'], { stdio: 'inherit', cwd: new URL('../../../', import.meta.url) });
-          child.once('error', () => reject(new Error('Could not start Firestore deployment.')));
-          child.once('exit', (code) => code === 0 ? resolve() : reject(new Error('Firestore deployment failed.')));
-        }));
+        else if (inspect) console.log(JSON.stringify(await inspectSky(getFirestore()), null, 2));
+        else await releaseSky(getFirestore(), () => firebaseDeploy(process.env.FIREBASE_PROJECT_ID!),
+          () => firebasePreflight(process.env.FIREBASE_PROJECT_ID!));
       } finally { await getFirestore().terminate(); }
-      console.log('Release sky controls complete; prior season setting restored.');
+      if (!inspect) console.log('Release sky controls complete; prior season setting restored.');
     } else if (migrate) {
       await migrateSky(getFirestore());
       await getFirestore().terminate();
@@ -67,7 +65,7 @@ try {
       const shutdown = () => { void stop().then(() => getFirestore().terminate()).then(() => process.exit(0)); };
       process.once('SIGINT', shutdown); process.once('SIGTERM', shutdown);
     }
-  } else if (control || migrate || release || restore) throw new Error('No admin connection');
+  } else if (control || migrate || release || restore || inspect) throw new Error('No admin connection');
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Stand command failed: ${message}`);

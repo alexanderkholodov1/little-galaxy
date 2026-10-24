@@ -18,3 +18,9 @@ it('rejects unknown flags, injected arguments and ignored extra values', () => {
     ['restore-season', 'extra'], ['anything'], ['flag', 'seasonOpen', 'true']])
     expect(() => githubControlArgs(...args)).toThrow();
 });
+
+it('accepts read-only inspect with no ignored dispatch inputs', () => {
+  expect(githubControlArgs('inspect')).toEqual(['inspect']);
+  expect(() => githubControlArgs('inspect', 'extra')).toThrow();
+  expect(() => githubControlArgs('inspect', '', 'extra')).toThrow();
+});

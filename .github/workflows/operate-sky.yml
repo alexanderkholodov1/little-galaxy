@@ -4,17 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Stand control action (clear key and value for init or restore-season)
+        description: Stand control action (clear key and value for init, inspect or restore-season)
         type: choice
-        options: [flag, scene, timing, init, restore-season]
+        options: [flag, scene, timing, init, inspect, restore-season]
         required: true
         default: flag
       key:
-        description: Flag or timing name; scene name for scene; empty for init or restore-season
+        description: Flag or timing name; scene name for scene; empty for init, inspect or restore-season
         type: string
         default: seasonOpen
       value:
-        description: on/off for flags; seconds for timing; empty for scene, init or restore-season
+        description: on/off for flags; seconds for timing; empty for scene, init, inspect or restore-season
         type: string
         default: 'off'
 

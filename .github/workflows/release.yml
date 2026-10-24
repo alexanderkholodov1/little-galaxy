@@ -202,8 +202,8 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-rules.json
         run: |
           if ! pnpm --filter @little-galaxy/stand exec tsx src/index.ts restore-season; then
-            echo '::error::SEASON KEPT CLOSED OR RESTORATION FAILED. Operate the sky: inspect migration; incomplete post-deploy migrations must succeed before restore-season.'
-            echo 'SEASON KEPT CLOSED OR RESTORATION FAILED: use Operate the sky to inspect migration, repair sources and re-run failed release jobs; restore-season refuses an incomplete post-deploy migration.' >> "$GITHUB_STEP_SUMMARY"
+            echo '::error::SEASON KEPT CLOSED OR RESTORATION FAILED. Run Operate the sky action inspect with empty key/value; incomplete post-deploy migrations must succeed before restore-season.'
+            echo 'SEASON KEPT CLOSED OR RESTORATION FAILED: run Operate the sky action inspect (empty key/value), review/repair sources in Firestore Console, then re-run failed release jobs; restore-season refuses an incomplete post-deploy migration.' >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
       - name: Remove data-project credentials

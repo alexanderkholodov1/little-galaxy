@@ -39,6 +39,16 @@ it('runs the documented startup and every scene, flag and timing through the act
       await control('timing', key, value);
       expect((await database.doc('config/live').get()).data()[key]).toBe(Number(value));
     }
+    const beforeInspect = (await database.doc('config/live').get()).updateTime;
+    const { stdout } = await execute('pnpm', ['--filter', '@little-galaxy/stand', 'exec', 'tsx', 'src/index.ts', 'github-control'],
+      { env: { ...env, SKY_ACTION: 'inspect', SKY_KEY: '', SKY_VALUE: '' }, timeout: 30_000 });
+    const report = JSON.parse(stdout.slice(stdout.indexOf('{')));
+    expect(report.activeObjects).toBe(0);
+    expect(report.shards).toHaveLength(16);
+    expect(report).toHaveProperty('marker');
+    expect(stdout).not.toContain('prior season setting restored');
+    expect((await database.doc('config/live').get()).updateTime).toEqual(beforeInspect);
+
   } finally {
     if (stand?.pid) {
       const exited = once(stand, 'exit'); process.kill(-stand.pid, 'SIGTERM'); await exited;
