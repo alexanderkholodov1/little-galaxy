@@ -2,8 +2,6 @@
 
 ## 1.0.2 — 2026-10-24
 
-- Notify the portfolio with `galaxy-released` after publishing a release; fail on a missing
-  dispatch token or rejected request. Document latest-release delivery and portfolio rollback.
 - Keep booth scenes uncovered under reduced motion and expire stationary shooting-star messages;
   add Chromium regressions and audit all reduced-motion rules.
 - Reserve the software and asset rights for Alexander Kholodov, with UNLICENSED/private package

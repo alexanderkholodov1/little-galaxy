@@ -192,11 +192,8 @@ runs the full reusable checks. A read-only build job packages `galaxy-dist-vX.Y.
 `version.json`, and creates `SHA256SUMS`; only the final publish job receives `contents: write` and creates
 the GitHub Release. A separate `little-galaxy-rules` environment job re-runs the rules tests before
 deploying only `firestore.rules` to the data project. The operator must be configured as that environment's
-required reviewer. After publication, the workflow requires `PORTFOLIO_DISPATCH_TOKEN` and sends
-`galaxy-released` with the tag to the portfolio. The portfolio resolves and redeploys the latest release;
-no version is frozen. Only the portfolio deploys production Hosting and performs Hosting rollback.
-See the [release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure) for token permissions,
-notification retry and receiver setup.
+required reviewer. Only the portfolio deploys production Hosting and performs Hosting rollback; see the
+[release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure).
 
 The privacy gate is part of `pnpm run build`. It scans every output file, gunzips `.gz` output, decodes
 long base64 and base64url runs, allows only the configured public Firebase API key, rejects known private
