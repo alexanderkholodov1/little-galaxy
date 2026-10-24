@@ -1,50 +1,66 @@
-# Little Galaxy · G v1.0.0
+# Collective Galaxy · Galaxia Colectiva
 
-Fair-ready milestone: 100-phone concurrent load testing against Firestore/Auth emulators verifying
-Spark free-tier quotas (50k reads, 20k writes/day) with quota capacity report in [quota report](docs/QUOTA-REPORT.md);
-automated failure-mode drills validating offline rendering, queued offline write sync, stand crash recovery,
-quota pressure kill switches, and hosting rollback verification in [drills report](docs/DRILLS.md); complete
-fair-day operational runbook with Spanish quick summary, hardware layout, startup order, pre-opening checklist,
-quota telemetry, stand CLI controls, failure responses, and dry-run evidence in [fair-day runbook](docs/RUNBOOK.md);
-booth screen TV kiosk mode at `/galaxy/screen` (no site header, one-click and 'F' key browser fullscreen,
-cursor auto-hidden when idle); unlisted Talk assistant stub (retained for CASPIAN); and Playwright 1080p screen
-backup recording script (`scripts/record-screen.mjs`) with documented OBS backup rehearsal steps.
+Collective Galaxy (Galaxia Colectiva) is a shared 3D galaxy that visitors build together from their phones, created for USFQ’s BAD Day 2026 fair. Each visitor designs and launches a celestial object into the booth’s live sky, with sound, collective interactions and a personal object record to revisit.
 
-Live-safe deploys, chunk-load error recovery with single-reload loop guards, continuous state
-restoration across reloads (phone draft, workshop step, active object, hangar view; screen camera
-position/target, scene, timelapse playhead, volume/mute), safe-moment phone updates and quiet-moment
-screen crossfades, backward-compatible reads across all historical schemas, complete kill switches in
-Firestore rules and stand CLI, and automated Playwright smoke and deploy-swap test suites.
-See [live-safety status and runbook](docs/live-safety-status.md).
+**[Open the galaxy](https://alexanderkholodov.web.app/galaxy/)** ·
+**[Create an object](https://alexanderkholodov.web.app/galaxy/create)** ·
+**[Booth screen](https://alexanderkholodov.web.app/galaxy/screen)**
 
-An exact, scrubbed replay of the fair; permanent 3D object records with sound; and 1080×1920
-postcards rendered on the visitor's phone with a QR back to the object. Static season files take
-precedence over public, bounded Firestore archive chunks. The live fair home reads one aggregate
-snapshot; replay is an explicit action. Archived objects remain accessible without visitor sign-in.
-The stand maintains the archive and an emulator-only `freeze-season` CLI exports the same format.
-See [memory implementation and acceptance](docs/memory-status.md) and the
-[versioned format / P v1.1.0 contract](docs/memory-format.md). Physical Android/iPhone sharing and
-published-preview acceptance remain captain work.
+## Try it at the fair
 
+1. Open **Create an object** on your phone, or scan the QR on the booth screen. Choose EN or ES and your preferred light/dark appearance.
+2. Design a planet, star or moon in the workshop. Inspect it in 3D, then use the launch control or swipe to send it into orbit.
+3. Find your object on the shared screen. Edit it live, try the aurora/comet/shooting-star controls when enabled, and tap **Enable sound** to hear it.
+4. Open your object record and create a postcard to keep its return link. The hangar retains your earlier objects for relaunch.
 
-Shared aurora waves, swipe comets, twelve bilingual shooting-star messages, stand-scheduled meteor
-showers, live kill switches and five operator-controlled screen scenes. Phone writes have server
-cooldowns and a ten-interaction UTC-day cap; the screen reads a bounded recent event window.
-See [the v0.5.0 handoff](docs/interactions-status.md) for schemas, rule access counts, quota estimates,
-operator CLI commands, local verification and the remaining Android/iPhone acceptance.
+Launching and shared interactions require a connection and an open season; the booth operator controls availability. If the fair is closed, you can still explore the workshop and its private preview. A normal browser tab preserves your saved draft when storage is available.
 
-Parametric Tone.js sound, one harmonious scale, an eight-voice screen mix, and tender phone/screen
-petting. Audio unlocks on a gesture and loads lazily; phone mute survives reloads.
-See [the v0.4.0 sound handoff](docs/sound-status.md) for mapping, offline measurements, bundle
-cost and remaining physical-device acceptance.
+## Views from the application
 
-Rich procedural planets, stars and moons; generated bilingual names; live owner edits; a permanent
-hangar with crumble/reassembly; and an instanced galaxy renderer with distance LOD.
-See [the v0.3.0 handoff](docs/rich-objects-status.md) for schemas, hosts, D6 rules, performance,
-verification and open device acceptance. [G v0.2.0](docs/galaxy-core-status.md) records the core contracts.
+These are real browser captures from the delivery report’s local rehearsal; they do not certify the live deployment or physical-phone acceptance.
 
-The plan of record is at `../portfolio/docs/plan/README.md` (the `main` branch).
-See [the local foundation handoff](docs/foundations-status.md) for G v0.1.0 evidence and outstanding setup.
+![Booth screen with an orbiting ringed planet, creator count and join QR](docs/delivery/img/galaxia-tv.png)
+
+<img src="docs/delivery/img/telefono-create.png" width="390" alt="Spanish phone workshop with a ringed-planet preview and the design, inspection, launch and hangar steps">
+
+## How it works
+
+```mermaid
+flowchart LR
+  Phone["Phone workshop · React / TypeScript"] -->|"Anonymous Auth + validated writes"| Data["Firebase Auth + Firestore"]
+  Data -->|"Bounded live listeners"| Screen["Booth sky · Three.js / React Three Fiber"]
+  Data <-->|"Aggregate snapshots + archive"| Stand["Booth laptop · Node.js stand"]
+  Shared["Shared schemas + orbital model"] -.-> Phone
+  Shared -.-> Screen
+  Shared -.-> Stand
+  Release["GitHub release + dispatch"] --> Portfolio["Portfolio · latest release + rollback"]
+  Portfolio --> Hosting["Firebase Hosting · /galaxy/"]
+```
+
+The phone and screen share deterministic orbital math and validated schemas. The booth laptop maintains aggregate snapshots and archives without Cloud Functions; the project uses Firebase’s Spark tier. Deny-by-default rules enforce ownership, write budgets and operator switches. Only the portfolio deploys the complete public site.
+
+## Quality evidence
+
+- **458 passing cases on v1.0.1 CI**: 253 unit/script, 180 Firestore/Auth rules and 25 Chromium cases. This is the verified baseline, before the v1.0.2 regressions; see [counts and CI source](docs/delivery/quality-evidence.md).
+- **100 simulated concurrent visitors completed** the emulator load journey. Observed operations and modeled fair-day quotas are distinguished in the [quota report](docs/QUOTA-REPORT.md).
+- **Five automated failure-mode drills passed**, with their limits and remaining hardware checks in the [drill report](docs/DRILLS.md). Production build swapping exercises A→B→A recovery separately; see [live-safety evidence](docs/live-safety-status.md).
+- The release build runs a privacy gate; local automation does not replace [fair-day operator checks](docs/RUNBOOK.md) or real-phone acceptance. The [reduced-motion audit](docs/reduced-motion.md) covers the booth visibility regression.
+
+## Evaluation documents
+
+The captain will add the final PDFs to this same delivery change before review is complete:
+
+- [Technical report · Informe Little Galaxy](docs/delivery/Informe-Little-Galaxy.pdf)
+- [Fair poster · Poster Little Galaxy](docs/delivery/Poster-Little-Galaxy.pdf)
+- [Presentation · Presentación Little Galaxy](docs/delivery/Presentacion-Little-Galaxy.pdf)
+
+See the [delivery index](docs/delivery/README.md) for their purpose and current status.
+
+## Resumen en español
+
+**Galaxia Colectiva** es una galaxia 3D que los visitantes construyen juntos desde sus teléfonos para BAD Day 2026 de la USFQ. Abre [Crear](https://alexanderkholodov.web.app/galaxy/create), diseña y lanza tu objeto, búscalo en la pantalla del puesto y conserva su postal. Los lanzamientos requieren conexión y temporada abierta; el taller permite explorar la vista previa cuando la feria está cerrada. La documentación incluye pruebas automatizadas y sus límites; la verificación con teléfonos reales y el montaje del puesto siguen siendo responsabilidad del capitán.
+
+Copyright (c) 2026 Alexander Kholodov. **All rights reserved**; see [LICENSE](LICENSE). Viewing the source on GitHub grants no permission to use, copy, modify or distribute the software or its assets. Third-party licenses remain in force.
 
 ## Local development
 
@@ -176,7 +192,11 @@ runs the full reusable checks. A read-only build job packages `galaxy-dist-vX.Y.
 `version.json`, and creates `SHA256SUMS`; only the final publish job receives `contents: write` and creates
 the GitHub Release. A separate `little-galaxy-rules` environment job re-runs the rules tests before
 deploying only `firestore.rules` to the data project. The operator must be configured as that environment's
-required reviewer. No workflow deploys production Hosting; the portfolio alone pins and serves releases.
+required reviewer. After publication, the workflow requires `PORTFOLIO_DISPATCH_TOKEN` and sends
+`galaxy-released` with the tag to the portfolio. The portfolio resolves and redeploys the latest release;
+no version is frozen. Only the portfolio deploys production Hosting and performs Hosting rollback.
+See the [release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure) for token permissions,
+notification retry and receiver setup.
 
 The privacy gate is part of `pnpm run build`. It scans every output file, gunzips `.gz` output, decodes
 long base64 and base64url runs, allows only the configured public Firebase API key, rejects known private
