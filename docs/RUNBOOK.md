@@ -390,7 +390,7 @@ See [live-sky.md](live-sky.md) for quota assumptions and failure boundaries.
 
 ### Release path: merge and approve in GitHub
 
-The captain merges the version PR. A push to main reads `apps/web/package.json`:
+Only the operator merges the version PR. A push to main reads `apps/web/package.json`:
 if `v<version>` already exists it skips with an Actions notice and run summary; otherwise CI creates that exact tag
 on the merge commit and calls the full release workflow directly. No polling
 machine, laptop key, terminal command or manual tag is part of this path.
