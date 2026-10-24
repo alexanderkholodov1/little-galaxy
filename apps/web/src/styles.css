@@ -86,10 +86,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--action); outlin
 .skip-link { position: absolute; top: -100px; left: 1rem; padding: 0.8rem; background: var(--paper); z-index: 10; }
 .skip-link:focus { top: 0.5rem; }
 .portfolio-header { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem 2rem; padding: 1rem 0; border-bottom: 1px solid var(--hairline); }
-.signature { display: inline-flex; align-items: center; gap: 0.75rem; text-decoration: none; font-weight: 700; min-height: 44px; overflow-wrap: anywhere; }
-.signature svg { flex-shrink: 0; }
-.profile-links { display: flex; flex-wrap: wrap; gap: 0 1.25rem; }
-.profile-links a { display: inline-flex; align-items: center; min-height: 44px; overflow-wrap: anywhere; }
+
 .preferences { margin-left: auto; display: flex; gap: 0.75rem; align-items: center; }
 .language-switch { display: flex; }
 .language-switch button { border: 0; }
@@ -232,7 +229,13 @@ button:disabled { opacity: .6; cursor: wait; }
 @media (max-width: 720px) { .interaction-row { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
 .version-crossfade { position: fixed; inset: 0; z-index: 9999; pointer-events: all; background: #050c16; animation: version-fade-in 600ms forwards; }
 @keyframes version-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .scene-crossfade, .star-message, .version-crossfade { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .scene-crossfade { animation: none; opacity: 0; }
+  /* Keep the six-second lifetime without translation or a moving fade. */
+  .star-message { animation: star-message-still 6s steps(1, end) both; }
+  .version-crossfade { animation: none; opacity: 1; }
+}
+@keyframes star-message-still { from { opacity: 1; } to { opacity: 0; } }
 
 .update-notice {
   font-family: var(--font-body);
@@ -252,7 +255,7 @@ button:disabled { opacity: .6; cursor: wait; }
 
 /* A bound observatory log: full-width finding chart with its time ruler below;
    permanent specimens have a separate marginal record, like a museum accession sheet. */
-.memory-log, .object-record { padding: 24px clamp(16px, 4vw, 64px) 48px; }
+.memory-log, .object-record { grid-column: 1 / -1; padding: 24px clamp(16px, 4vw, 64px) 48px; }
 .memory-heading h1, .object-record h1 { font-size: clamp(2.4rem, 5vw, 4.5rem); line-height: 1.1; max-width: 20ch; margin: 12px 0 32px; }
 .memory-field { position: relative; height: min(60vh, 680px); min-height: 300px; background: #050c16; color: #e1eaf4; }
 .memory-state { border-block: 1px solid var(--rule); padding-block: 32px; max-width: 65ch; }
@@ -284,10 +287,8 @@ button:disabled { opacity: .6; cursor: wait; }
 .replay-controls .memory-return { margin-top: 0; }
 
 /* Booth TV Kiosk & Fullscreen presentation */
-.app-shell[data-page="screen"] { padding: 0 clamp(0.75rem, 2vw, 2rem); }
-.app-shell[data-page="screen"] .portfolio-header,
-.app-shell[data-page="screen"] .galaxy-nav { display: none; }
-.app-shell[data-page="screen"] main { display: block; padding-top: 0.5rem; }
+.app-shell[data-page="screen"] { padding: 0; }
+.app-shell[data-page="screen"] main { display: block; padding: 0; }
 
 .live-screen[data-mouse-idle="true"],
 .live-screen[data-mouse-idle="true"] *,
@@ -391,3 +392,93 @@ button:disabled { opacity: .6; cursor: wait; }
   min-height: 44px;
 }
 
+
+/* Empty finding chart: a single unoccupied orbit invites the next observer. */
+.sky-empty { position: absolute; left: clamp(20px, 5vw, 64px); bottom: 8%; max-width: min(32ch, 85%); pointer-events: none; }
+.sky-empty svg { color: #5fccf3; opacity: .8; }
+.sky-empty p { font: 400 clamp(1.75rem, 4vw, 3rem)/1.12 var(--font-display); margin: 8px 0 16px; }
+.sky-empty span { font-size: 1.125rem; line-height: 1.4; color: #e1eaf4; }
+
+/* Alpha.1: the finding chart fills the browser; controls occupy its margins. */
+html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+.app-shell { height: 100dvh; width: 100%; padding: 0; overflow: hidden; }
+.app-shell main { display: block; height: 100%; min-height: 0; padding: 0; overflow: hidden; }
+.credits-toggle, .game-preferences { position: fixed; top: max(8px, env(safe-area-inset-top)); z-index: 25; background: var(--paper); }
+.credits-toggle { left: 12px; min-width: 44px; min-height: 44px; padding: 8px; font-size: .8125rem; color: var(--ink); border: 0; border-radius: 0; }
+.game-preferences { right: 12px; gap: 4px; margin: 0; border-radius: 4px; }
+.game-preferences .theme-switch { min-width: 44px; }
+.credits-card { position: fixed; inset: 64px auto auto 12px; margin: 0; width: min(320px, calc(100vw - 24px)); max-height: calc(100dvh - 80px); padding: 24px; color: var(--ink); background: var(--paper); border: 1px solid var(--hairline); border-radius: 4px; }
+.credits-card::backdrop { background: #050c1680; }
+.credits-card h2 { margin: 24px 0 8px; font: 400 1.75rem/1.12 var(--font-display); }
+.credits-card p { margin: 8px 0 24px; }
+.credits-card a { display: inline-flex; align-items: center; min-height: 44px; }
+.credits-close { display: block; margin-left: auto; min-width: 44px; min-height: 44px; }
+.app-shell .memory-log { height: 100%; padding: 64px 16px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 8px; }
+.app-shell .memory-heading h1 { font-size: clamp(1.75rem, 4vw, 3rem); margin: 0 0 8px; }
+.app-shell .memory-heading .eyebrow { margin: 0 0 8px; }
+.app-shell .memory-field { height: 100%; min-height: 0; }
+.app-shell .replay-controls { padding: 4px 0; gap: 4px 12px; }
+.app-shell .memory-source { margin: 0; }
+.app-shell .replay-back { position: fixed; top: 56px; left: 12px; z-index: 4; margin: 0; background: var(--paper); }
+.live-screen, .screen-replay { position: relative; width: 100%; height: 100%; }
+.app-shell .live-screen .galaxy-field { position: absolute; inset: 0; height: 100%; min-height: 0; }
+.app-shell .screen-heading { position: absolute; left: 96px; top: 14px; z-index: 2; color: #e1eaf4; }
+.app-shell .screen-heading .eyebrow { display: none; }
+.app-shell .screen-heading h1 { font-size: 1.125rem; margin: 0; }
+.app-shell .screen-sound { position: absolute; left: 12px; bottom: 12px; top: auto; z-index: 4; margin: 0; padding: 8px; max-width: calc(100% - 168px); max-height: 36%; overflow: auto; color: #e1eaf4; background: #071421e8; border-radius: 8px; }
+.app-shell .screen-sound button, .app-shell .screen-sound select { color: #e1eaf4; background: #071421; border-color: #60788e; }
+.app-shell .screen-reading { top: 72px; }
+.app-shell .events-status { top: 112px; }
+.app-shell .spotlight-caption, .app-shell .scene-caption { top: 160px; }
+.app-shell .field-status { top: 35%; bottom: auto; }
+.app-shell[data-page="create"] main { padding: 60px 16px 8px; }
+.app-shell .workshop { position: relative; height: 100%; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 8px 24px; }
+.app-shell .workshop-title { grid-area: 1 / 1 / 2 / 3; }
+.app-shell .workshop-title h1 { font-size: 1.75rem; margin: 0; max-width: none; }
+.app-shell .workshop-title .eyebrow { display: none; }
+.app-shell .workshop > nav { grid-area: 2 / 2 / 3 / 3; display: flex; gap: 4px; }
+.app-shell .workshop > nav button { flex: 1; font-size: .875rem; padding: 4px; }
+.app-shell .workshop > nav button[aria-current="step"] { border-bottom: 3px solid var(--action); font-weight: 700; }
+.app-shell .planet-specimen { grid-area: 2 / 1 / 4 / 2; margin: 0; min-height: 0; padding: 8px; display: flex; flex-direction: column; }
+.app-shell .planet-specimen > svg, .app-shell .planet-specimen > div { flex: 1; height: 0 !important; min-height: 0; max-height: none; }
+.app-shell .planet-specimen figcaption { font-size: .8125rem; padding: 4px 0; }
+.app-shell .planet-specimen > button { flex-shrink: 0; margin: 4px 0 0; }
+.app-shell .specimen-sound { grid-area: 4 / 1 / 5 / 2; margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.app-shell .workshop > .planet-controls, .app-shell .workshop > .launch-desk, .app-shell .workshop > .hangar, .app-shell .workshop > .interactions { display: none; grid-area: 3 / 2 / 4 / 3; height: 100%; min-height: 0; min-width: 0; margin: 0; padding: 8px; overflow: auto; overscroll-behavior: contain; }
+.app-shell .workshop[data-workshop-step="parameters"] > .planet-controls,
+.app-shell .workshop[data-workshop-step="launch"] > .launch-desk,
+.app-shell .workshop[data-workshop-step="hangar"] > .hangar,
+.app-shell .workshop[data-workshop-step="interactions"] > .interactions { display: block; }
+.app-shell .workshop-status { grid-area: 4 / 2 / 5 / 3; min-width: 0; max-height: 160px; overflow: auto; }
+.app-shell .workshop-status .session-line { margin: 0; padding: 4px 0; gap: 4px; }
+.app-shell .workshop-status .launch-feedback { margin: 0; padding: 4px 8px; }
+.app-shell .workshop-status .memory-return { margin: 0; }
+.app-shell .workshop .update-notice { position: absolute; z-index: 5; top: 0; right: 0; max-width: 55%; margin: 0; background: var(--paper); }
+.app-shell .launch-instruction { font-size: 1.125rem; }
+.app-shell .swipe-window { min-height: 100px; }
+.app-shell .swipe-window svg { max-height: 130px; }
+.app-shell .object-record { height: 100%; padding: 64px 16px 8px; display: flex; flex-direction: column; overflow: hidden; }
+.app-shell .object-record > .eyebrow { margin-bottom: 4px; }
+.app-shell .object-record > h1 { margin: 0 0 12px; font-size: clamp(2rem, 4vw, 3rem); }
+.app-shell .object-layout { flex: 1; min-height: 0; gap: 24px; }
+.app-shell .permanent-specimen { height: 100%; min-height: 0; }
+.app-shell .permanent-specimen > div { height: 100% !important; }
+.app-shell .object-notes { height: 100%; overflow: auto; overscroll-behavior: contain; padding-top: 8px; }
+.app-shell .object-record > .memory-return { flex-shrink: 0; margin: 0; }
+@media (max-width: 720px) {
+  .app-shell .screen-heading { display: block; top: 64px; left: 16px; }
+  .app-shell .screen-reading { top: 98px; }
+  .app-shell .events-status { top: 138px; }
+  .app-shell .workshop { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(120px, .65fr) auto minmax(0, 1fr) auto; gap: 6px; }
+  .app-shell .workshop-title { grid-area: 1 / 1 / 2 / 2; }
+  .app-shell .workshop > nav { grid-area: 2 / 1 / 3 / 2; }
+  .app-shell .workshop > nav button { font-size: .8125rem; }
+  .app-shell .planet-specimen { grid-area: 3 / 1 / 4 / 2; }
+  .app-shell .specimen-sound { grid-area: 4 / 1 / 5 / 2; font-size: .875rem; }
+  .app-shell .workshop > .planet-controls, .app-shell .workshop > .launch-desk, .app-shell .workshop > .hangar, .app-shell .workshop > .interactions { grid-area: 5 / 1 / 6 / 2; }
+  .app-shell .workshop-status { grid-area: 6 / 1 / 7 / 2; max-height: 112px; font-size: .875rem; }
+  .app-shell .workshop[data-workshop-step="specimen"] .planet-specimen { grid-row: 3 / 6; }
+  .app-shell .workshop[data-workshop-step="specimen"] .specimen-sound { grid-row: 6; }
+  .app-shell .workshop[data-workshop-step="specimen"] .workshop-status { position: absolute; left: 0; bottom: 56px; max-width: 100%; background: var(--paper); }
+  .app-shell .object-layout { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(120px, .6fr) minmax(0, 1fr); gap: 12px; }
+}

@@ -287,3 +287,13 @@ it('labels unavailable sound permission as disconnected rather than an operator 
   expect(container.querySelector('.sound-controls')?.textContent).toContain('Sound paused until live controls reconnect');
   expect(container.querySelector<HTMLButtonElement>('.sound-controls button')?.disabled).toBe(true);
 });
+
+it('distinguishes initial cached bodies from losing an established server connection', async () => {
+  await act(async () => root.render(<Screen language="en"/>));
+  await act(async () => receive(syntheticObjects(1), true));
+  expect(container.textContent).toContain('Reading the sky');
+  expect(container.textContent).not.toContain('Live connection interrupted');
+  await act(async () => receive([], false));
+  await act(async () => receive([], true));
+  expect(container.textContent).toContain('Live connection interrupted');
+});

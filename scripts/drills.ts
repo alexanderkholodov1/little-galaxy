@@ -5,7 +5,7 @@
  * 1. Orbit determinism: positionAt advances without network, pure local math.
  * 2. Draft serialization: JSON round-trip and successful launch from restored draft.
  * 3. Snapshot staleness: old timestamp detected, fresh write recovers.
- * 4. Kill switch enforcement: config flag disables interaction at helper level, re-enable restores it.
+ * 4. Kill switch enforcement: commit rules disable interactions and the helper reports closed; re-enable restores it.
  * 5. Rollback dry-run: portfolio script logs a prospective Hosting promotion.
  *
  * Hardware-dependent drills (network interruption, HDMI recovery, power failover)
@@ -190,7 +190,7 @@ export async function runAllDrills(): Promise<DrillResult[]> {
       drillId: 'DRILL-03',
       name: 'Snapshot staleness detection and timestamp recovery',
       status: isStale && isRecovered ? 'PASSED' : 'FAILED',
-      observedBehavior: `Wrote snapshot with timestamp ${Math.round(snapAgeMs / 1000)}s ago (stale=${isStale}). Updated timestamp; new age ${Math.round(freshAgeMs / 1000)}s (recovered=${isRecovered}). This verifies Firestore timestamp mechanics but does not start/crash/restart an actual stand process or open a public viewer.`,
+      observedBehavior: `Wrote snapshot with timestamp ${Math.round(snapAgeMs / 1000)}s ago (stale=${isStale}). Updated timestamp; new age ${Math.round(freshAgeMs / 1000)}s (recovered=${isRecovered}). This verifies timestamp mechanics, not liveness: snapshots/live.at is last content publication and can remain old while healthy. It does not start/crash/restart a stand or open a public viewer.`,
       details: { staleAgeSeconds: Math.round(snapAgeMs / 1000), recoveredAgeSeconds: Math.round(freshAgeMs / 1000) },
     });
   } catch (err) {
@@ -247,15 +247,15 @@ export async function runAllDrills(): Promise<DrillResult[]> {
 
     results.push({
       drillId: 'DRILL-04',
-      name: 'Kill switch config update and helper-level enforcement',
+      name: 'Kill switch rule enforcement and helper feedback',
       status: shakeBlocked && shakeRestored ? 'PASSED' : 'FAILED',
-      observedBehavior: `Set config/live shake=false via applyControl. sendInteraction threw "${blockReason}" (blocked=${shakeBlocked}). Re-enabled shake=true; sendInteraction succeeded (restored=${shakeRestored}). The helper reads config/live and rejects before writing. Separate rules tests verify boundary enforcement; this drill verifies the config update propagates to the client helper.`,
+      observedBehavior: `Set config/live shake=false via applyControl. sendInteraction threw "${blockReason}" (blocked=${shakeBlocked}). Re-enabled shake=true; sendInteraction succeeded (restored=${shakeRestored}). Commit-time rules reject the disabled write; the helper reports closed. This drill verifies the config change and closed feedback together.`,
       details: { shakeBlockedWhenOff: shakeBlocked, blockReason, shakeAllowedWhenOn: shakeRestored },
     });
   } catch (err) {
     results.push({
       drillId: 'DRILL-04',
-      name: 'Kill switch config update and helper-level enforcement',
+      name: 'Kill switch rule enforcement and helper feedback',
       status: 'FAILED',
       observedBehavior: `Error: ${String(err)}`,
       details: {},
@@ -347,7 +347,7 @@ ${results.map((r) => `| **${r.drillId}** | ${r.name} | **${r.status}** | ${r.obs
 - **Does not test**: Actual stand process start/crash/restart, public viewer UI, or recovery timing.
 
 ### DRILL-04: Kill Switch Enforcement
-- **Tests**: \`applyControl\` updates \`config/live\`; the client helper reads the flag and rejects before writing; re-enabling restores the operation.
+- **Tests**: \`applyControl\` updates \`config/live\`; commit rules read the flag and reject disabled writes; the helper reports closed; re-enabling restores the operation.
 - **Does not test**: Firestore security rules boundary enforcement directly (covered by \`test:rules\`), phone UI update latency, or disabled badges.
 
 ### DRILL-05: Rollback Dry-Run

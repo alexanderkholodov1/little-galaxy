@@ -1,3 +1,5 @@
+import { checkFence } from './lease.js';
+import type { StandFence } from './lease.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 export function meteorInterval(config: Record<string, unknown> | undefined, random = Math.random): number | null {
@@ -8,9 +10,10 @@ export function meteorInterval(config: Record<string, unknown> | undefined, rand
   return (min + Math.max(0, Math.min(1, random())) * (max - min)) * 1000;
 }
 /** Recheck the switch at commit; one append-only event per shower, no client can write these. */
-export async function writeMeteorShower(database: Firestore, observe?: (count: number) => void, onWrite?: (count: number) => void): Promise<boolean> {
+export async function writeMeteorShower(database: Firestore, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence): Promise<boolean> {
   const event = database.collection('events').doc();
   return database.runTransaction(async (tx) => {
+    if (fence) { observe?.(1); await checkFence(database, tx, fence); }
     observe?.(1);
     const config = await tx.get(database.doc('config/live'));
     if (meteorInterval(config.data(), () => 0) === null) return false;
@@ -19,7 +22,7 @@ export async function writeMeteorShower(database: Firestore, observe?: (count: n
     return true;
   }).then((wrote) => { if (wrote) onWrite?.(1); return wrote; });
 }
-export function startMeteorScheduler(database: Firestore, error: () => void, random = Math.random, clock = { setTimeout, clearTimeout }, observe?: (count: number) => void, onWrite?: (count: number) => void) {
+export function startMeteorScheduler(database: Firestore, error: () => void, random = Math.random, clock = { setTimeout, clearTimeout }, observe?: (count: number) => void, onWrite?: (count: number) => void, fence?: StandFence) {
   let stopped = false, config: Record<string, unknown> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined, pending: Promise<unknown> | undefined;
   function schedule() {
@@ -27,7 +30,7 @@ export function startMeteorScheduler(database: Firestore, error: () => void, ran
     const delay = meteorInterval(config, random);
     if (stopped || delay === null || pending) return;
     timer = clock.setTimeout(() => {
-      pending = writeMeteorShower(database, observe, onWrite).catch(error).finally(() => { pending = undefined; schedule(); });
+      pending = writeMeteorShower(database, observe, onWrite, fence).catch(error).finally(() => { pending = undefined; schedule(); });
     }, delay);
   }
   const unsubscribe = database.doc('config/live').onSnapshot((snapshot) => {

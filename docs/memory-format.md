@@ -109,13 +109,24 @@ manifest and object shards. Hashed log files may be immutable. Publish the compl
 atomically with the Galaxy payload, after reviewing the exported data. Do not rewrite missing JSON
 requests to the HTML app if avoidable; Galaxy recognizes an HTML rewrite as a missing static file.
 
-The ordinary fair home reads only `snapshots/live` once and displays its observation time; a refresh
-is explicit. Opening Replay loads the compact season. A present static manifest makes the home
-open the frozen timelapse automatically.
+The alpha.1 fair home subscribes directly to client-maintained sky shards. Opening Replay
+loads the compact season. A present static manifest makes the home open the frozen timelapse
+automatically, without connecting to live Firebase services.
 
 Galaxy tries static JSON first. A 404 or HTML rewrite falls back to one public Firestore get per
 requested document; a present but malformed/incomplete static archive produces a designed error,
 not an event-collection scan. Successfully served static archives require **zero Firestore/Auth
-requests**. Network failure is shown as unavailable with retry. EN/ES and theme use the ordinary
-portfolio shell. `/profile.json` supplies the real header/socials; absent content is not invented.
+requests**. Network failure is shown as unavailable with retry. EN/ES and theme use the full-viewport Galaxy
+shell. The small Credits dialog contains only the game name, Alexander Kholodov · USFQ,
+and one same-site portfolio link. No profile fetch, profile sheet, social links or
+end-of-experience identity links are part of the game; see `portfolio-contract.md`.
 No portfolio files are changed by this worktree task.
+
+### Alpha.1 live entry
+
+The home entry now checks for a frozen static manifest, then subscribes directly to
+`sky/0`…`sky/f` for a live season. It never waits for `snapshots/live` or a stand.
+Host choices use the same shards. The permanent object page and season replay still
+use the compact memory archive above; their publication can lag while both stands
+are offline. Signed sky shards include owner identifiers and are never public
+archive files. See [live-sky.md](live-sky.md) and RUNBOOK section 11.

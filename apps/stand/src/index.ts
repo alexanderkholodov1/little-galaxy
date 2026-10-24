@@ -1,22 +1,50 @@
+import { githubControlArgs } from './github-control.js';
+import { firebaseDeploy, firebasePreflight } from './firebase-cli.js';
+import { releaseSky, restoreSkySeason } from './release-sky.js';
+import { objectFeed } from './object-feed.js';
 import { readFileSync } from 'node:fs';
 import { getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { freezeSeason, validateFreeze } from './freeze-season.js';
 import { startMemoryWriter } from './memory.js';
+import { startLeasedStand } from './lease.js';
+import { inspectSky, migrateSky } from './sky.js';
 import { startStand } from './stand.js';
 import { startSnapshotWriter } from './snapshots.js';
 import { startMeteorScheduler } from './meteors.js';
-import { applyControl, controlPatch } from './control.js';
+import { applyControl, controlPatch, ensureLiveConfig } from './control.js';
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 try {
+  if (process.argv[2] === 'github-control') {
+    if (process.argv.length !== 3) throw new Error('GitHub controls accept only dispatch environment inputs.');
+    process.argv.splice(2, 1, ...githubControlArgs(process.env.SKY_ACTION, process.env.SKY_KEY, process.env.SKY_VALUE));
+  }
   const control = process.argv[2] === 'control';
+  const release = process.argv[2] === 'release-sky';
+  const inspect = process.argv[2] === 'inspect';
+  const restore = process.argv[2] === 'restore-season';
+  if ((release || restore || inspect) && process.argv.length !== 3) throw new Error('Release commands accept no arguments.');
+  const migrate = process.argv[2] === 'migrate-sky';
   const freeze = process.argv[2] === 'freeze-season';
+  if (migrate && process.argv.length !== 3) throw new Error('migrate-sky accepts no arguments.');
   if (freeze) validateFreeze(process.argv.slice(3), process.env);
-  if (process.argv.length > 2 && !control && !freeze) throw new Error('Unknown command');
+  if (process.argv.length > 2 && !control && !freeze && !migrate && !release && !restore && !inspect) throw new Error('Unknown command');
   if (control) controlPatch(process.argv.slice(3));
   console.log(startStand(version));
   if (getApps().length) {
-    if (freeze) {
+    if (release || restore || inspect) {
+      try {
+        if (restore) await restoreSkySeason(getFirestore());
+        else if (inspect) console.log(JSON.stringify(await inspectSky(getFirestore()), null, 2));
+        else await releaseSky(getFirestore(), () => firebaseDeploy(process.env.FIREBASE_PROJECT_ID!),
+          () => firebasePreflight(process.env.FIREBASE_PROJECT_ID!));
+      } finally { await getFirestore().terminate(); }
+      if (!inspect) console.log('Release sky controls complete; prior season setting restored.');
+    } else if (migrate) {
+      await migrateSky(getFirestore());
+      await getFirestore().terminate();
+      console.log('Live sky migration complete; season setting unchanged.');
+    } else if (freeze) {
       await freezeSeason(getFirestore(), process.argv[3]);
       await getFirestore().terminate();
       console.log('Season exported; live configuration unchanged.');
@@ -25,13 +53,19 @@ try {
       await getFirestore().terminate();
       console.log(`${process.argv[3] === 'init' ? 'Created' : 'Updated'} config/live: ${JSON.stringify(written, null, 2)}`);
     } else {
-      const stopMemory = startMemoryWriter(getFirestore(), () => console.error('Memory archive unavailable. Check source schema and capacity.'));
-      const stopMeteors = startMeteorScheduler(getFirestore(), () => console.error('Meteor scheduler unavailable. Check connection and live timing.'));
-      const stop = startSnapshotWriter(getFirestore(), () => console.error('Snapshot unavailable. Check connection or snapshot capacity.'));
-      const shutdown = () => { void Promise.all([stop(), stopMeteors(), stopMemory()]).then(() => process.exit(0)); };
+      await ensureLiveConfig(getFirestore());
+      const stop = startLeasedStand(getFirestore(), (fence) => {
+      console.log('Stand enrichment leadership acquired.');
+      const feed = objectFeed();
+      const stopMemory = startMemoryWriter(getFirestore(), () => console.error('Memory archive unavailable. Check source schema and capacity.'), undefined, undefined, undefined, fence, feed.publish);
+      const stopMeteors = startMeteorScheduler(getFirestore(), () => console.error('Meteor scheduler unavailable. Check connection and live timing.'), undefined, undefined, undefined, undefined, fence);
+      const stopSnapshot = startSnapshotWriter(getFirestore(), () => console.error('Snapshot unavailable. Check connection or snapshot capacity.'), undefined, undefined, undefined, fence, feed.subscribe);
+      return async () => { console.log('Stand enrichment leadership stopped.'); await Promise.all([stopSnapshot(), stopMeteors(), stopMemory()]); };
+      }, () => console.error('Stand lease request failed; services stop at their last confirmed deadline.'));
+      const shutdown = () => { void stop().then(() => getFirestore().terminate()).then(() => process.exit(0)); };
       process.once('SIGINT', shutdown); process.once('SIGTERM', shutdown);
     }
-  } else if (control) throw new Error('No admin connection');
+  } else if (control || migrate || release || restore || inspect) throw new Error('No admin connection');
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Stand command failed: ${message}`);

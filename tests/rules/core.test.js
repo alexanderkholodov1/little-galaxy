@@ -5,6 +5,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInAnonymously } from 'firebase/auth';
 import {
   collection,
+  FieldPath,
   connectFirestoreEmulator,
   deleteDoc,
   doc,
@@ -26,6 +27,7 @@ import {
 import { editObject, launchPlanet, ownActive, ownObjects, relaunchObject } from '../../apps/web/src/galaxy-data.ts';
 import {
   orbitFromVelocity,
+  skyBucket,
   presets,
   SCHEMA_VERSION,
   SEASON,
@@ -69,6 +71,9 @@ async function ageUser(uid = 'alice', overrides = {}) {
   );
 }
 /** Schema fixtures come from the shared domain contract; mutations below probe the rules boundary. */
+function skyWrite(batch, database, uid, id, data) {
+  batch.set(doc(database, 'sky', skyBucket(uid)), { entries: { [uid]: { id, data } } }, { mergeFields: [new FieldPath('entries', uid)] });
+}
 async function launchBatch(
   database,
   { uid = 'alice', objectId = 'planet', writeId = 'launch', object = {}, user = {}, omit = [] } = {},
@@ -107,6 +112,7 @@ async function launchBatch(
     ...user,
   };
   const batch = writeBatch(database);
+  if (!omit.includes('sky')) skyWrite(batch, database, uid, objectId, body);
   if (!omit.includes('object')) batch.set(doc(database, 'objects', objectId), body);
   if (!omit.includes('user')) batch.set(doc(database, 'users', uid), account);
   const base = { schemaVersion: SCHEMA_VERSION, uid, at, objectId, payload: body };
@@ -312,6 +318,7 @@ it('allows owner edits with exact event snapshots, and relaunches from hangar', 
   const edited = { ...original, nameKey: 'bright-tide', updatedAt: at };
   const batch = writeBatch(database);
   batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'edit', lastWriteAt: at, editDay: utcDay(Date.now()), editsToday: 1 });
+  skyWrite(batch, database, 'alice', first, edited);
   batch.update(doc(database, 'objects', first), { nameKey: 'bright-tide', updatedAt: at });
   batch.set(doc(database, 'events', 'edit'), {
     schemaVersion: 1,
@@ -328,6 +335,7 @@ it('allows owner edits with exact event snapshots, and relaunches from hangar', 
   const old = (await getDoc(doc(database, 'objects', first))).data();
   const current = (await getDoc(doc(database, 'objects', second))).data();
   const relaunch = writeBatch(database);
+  skyWrite(relaunch, database, 'alice', first, { ...old, status: 'active', updatedAt: at });
   relaunch.update(doc(database, 'objects', first), { status: 'active', updatedAt: at });
   relaunch.update(doc(database, 'objects', second), { status: 'hangar', updatedAt: at });
   relaunch.update(doc(database, 'users', 'alice'), {
@@ -473,7 +481,7 @@ it('two real anonymous Auth clients launch; a third screen listener receives bot
     for (const app of apps) await deleteApp(app);
   }
 });
-it('admin snapshot writer publishes compact state on its interval against the demo emulator', async () => {
+it('admin snapshot writer debounces content changes and leaves an unchanged timestamp intact', async () => {
   const id = await launchPlanet(db(), 'alice', draft, orbit());
   let errors = 0;
   const stop = startSnapshotWriter(
@@ -490,9 +498,8 @@ it('admin snapshot writer publishes compact state on its interval against the de
     const first = (await adminFirestore(admin).doc('snapshots/live').get()).data();
     expect(first.objects[0].id).toBe(id);
     expect(first.objects[0].ownerUid).toBeUndefined();
-    await expect
-      .poll(async () => (await adminFirestore(admin).doc('snapshots/live').get()).data()?.at.toMillis())
-      .toBeGreaterThan(first.at.toMillis());
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect((await adminFirestore(admin).doc('snapshots/live').get()).data().at.toMillis()).toBe(first.at.toMillis());
     await launchPlanet(db('bob'), 'bob', draft, orbit());
     await expect
       .poll(async () => (await adminFirestore(admin).doc('snapshots/live').get()).data()?.activeCount)
@@ -734,6 +741,7 @@ it.each(['planet', 'star', 'moon'].flatMap((type) => ['orbit', 'params', 'event'
     ...(invalid === 'schemaVersion' ? { schemaVersion: 1, ...(type === 'planet' ? { params: draft.params } : {}) } : {}),
     ...(invalid === 'hostOrbit' ? { hostOrbit: { ...old.hostOrbit, a: 7 } } : {}) };
   const batch = writeBatch(database);
+  skyWrite(batch, database, 'alice', id, object);
   batch.set(doc(database, 'objects', id), object);
   batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'bad-edit', lastWriteAt: at, editDay: utcDay(Date.now()), editsToday: 1 });
   batch.set(doc(database, 'events', 'bad-edit'), { schemaVersion: 1, uid: 'alice', type: 'edit', at, objectId: id,
@@ -753,6 +761,7 @@ it.each(['planet', 'star', 'moon'].flatMap((type) => ['counter', 'crumble', 'own
     ...(invalid === 'params' ? { params: presets[type][1] } : {}),
     ...(invalid === 'nameKey' ? { nameKey: 'n02-02' } : {}) };
   const archived = { ...current, status: 'hangar', updatedAt: at };
+  skyWrite(batch, database, 'alice', first, active);
   batch.set(doc(database, 'objects', first), active);
   batch.set(doc(database, 'objects', second), archived);
   batch.update(doc(database, 'users', 'alice'), { action: 'relaunch', writeId: 'bad-return', activeObjectId: first,
@@ -775,6 +784,7 @@ it('allows an unchanged historical orbit to be archived, edited and relaunched',
   const at = serverTimestamp();
   const batch = writeBatch(database);
   const object = { ...old, nameKey: 'bright-tide', updatedAt: at };
+  skyWrite(batch, database, 'alice', first, object);
   batch.set(doc(database, 'objects', first), object);
   batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId: 'historic-edit', lastWriteAt: at, editDay: utcDay(Date.now()), editsToday: 1 });
   batch.set(doc(database, 'events', 'historic-edit'), { schemaVersion: 1, uid: 'alice', type: 'edit', at, objectId: first, payload: object });
@@ -782,6 +792,7 @@ it('allows an unchanged historical orbit to be archived, edited and relaunched',
   const second = await launchPlanet(database, 'alice', draft, orbit()); await ageUser();
   const current = (await getDoc(doc(database, 'objects', second))).data();
   const relaunch = writeBatch(database);
+  skyWrite(relaunch, database, 'alice', first, { ...object, status: 'active', updatedAt: at });
   relaunch.update(doc(database, 'objects', first), { status: 'active', updatedAt: at });
   relaunch.update(doc(database, 'objects', second), { status: 'hangar', updatedAt: at });
   relaunch.update(doc(database, 'users', 'alice'), { action: 'relaunch', writeId: 'historic-return', activeObjectId: first, launchesToday: 3, lastWriteAt: at });
@@ -827,6 +838,7 @@ async function editBatch({ user = {}, object = {} } = {}) {
   const body = { ...old, updatedAt: at, nameKey: 'n01-01', ...object };
   const writeId = `budget-edit-${++editSequence}`;
   const batch = writeBatch(database);
+  skyWrite(batch, database, 'alice', u.activeObjectId, body);
   batch.set(doc(database, 'objects', u.activeObjectId), body);
   batch.update(doc(database, 'users', 'alice'), { action: 'edit', writeId, lastWriteAt: at,
     editDay: utcDay(Date.now()), editsToday: u.editDay === utcDay(Date.now()) ? (u.editsToday ?? 0) + 1 : 1, ...user });
@@ -1052,7 +1064,7 @@ it('init provisions the exact closed season once, supports client reads and perm
   expect(await applyControl(database, ['init'])).toEqual(initialConfig());
   const config = (await assertSucceeds(getDoc(doc(db(), 'config', 'live')))).data();
   expect(config).toEqual(initialConfig());
-  expect(config.season).toBe('bad-2026'); expect(config.appVersion).toBe('1.0.1');
+  expect(config.season).toBe('bad-2026'); expect(config.appVersion).toBe(JSON.parse(await readFile(new URL('../../apps/stand/package.json', import.meta.url), 'utf8')).version);
   expect(readConfig(config).seasonOpen).toBe(false);
   await assertFails((await launchBatch(db())).commit());
   await expect(applyControl(database, ['init'])).rejects.toThrow('refuses to overwrite');
@@ -1076,4 +1088,92 @@ it('stand publishes its first empty snapshot before the interval without any con
     expect((await database.doc('config/live').get()).exists).toBe(false);
     expect(failures).toEqual([]);
   } finally { await stop(); }
+});
+
+it('renders a confirmed empty sky and live launch/edit/replacement/relaunch with no stand or snapshots', async () => {
+  const { listenActive } = await import('../../apps/web/src/galaxy-data.ts');
+  let observed;
+  const errors = [];
+  const stop = listenActive(db('screen'), (objects, cache) => { if (!cache) observed = objects; }, () => errors.push('failed'));
+  try {
+    await expect.poll(() => observed).toEqual([]);
+    const first = await launchPlanet(db(), 'alice', draft, orbit());
+    await expect.poll(() => observed?.map((o) => o.id)).toEqual([first]);
+    await ageUser(); await editObject(db(), 'alice', { ...draft, nameKey: 'bright-tide' });
+    await expect.poll(() => observed?.[0]?.nameKey).toBe('bright-tide');
+    await ageUser(); const second = await launchPlanet(db(), 'alice', draft, orbit());
+    await expect.poll(() => observed?.map((o) => o.id)).toEqual([second]);
+    await ageUser(); await relaunchObject(db(), 'alice', first);
+    await expect.poll(() => observed?.map((o) => o.id)).toEqual([first]);
+    expect((await getDoc(doc(db('screen'), 'snapshots', 'live'))).exists()).toBe(false);
+    expect(errors).toEqual([]);
+  } finally { stop(); }
+});
+it('denies absent, forged, stale, wrong-shard and cross-owner sky mirrors', async () => {
+  await assertFails((await launchBatch(db(), { omit: ['sky'] })).commit());
+  await assertSucceeds((await launchBatch(db())).commit());
+  const shard = doc(db(), 'sky', skyBucket('alice'));
+  const entry = (await getDoc(shard)).data().entries.alice;
+  await assertFails(setDoc(shard, { entries: { alice: { ...entry, id: 'forged' } } }));
+  await assertFails(setDoc(doc(db(), 'sky', '0'), { entries: { alice: entry } }));
+  await assertFails(setDoc(doc(db('bob'), 'sky', skyBucket('alice')), { entries: { alice: entry } }));
+  await assertFails(deleteDoc(shard));
+  await assertFails(setDoc(doc(db(), 'leases', 'stand'), { owner: 'alice' }));
+  await assertFails(getDoc(doc(db(), 'leases', 'stand')));
+  await assertFails(getDocs(collection(db(), 'sky')));
+  await assertFails(getDocs(query(collection(db(), 'sky'), limit(17))));
+  await assertFails(getDocs(query(collection(env.unauthenticatedContext().firestore(), 'sky'), limit(16))));
+  expect((await assertSucceeds(getDocs(query(collection(db('screen'), 'sky'), limit(16))))).size).toBe(1);
+  await ageUser();
+  const batch = await launchBatch(db(), { objectId: 'second', writeId: 'second' });
+  // Same-shard competitor is preserved by the field-path merge, never overwritten.
+  await bypass((database) => setDoc(doc(database, 'sky', skyBucket('alice')), { entries: { keeper: entry } }, { merge: true }));
+  await assertSucceeds(batch.commit());
+  expect((await getDoc(shard)).data().entries.keeper).toEqual(entry);
+});
+
+it('merges simultaneous owners in the same shard without lost objects', async () => {
+  const ids = await Promise.all(['alice', 'quinn'].map((uid) => launchPlanet(db(uid), uid, draft, orbit())));
+  const entries = (await getDoc(doc(db('screen'), 'sky', skyBucket('alice')))).data().entries;
+  expect(skyBucket('alice')).toBe(skyBucket('quinn'));
+  expect(Object.values(entries).map((entry) => entry.id).sort()).toEqual(ids.sort());
+});
+
+it('rejects entry 513 atomically while allowing an existing owner to replace at the shard cap', async () => {
+  const first = await launchPlanet(db(), 'alice', draft, orbit());
+  const shard = adminFirestore(admin).doc(`sky/${skyBucket('alice')}`);
+  const own = (await shard.get()).data().entries.alice;
+  const entries = { alice: own };
+  for (let i = 0; i < 511; i++) entries[`reserved-${i}`] = own;
+  await shard.set({ entries });
+  await ageUser(); await assertSucceeds(editObject(db(), 'alice', { ...draft, nameKey: 'bright-tide' }));
+  await assertFails(launchPlanet(db('quinn'), 'quinn', draft, orbit()));
+  expect((await shard.get()).data().entries.alice.id).toBe(first);
+  expect(Object.keys((await shard.get()).data().entries)).toHaveLength(512);
+  expect((await adminFirestore(admin).doc('users/quinn').get()).exists).toBe(false);
+  expect((await adminFirestore(admin).collection('objects').get()).size).toBe(1);
+});
+
+it('uses one transaction get per interaction while rules still enforce the live switches', async () => {
+  const { observeTransactions } = await import('../../apps/web/src/firestore-observer.ts');
+  const database = db(), reads = [];
+  const stop = observeTransactions(database, { attempt() {}, request() {}, read(path) { reads.push(path); } });
+  try { await sendInteraction(database, 'alice', 'shake', {}); }
+  finally { stop(); }
+  expect(reads).toEqual(['users/alice']);
+});
+
+it('avoids duplicate config gets on launch and edit while retaining rule-enforced closed errors', async () => {
+  const { observeTransactions } = await import('../../apps/web/src/firestore-observer.ts');
+  const database = db(), reads = [];
+  const stop = observeTransactions(database, { attempt() {}, request() {}, read(path) { reads.push(path); } });
+  try {
+    const id = await launchPlanet(database, 'alice', draft, orbit());
+    expect(reads).toEqual(['users/alice']); reads.length = 0;
+    await ageUser(); await editObject(database, 'alice', draft);
+    expect(reads).toEqual(['users/alice', `objects/${id}`]);
+    await ageUser(); await bypass((database) => updateDoc(doc(database, 'config', 'live'), { seasonOpen: false }));
+    await expect(launchPlanet(database, 'alice', draft, orbit())).rejects.toThrow('closed');
+    await expect(editObject(database, 'alice', draft)).rejects.toThrow('closed');
+  } finally { stop(); }
 });

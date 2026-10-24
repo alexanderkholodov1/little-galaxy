@@ -55,6 +55,7 @@ export function createSoundController(count: number, notify: (state: AudioState)
     update(next: RenderObject[], eligible: SoundCandidate[]) {
       objects = next; candidates = eligible; engine?.update(objects, allowed ? candidates : []);
     },
+    event(id?: string) { if (!disposed && allowed && !muted) engine?.event(id); },
     pet(id: string) { void unlock().then(() => { if (!disposed && allowed && !muted) engine?.pet(id); }); },
     setMute(value: boolean) {
       muted = value;

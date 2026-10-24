@@ -1,9 +1,7 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { NavLink, Route, Routes, useSearchParams } from 'react-router';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Route, Routes, useSearchParams, useLocation } from 'react-router';
 import { isLanguage, supportedLanguages } from '@little-galaxy/shared';
 import { persistLanguage, resolveLanguage } from './language';
-import { loadProfile, profileHref } from './profile';
-import type { Profile } from './profile';
 import { copy } from './copy';
 import { applyTheme, resolveTheme, savedTheme, themeQuery } from './theme';
 import SessionLine from './SessionLine';
@@ -27,6 +25,10 @@ function PageContent({ page, text }: { page: Page; text: typeof copy.en | typeof
 }
 
 export default function App() {
+  const sheet = useRef<HTMLDialogElement>(null);
+  const creditsButton = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { pathname } = useLocation();
   const [search, setSearch] = useSearchParams();
   const [preferredLanguage, setPreferredLanguage] = useState(() => resolveLanguage(window.location.search, () => localStorage));
   const queryLanguage = search.get('lang');
@@ -34,7 +36,6 @@ export default function App() {
   const text = copy[language];
   const [theme, setTheme] = useState(resolveTheme);
   const [explicitTheme, setExplicitTheme] = useState(() => savedTheme() !== null);
-  const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -52,32 +53,16 @@ export default function App() {
     return () => preference.removeEventListener('change', followSystem);
   }, [explicitTheme]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 5000);
-    void loadProfile(controller.signal).then((value) => {
-      if (!controller.signal.aborted) setProfile(value);
-    });
-    return () => { controller.abort(); window.clearTimeout(timeout); };
-  }, []);
-
-  const suffix = `?lang=${language}`;
   const portfolio = language === 'es' ? '/es/' : '/';
-  const isScreen = location.pathname.endsWith('/screen');
+  const page = pathname.endsWith('/screen') ? 'screen' : pathname.endsWith('/create') ? 'create' : pathname.includes('/o/') ? 'object' : 'home';
+  function finishClose() { setMenuOpen(false); creditsButton.current?.focus(); }
+  function closeSheet() { sheet.current?.close?.(); sheet.current?.removeAttribute('open'); finishClose(); }
+  function openSheet() { setMenuOpen(true); if (sheet.current?.showModal) sheet.current.showModal(); else sheet.current?.setAttribute('open', ''); }
   return (
-    <div className="app-shell" data-page={isScreen ? 'screen' : undefined}>
+    <div className="app-shell" data-page={page}>
       <a className="skip-link" href="#content">{text.skip}</a>
-      <header className="portfolio-header">
-        <a className="signature" href={portfolio}>
-          <svg width="23" height="22" viewBox="0 0 23 22" fill="currentColor" aria-hidden="true">
-            <path d="M0 0h5v22H0zM9 6h5v16H9zM18 12h5v10h-5z" />
-          </svg>
-          <span>{profile?.name ?? text.productName}</span>
-        </a>
-        <nav className="profile-links" aria-label={text.portfolio}>
-          {profile?.links.length ? profile.links.map((link) => <a key={JSON.stringify([profileHref(link, 'en'), profileHref(link, 'es')])} href={profileHref(link, language)}>{link.label[language]}</a>) : <a href={portfolio}>{text.portfolio}</a>}
-        </nav>
-        <div className="preferences">
+      <button ref={creditsButton} className="credits-toggle" aria-haspopup="dialog" aria-controls="galaxy-credits" aria-expanded={menuOpen} onClick={openSheet}>{text.credits}</button>
+        <div className="preferences game-preferences">
           <div className="language-switch" role="group" aria-label={text.language}>
             {supportedLanguages.map((choice) => (
               <button key={choice} lang={choice} aria-pressed={language === choice} onClick={() => {
@@ -94,12 +79,19 @@ export default function App() {
             try { localStorage.setItem('galaxy.theme', next); } catch { /* The explicit choice still lasts this session. */ }
           }}>{text.dark}</button>
         </div>
-      </header>
-      <nav className="galaxy-nav" aria-label={text.nav}>
-        {(['home', 'screen', 'create'] as const).map((page) => (
-          <NavLink key={page} to={`${page === 'home' ? '/' : `/${page}`}${suffix}`} end>{text[page]}</NavLink>
-        ))}
-      </nav>
+
+      <dialog id="galaxy-credits" ref={sheet} className="credits-card" aria-label={text.credits} onClose={finishClose} onKeyDown={(event) => {
+        if (event.key !== 'Tab') return;
+        const controls = event.currentTarget.querySelectorAll<HTMLElement>('button, a[href]');
+        const first = controls[0], last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }}>
+        <button autoFocus className="credits-close" onClick={closeSheet}>{language === 'es' ? 'Cerrar' : 'Close'}</button>
+        <h2>{text.productName}</h2>
+        <p>Alexander Kholodov · USFQ</p>
+        <a href={portfolio}>{text.portfolio}</a>
+      </dialog>
       <main id="content">
         <Routes>
           <Route index element={<Suspense fallback={<p>{text.loadingSky}</p>}><Home language={language}/></Suspense>} />

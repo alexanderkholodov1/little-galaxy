@@ -105,6 +105,37 @@ service cloud.firestore {
         && (d.action == 'comet' ? d.lastCometAt == request.time && request.time >= old.lastCometAt + duration.value(10,'s') : d.lastCometAt == old.lastCometAt)
         && (d.action == 'shootingStar' ? d.lastStarAt == request.time && request.time >= old.lastStarAt + duration.value(20,'s') : d.lastStarAt == old.lastStarAt);
     }
+    function skyBucket() {
+      return ['0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'][
+        (request.auth.uid.matches('^[IJKLMNOPYZabcdefopqrstuv456789_-].*') ? 8 : 0) +
+        (request.auth.uid.matches('^[EFGHMNOPUVWXcdefklmnstuv012389_-].*') ? 4 : 0) +
+        (request.auth.uid.matches('^[CDGHKLOPSTWXabefijmnqruvyz2367_-].*') ? 2 : 0) +
+        (request.auth.uid.matches('^[BDFHJLNPRTVXZbdfhjlnprtvxz13579-].*') ? 1 : 0)];
+    }
+    function mirrored(d, objectId) {
+      let entry = getAfter(/databases/$(database)/documents/sky/$(skyBucket())).data.entries[request.auth.uid];
+      return entry.id == objectId && entry.data == d;
+    }
+    function skyEntry(d) {
+      let u = afterUser();
+      let entry = d.entries[request.auth.uid];
+      return d.keys().hasOnly(['entries']) && d.entries is map && d.entries.size() <= 512
+        && entry.keys().hasAll(['id','data']) && entry.keys().hasOnly(['id','data'])
+        && entry.id == u.activeObjectId && u.lastWriteAt == request.time
+        && u.action in ['launch','relaunch','edit']
+        && entry.data == getAfter(objectPath(entry.id)).data
+        && entry.data.ownerUid == request.auth.uid && entry.data.status == 'active'
+        && entry.data.updatedAt == request.time;
+    }
+    match /sky/{shard} {
+      allow get: if signed() && shard.matches('^[0-9a-f]$');
+      allow list: if signed() && request.query.limit != null && request.query.limit <= 16;
+      allow create: if signed() && shard == skyBucket()
+        && request.resource.data.entries.keys().hasOnly([request.auth.uid]) && skyEntry(request.resource.data);
+      allow update: if signed() && shard == skyBucket()
+        && request.resource.data.entries.diff(resource.data.entries).affectedKeys().hasOnly([request.auth.uid])
+        && skyEntry(request.resource.data);
+    }
     match /objects/{objectId} {
       // Signed screen: active query. Owner: own active/hangar query or document.
       allow list: if signed() && (resource.data.status == 'active' || own(resource.data.ownerUid));
@@ -118,7 +149,7 @@ service cloud.firestore {
       let flags = config();
       return objectSchema(d) && freshOrbit(d.orbit) && u.lastWriteAt == request.time
         && flags.seasonOpen && flags.launches && validHost(d)
-        && d.createdAt == request.time && d.status == 'active'
+        && d.createdAt == request.time && d.status == 'active' && mirrored(d, objectId)
         && u.activeObjectId == objectId && u.action == 'launch'
         && eventMatches(u.writeId + '-create', 'create', objectId);
     }
@@ -135,7 +166,7 @@ service cloud.firestore {
           ? old.status == 'active' && launchAction(u.action)
             && get(userPath()).data.activeObjectId == objectId && u.activeObjectId != objectId
             && d.diff(old).affectedKeys().hasOnly(['status','updatedAt'])
-          : u.activeObjectId == objectId
+          : u.activeObjectId == objectId && mirrored(d, objectId)
             && ((u.action == 'edit' && old.status == 'active' && d.orbit == old.orbit && flags.get('edits', true))
               || (u.action == 'relaunch' && old.status == 'hangar' && flags.launches
                 && d.diff(old).affectedKeys().hasOnly(['status','updatedAt']) && validHost(d))));

@@ -22,5 +22,4 @@ export async function staticMemory(page) {
     } : { format: 1, objects: [object] };
     return route.fulfill({ json: data });
   });
-  await page.route('**/profile.json', (route) => route.fulfill({ json: { name: 'Test profile', socials: [{ href: 'https://example.com/test', label: { en: 'Test social', es: 'Red de prueba' } }] } }));
 }

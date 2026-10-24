@@ -15,13 +15,13 @@
    delivers — no process narration, no "as requested", no apologies.
 4. **English** in code, comments, docs, commits. English is the primary UI language; Spanish secondary.
 5. **This repo never deploys to production Hosting.** Only preview channels; production goes through
-   the portfolio repo's `games.json` pin (a Hosting deploy replaces the whole site).
+   an exact-tag `galaxy-release` dispatch to the portfolio repo (a Hosting deploy replaces the whole site).
 6. **Secrets:** the data project's admin key is server-side only (`apps/stand`), used by path via
    `GOOGLE_APPLICATION_CREDENTIALS`; never printed, committed or bundled. A privacy test gates the
    build. The web Firebase config is public by design.
 7. **Security rules deny-by-default**; every rule path covered by emulator tests. Rules deploys are
    operator-confirmed.
-8. **Free tier only** (Spark). No Cloud Functions. The booth laptop (`apps/stand`) plays the server role.
+8. **Free tier only** (Spark). No Cloud Functions. Clients maintain live sky shards; the leased Beacon/laptop stand (`apps/stand`) enriches the sky.
 9. **Never reserve a public name without asking.**
 10. **Live-safety is a requirement:** any deploy must survive phones mid-edit and the screen running
     (see plan `05-live-deploys-and-ops.md`).

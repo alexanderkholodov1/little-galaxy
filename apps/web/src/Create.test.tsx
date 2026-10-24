@@ -402,3 +402,16 @@ it('recovers inspection from an older workshop specimen step before the explicit
   await act(async () => root.render(<Create language="en" />));
   expect(container.querySelector('[data-preview="procedural"]')).not.toBeNull();
 });
+
+it('preserves a pane selected while a launch is waiting for confirmation', async () => {
+  let finish!: (id: string) => void;
+  vi.mocked(launchPlanet).mockReturnValue(new Promise<string>((resolve) => { finish = resolve; }));
+  await act(async () => root.render(<Create language="en"/>));
+  await act(async () => container.querySelector<HTMLButtonElement>('[data-step=launch]')!.click());
+  await act(async () => container.querySelector<HTMLButtonElement>('.launch-desk button')!.click());
+  expect(launchPlanet).toHaveBeenCalledOnce();
+  await act(async () => container.querySelector<HTMLButtonElement>('[data-step=hangar]')!.click());
+  await act(async () => finish('confirmed'));
+  expect(container.querySelector('.workshop')?.getAttribute('data-workshop-step')).toBe('hangar');
+  expect(container.querySelector('.launch-feedback')?.textContent).toContain('In orbit');
+});
