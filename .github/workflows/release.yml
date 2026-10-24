@@ -87,10 +87,22 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.guard.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
       - name: Download release files
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-files
+      - name: Refuse stale release before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
+        run: node scripts/verify-release.js --current-main
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -114,6 +126,11 @@ jobs:
               --title "$RELEASE_TAG" --generate-notes --verify-tag \
               --repo "$GITHUB_REPOSITORY" "${options[@]}"
           fi
+      - name: Recheck current main before portfolio dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
+        run: node scripts/verify-release.js --current-main
       - name: Dispatch the exact published release to portfolio
         env:
           GH_TOKEN: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
@@ -132,7 +149,7 @@ jobs:
     timeout-minutes: 15
     environment: little-galaxy-rules
     concurrency:
-      group: galaxy-sky-admin
+      group: galaxy-sky-releases
       cancel-in-progress: false
     env:
       FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
@@ -158,6 +175,11 @@ jobs:
         env:
           JAVA_TOOL_OPTIONS: -Xmx512m
         run: pnpm run test:rules
+      - name: Refuse stale release before deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
+        run: node scripts/verify-release.js --current-main
       - name: Write data-project credentials
         id: credentials
         shell: bash
@@ -180,8 +202,8 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-rules.json
         run: |
           if ! pnpm --filter @little-galaxy/stand exec tsx src/index.ts restore-season; then
-            echo '::error::SEASON RESTORATION FAILED. Run Operate the sky: restore-season.'
-            echo 'SEASON RESTORATION FAILED: use Operate the sky → restore-season.' >> "$GITHUB_STEP_SUMMARY"
+            echo '::error::SEASON KEPT CLOSED OR RESTORATION FAILED. Operate the sky: inspect migration; incomplete post-deploy migrations must succeed before restore-season.'
+            echo 'SEASON KEPT CLOSED OR RESTORATION FAILED: use Operate the sky to inspect migration, repair sources and re-run failed release jobs; restore-season refuses an incomplete post-deploy migration.' >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
       - name: Remove data-project credentials

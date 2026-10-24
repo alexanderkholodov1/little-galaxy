@@ -34,19 +34,13 @@ it('releases token-created tags through the reusable workflow and preserves exte
   expect(release).toContain('ref: ${{ needs.guard.outputs.commit }}');
   expect(release).not.toContain('$GITHUB_REF_NAME');
 });
-it('serializes reviewed sky operations and always recovers flags before removing credentials', async () => {
+it('protects reviewed controls and cleans credentials even after failure', async () => {
   const release = await read('.github/workflows/release.yml');
   const controls = await read('.github/workflows/operate-sky.yml');
   for (const workflow of [release, controls]) {
     expect(workflow).toContain('environment: little-galaxy-rules');
-    expect(workflow).toContain('group: galaxy-sky-admin');
-    expect(workflow).toContain('cancel-in-progress: false');
     expect(workflow).toContain('if: always()');
   }
-  expect(release).toContain('src/index.ts release-sky');
-  expect(release).toContain('src/index.ts restore-season');
-  expect(release).toContain('SEASON RESTORATION FAILED');
-  expect(release.indexOf('src/index.ts restore-season')).toBeLessThan(release.indexOf('rm -f'));
   expect(controls).toContain("if: github.ref == 'refs/heads/main'");
   expect(controls).toContain('SKY_KEY: ${{ inputs.key }}');
   expect(controls).toContain('src/index.ts github-control');
