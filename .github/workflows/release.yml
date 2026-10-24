@@ -102,10 +102,18 @@ jobs:
           if [[ "$PRERELEASE" == true ]]; then
             options+=(--prerelease --latest=false)
           fi
-          gh release create "$RELEASE_TAG" \
-            "galaxy-dist-${RELEASE_TAG}.tar.gz" version.json SHA256SUMS \
-            --title "$RELEASE_TAG" --generate-notes --verify-tag \
-            --repo "$GITHUB_REPOSITORY" "${options[@]}"
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir published
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir published \
+              --pattern "galaxy-dist-${RELEASE_TAG}.tar.gz" --pattern version.json --pattern SHA256SUMS
+            cmp SHA256SUMS published/SHA256SUMS
+            (cd published && sha256sum --check SHA256SUMS)
+          else
+            gh release create "$RELEASE_TAG" \
+              "galaxy-dist-${RELEASE_TAG}.tar.gz" version.json SHA256SUMS \
+              --title "$RELEASE_TAG" --generate-notes --verify-tag \
+              --repo "$GITHUB_REPOSITORY" "${options[@]}"
+          fi
       - name: Dispatch the exact published release to portfolio
         env:
           GH_TOKEN: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}

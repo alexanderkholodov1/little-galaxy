@@ -75,3 +75,12 @@ it('fails loudly and retains recovery state if restoration fails', async () => {
   await restoreSkySeason(db);
   expect((await db.doc('config/live').get()).data().seasonOpen).toBe(true);
 });
+
+it('retains the original flag on retry after interruption before migration', async () => {
+  await prepareSkyMigration(db);
+  await releaseSky(db, async () => {
+    expect((await db.doc('config/live').get()).data().seasonOpen).toBe(false);
+    await db.doc('config/live').update({ edits: false });
+  });
+  expect((await db.doc('config/live').get()).data()).toEqual({ seasonOpen: true, edits: false });
+});
