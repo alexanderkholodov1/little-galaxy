@@ -60,7 +60,8 @@ export function createLabels({root, t}) {
   function update(items, now) {
     if (disposed) return;
     const dt = last === null ? 0 : Math.max(0, Math.min(80, now-last)); last = now;
-    const cap = phone ? 10 : 28, candidates = [], live = [];
+    // Fair 2026-10-25 (operator): seeing the whole galaxy shows every name that fits without overlapping.
+    const cap = phone ? 40 : 80, candidates = [], live = [];
     for (const r of records.values()) { r.seen = false; r.want = false; if (r.alpha > 0) live.push(r); }
     let nearest = null, distance = Infinity;
     if (pointer && !pointer.touch) {
@@ -95,7 +96,7 @@ export function createLabels({root, t}) {
       candidates.push(r);
     }
     if (phone && mode==='auto') {
-      const central=candidates.filter(r=>!r.item.mine && !r.item.focus && !r.hot).sort((a,b)=>a.center-b.center).slice(0,7);
+      const central=candidates.filter(r=>!r.item.mine && !r.item.focus && !r.hot).sort((a,b)=>a.center-b.center).slice(0,40);
       const eligible=new Set(central);
       for (let i=candidates.length-1;i>=0;i--) {
         const r=candidates[i];
