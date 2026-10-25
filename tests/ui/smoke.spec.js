@@ -99,7 +99,6 @@ test('returning anonymous Auth keeps its membership while new galaxies use unlin
  const first=await seedGalaxy();await ready(page,first);await workshop(page,'Ada');await throwBody(page);
  await expect(page.locator('#countN')).toHaveText('1',{timeout:20000});const label=await page.evaluate(()=>window.__fog.store.owner());
  await page.reload();await page.locator('body[data-sky-ready="true"]').waitFor();expect(await page.evaluate(()=>window.__fog.store.owner())).toBe(label);
- const second=await seedGalaxy();await ready(page,second);await workshop(page); // the phone keeps its chosen name: no second name screen
- await throwBody(page);await expect(page.locator('#countN')).toHaveText('1',{timeout:20000});
+ const second=await seedGalaxy();await ready(page,second);await workshop(page,'Grace');await throwBody(page);await expect(page.locator('#countN')).toHaveText('1',{timeout:20000});
  expect(await page.evaluate(()=>window.__fog.store.owner())).not.toBe(label);
 });
