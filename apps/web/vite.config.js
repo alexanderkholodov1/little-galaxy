@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
 import { assertProductionEnv, createVersionFile } from './build-config.js';
 import { loadBuildEnv } from './build-env.js';
 
@@ -13,12 +12,13 @@ export default defineConfig(({ command, mode }) => {
     encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
   }));
   return {
-    base: '/galaxy/',
+    base: '/little-galaxy/',
+    build: {rolldownOptions: {input: {game: new URL('./index.html', import.meta.url).pathname, admin: new URL('./admin.html', import.meta.url).pathname}}},
     define: {
       __APP_VERSION__: JSON.stringify(metadata.version),
       __APP_COMMIT__: JSON.stringify(metadata.commit),
     },
-    plugins: [react(), {
+    plugins: [{
       name: 'galaxy-version',
       generateBundle() {
         // The release payload redistributes the fonts, so it must carry their notices too.
@@ -30,13 +30,15 @@ export default defineConfig(({ command, mode }) => {
         }
         this.emitFile({ type: 'asset', fileName: 'licenses/MIT-qrcode-generator.txt',
           source: readFileSync(new URL('./src/assets/licenses/MIT-qrcode-generator.txt', import.meta.url), 'utf8') });
-        for (const name of ['MIT-babel-runtime.txt', 'MIT-Tone.txt', 'MIT-standardized-audio-context.txt', 'MIT-automation-events.txt', '0BSD-tslib.txt', 'Copyright-tslib.txt']) {
-          this.emitFile({ type: 'asset', fileName: `licenses/${name}`,
-            source: readFileSync(new URL(`./src/assets/licenses/${name}`, import.meta.url), 'utf8') });
+        for (const family of ['figtree', 'unbounded']) {
+          this.emitFile({ type: 'asset', fileName: `licenses/OFL-${family}.txt`,
+            source: readFileSync(new URL(`./node_modules/@fontsource-variable/${family}/LICENSE`, import.meta.url), 'utf8') });
         }
+        this.emitFile({ type: 'asset', fileName: 'licenses/MIT-three.txt',
+          source: readFileSync(new URL('./node_modules/three/LICENSE', import.meta.url), 'utf8') });
         this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify(metadata, null, 2) + '\n' });
       },
     }],
-    test: { environment: 'jsdom', pool: 'threads', maxWorkers: 2, include: ['src/**/*.test.{ts,tsx}', '*.test.js'] },
+    test: { environment: 'jsdom', pool: 'threads', maxWorkers: 2, include: ['src/**/*.test.ts', 'integration/**/*.test.js', '*.test.js'] },
   };
 });

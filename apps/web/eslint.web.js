@@ -1,11 +1,1 @@
-import hooks from 'eslint-plugin-react-hooks';
-import refresh from 'eslint-plugin-react-refresh';
-
-export default {
-  files: ['apps/web/src/**/*.{ts,tsx}'],
-  plugins: { 'react-hooks': hooks, 'react-refresh': refresh },
-  rules: {
-    ...hooks.configs.recommended.rules,
-    'react-refresh/only-export-components': ['error', { allowConstantExport: true }],
-  },
-};
+export default {files: ['apps/web/integration/**/*.js'], languageOptions: {globals: {window: "readonly", document: "readonly", localStorage: "readonly", location: "readonly", navigator: "readonly", performance: "readonly", requestAnimationFrame: "readonly"}}};

@@ -1,0 +1,235 @@
+/* ==========================================================================
+   player-ui.css — R4 (pantalla de nombre + anónimo) y R16 (preferencias).
+   Solo clases pu- · usa .glass y las variables de style.css · nada de literales:
+   toda transparencia sale de color-mix(in srgb, var(--…), transparent).
+   Radio con significado: 999px = se presiona · 28px (--r-sheet) = hojas de vidrio
+   · 14px (--r-chip) = fichas dentro del vidrio · blancos de 44px · Figtree 450/760
+   y Unbounded en lo grande. Densidad con ritmo: 4px dentro de una fila, 12-16
+   entre secciones.
+   ========================================================================== */
+.pu-scrim{
+  position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;justify-content:flex-end;
+  background:color-mix(in srgb, var(--noche) 52%, transparent);
+  animation:pu-fade .4s var(--out);
+}
+@keyframes pu-fade{from{opacity:0}to{opacity:1}}
+
+.pu-card{
+  position:relative;width:calc(100% - 20px);margin:0 auto calc(10px + var(--sb));
+  padding:22px 18px 16px;border-radius:var(--r-sheet);
+  display:flex;flex-direction:column;
+  animation:sheetin .55s var(--spring);
+}
+.pu-title{
+  margin:4px 0 0;font-family:var(--f-display);font-weight:600;font-size:clamp(1.2rem,4.6vw,1.55rem);
+  letter-spacing:-.015em;line-height:1.16;color:var(--crema);
+}
+.pu-k,.pu-preview-k{
+  font-size:var(--fs-5);font-weight:760;letter-spacing:.12em;text-transform:uppercase;color:var(--lav-t);
+}
+.pu-k{display:block}
+.pu-intro{margin:5px 0 0;font-size:var(--fs-4);font-weight:450;color:var(--crema-2)}
+
+/* ------------------------------------------------ la vista previa: así flotará */
+.pu-preview{
+  margin:16px 0 18px;padding:10px 6px 2px;min-height:6.4em;
+  display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;
+}
+.pu-preview-name{
+  font-family:var(--f-display);font-weight:600;line-height:1.3;overflow-wrap:anywhere;
+  font-size:clamp(1rem, calc(31px - var(--len, 12)*0.9px), 1.8rem);
+  color:var(--crema);opacity:.55;text-shadow:0 0 20px color-mix(in srgb, var(--brasa) 45%, transparent),
+                                       0 0 60px color-mix(in srgb, var(--brasa) 22%, transparent);
+}
+.pu-preview-name.pu-ghost{
+  opacity:.28;text-shadow:none;color:color-mix(in srgb, var(--crema) 60%, transparent);
+}
+.pu-preview.pu-anon .pu-preview-name{opacity:.42;text-shadow:0 0 20px color-mix(in srgb, var(--celeste) 40%, transparent)}
+.pu-pv-mark{display:block;width:52px;height:34px;margin:2px 0 4px;opacity:.6}
+.pu-pv-mark svg{width:100%;height:100%}
+@media (prefers-reduced-motion:no-preference){
+  .pu-preview-name{animation:pu-breathe 4.5s ease-in-out infinite}
+}
+@keyframes pu-breathe{0%,100%{opacity:.55}50%{opacity:.66}}
+
+/* ------------------------------------------------ el campo */
+.pu-lab-row{display:flex;align-items:baseline;justify-content:space-between;margin:0 2px 6px}
+.pu-lab{font-size:var(--fs-5);font-weight:760;letter-spacing:.1em;text-transform:uppercase;color:var(--lav-t)}
+.pu-count{font-size:var(--fs-5);font-weight:760;color:var(--lav-t);opacity:.8;font-variant-numeric:tabular-nums}
+.pu-in{
+  width:100%;height:52px;padding:0 16px;border:0;border-radius:var(--r-chip);
+  font:450 1.06rem/1.2 var(--f-ui);color:var(--crema);caret-color:var(--brasa);
+  background:color-mix(in srgb, var(--crema) 5%, transparent);
+  box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--crema) 13%, transparent);
+  transition:box-shadow .25s,background-color .25s;
+  -webkit-user-select:text;user-select:text;
+}
+.pu-in::placeholder{color:color-mix(in srgb, var(--lav-t) 72%, transparent)}
+.pu-in:focus{outline:none}
+.pu-in:focus-visible{outline:2.5px solid var(--lavanda);outline-offset:3px}
+.pu-in:hover{background:color-mix(in srgb, var(--crema) 8%, transparent)}
+.pu-err{
+  margin:8px 2px -4px;min-height:1.25em;font-size:var(--fs-5);font-weight:760;color:var(--brasa-l);
+  animation:pu-fade .25s var(--out);
+}
+
+/* ------------------------------------------------ los dos botones iguales */
+.pu-btns{display:grid;gap:12px;margin-top:16px}
+.pu-cta{width:100%;height:58px;justify-content:center;padding:0 20px;font-size:1rem}
+.pu-cta .cta-orb{width:42px;height:42px;flex:0 0 42px}
+.pu-cta .cta-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pu-sec{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  height:58px;padding:0 18px;border-radius:999px;
+  font-weight:760;font-size:1rem;letter-spacing:.01em;color:var(--crema);
+  background:color-mix(in srgb, var(--celeste) 13%, transparent);
+  box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--celeste) 52%, transparent),inset 0 1px 0 rgba(255,241,222,.16),
+             0 16px 34px -18px color-mix(in srgb, var(--noche) 80%, transparent);
+}
+.pu-sec:hover{background:color-mix(in srgb, var(--celeste) 20%, transparent)}
+.pu-why{margin:12px 2px 2px;font-size:var(--fs-5);line-height:1.4;color:var(--lav-t)}
+
+.pu-buzz{animation:pu-buzz .38s var(--out)}
+@keyframes pu-buzz{
+  20%{transform:translateX(-5px)}40%{transform:translateX(4px)}
+  60%{transform:translateX(-3px)}80%{transform:translateX(2px)}100%{transform:none}
+}
+
+/* ==========================================================================
+   R16 · el panel de preferencias: hoja abajo en el teléfono, panel a la derecha
+   flotando como la hoja del taller en escritorio. No tapa el juego.
+   ========================================================================== */
+.pu-panel{
+  position:fixed;left:10px;right:10px;bottom:calc(10px + var(--sb));z-index:36;
+  display:flex;flex-direction:column;gap:2px;
+  padding:12px 12px 8px;border-radius:var(--r-sheet);
+  max-height:calc(100% - 20px - var(--sb));overflow:hidden;
+  animation:sheetin .5s var(--spring);
+}
+.pu-panel.pu-out{animation:sheetout .25s var(--out) forwards}
+.pu-head{display:flex;align-items:center;gap:8px;padding:2px 2px 4px}
+.pu-head .pu-title{flex:1;margin:0;font-size:1.05rem;line-height:1.2}
+.pu-sic{display:inline-grid;place-items:center;width:24px;height:24px;flex:0 0 24px;color:var(--celeste)}
+.pu-sic svg{width:21px;height:21px}
+.pu-body{
+  display:flex;flex-direction:column;gap:14px;overflow-y:auto;overscroll-behavior:contain;
+  padding:6px 2px 4px;scrollbar-width:none;
+}
+.pu-body::-webkit-scrollbar{display:none}
+.pu-grp{display:flex;flex-direction:column;gap:9px}
+.pu-panel.pu-in .pu-grp{
+  animation:fadeup .5s var(--out) both;
+  animation-delay:calc(var(--i, 0)*40ms + 90ms);
+}
+.pu-sech{
+  display:flex;align-items:center;gap:8px;min-height:26px;
+  font-family:var(--f-display);font-weight:600;font-size:.82rem;letter-spacing:.01em;color:var(--crema);
+}
+.pu-sech .pu-sic{width:22px;height:22px;flex-basis:22px}
+.pu-sech .pu-sic svg{width:19px;height:19px}
+
+/* filas */
+.pu-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;min-height:44px;padding:0 2px}
+.pu-row .pu-l{font-size:var(--fs-4);font-weight:760;color:var(--crema)}
+.pu-row.pu-vol{grid-template-columns:auto 1fr 2.4em;gap:8px;min-height:48px}
+.pu-row.pu-vol .pu-l{font-size:var(--fs-5);letter-spacing:.08em;text-transform:uppercase;color:var(--lav-t)}
+.pu-num{font-size:var(--fs-5);font-weight:760;text-align:right;color:var(--lav-t);font-variant-numeric:tabular-nums}
+.pu-row.pu-dim{opacity:.35}
+.pu-vol .pu-range{min-width:0}
+
+/* interruptor: 44px de blanco, el rastro dentro */
+.pu-sw{width:44px;height:44px;border-radius:999px;display:grid;place-items:center}
+.pu-track{
+  position:relative;display:block;width:40px;height:24px;border-radius:999px;
+  background:color-mix(in srgb, var(--noche) 55%, transparent);
+  box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--celeste) 42%, transparent);
+  transition:background-color .3s,box-shadow .3s;
+}
+.pu-knob{
+  position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:999px;
+  background:var(--crema);
+  box-shadow:0 2px 5px color-mix(in srgb, var(--noche) 60%, transparent);
+  transition:transform .35s var(--spring),background-color .3s;
+}
+.pu-sw[aria-checked="true"] .pu-track{
+  background:color-mix(in srgb, var(--brasa) 36%, transparent);
+  box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--brasa) 78%, transparent),
+             0 0 18px -6px color-mix(in srgb, var(--brasa) 60%, transparent);
+}
+.pu-sw[aria-checked="true"] .pu-knob{transform:translateX(16px)}
+
+/* fichas de preferencia: radio con sentido, 14px dentro del vidrio */
+.pu-chips{display:flex;flex-wrap:wrap;gap:8px}
+.pu-chip{
+  display:inline-flex;align-items:center;height:44px;padding:0 16px;border-radius:var(--r-chip);
+  font-weight:760;font-size:.86rem;letter-spacing:.01em;
+  color:color-mix(in srgb, var(--crema) 74%, transparent);
+  background:color-mix(in srgb, var(--crema) 4%, transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--crema) 9%, transparent);
+}
+.pu-chip:hover{color:var(--crema)}
+.pu-chip[aria-checked="true"]{
+  color:var(--crema);
+  background:color-mix(in srgb, var(--brasa) 15%, transparent);
+  box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--brasa) 78%, transparent),
+             0 8px 18px -10px color-mix(in srgb, var(--brasa) 55%, transparent);
+}
+.pu-hint{margin:-3px 2px 0;font-size:var(--fs-5);line-height:1.4;color:var(--lav-t)}
+
+/* tu nombre */
+.pu-you{grid-template-columns:1fr auto}
+.pu-you-t{
+  min-width:0;font-size:var(--fs-4);font-weight:450;color:var(--crema-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.pu-change{
+  height:44px;padding:0 18px;border-radius:999px;
+  font-weight:760;font-size:.85rem;color:var(--crema);
+  background:color-mix(in srgb, var(--celeste) 12%, transparent);
+  box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--celeste) 50%, transparent);
+}
+.pu-change:hover{background:color-mix(in srgb, var(--celeste) 20%, transparent)}
+
+.pu-foot{margin:10px 4px 4px;font-size:var(--fs-5);letter-spacing:.02em;color:var(--lav-t);opacity:.75}
+
+/* ------------------------------------------------------------ mochi en lo pu- */
+.pu-sec,.pu-chip,.pu-sw,.pu-change{
+  transition:transform .42s var(--spring),background-color .25s,box-shadow .35s,color .25s,opacity .3s;
+}
+.pu-sec:active,.pu-chip:active,.pu-sw:active,.pu-change:active{transform:scale(1.05,.9);transition-duration:.09s}
+
+/* ------------------------------------------------------------ escritorio */
+@media (min-width:900px){
+  .pu-scrim{justify-content:center;align-items:center;padding:20px}
+  .pu-card{width:520px;margin:0;padding:30px 30px 24px}
+  .pu-panel{left:auto;right:28px;top:calc(96px + var(--st));bottom:auto;width:404px;
+    padding:16px 16px 10px;max-height:calc(100% - 124px)}
+  .pu-body{gap:16px;padding-right:6px}
+  .pu-title{font-size:1.6rem}
+  .pu-btns{grid-template-columns:1fr 1fr}
+  .pu-preview{padding-top:16px}
+}
+
+/* ------------------------------------------------------------ teléfonos bajitos */
+@media (max-height:700px) and (max-width:899px){
+  .pu-card{padding:16px 16px 12px}
+  .pu-preview{margin:10px 0 12px;min-height:5.6em}
+  .pu-intro{margin-top:3px}
+}
+
+/* ============================================================
+   movimiento: se honra prefers-reduced-motion Y html[data-motion=reduce]
+   (el lead lo pone cuando el jugador elige "Calma" o el sistema pide calma)
+   ============================================================ */
+@media (prefers-reduced-motion:reduce){
+  .pu-scrim,.pu-card,.pu-panel,.pu-panel .pu-grp,.pu-preview-name{animation:none !important}
+  .pu-sec:active,.pu-chip:active,.pu-sw:active,.pu-change:active{transform:none}
+  .pu-sec,.pu-chip,.pu-sw,.pu-change{transition-duration:.18s}
+}
+html[data-motion="reduce"] .pu-scrim,html[data-motion="reduce"] .pu-card,html[data-motion="reduce"] .pu-panel,
+html[data-motion="reduce"] .pu-panel .pu-grp,html[data-motion="reduce"] .pu-preview-name{animation:none !important}
+html[data-motion="reduce"] .pu-sec:active,html[data-motion="reduce"] .pu-chip:active,
+html[data-motion="reduce"] .pu-sw:active,html[data-motion="reduce"] .pu-change:active{transform:none}
+html[data-motion="reduce"] .pu-sec,html[data-motion="reduce"] .pu-chip,
+html[data-motion="reduce"] .pu-sw,html[data-motion="reduce"] .pu-change{transition-duration:.18s}
+html[data-motion="full"] .pu-preview-name{animation-duration:4.5s !important}
