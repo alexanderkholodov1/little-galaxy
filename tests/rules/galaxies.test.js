@@ -134,6 +134,8 @@ describe('atomic galaxy admission', () => {
         expect(launch.origin.map((x,k)=>x+frame.p[k*2])).toEqual(raw.origin);
         expect(launch.velocity.map((x,k)=>x+frame.v[k*2])).toEqual(raw.velocity);
         if(kind==='moon')expect(launch.parent).toBe(`${site}-planet`);
+        // one galaxy token refills every 2 s: pace the burst like real players so slower CI runners do not drain it
+        await new Promise(resolve=>setTimeout(resolve,2100));
         const i=launchIntent(launch,liveGalaxy,Date.now(),head.effectiveTick);
         const accepted=await assertSucceeds(store(`${site}-${kind}`).launch('g',i));
         first.accept([accepted]);first.advanceTo(i.effectiveTick);
