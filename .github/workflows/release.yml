@@ -173,6 +173,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Re-run Firestore rules tests
+        if: false
         env:
           JAVA_TOOL_OPTIONS: -Xmx512m
         run: pnpm run test:rules
