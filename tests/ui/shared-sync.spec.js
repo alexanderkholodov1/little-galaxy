@@ -1,6 +1,6 @@
 /* global window, MutationObserver, document */
 import {expect,test} from '@playwright/test';
-import {seedGalaxy,withDatabase,throwBody} from './galaxy-fixture.js';
+import {seedGalaxy,withDatabase,throwBody,enter} from './galaxy-fixture.js';
 test.skip(!process.env.FIRESTORE_EMULATOR_HOST,'Shared sync uses only the demo emulators.');
 test.setTimeout(90000);
 for(const normalizeMaps of [false,true])test(`launch accepts ${normalizeMaps?'production-normalized':'emulator'} echoes once`,async({page},testInfo)=>{
@@ -34,6 +34,7 @@ for(const normalizeMaps of [false,true])test(`launch accepts ${normalizeMaps?'pr
  },normalizeMaps);
  await page.goto(`/little-galaxy/?galaxy=${id}&emulators=1&lang=en`);
  await page.locator('body[data-sky-ready="true"]').waitFor({timeout:30000});
+ await enter(page);
  await page.locator('#btnCreate').click();await page.locator('#btnToPad').click();
  await page.locator('.pu-in').fill('Ada');await page.locator('.pu-cta').click();
  // The packaged game has no developer bridge; the teaching gesture appears when it lands.

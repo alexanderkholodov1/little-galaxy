@@ -253,5 +253,78 @@ function fillSystems(list, force){
 @media (min-width:720px){ .sys-btn{top:calc(84px + var(--st));left:28px} .sys-list{top:calc(136px + var(--st));left:28px} }
 `;
   }
+  if(file==='js/main.js'){
+    // The first-launch name is this phone's choice: it holds even when the sky refuses or loses the profile write, so
+    // the next press launches instead of asking again. The sky gets the name on a later try or the next visit.
+    source=replace(source,"// R4: la primera vez que alguien va a lanzar, una pantalla le pide su nombre (o anónimo). Después, nunca más.\nlet asking = null;",`// R4: la primera vez que alguien va a lanzar, una pantalla le pide su nombre (o anónimo). Después, nunca más.
+let asking = null, nameRetry = 0;
+async function saveName(pl){
+  const want = {displayName:pl.anonymous ? '' : pl.name, anonymous:!!pl.anonymous};
+  clearTimeout(nameRetry);
+  try{ return await store.setName(store.galaxyId, want.displayName); }
+  catch(err){
+    console.warn('The sky did not keep the name yet; this phone keeps it and tries again.', err);
+    let tries = 0;
+    const again = () => store.setName(store.galaxyId, want.displayName).catch(() => { if(++tries < 4) nameRetry = setTimeout(again, 330000); });
+    nameRetry = setTimeout(again, 20000);
+    return want;
+  }
+}
+// a visitor who already chose on this phone is not asked again after a reload; the sky learns the name in the background
+function localPlayer(){
+  const pl = getPlayer();
+  if(!pl || store.readOnly) return null;
+  setTimeout(() => saveName(pl).then(p => { S.player = p; prefsPanel && prefsPanel.refresh(); }), 1500);
+  return {displayName:pl.anonymous ? '' : pl.name, anonymous:pl.anonymous};
+}`);
+    source=replace(source,"    S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name);\n    metric('player_new');","    S.player = await saveName(pl);\n    metric('player_new');");
+    source=replace(source,"      if(pl){ S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name); audio.settle(); }","      if(pl){ S.player = await saveName(pl); audio.settle(); }");
+    source=replace(source,"  S.player = loaded.player;\n","  S.player = loaded.player || localPlayer();\n");
+  }
+  if(file==='js/main.js'){
+    // Browsers keep sound silent until a gesture. A calm welcome over the live galaxy (once per visit) asks for that one
+    // tap, so the music starts with the game; the booth screen and the timelapse never show it.
+    source=replace(source,"register(playerStrings);\n","register(playerStrings);\nregister({es:{'welcome.enter':'Entrar', 'welcome.line':'Una galaxia hecha entre todos. Entra con sonido.'}, en:{'welcome.enter':'Enter', 'welcome.line':'A galaxy everyone builds together. Come in with sound.'}});\n");
+    source=replace(source,"  document.body.classList.add('splashing');\n  setTimeout(() => { $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }, RM ? 1200 : 3000);",
+`  document.body.classList.add('splashing');
+  if(!welcome()) setTimeout(() => { $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }, RM ? 1200 : 3000);`);
+    source=replace(source,"// al cambiar de idioma: lo que el juego escribe por su cuenta se vuelve a escribir\nfunction relang(){",`function welcome(){
+  const WKEY = 'little-galaxy.welcomed';
+  if(store.readOnly || QS.has('booth') || /\\/(screen|timelapse)$/.test(ROUTE)) return false;
+  try{ if(sessionStorage.getItem(WKEY)) return false; }catch(_){}
+  const box = document.createElement('div');
+  box.id = 'welcome'; box.className = 'welcome'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'welcomeTitle');
+  box.innerHTML = '<div class="welcome-in"><h1 class="splash-title" id="welcomeTitle" aria-label="Little Galaxy"><span class="w1">Little</span><span class="w2">Galaxy</span></h1><p class="splash-line"></p><button class="cta welcome-go" type="button"><span class="cta-orb" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6.5l6 5.5-6 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="cta-txt"></span></button></div>';
+  const line = box.querySelector('.splash-line'), txt = box.querySelector('.cta-txt'), go = box.querySelector('.welcome-go');
+  const words = () => { line.textContent = t('welcome.line'); txt.textContent = t('welcome.enter'); };
+  words(); const off = onLang(words);
+  $('#splash').classList.add('gone');
+  document.body.append(box);
+  let k = 0;
+  box.querySelectorAll('.splash-title span').forEach(sp => { const s = sp.textContent; sp.textContent = ''; for(const ch of s){ const i = document.createElement('i'); i.textContent = ch; i.style.setProperty('--k', k++); sp.append(i); } });
+  requestAnimationFrame(() => go.focus({preventScroll:true}));
+  go.addEventListener('click', () => {
+    try{ sessionStorage.setItem(WKEY, '1'); }catch(_){}
+    audio.unlock(); audio.tap(2);
+    box.classList.add('gone'); document.body.classList.remove('splashing');
+    if(typeof off === 'function') off();
+    setTimeout(() => box.remove(), RM ? 0 : 700);
+  }, {once:true});
+  return true;
+}
+// al cambiar de idioma: lo que el juego escribe por su cuenta se vuelve a escribir
+function relang(){`);
+  }
+  if(file==='css/style.css'){
+    source+=`
+/* welcome: one calm moment over the live galaxy; its tap is the gesture that lets the music start */
+.welcome{position:fixed;inset:0;z-index:19;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(90% 70% at 50% 42%,rgba(10,8,24,.18) 0%,rgba(10,8,24,.62) 100%);transition:opacity .6s var(--inout),visibility .6s}
+.welcome.gone{opacity:0;visibility:hidden;pointer-events:none}
+.welcome-in{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:420px}
+.welcome .splash-line{margin:24px 0 48px}
+[data-motion="reduce"] .welcome{transition:none}
+`;
+  }
   return source;
 }

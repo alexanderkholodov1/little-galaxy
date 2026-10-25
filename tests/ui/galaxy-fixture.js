@@ -19,6 +19,12 @@ export async function seedGalaxy(id=`test-${Date.now()}`){
 export async function ready(page,id){
  await page.goto(`/little-galaxy/${id?'?galaxy='+id:''}`);
  await page.locator('body[data-sky-ready="true"]').waitFor({timeout:30000});
+ await enter(page);
+}
+// the welcome moment (once per visit) asks for one tap before the galaxy can be used
+export async function enter(page){
+ const go=page.locator('#welcome button');
+ if(await go.isVisible().catch(()=>false)){await go.click();await page.locator('#welcome').waitFor({state:'hidden'});}
 }
 export async function workshop(page,name){
  await page.locator('#btnCreate').click();await page.locator('#btnToPad').click();
