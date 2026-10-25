@@ -165,13 +165,13 @@ Use `subscribeToSelection` for rare active-public/booth pointer changes and `sub
 for lifecycle changes. Start the manifest subscription **before** `loadGalaxy(id)`; the store
 reuses its first server snapshot rather than billing another manifest fetch. Both return stop
 functions; stop them when hidden. The quota model charges one extra selection listener per
-join/resume and up to fourteen genesis chunks, plus the private player inventory read (the same
+join/resume and up to eleven genesis chunks, plus the private player inventory read (the same
 total envelope as sixteen without the listener and inventory). A frozen renderer evaluates through `max(head.effectiveTick, ceil((frozenAt-epoch)*120/1000))`
 so a launch already admitted for a future tick is included. Repeating a freeze preserves its date.
 
 Import genesis chunks pack complete legacy records up to the 60,000-byte JSON target rather than
 wasting one chunk per fixed body count. Their hashes and exact legacy orbital fields remain stable.
-The quota model still charges the conservative fourteen-chunk bound, not a free genesis download.
+The quota model still charges the conservative eleven-chunk bound, not a free genesis download.
 
 Body identity records retain the public creator `displayName` selected at launch, while Auth UID
 ownership remains private. Later profile renames do not silently rewrite historical authorship;
@@ -191,3 +191,10 @@ controls, including against clients forging their local config view. An emergenc
 still closes the migrated public world. Verified admin tombstones remain available for repair.
 Memory practice must explicitly seed `seasonOpen: true` when its write policy is public.
 Phone hashing requires a secure browser context; use the deployed HTTPS preview for phone checks.
+
+Import preparation accounts for read-request rule dependencies as well as commit dependencies.
+It chooses a ceiling of 600 down to 300 using actual genesis size; fourteen chunks choose 550.
+An oversized import fails preflight before deployment. See the executable quota model.
+
+Resumable import batches check the completion marker in their transaction. A delayed duplicate
+writer cannot reset body/profile data after a different writer finishes and phones resume editing.

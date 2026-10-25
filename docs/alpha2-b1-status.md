@@ -21,8 +21,8 @@ to the operator's verified Google account. This implementation performed no depl
 
 Validation on Beacon:
 
-- 330 unit/script tests passed (shared 66, stand 26, web 161, scripts 77).
-- 272 Firestore emulator tests passed; the final B1-specific 55-case rerun also passed, including
+- 331 unit/script tests passed (shared 66, stand 26, web 161, scripts 78).
+- 273 Firestore emulator tests passed; the final B1-specific 56-case rerun also passed, including
   twenty real clients racing at the final body slot and a rich 64-entry page boundary.
 - 26 browser checks and two connected/offline emulator browser checks passed.
 - Real A→B lazy-chunk deletion/update acceptance, B→A rollback and one local hosted smoke passed.
@@ -34,8 +34,8 @@ A failing rich rollover fixture established that 64 valid planet actions need 36
 therefore allow 128 KiB, with 2,000-byte accepted action envelopes; fixed 64-entry rollover is
 preserved. Packet byte limits are JSON bounds, not a claim to have measured actual Firestore wire
 serialization. The operation model is [alpha2-b1-quota.md](alpha2-b1-quota.md): 600 accepted daily
-mutations, 300 visitors, 125 reconnects, fourteen genesis chunks, three mean live recipients,
-24,638 reads / 4,100 writes. Selection and private inventory reads are included. Idle week uses
+mutations, 300 visitors, 125 reconnects, eleven genesis chunks, three mean live recipients,
+24,599 reads / 4,100 writes. Selection and private inventory reads are included. Idle week uses
 350 reads / zero writes with a 50-read daily bootstrap allowance. Optional services and additional
 traffic require another budget; quotas are project-wide.
 
@@ -52,3 +52,11 @@ Integration questions and boundaries:
   and imported active creations, not reconstructed historical alpha.1 relaunch/session telemetry.
 - Complete frontend/draft integration, then validate on a deployed preview and real phones.
   Apply the portfolio plan patch under `docs/plan-updates/` in its writable checkout.
+
+Release quota sizing accounts for separate read-request rule evaluations. The import adapts
+its daily ceiling to actual genesis size and refuses to open a scenario that cannot fit the
+50% envelope, rather than assuming an empty genesis.
+
+Each resumable import copy group reads the completion/source marker inside its write transaction.
+The stale-writer regression first overwrote a real post-import phone edit, then passed with this
+fence. A completed import can therefore reopen safely while delayed retries stop copying.

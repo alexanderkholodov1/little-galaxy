@@ -8,17 +8,17 @@ resetting around Pacific midnight; stored data and transfer are project-wide too
 
 | Fair-day component | Reads | Writes |
 | --- | ---: | ---: |
-| 600 accepted mutations; 7 explicit + 9 distinct rule-dependent paths, 3% retry reads | 9,888 | 3,600 |
+| 600 accepted mutations; 7 explicit + 9 commit dependencies + 2 read-request dependencies, 3% retry reads | 11,124 | 3,600 |
 | 300 joins, ten reads including six mean packed pages | 3,000 | 0 |
 | 125 resumes, fourteen reads including ten pages | 1,750 | 0 |
 | Hot log: TV + two mean foreground phones | 1,800 | 0 |
-| Up to fourteen imported genesis chunks, each join and reconnect | 5,950 | 0 |
+| Up to eleven imported genesis chunks, each join and reconnect | 4,675 | 0 |
 | Rare selection listener bootstrap/resume | 425 | 0 |
 | Private player inventory bootstrap/resume | 425 | 0 |
 | 300 profile/name admissions and 100 five-minute activity samples | 800 | 400 |
 | One bounded 300-member admin listing | 300 | 0 |
 | Parent reads, edits, rollover, switches and other reserve | 300 | 100 |
-| **Fair-day total** | **24,638 (49.276%)** | **4,100 (20.5%)** |
+| **Fair-day total** | **24,599 (49.198%)** | **4,100 (20.5%)** |
 | Idle day, one 50-read bootstrap/reconnection allowance | 50 | 0 |
 | **Idle week** | **350** | **0** |
 | Optional two leased stands, idle day plus bootstrap | 1,982 | 962 |
@@ -28,8 +28,8 @@ The default galaxy `dailyLimit` is **600 accepted mutations**, counting launches
 removals together. Player launch/relaunch ceiling remains six/day and three persistent slots.
 Three hundred first-launch opportunities are reserved before repeats spend the remaining budget.
 An admin can configure 300–900 mutations/day; raising it requires recalculating the operating model.
-The earlier 900-action, zero-import estimate was 24,907 reads: the required selection listener
-and player inventory raise it to 25,757, before imported genesis. It is therefore not the migrated fair galaxy's default.
+The earlier 900-action, zero-import estimate omitted read-request dependencies: the required selection listener
+and player inventory raise it to 27,611, before imported genesis. It is therefore not the migrated fair galaxy's default.
 
 This deliberately replaces the note's 36,012-read estimate: B1 uses a 600-mutation daily ceiling, six common writes, reads
 metrics from bounded private memberships, keeps the legacy archive/meteor/snapshot stand disabled
@@ -42,9 +42,9 @@ client reads are counted separately and are not described as free because the ru
 Parent/extra body variants consume the reserve (at most 100 moon-parent writes in this envelope).
 One initial name/profile admission uses one explicit read, one galaxy dependency and one write.
 
-**Only 362 reads remain below the 50% gate.** This is a bounded scenario, not observed billing or a
+**Only 401 reads remain below the 50% gate.** This is a bounded scenario, not observed billing or a
 server-enforced read guarantee. More retries, longer foreground sessions, another continuous
-viewer, more than fourteen imported genesis chunks, frequent dashboard refreshes, 16-shard full-map loads,
+viewer, more than eleven imported genesis chunks, frequent dashboard refreshes, 16-shard full-map loads,
 additional page views or optional publications can exceed it. Do not add them without revising this
 model and reducing another component. The app must stop listeners when hidden; a public read
 quota cannot be enforced by anonymous-client rules. Initial genesis imports and 370 quota-window
@@ -62,3 +62,9 @@ action field so an admitted action fits the 2,000-byte envelope. The byte allowa
 up to 1.5 GiB for the fair, including cold genesis, repeated page deliveries and protocol
 margin, below half of the 10 GiB monthly transfer allowance. Actual wire bytes remain a
 preview/device measurement; the operation table does not equate JSON bytes with Firestore billing.
+
+Rule caches are per request. The transaction model therefore adds two galaxy lookups for
+nonce/head reads, besides the nine commit dependency paths. On import, `fairMutationLimit()`
+chooses the highest ceiling from 600 down to 300 that stays below half the daily limits for
+the actual genesis chunk count (fourteen chunks choose 550). An import that cannot fit even
+300 mutations fails preflight before deployment. Subsequent releases preserve admin settings.

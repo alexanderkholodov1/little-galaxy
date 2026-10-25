@@ -1,11 +1,11 @@
 /** B1 scenario model; project-wide, not a per-galaxy or hostile-traffic guarantee. */
-export function galaxyQuotaModel({ mutations = 600, genesisChunks = 14 } = {}) {
+export function galaxyQuotaModel({ mutations = 600, genesisChunks = 11 } = {}) {
   const pages = Math.ceil(mutations / 64),
     meanPages = Math.ceil((pages + 1) / 2);
   const rows = [
     {
       name: `${mutations} accepted mutations, including 3% transaction retry reads`,
-      reads: Math.ceil(mutations * (7 + 9) * 1.03),
+      reads: Math.ceil(mutations * (7 + 9 + 2) * 1.03),
       writes: mutations * 6,
     },
     {
@@ -57,4 +57,14 @@ export function idleGalaxyQuotaModel(days = 7, leasedStands = false) {
     reads: days * (50 + (leasedStands ? 1932 : 0)),
     writes: days * (leasedStands ? 962 : 0),
   };
+}
+
+/** Account for actual import size before opening; preserve the 300 first-launch reservation. */
+export function fairMutationLimit(genesisChunks: number) {
+  return (
+    [600, 550, 500, 450, 400, 350, 300].find((mutations) => {
+      const model = galaxyQuotaModel({ mutations, genesisChunks });
+      return model.reads < model.readLimit && model.writes < model.writeLimit;
+    }) ?? null
+  );
 }

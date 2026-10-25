@@ -654,3 +654,56 @@ it.each(['seasonOpen', 'launches', 'edits'])(
     await assertFails(action);
   },
 );
+
+it('never lets a stale migration overwrite a phone edit after another migration completes', async () => {
+  const { initializeApp, getApps } = await import('firebase-admin/app');
+  const { getFirestore } = await import('firebase-admin/firestore');
+  const app =
+    getApps().find((a) => a.name === 'b1-migration') ??
+    initializeApp({ projectId: 'demo-little-galaxy' }, 'b1-migration');
+  const db = getFirestore(app);
+  const { prepareGalaxies, migrateGalaxies, restoreGalaxySeason } = await import(
+    '../../apps/stand/src/galaxies.ts'
+  );
+  await db
+    .doc('objects/legacy')
+    .set({
+      schemaVersion: 2,
+      ownerUid: 'alice',
+      type: 'planet',
+      status: 'active',
+      orbit: { a: 7, e: 0.5 },
+      params: { colour: 0 },
+    });
+  await prepareGalaxies(db);
+  let calls = 0;
+  const delayed = new Proxy(db, {
+    get(target, key) {
+      if (key === 'runTransaction')
+        return async (callback) => {
+          const result = await target.runTransaction(callback);
+          if (++calls === 1) {
+            await migrateGalaxies(db);
+            await restoreGalaxySeason(db);
+            const s = store(),
+              loaded = await s.loadGalaxy('bad-2026');
+            await s.edit('bad-2026', {
+              id: 'later-edit',
+              type: 'edit',
+              bodyId: 'legacy',
+              design: { colour: 2 },
+              effectiveTick: Math.ceil(((Date.now() - loaded.galaxy.epoch + 2400) * 120) / 1000),
+            });
+          }
+          return result;
+        };
+      const value = target[key];
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const copied = await migrateGalaxies(delayed);
+  expect((await db.doc('galaxies/bad-2026/objects/legacy').get()).data().design).toEqual({
+    colour: 2,
+  });
+  expect(copied).toBe(false);
+});

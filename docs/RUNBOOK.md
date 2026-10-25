@@ -713,14 +713,18 @@ Rules deployment retains the existing required-reviewer release environment.
 Before opening: integrate the pinned kernel and legacy genesis reader; anchor the client clock;
 verify the accepted log on the deployed preview and real phones; test a hidden/resumed phone,
 nonce retry, freeze/switch race, and no-stand late join. Review `alpha2-b1-quota.md`: its fair model
-has only 362 reads below the 50% gate and excludes optional services. UI confirmations, backup
+has only 401 reads below the 50% gate and excludes optional services. UI confirmations, backup
 exports/restore/purge, dashboard and new routes belong to their packages; B1 provides no purge API.
 
 B1 defaults `dailyLimit` to 600 accepted mutations/day, including edits/removals. This revised
-quota budget includes up to fourteen imported genesis chunks per cold/resume join; a 900-action
+quota budget includes up to eleven imported genesis chunks per cold/resume join; a 900-action
 scenario with the imported world does not fit the requested 50% margin. Raising the limit is
 an admin data operation and needs a revised fair-day model.
 
 The migrated public galaxy honors the existing seasonOpen/launches/edits kill switches. A
 restored closed season stays closed to canonical actions; admin tombstones remain available for
 repair. Clients forging an open local config cannot bypass these server checks.
+
+Import preparation accounts for read-request rule dependencies as well as commit dependencies.
+It chooses a ceiling of 600 down to 300 using actual genesis size; fourteen chunks choose 550.
+An oversized import fails preflight before deployment. See the executable quota model.

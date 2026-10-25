@@ -1,3 +1,4 @@
+import { fairMutationLimit } from '../../../scripts/galaxy-quota.js';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
 import {
@@ -177,18 +178,21 @@ async function sourcePlan(database: Firestore) {
   ]);
   if (live.data()?.seasonOpen !== false) throw new Error('Close season before galaxy migration');
   if (!marker.exists) throw new Error('Prepare galaxy migration first');
-  return {
-    marker: marker.data()!,
-    plan: await planGalaxyImport(
-      objects.docs.map((d) => ({ id: d.id, data: d.data() })),
-      sky.docs.map((d) => ({ id: d.id, data: d.data() })),
-      marker.data()!.createdAt,
-    ),
-  };
+  const plan = await planGalaxyImport(
+    objects.docs.map((d) => ({ id: d.id, data: d.data() })),
+    sky.docs.map((d) => ({ id: d.id, data: d.data() })),
+    marker.data()!.createdAt,
+  );
+  const fairLimit = fairMutationLimit(plan.chunks.length);
+  if (fairLimit === null)
+    throw new Error(
+      'Imported genesis exceeds the fair quota envelope; archive or split the source before release.',
+    );
+  return { marker: marker.data()!, plan, fairLimit };
 }
 export async function migrateGalaxies(database: Firestore) {
   if ((await database.doc(galaxyMigrationPath).get()).data()?.complete) return false;
-  const { marker, plan } = await sourcePlan(database),
+  const { marker, plan, fairLimit } = await sourcePlan(database),
     root = 'galaxies/bad-2026';
   const markerHash = await canonicalHash({ objects: plan.legacyObjects, sky: plan.legacySky });
   await database.runTransaction(async (tx) => {
@@ -221,9 +225,15 @@ export async function migrateGalaxies(database: Firestore) {
     day = w.end + 1;
   }
   for (let start = 0; start < rows.length; start += 350) {
-    const batch = database.batch();
-    for (const r of rows.slice(start, start + 350)) batch.set(database.doc(r.path), r.data);
-    await batch.commit();
+    const copied = await database.runTransaction(async (tx) => {
+      const state = await tx.get(database.doc(galaxyMigrationPath));
+      if (state.data()?.complete) return false;
+      if (state.data()?.sourceHash !== markerHash)
+        throw new Error('Migration source changed during copy');
+      for (const r of rows.slice(start, start + 350)) tx.set(database.doc(r.path), r.data);
+      return true;
+    });
+    if (!copied) return false;
   }
   // Read back the immutable public genesis before publishing its authenticated manifest.
   for (const r of plan.chunks)
@@ -240,6 +250,7 @@ export async function migrateGalaxies(database: Firestore) {
     if (live.data()?.seasonOpen !== false) throw new Error('Migration window changed');
     const g = {
       ...initialGalaxy('bad-2026', 'operator', 'BAD 2026', marker.createdAt, 'legacy-orbit-v2'),
+      dailyLimit: fairLimit,
       genesis: plan.chunks.map((c) => ({ id: c.id, hash: c.hash })),
     };
     tx.set(database.doc(root), g);
