@@ -81,7 +81,8 @@ await store.launch(id, intent, {
 ```
 
 It is limited to 14,000 string characters and checked against the current generation/sequence.
-An absent prepared state produces a versioned intent-only cache (`state: null`). Every cache
+An absent prepared state produces a compact `admission-v1` summary of the admitted head and body,
+with a state hash. It is a comparison cache, not a full physical checkpoint. Every cache
 is untrusted. It never determines admission or another body's physics. Default loads ignore
 caches and replay from genesis. A `verifyCheckpoint` callback must perform actual replay or
 validate trusted certification, not merely compare a submitted state hash.
@@ -144,3 +145,15 @@ For emulators, provide their explicit HTTP origin. This works even when device w
 minutes wrong; a committed timestamp from an old quiet galaxy is not used as current time.
 Design fields are bounded integer parameters (0–1,000,000); use `DESIGN_FIELDS` for the allowed
 sliders/palettes and quantize floats before admission. Nested/unbounded design payloads are rejected.
+
+A compact launch into an existing system also funds a dormant contingency cell in `head.reserves`,
+keyed by its action nonce. Active systems plus these cells must fit the same 32-system allowance.
+Its hypothetical per-system count/mass envelope is reserved while physical galaxy mass/count is
+charged once. Replay can use the deterministic `r-<nonce>` destination if the compact body leaves
+its admission home. B1 retains these reservations conservatively; it has no refund/transfer API.
+Ordinary bodies have only their admitted home envelope. A reducer must not capture into an
+unfunded destination; extending ordinary inter-system reservations needs another admitted intent.
+
+New galaxies default to a shared 600-mutation Pacific-day ceiling (launches, edits and admin body
+removals). The admin may configure `dailyLimit` from 300 to 900 after reviewing the quota model.
+This supplements the six-launch player ceiling; it does not promise six launches to each player.

@@ -1,6 +1,7 @@
+import { releaseGalaxies, restoreGalaxySeason } from './galaxies.js';
 import { githubControlArgs } from './github-control.js';
 import { firebaseDeploy, firebasePreflight } from './firebase-cli.js';
-import { releaseSky, restoreSkySeason } from './release-sky.js';
+import { restoreSkySeason } from './release-sky.js';
 import { objectFeed } from './object-feed.js';
 import { readFileSync } from 'node:fs';
 import { getApps } from 'firebase-admin/app';
@@ -34,9 +35,9 @@ try {
   if (getApps().length) {
     if (release || restore || inspect) {
       try {
-        if (restore) await restoreSkySeason(getFirestore());
+        if (restore) { await restoreGalaxySeason(getFirestore()); await restoreSkySeason(getFirestore()); }
         else if (inspect) console.log(JSON.stringify(await inspectSky(getFirestore()), null, 2));
-        else await releaseSky(getFirestore(), () => firebaseDeploy(process.env.FIREBASE_PROJECT_ID!),
+        else await releaseGalaxies(getFirestore(), () => firebaseDeploy(process.env.FIREBASE_PROJECT_ID!),
           () => firebasePreflight(process.env.FIREBASE_PROJECT_ID!));
       } finally { await getFirestore().terminate(); }
       if (!inspect) console.log('Release sky controls complete; prior season setting restored.');
@@ -54,6 +55,10 @@ try {
       console.log(`${process.argv[3] === 'init' ? 'Created' : 'Updated'} config/live: ${JSON.stringify(written, null, 2)}`);
     } else {
       await ensureLiveConfig(getFirestore());
+      if ((await getFirestore().doc('config/live').get()).data()?.dataLayerVersion === 2) {
+        console.log('Alpha.2 uses client action logs; legacy enrichment is disabled.');
+        await getFirestore().terminate();
+      } else {
       const stop = startLeasedStand(getFirestore(), (fence) => {
       console.log('Stand enrichment leadership acquired.');
       const feed = objectFeed();
@@ -64,6 +69,7 @@ try {
       }, () => console.error('Stand lease request failed; services stop at their last confirmed deadline.'));
       const shutdown = () => { void stop().then(() => getFirestore().terminate()).then(() => process.exit(0)); };
       process.once('SIGINT', shutdown); process.once('SIGTERM', shutdown);
+      }
     }
   } else if (control || migrate || release || restore || inspect) throw new Error('No admin connection');
 } catch (error) {

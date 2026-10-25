@@ -61,6 +61,7 @@ export interface Galaxy {
   frozenAt: number | null;
   epoch: number;
   kernel: string;
+  dailyLimit: number;
   genesis?: { id: string; hash: string }[];
 }
 export interface SystemBudget {
@@ -81,10 +82,12 @@ export interface Head {
   lastBlackholeAt: number;
   window: string;
   dayLaunches: number;
+  dayMutations: number;
   contributors: number;
   tokens: number;
   bucketSlot: number;
   systems: Record<string, SystemBudget>;
+  reserves: Record<string, SystemBudget>;
   lastAction: string;
 }
 export interface Member {
@@ -291,6 +294,7 @@ export function initialGalaxy(
     frozenAt: null,
     epoch: now,
     kernel,
+    dailyLimit: 600,
   };
 }
 export function initialHead(now: number): Head {
@@ -304,6 +308,7 @@ export function initialHead(now: number): Head {
     lastBlackholeAt: 0,
     window: quotaWindow(now).id,
     dayLaunches: 0,
+    dayMutations: 0,
     contributors: 0,
     tokens: 6,
     bucketSlot: Math.floor(now / 2000),
@@ -311,6 +316,7 @@ export function initialHead(now: number): Head {
       '0': { bodies: 1, mass: 1_000_000, compact: 1, giants: 0, blackholes: 0, ordinaryMass: 0 },
     },
     lastAction: '',
+    reserves: {},
   };
 }
 export function initialMember(memberId: string, now: number): Member {
@@ -379,12 +385,20 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
   if (h.window !== w.id) {
     h.window = w.id;
     h.dayLaunches = 0;
+    h.dayMutations = 0;
     h.contributors = 0;
   }
   if (m.window !== w.id) {
     m.window = w.id;
     m.dayLaunches = 0;
   }
+  check(h.dayMutations < g.dailyLimit, 'Daily mutation budget');
+  if (intent.type !== 'launch' || m.dayLaunches > 0)
+    check(
+      h.dayMutations < g.dailyLimit - Math.max(0, 300 - h.contributors),
+      'First-contribution reservation',
+    );
+  h.dayMutations++;
   const slot = Math.floor(now / 2000),
     tokens = Math.min(6, h.tokens + slot - h.bucketSlot);
   check(tokens >= 1, 'Galaxy rate limit');
@@ -431,6 +445,24 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
     const fresh = !h.systems[intent.system],
       nursery = fresh && !compact ? 1 : 0;
     check(!fresh || Object.keys(h.systems).length < 32, 'System budget');
+    const reserve = !fresh && compact > 0;
+    check(
+      Object.keys(h.systems).length +
+        Object.keys(h.reserves).length +
+        (fresh ? 1 : 0) +
+        (reserve ? 1 : 0) <=
+        32,
+      'System contingency capacity',
+    );
+    if (reserve)
+      h.reserves[intent.id] = {
+        bodies: count,
+        mass,
+        compact,
+        giants: 0,
+        blackholes: bh,
+        ordinaryMass: 0,
+      };
     const s = h.systems[intent.system] ?? {
       bodies: nursery,
       mass: nursery * 1_000_000,
@@ -593,7 +625,9 @@ export interface GalaxyStore {
     update(
       id: string,
       expectedGeneration: number,
-      patch: Partial<Pick<Galaxy, 'name' | 'status' | 'mode' | 'visibility' | 'writePolicy'>>,
+      patch: Partial<
+        Pick<Galaxy, 'name' | 'status' | 'mode' | 'visibility' | 'writePolicy' | 'dailyLimit'>
+      >,
     ): Promise<void>;
     select(id: string, target: 'activePublicGalaxyId' | 'boothGalaxyId'): Promise<void>;
     invite(id: string, uid: string, role: Member['role']): Promise<void>;
@@ -616,7 +650,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
       if (existing) {
         check(
           existing.memberId === options.memberId &&
-            JSON.stringify(existing.intent) === JSON.stringify(intent),
+            (await canonicalHash(existing.intent)) === (await canonicalHash(intent)),
           'Nonce already used',
         );
         return existing;
@@ -683,15 +717,19 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
           moons: parent.moons + 1,
           lastAction: intent.id,
         });
-      // Intent-only cache: consumer may add a prepared compact state, always untrusted until replay.
+      // Admission summaries are useful for comparison, never authority for physical trajectories.
+      const cacheState =
+        cache?.state ?? JSON.stringify({ kind: 'admission-v1', head: r.head, body: r.body });
+      check(cacheState.length <= 14000, 'Checkpoint byte limit');
+      const cacheHash = cache?.stateHash ?? (await canonicalHash(cacheState));
       tx.set(`${p}/checkpoints/latest`, {
         schemaVersion: 1,
         generation: g.generation,
         sequence: r.head.sequence,
         kernel: g.kernel,
         logHash: r.head.hash,
-        stateHash: cache?.stateHash ?? '',
-        state: cache?.state ?? null,
+        stateHash: cacheHash,
+        state: cacheState,
       });
       return r.action;
     });

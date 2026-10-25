@@ -249,3 +249,50 @@ it('seals pages at 64, follows rollover, and loads a complete bounded tail', asy
   expect((await d.get<{ entries: unknown[] }>('galaxies/g/logPages/0'))?.entries).toHaveLength(64);
   expect((await reader.loadGalaxy('g')).actions).toHaveLength(70);
 });
+
+it('funds compact-object contingency cells without counting their physical mass twice', async () => {
+  const c = context(),
+    result = await prepareMutation(c, { ...launch, kind: 'star' });
+  expect(result.head.reserves.nonce1).toEqual({
+    bodies: 1,
+    mass: 1000000,
+    compact: 1,
+    giants: 0,
+    blackholes: 0,
+    ordinaryMass: 0,
+  });
+  expect(result.head.bodies).toBe(2);
+  expect(result.head.mass).toBe(2000000);
+  for (let i = 0; i < 31; i++)
+    c.head.reserves['old' + i] = {
+      bodies: 1,
+      mass: 1000000,
+      compact: 1,
+      giants: 0,
+      blackholes: 0,
+      ordinaryMass: 0,
+    };
+  await expect(prepareMutation(c, { ...launch, kind: 'star' })).rejects.toThrow();
+});
+
+it('charges edits to the same daily mutation ceiling and rolls over only in a real quota window', async () => {
+  const full = context();
+  full.head.dayMutations = 600;
+  await expect(prepareMutation(full, launch)).rejects.toThrow('Daily mutation budget');
+  full.head.window = 'yesterday';
+  expect((await prepareMutation(full, launch)).head.dayMutations).toBe(1);
+  const first = await prepareMutation(context(), launch);
+  const c = { ...context(), body: first.body };
+  c.member = { ...member, bodyIds: ['nonce1'] };
+  c.head.dayMutations = 599;
+  c.head.contributors = 300;
+  const edit = await prepareMutation(c, {
+    id: 'edit',
+    type: 'edit',
+    bodyId: 'nonce1',
+    design: { colour: 2 },
+    effectiveTick: 120,
+  });
+  expect(edit.head.dayMutations).toBe(600);
+  expect(edit.head.dayLaunches).toBe(0);
+});
