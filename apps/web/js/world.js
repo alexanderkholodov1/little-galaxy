@@ -831,6 +831,15 @@ export function createWorld(canvas, opts = {}){
       }
     }
   }
+  // the largest step between neighbouring trail samples (a cut trail shows a long chord)
+  function trailGap(e){
+    const tr = e.trail; let gap = 0;
+    for(let i = 1; i < tr.n; i++){
+      const a = ((tr.head - i) % TRAIL_K + TRAIL_K) % TRAIL_K, b = ((tr.head - i - 1) % TRAIL_K + TRAIL_K) % TRAIL_K;
+      gap = Math.max(gap, Math.hypot(tr.buf[a*3] - tr.buf[b*3], tr.buf[a*3+1] - tr.buf[b*3+1], tr.buf[a*3+2] - tr.buf[b*3+2]));
+    }
+    return gap;
+  }
   const _c = new THREE.Color();
   function writeTrails(){
     let o = 0, oc = 0;
@@ -1536,5 +1545,6 @@ export function createWorld(canvas, opts = {}){
     sunScreen: () => project(SUN),
     isAuroraOn: () => !!aurora,
     isFlying: () => !!rig.flight || !!hop,
+    debugView: import.meta.env.DEV ? () => ({path:path.visible, band:band.visible, bench:W.benchBody ? {state:W.benchState, visible:W.benchBody.root.visible, p:W.benchBody.root.position.toArray()} : null, trails:W.entries.filter(e => !e.toy).map(e => ({id:e.id, n:e.trail.n, gap:trailGap(e), r:e.body.root.position.toArray()}))}) : undefined,
   });
 }

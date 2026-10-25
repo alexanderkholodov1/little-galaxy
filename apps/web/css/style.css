@@ -440,3 +440,8 @@ html[data-motion="reduce"] *,html[data-motion="reduce"] *::before,html[data-moti
 .sys-dot.dark{background:#0a0d14;box-shadow:0 0 0 2px var(--brasa),0 0 12px rgba(86,204,242,.7)}
 .outcome-tag.long{color:var(--menta-t,#b5f0de)}
 @media (min-width:720px){ .sys-row{top:calc(84px + var(--st));left:28px} }
+
+/* music on but the browser is still waiting for a first gesture: the note breathes until it plays */
+#btnMusic[data-audio="waiting"] svg:first-child{animation:music-wait 2.4s ease-in-out infinite}
+[data-motion="reduce"] #btnMusic[data-audio="waiting"] svg:first-child{animation:none;opacity:.6}
+@keyframes music-wait{0%,100%{opacity:1}50%{opacity:.4}}

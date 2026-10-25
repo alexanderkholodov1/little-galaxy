@@ -9,8 +9,8 @@ const firebaseEnvironment = process.env.EMULATOR_SMOKE ? 'VITE_USE_EMULATORS=1' 
 
 export default defineConfig({
   testDir: '.',
-  testMatch: isPreview ? 'smoke-preview.spec.js' : process.env.EMULATOR_SMOKE ? 'smoke.spec.js' : '*.spec.js',
-  testIgnore: isPreview || process.env.EMULATOR_SMOKE ? [] : ['smoke.spec.js', 'smoke-preview.spec.js'],
+  testMatch: isPreview ? 'smoke-preview.spec.js' : process.env.EMULATOR_SMOKE ? (process.env.GALAXY_UI_PROBE ? 'probe.spec.js' : ['smoke.spec.js', 'play.spec.js']) : '*.spec.js',
+  testIgnore: isPreview || process.env.EMULATOR_SMOKE ? [] : ['smoke.spec.js', 'smoke-preview.spec.js', 'play.spec.js', 'probe.spec.js'],
   workers: 1,
   retries: 0,
   reporter: 'list',

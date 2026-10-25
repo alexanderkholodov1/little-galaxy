@@ -160,8 +160,7 @@ async function boot(){
     world.parallax.y = clamp((e.beta - 40)/30, -1, 1);
   }, {passive:true});
   const unlock = () => audio.unlock();
-  addEventListener('pointerdown', unlock, {once:true, capture:true});
-  addEventListener('keydown', unlock, {once:true, capture:true});
+  for(const g of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(g, unlock, {capture:true, passive:true});
   setupTheme();
   setupShake();
   setupScreen({world,labels});
@@ -879,6 +878,8 @@ function updateSystems(force){
 function setupSound(){
   const m = $('#btnMusic');
   m.setAttribute('aria-pressed', S.musicOn);
+  m.dataset.audio = audio.status();
+  audio.onState(s => { m.dataset.audio = s; });
   m.addEventListener('click', () => {
     S.musicOn = !S.musicOn; m.setAttribute('aria-pressed', S.musicOn);
     audio.unlock(); audio.setMusic(S.musicOn); savePrefs();
