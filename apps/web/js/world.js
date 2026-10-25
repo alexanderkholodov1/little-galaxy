@@ -527,7 +527,9 @@ export function createWorld(canvas, opts = {}){
     const elHome = portrait ? 0.86 : 0.6;
     const benchType = W.benchBody ? W.benchBody.d.type : 'planet';
     const bd = (TYPE_INFO[benchType] || TYPE_INFO.planet).bench * (portrait ? 1.85 : 1.4);
-    const home = {target:homeTarget.clone(), az:0.42, el:elHome, dist:fitDist(homeR(portrait ? 11 : 17.5), elHome), shift:{x:0, y: portrait ? 0.07 : 0.03}};
+    const fr = homeFrame(portrait ? 11 : 17.5);
+    const home = {target:fr.target, az:0.42, el:elHome, dist:fitDist(fr.R, elHome), shift:{x:0, y: portrait ? 0.07 : 0.03}};
+    W.homeDist = home.dist; rig.lim.dMax = Math.max(rig.lim.dMax, home.dist*1.25);
     return {
       home,
       workshop:{target:BENCH.clone(), az:0, el:0.16, dist:bd, shift: portrait ? {x:0, y:0.15} : {x:0.16, y:0.02}},
@@ -539,6 +541,17 @@ export function createWorld(canvas, opts = {}){
   let galaxyView = null;
   const homeTarget = new THREE.Vector3();
   let homeR = r => r;          // M4: el mapa se ensancha cuando la galaxia crece
+  // the circle around every founded system (each with its own radius of room), centred between them
+  function homeFrame(base){
+    const fs = sim.systems.filter(s => s.founded && s.p);
+    if(fs.length < 2) return {target:homeTarget.clone(), R:homeR(base)};
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for(const s of fs){ x0 = Math.min(x0, s.p[0]); x1 = Math.max(x1, s.p[0]); z0 = Math.min(z0, s.p[2]); z1 = Math.max(z1, s.p[2]); }
+    const cx = (x0 + x1)/2, cz = (z0 + z1)/2;
+    let R = base;
+    for(const s of fs) R = Math.max(R, Math.hypot(s.p[0] - cx, s.p[2] - cz) + 17.5);
+    return {target:new THREE.Vector3(cx, 0, cz), R:R*1.08};
+  }
   function rememberView(){
     galaxyView = {target:rig.goal.target.clone(), az:rig.goal.az, el:rig.goal.el, dist:rig.goal.dist, shift:{...rig.shiftGoal}};
   }
@@ -753,7 +766,7 @@ export function createWorld(canvas, opts = {}){
     let ext = 17.5;
     for(const s of sim.systems) if(s.founded) ext = Math.max(ext, Math.hypot(s.p[0], s.p[2]) + 17.5);
     W.extent += (ext - W.extent)*(1 - Math.exp(-dt*0.6));
-    rig.lim.dMax = Math.max(110, W.extent*4.5);
+    rig.lim.dMax = Math.max(110, W.extent*4.5, (W.homeDist || 0)*1.25);
     if(followSys){
       const s = sim.sysById.get(followSys);
       if(s) rig.goal.target.lerp(_kp.set(s.p[0], 0, s.p[2]), 1 - Math.exp(-dt*2)); else followSys = null;
@@ -854,7 +867,9 @@ export function createWorld(canvas, opts = {}){
       }
       e.logical=m.logical; e.home=m.home;
     }
+    const firstSky = skyState.k < 0;
     if(noteSkyState(state.sim.steps)) for(const e of W.entries) if(!e.toy) orbitTrail(e);
+    if(firstSky && W.mode === 'home' && !rig.follow) flyTo(views().home, RM ? 0.4 : 1.6);
     return W.entries.filter(e=>!e.toy);
   }
   function completeSharedLaunch(entry,res){
@@ -1617,5 +1632,6 @@ export function createWorld(canvas, opts = {}){
     isAuroraOn: () => !!aurora,
     isFlying: () => !!rig.flight || !!hop,
     debugView: import.meta.env.DEV ? () => ({path:path.visible, band:band.visible, bench:W.benchBody ? {state:W.benchState, visible:W.benchBody.root.visible, p:W.benchBody.root.position.toArray()} : null, trails:W.entries.filter(e => !e.toy).map(e => ({id:e.id, n:e.trail.n, gap:trailGap(e), r:e.body.root.position.toArray()}))}) : undefined,
+    debugProject: import.meta.env.DEV ? (x, z) => { const q = new THREE.Vector3(x, 0, z).project(camera); return [q.x, q.y]; } : undefined,
   });
 }

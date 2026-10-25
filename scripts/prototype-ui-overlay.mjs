@@ -3,7 +3,7 @@ import {replace} from './prototype-overlay.mjs';
 export function uiOverlay(file,source){
   if(file==='js/world.js'){
     // Development-only readings for the browser suite.
-    source=replace(source,'    isFlying: () => !!rig.flight || !!hop,','    isFlying: () => !!rig.flight || !!hop,\n    debugView: import.meta.env.DEV ? () => ({path:path.visible, band:band.visible, bench:W.benchBody ? {state:W.benchState, visible:W.benchBody.root.visible, p:W.benchBody.root.position.toArray()} : null, trails:W.entries.filter(e => !e.toy).map(e => ({id:e.id, n:e.trail.n, gap:trailGap(e), r:e.body.root.position.toArray()}))}) : undefined,');
+    source=replace(source,'    isFlying: () => !!rig.flight || !!hop,','    isFlying: () => !!rig.flight || !!hop,\n    debugView: import.meta.env.DEV ? () => ({path:path.visible, band:band.visible, bench:W.benchBody ? {state:W.benchState, visible:W.benchBody.root.visible, p:W.benchBody.root.position.toArray()} : null, trails:W.entries.filter(e => !e.toy).map(e => ({id:e.id, n:e.trail.n, gap:trailGap(e), r:e.body.root.position.toArray()}))}) : undefined,\n    debugProject: import.meta.env.DEV ? (x, z) => { const q = new THREE.Vector3(x, 0, z).project(camera); return [q.x, q.y]; } : undefined,');
     source=replace(source,'  const _c = new THREE.Color();\n  function writeTrails(){',`  // the largest step between neighbouring trail samples (a cut trail shows a long chord)
   function trailGap(e){
     const tr = e.trail; let gap = 0;
@@ -137,6 +137,27 @@ export function uiOverlay(file,source){
 [data-motion="reduce"] #btnMusic[data-audio="waiting"] svg:first-child{animation:none;opacity:.6}
 @keyframes music-wait{0%,100%{opacity:1}50%{opacity:.4}}
 `;
+  }
+  if(file==='js/world.js'){
+    // The galaxy view frames every founded system with margin (on entry too), not only the central fire.
+    source=replace(source,"    const home = {target:homeTarget.clone(), az:0.42, el:elHome, dist:fitDist(homeR(portrait ? 11 : 17.5), elHome), shift:{x:0, y: portrait ? 0.07 : 0.03}};",
+      "    const fr = homeFrame(portrait ? 11 : 17.5);\n    const home = {target:fr.target, az:0.42, el:elHome, dist:fitDist(fr.R, elHome), shift:{x:0, y: portrait ? 0.07 : 0.03}};\n    W.homeDist = home.dist; rig.lim.dMax = Math.max(rig.lim.dMax, home.dist*1.25);");
+    source=replace(source,'  let homeR = r => r;          // M4: el mapa se ensancha cuando la galaxia crece\n',`  let homeR = r => r;          // M4: el mapa se ensancha cuando la galaxia crece
+  // the circle around every founded system (each with its own radius of room), centred between them
+  function homeFrame(base){
+    const fs = sim.systems.filter(s => s.founded && s.p);
+    if(fs.length < 2) return {target:homeTarget.clone(), R:homeR(base)};
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for(const s of fs){ x0 = Math.min(x0, s.p[0]); x1 = Math.max(x1, s.p[0]); z0 = Math.min(z0, s.p[2]); z1 = Math.max(z1, s.p[2]); }
+    const cx = (x0 + x1)/2, cz = (z0 + z1)/2;
+    let R = base;
+    for(const s of fs) R = Math.max(R, Math.hypot(s.p[0] - cx, s.p[2] - cz) + 17.5);
+    return {target:new THREE.Vector3(cx, 0, cz), R:R*1.08};
+  }
+`);
+    source=replace(source,'    rig.lim.dMax = Math.max(110, W.extent*4.5);','    rig.lim.dMax = Math.max(110, W.extent*4.5, (W.homeDist || 0)*1.25);');
+    // the first shared sky state is when the systems are known: fly to the whole galaxy then
+    source=replace(source,'    if(noteSkyState(state.sim.steps)) for(const e of W.entries) if(!e.toy) orbitTrail(e);','    const firstSky = skyState.k < 0;\n    if(noteSkyState(state.sim.steps)) for(const e of W.entries) if(!e.toy) orbitTrail(e);\n    if(firstSky && W.mode === \'home\' && !rig.follow) flyTo(views().home, RM ? 0.4 : 1.6);');
   }
   if(file==='js/music.js'){
     // Calmer score: slower tempi, fewer and softer notes, three-note pads that barely overlap, no loud thumps.

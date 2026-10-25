@@ -114,3 +114,14 @@ test('one interpolation layer: at phone size every frame moves a body forward, n
  expect(back).toBe(0);
 });
 
+for(const size of [{width:390,height:844},{width:1440,height:900}]){
+ test(`the galaxy view frames every system with margin at ${size.width}px`,async({page})=>{
+  await page.setViewportSize(size);await ready(page,await seedGalaxy());
+  // a second, far system (as after a founding star): the home view must show both fires
+  await page.evaluate(()=>{const w=window.__fog.world,s={id:'far',founded:true,prim:[],p:[140,0,-90],v:[0,0,0],mu:15};w.sim.systems.push(s);w.sim.sysById.set('far',s);w.recenter();});
+  await page.waitForTimeout(3200);
+  const pts=await page.evaluate(()=>[[0,0],[140,-90]].map(([x,z])=>window.__fog.world.debugProject(x,z)));
+  for(const [x,y] of pts){expect(Math.abs(x)).toBeLessThan(.92);expect(Math.abs(y)).toBeLessThan(.92);}
+ });
+}
+
