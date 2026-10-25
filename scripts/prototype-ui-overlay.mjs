@@ -260,6 +260,7 @@ function fillSystems(list, force){
 let asking = null, nameRetry = 0;
 async function saveName(pl){
   const want = {displayName:pl.anonymous ? '' : pl.name, anonymous:!!pl.anonymous};
+  try{ localStorage.setItem(PKEY + store.galaxyId, JSON.stringify(want)); }catch(_){}
   clearTimeout(nameRetry);
   try{ return await store.setName(store.galaxyId, want.displayName); }
   catch(err){
@@ -270,12 +271,16 @@ async function saveName(pl){
     return want;
   }
 }
-// a visitor who already chose on this phone is not asked again after a reload; the sky learns the name in the background
+// a visitor who already chose in this galaxy on this phone is not asked again after a reload; the sky learns the name
+// in the background. The choice is kept per galaxy: a new galaxy asks again and is never linked to the last one.
+const PKEY = 'little-galaxy.player:';
 function localPlayer(){
-  const pl = getPlayer();
-  if(!pl || store.readOnly) return null;
-  setTimeout(() => saveName(pl).then(p => { S.player = p; prefsPanel && prefsPanel.refresh(); }), 1500);
-  return {displayName:pl.anonymous ? '' : pl.name, anonymous:pl.anonymous};
+  let pl = null;
+  try{ pl = JSON.parse(localStorage.getItem(PKEY + store.galaxyId)); }catch(_){}
+  if(!pl || typeof pl.displayName !== 'string' || store.readOnly) return null;
+  const want = {displayName:pl.anonymous ? '' : pl.displayName, anonymous:!!pl.anonymous};
+  setTimeout(() => saveName({name:want.displayName, anonymous:want.anonymous}).then(p => { S.player = p; prefsPanel && prefsPanel.refresh(); }), 1500);
+  return want;
 }`);
     source=replace(source,"    S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name);\n    metric('player_new');","    S.player = await saveName(pl);\n    metric('player_new');");
     source=replace(source,"      if(pl){ S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name); audio.settle(); }","      if(pl){ S.player = await saveName(pl); audio.settle(); }");

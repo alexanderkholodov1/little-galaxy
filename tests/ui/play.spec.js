@@ -12,10 +12,12 @@ test.describe('sound',()=>{
  test('music is on by default and starts on the first touch, and the button says so',async({browser})=>{
   const context=await browser.newContext(phone);
   try{
-   const page=await context.newPage();await ready(page,await seedGalaxy());
+   const page=await context.newPage();await page.goto(`/little-galaxy/?galaxy=${await seedGalaxy()}`);
+   await page.locator('body[data-sky-ready="true"]').waitFor({timeout:30000});
    const music=page.locator('#btnMusic');
    await expect(music).toHaveAttribute('aria-pressed','true');await expect(music).toHaveAttribute('data-audio','waiting');
-   await page.touchscreen.tap(195,700);
+   // the first touch is the welcome's one button
+   const go=await page.locator('#welcome button').boundingBox();await page.touchscreen.tap(go.x+go.width/2,go.y+go.height/2);
    await expect.poll(async()=>(await sound(page)).ctx).toBe('running');
    await expect.poll(async()=>(await sound(page)).generative).toBe(true);
    await expect(music).toHaveAttribute('data-audio','playing');
