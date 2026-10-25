@@ -19,3 +19,6 @@ export * from './interactions.js';
 export * from './season.js';
 
 export { skyBucket, SKY_ALPHABET } from './sky.js';
+export * from './galaxy-store.js';
+export * from './prototype-kernel.js';
+export { isRudeName } from './rude.js';

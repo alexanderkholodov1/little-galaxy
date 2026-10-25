@@ -7,3 +7,7 @@ against the local portfolio plan. It includes the prior round's staged changes.
 The portfolio checkout is outside this task's writable roots; these changes are
 staged here for review and transfer in the portfolio repository, and have not been
 applied there. The patch passes `git apply --check` against the current local plan.
+
+`alpha2-b1.patch` records the alpha.2 operator instruction, data contract, R25 override and smaller
+quota envelope in the portfolio plan and its CHANGELOG. Apply in the portfolio checkout; B1's
+sandbox cannot write there. The implementation docs and migration live in this repository.

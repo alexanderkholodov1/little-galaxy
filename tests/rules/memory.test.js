@@ -6,7 +6,7 @@ import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebas
 import { collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import { launchPlanet, editObject, relaunchObject } from '../../apps/web/src/galaxy-data.ts';
+import { launchPlanet, editObject, relaunchObject } from '../../scripts/legacy/galaxy-data.ts';
 import { buildSeason, publicObject, readSeason, startMemoryWriter } from '../../apps/stand/src/memory.ts';
 import { freezeSeason } from '../../apps/stand/src/freeze-season.ts';
 import { compareIds, objectBucket, orbitFromVelocity, presets, readLog, replay, replayScene, worldPosition } from '../../packages/shared/src/index.ts';

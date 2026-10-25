@@ -33,7 +33,7 @@ Este manual contiene las instrucciones operativas para **Galaxia Colectiva** en 
       Stand startup creates missing `config/live` with closed defaults and preserves existing settings. Explicitly open only when ready. The optional `control init` command refuses to overwrite an existing document.
    3. En la TV: abrir `https://alexanderkholodov.web.app/galaxy/screen`, pulsar **F** para el modo quiosco (el cursor se oculta a los 2.5 s). Tras un reload, el layout quiosco se restaura automáticamente; pulsar **F** restaura de inmediato la pantalla completa del navegador.
    4. Probar desde el teléfono: escanear el QR, lanzar un planeta y confirmar que aparece en la TV.
-3. **Durante el día**: escenas y kill switches vía `control`; monitorear cuota Spark; rollback desde el checkout de portfolio.
+3. **Durante el día**: escenas y kill switches vía `control`; monitorear cuota Spark; rollback desde el checkout de portfolio. Alpha.2 (§14): certificar la galaxia de la feria justo antes de abrir y dejar abierta la página del guardián (certifica cada 10 min); **N** oculta los nombres en la TV; volver a alpha.1 deja alpha.1 solo para mirar.
 4. **Cierre**: cerrar temporada con `seasonOpen off`. La exportación estática reproducible hoy es el ensayo `freeze-season` **solo contra emulador demo** (sección 10). La publicación de producción en `/galaxy/season/…` es un hito posterior; verificar el timelapse estático cuando ese camino exista.
 
 ---
@@ -234,6 +234,13 @@ pnpm run rollback
 From Galaxy: `node ../portfolio-v0.3.0/scripts/rollback.mjs --dry-run` (path may be `../portfolio` depending on checkout layout).
 
 Rollback restores the previous Hosting release pointer. It does not change `games.json`. Client tabs missing chunks soft-reload once via `galaxy.reload_guard`; drafts and screen camera stay in `localStorage`.
+
+**Rolling Hosting back from alpha.2 to alpha.1 gives a view-only alpha.1.** The alpha.2 release
+migration sets `config/live.dataLayerVersion: 2`, and every alpha.1 write rule requires version 1,
+so alpha.1 phones can look at the old sky but cannot launch or edit; nothing sets the version
+back, and the alpha.2 galaxy keeps its own history. To restore play, roll forward to alpha.2.
+Phones that already followed the `/galaxy` → `/little-galaxy/` redirect may have cached it
+(the portfolio patches use 301), so after a rollback they can still land on `/little-galaxy/`.
 
 ### Preview deploy / smoke (portfolio)
 
@@ -673,3 +680,125 @@ An incomplete or mismatched existing release fails loudly for review.
 
 The portfolio receiver and its production policy remain separately owned. This
 builder performed no GitHub dispatch, rule/index deployment or Hosting mutation.
+
+## 13. Alpha.2 B1 galaxies and admission
+
+The existing operator-approved `release-sky` workflow entry now runs `releaseGalaxies`.
+It preflights CLI access, persists `migrations/galaxies-v1`, closes legacy writes, validates the
+source, deploys rules/indexes, imports sources into `galaxies/bad-2026` (name **BAD 2026**),
+read-back verifies public genesis chunks and publishes both galaxy pointers atomically.
+`restore-season` recovers both alpha.2 and any older alpha.1 window. A possibly applied deploy
+with incomplete migration leaves the season closed. Rerun the failed release; do not delete its
+marker. An emergency `control flag seasonOpen off` supersedes the saved state for either migration.
+Existing global objects/shards/archive are retained for old object URLs and rollback inspection.
+`config/live.dataLayerVersion = 2` closes the old player write path even after flag restoration.
+Old phones keep their local draft and must load the new packaged client to contribute again.
+
+The import stores exact private legacy objects/shards, publicly hashed genesis without Auth UID
+mappings, private entitlement profiles, and counted physical bodies. It fails on unsupported data
+or exceeded budgets; it never silently clamps a legacy orbit or drops an object. P2's importer
+pins `PROTOTYPE_KERNEL` from `packages/shared/src/prototype-kernel.ts`, including its legacy
+genesis reader. Already-created `legacy-orbit-v2` instances cannot be silently reinterpreted;
+review/reimport them before opening this game. Imported ownership uses private UID memberships; the first galaxy's logical
+owner is `operator`, with administration granted independently by the email allowlist.
+
+The release provisions a rolling 370 Pacific quota windows, including DST boundaries, in
+`quotaWindows`. Renew descriptors through the same admin tooling before expiry. Client clocks
+cannot create/reset the quota calendar. Do this preparation outside the fair quota day or include
+all imported documents and descriptors in that day's usage.
+
+The runtime admin allowlist is **only `config/admins.emails`**. Migration creates it only if absent,
+with `kholodov.alexander1@gmail.com`. To change it, edit that array with an authorized Firebase
+Console/Admin SDK operator; client rules forbid writing the allowlist. No custom Auth claims or
+email-only UI checks are required: rules also require verified email and `google.com` provider.
+Keep at least one working admin account before removing an address.
+
+Stop existing alpha.1 stand binaries before opening alpha.2; a new alpha.2 daemon exits after
+recognizing data-layer version 2, disabling the obsolete enrichment stream. No new rules, indexes,
+allowlist, credential, public name or production Hosting were deployed by B1 implementation.
+Rules deployment retains the existing required-reviewer release environment.
+
+Before opening: integrate the pinned kernel and legacy genesis reader; anchor the client clock;
+verify the accepted log on the deployed preview and real phones; test a hidden/resumed phone,
+nonce retry, freeze/switch race, and no-stand late join. Review `alpha2-b1-quota.md`: its fair model
+has 1,199 reads below the 50% gate and excludes optional services. UI confirmations, backup
+exports/restore/purge, dashboard and new routes belong to their packages; B1 provides no purge API.
+
+P2 defaults `dailyLimit` to 400 accepted mutations/day, including edits/removals. This revised
+quota budget includes up to eleven imported genesis chunks per cold/resume join; a 900-action
+scenario with the imported world does not fit the requested 50% margin. Raising the limit is
+an admin data operation and needs a revised fair-day model.
+
+The migrated public galaxy honors the existing seasonOpen/launches/edits kill switches. A
+restored closed season stays closed to canonical actions; admin tombstones remain available for
+repair. Clients forging an open local config cannot bypass these server checks.
+
+Import preparation accounts for read-request rule dependencies as well as commit dependencies.
+It chooses a ceiling of 550 down to 300 using actual genesis size (one chunk: 550; eleven: 400;
+fourteen: 300), after charging twelve hours of automatic certification.
+An oversized import fails preflight before deployment. See the executable quota model.
+
+## 14. Alpha.2 P2 — prototype game and keeper’s ledger
+
+Before using the admin, enable **Google** in `little-galaxy` Firebase Authentication → Sign-in
+method (if disabled). Add `alexanderkholodov.web.app` and the actual preview/LAN test domains to
+Authentication → Settings → Authorized domains. Provision the captain's verified Google email
+in the existing private `config/admins.emails` allowlist. No client-side password or admin key
+is used. This change does not deploy rules or enable providers automatically.
+
+The release game mounts at `/little-galaxy/`; admin at `/little-galaxy/admin`. The admin retains
+the prototype's ledger layout, with Google identity checked independently by Firestore rules.
+Start fresh by creating another galaxy, then select **Open to public** and **Show at fair**
+independently. **Open to public** and **Freeze** first show a sheet saying what happens (every
+playing phone reloads into the newly opened galaxy; a frozen galaxy becomes read-only); one tap
+confirms, Esc cancels. Only allowlisted keepers can create galaxies; the account limit is three.
+Freeze retains accepted future launches, closes writes and publishes a verified, pinned-kernel
+replay certification for later joins. Archive retains the same history; switch both selections
+first.
+
+During active play, **Save verified sky** certifies the sky up to the current tick. While the
+admin page stays open and signed in, it also certifies the active public galaxy and the booth
+galaxy automatically every ten minutes. A phone that opens or comes back restores the newest
+certification and replays only the time since then. Keep the keeper page open on the laptop all
+day (it does not need to be visible; quota: `alpha2-b1-quota.md`, 144 writes for twelve hours).
+How long a late join takes depends on the body count (P2 report, "Late-join replay time"): on a
+desktop core, 30 bodies replay ten minutes in about 2 s, 300 bodies in about 3.5 minutes (about
+5 minutes counting the time that passes meanwhile); a phone is slower.
+
+**Certify the fair galaxy right before opening.** Open the admin page, sign in and press
+**Save verified sky** on the fair galaxy, then leave the page open. The first save replays from
+the previous certification, or from genesis (the migration time) if there is none, so it takes
+longer the longer ago the migration ran. Run the release migration the same morning, shortly
+before opening, unless the galaxy has few bodies. Wait for "Verified sky saved" before opening
+the doors. Then open the game on a phone that has never loaded it and check that it is ready
+within seconds.
+
+A body removal shows the exact galaxy/count, requires typing its name, then a three-second
+Space/pointer hold and release. A click or Enter cannot confirm. The browser verifies and
+downloads an export before the append-only removal. Keep that export on operator-controlled
+media. Compacts and hosts with moons are refused by B1; removals do not refund lifetime budgets.
+There is no purge, in-place restore or local 30-second undo against the real shared world.
+
+Admin metrics count galaxy memberships, chosen names/Anonymous, first/last sampled activity,
+five-minute active status, lifetime launches and accepted-log type/hour/day charts. Visits and
+cosmetic throws display an unavailable value because they are not collected. Imported bodies
+have no accepted launch-time history. **Refresh** explicitly rereads bounded data; the dashboard
+does not poll private members or add per-visit writes. Large repeated refreshes consume quota.
+
+Booth: `/little-galaxy/screen` follows `config/live.boothGalaxyId` independently of public play.
+Its QR always points to `/little-galaxy/`. Press **F** or the fullscreen button after loading.
+The camera survives reloads. Names use the prototype's bounded label overlay. This public viewer
+creates no Auth identity and performs no Firestore writes; `config/live` is public read-only.
+
+**Hide names on the booth:** press **N** on the TV's keyboard, or the **Names** button under the
+QR (it dims when idle; move the mouse to see it). Press again to show them. The TV remembers the
+choice across reloads in its own browser storage. Phones still see their own names. The game
+refuses rude words when a name is chosen, but a tampered phone could still write one; names are
+frozen into the accepted log, so hiding them on the TV is the remedy during the fair.
+
+Timelapse: open a frozen galaxy's **Watch the timelapse** link, or
+`/little-galaxy/timelapse?g=<id>`. Play/pause, choose speed and scrub the continuous ruler.
+This reader loads the full accepted history from genesis so earlier times remain accessible even
+when a certified checkpoint exists. It never authenticates a new player or writes to Firestore.
+Long, interacting histories rebuild in bounded worker batches; do not claim a cold-replay latency
+or device-to-device exact floating-point agreement without the phone rehearsal.

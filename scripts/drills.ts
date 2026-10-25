@@ -27,8 +27,8 @@ import {
   positionAt,
   SCHEMA_VERSION,
 } from '../packages/shared/src/index.js';
-import { launchPlanet } from '../apps/web/src/galaxy-data';
-import { sendInteraction } from '../apps/web/src/interaction-data';
+import { launchPlanet } from './legacy/galaxy-data';
+import { sendInteraction } from './legacy/interaction-data';
 import { applyControl } from '../apps/stand/src/control';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -313,7 +313,10 @@ export async function runAllDrills(): Promise<DrillResult[]> {
 export function generateDrillsMarkdown(results: DrillResult[]): string {
   const passed = results.filter((r) => r.status === 'PASSED').length;
   const failed = results.filter((r) => r.status === 'FAILED').length;
-  return `# Failure-Mode Drills · G v1.0.1
+  return `# Legacy failure-mode drills
+
+These retain the alpha.1 data-path diagnostics. P2 game acceptance and the current routes are
+recorded in [the P2 report](alpha2-p2-report.md) and [RUNBOOK section 14](RUNBOOK.md#14-alpha2-p2--prototype-game-and-keepers-ledger).
 
 The five automated drills are **building-block checks**, not completed outage acceptance.
 They run against Firestore/Auth emulators. Passing all five does not certify booth recovery.
@@ -414,7 +417,7 @@ browser network emulation only, not campus connectivity or an offline reload of 
 async function main() {
   const results = await runAllDrills();
   const md = generateDrillsMarkdown(results);
-  const outPath = path.resolve(import.meta.dirname, '../docs/DRILLS.md');
+  const outPath = path.resolve(import.meta.dirname, '../docs/LEGACY-DRILLS.md');
   fs.writeFileSync(outPath, md, 'utf8');
   console.log(`[drills] Wrote drills report to ${outPath}`);
 

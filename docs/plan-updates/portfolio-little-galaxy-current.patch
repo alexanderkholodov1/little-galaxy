@@ -1,0 +1,268 @@
+--- a/scripts/assemble-games.mjs
++++ b/scripts/assemble-games.mjs
+@@ -16,6 +16,7 @@
+   if (manifest?.schemaVersion !== 1 || !manifest.games || Array.isArray(manifest.games) || !Object.keys(manifest.games).length) {
+     throw new Error('Invalid games manifest');
+   }
++  const mounts=new Set();
+   for (const [game, pin] of Object.entries(manifest.games)) {
+     if (!pin || typeof pin !== 'object' || !/^[a-z][a-z0-9-]*$/.test(game) || ['assets', 'fonts', 'es', 'projects', 'about', 'links', 'private'].includes(game) ||
+         !/^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/.test(pin.repository) ||
+@@ -23,6 +24,9 @@
+         (pin.tag === 'latest' ? (pin.artifact !== undefined && pin.artifact !== `${game}-dist` && pin.artifact !== `${game}-dist-{tag}.tar.gz`) : pin.artifact !== `${game}-dist-${pin.tag}.tar.gz`)) {
+       throw new Error('Invalid game release selection');
+     }
++    const mount=pin.mount??game;
++    if(!/^[a-z][a-z0-9-]*$/.test(mount)||['assets','fonts','es','projects','about','links','private'].includes(mount)||mounts.has(mount))throw new Error('Invalid game mount');
++    mounts.add(mount);
+   }
+   return manifest.games;
+ }
+@@ -109,6 +113,7 @@
+   await access(path.join(dist, 'index.html'));
+   const receipt = { schemaVersion: 1, games: {} };
+   for (const [game, selection] of Object.entries(games)) {
++    const mount=selection.mount??game;
+     const pin = localBuilds[game] ? selection : await resolveGameRelease(game, selection, { galaxyTag, token, artifactDirectory });
+     const scratch = await mkdtemp(path.join(dist, '.assembly-'));
+     try {
+@@ -144,9 +149,9 @@
+         }
+       }
+       const html = await readFile(path.join(output, 'index.html'), 'utf8');
+-      if (!html.includes(`/${game}/assets/`)) throw new Error('Game HTML does not use its mounted asset base');
++      if (!html.includes(`/${mount}/assets/`)) throw new Error('Game HTML does not use its mounted asset base');
+       await checkPrivacy({ root, dist: output, allowedPublicKeys });
+-      const destination = path.join(dist, game);
++      const destination = path.join(dist, mount);
+       await rm(destination, { recursive: true, force: true });
+       await rename(output, destination);
+       receipt.games[game] = local
+--- a/scripts/verify-site.mjs
++++ b/scripts/verify-site.mjs
+@@ -31,7 +31,7 @@
+ assert.ok(profile.role);
+ assert.equal(profile.links.length, 5);
+ assert.ok(!JSON.stringify(profile).includes('alexanderkholodov1/portfolio'));
+-const metadata = JSON.parse(await readFile(path.join(root, 'galaxy/version.json'), 'utf8'));
++const metadata = JSON.parse(await readFile(path.join(root, 'little-galaxy/version.json'), 'utf8'));
+ const resolved = JSON.parse(await readFile(path.join(root, 'assembly.json'), 'utf8')).games.galaxy;
+ assert.equal(`v${metadata.version}`, resolved.tag);
+ const tokens = await readFile(path.join(root, 'tokens.css'), 'utf8');
+@@ -40,6 +40,7 @@
+ assert.equal(JSON.parse(await readFile('.firebaserc', 'utf8')).projects.default, 'alexanderkholodov');
+ const hosting = JSON.parse(await readFile('firebase.json', 'utf8')).hosting;
+ assert.equal(hosting.public, 'dist');
+-assert.deepEqual(hosting.rewrites, [{ source: '/galaxy{,/**}', destination: '/galaxy/index.html' }, { source: '**', destination: '/404.html' }]);
++assert.deepEqual(hosting.rewrites, [{source:'/little-galaxy/admin{,/**}',destination:'/little-galaxy/admin.html'}, {source:'/little-galaxy{,/**}',destination:'/little-galaxy/index.html'}, {source:'**',destination:'/404.html'}]);
++assert.deepEqual(hosting.redirects,[{source:'/galaxy/screen{,/**}',destination:'/little-galaxy/screen',type:301},{source:'/galaxy{,/**}',destination:'/little-galaxy/',type:301}]);
+ await access(path.join(root, '404.html'));
+ console.log('Built-site checks passed: bilingual routes, local links, shared contract, resolved game release and Hosting config');
+--- a/firebase.json
++++ b/firebase.json
+@@ -1,15 +1,67 @@
+ {
+   "hosting": {
+     "public": "dist",
+-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/private/**"],
++    "ignore": [
++      "firebase.json",
++      "**/.*",
++      "**/node_modules/**",
++      "**/private/**"
++    ],
+     "cleanUrls": true,
+     "rewrites": [
+-      { "source": "/galaxy{,/**}", "destination": "/galaxy/index.html" },
+-      { "source": "**", "destination": "/404.html" }
++      {
++        "source": "/little-galaxy/admin{,/**}",
++        "destination": "/little-galaxy/admin.html"
++      },
++      {
++        "source": "/little-galaxy{,/**}",
++        "destination": "/little-galaxy/index.html"
++      },
++      {
++        "source": "**",
++        "destination": "/404.html"
++      }
+     ],
+     "headers": [
+-      { "source": "**/*.@(html|json)", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+-      { "source": "**/assets/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }
++      {
++        "source": "/little-galaxy{,/,/admin,/screen,/timelapse}",
++        "headers": [
++          {
++            "key": "Cache-Control",
++            "value": "no-cache"
++          }
++        ]
++      },
++      {
++        "source": "**/*.@(html|json)",
++        "headers": [
++          {
++            "key": "Cache-Control",
++            "value": "no-cache"
++          }
++        ]
++      },
++      {
++        "source": "**/assets/**",
++        "headers": [
++          {
++            "key": "Cache-Control",
++            "value": "public, max-age=31536000, immutable"
++          }
++        ]
++      }
++    ],
++    "redirects": [
++      {
++        "source": "/galaxy/screen{,/**}",
++        "destination": "/little-galaxy/screen",
++        "type": 301
++      },
++      {
++        "source": "/galaxy{,/**}",
++        "destination": "/little-galaxy/",
++        "type": 301
++      }
+     ]
+   }
+ }
+--- a/games.json
++++ b/games.json
+@@ -3,7 +3,8 @@
+   "games": {
+     "galaxy": {
+       "repository": "alexanderkholodov1/little-galaxy",
+-      "tag": "latest"
++      "tag": "latest",
++      "mount": "little-galaxy"
+     }
+   }
+ }
+--- a/tests/assembly.test.mjs
++++ b/tests/assembly.test.mjs
+@@ -168,3 +168,16 @@
+   // An explicitly supplied offline rehearsal remains offline and cannot pass Hosting's guard.
+   assert.equal((await assembleGames(options)).games.galaxy.source, 'local-rehearsal');
+ });
++
++test('accepts the exact alpha.2 artifact at the new mount and rejects unsafe mounts', () => {
++  const moved = {...pin, tag:'v1.0.0-alpha.2', artifact:'galaxy-dist-v1.0.0-alpha.2.tar.gz', mount:'little-galaxy'};
++  assert.equal(validateManifest({schemaVersion:1,games:{galaxy:moved}}).galaxy.mount,'little-galaxy');
++  for(const mount of ['../escape','assets','/little-galaxy'])assert.throws(()=>validateManifest({schemaVersion:1,games:{galaxy:{...moved,mount}}}),/Invalid/);
++});
++test('assembles at the configured mount while retaining the galaxy artifact name', async t => {
++  const entries=valid();entries[0]=entry('./index.html','<script src="/little-galaxy/assets/app.js"></script>');
++  const options=await fixture(t,entries);
++  await writeFile(path.join(options.root,'games.json'),JSON.stringify({schemaVersion:1,games:{galaxy:{...pin,mount:'little-galaxy'}}}));
++  await assembleGames(options);
++  assert.equal(await readFile(path.join(options.root,'dist/little-galaxy/version.json'),'utf8'),version.toString());
++});
+--- a/tests/serve.mjs
++++ b/tests/serve.mjs
+@@ -14,10 +14,11 @@
+   try {
+     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+     if (pathname.includes('\\') || pathname.split('/').some((part) => part.startsWith('.'))) { response.writeHead(400).end(); return; }
++    if (/^\/galaxy(?:\/|$)/.test(pathname)) {response.writeHead(301,{Location:/^\/galaxy\/screen(?:\/|$)/.test(pathname)?'/little-galaxy/screen':'/little-galaxy/'}).end();return;}
+     let file = await existing(path.join(root, pathname));
+     if (!file) file = await existing(path.join(root, `${pathname}.html`));
+     if (!file) {
+-      if (/^\/galaxy(?:\/|$)/.test(pathname)) file = path.join(root, 'galaxy/index.html');
++      if (/^\/little-galaxy(?:\/|$)/.test(pathname)) file = path.join(root, pathname.replace(/\/$/,'')==='/little-galaxy/admin'?'little-galaxy/admin.html':'little-galaxy/index.html');
+       else file = path.join(root, '404.html');
+     }
+     // Both fallbacks model explicit content rewrites in the approved config.
+--- a/tests/browser/site.spec.mjs
++++ b/tests/browser/site.spec.mjs
+@@ -63,21 +63,18 @@
+   } finally { await context.close(); }
+ });
+ 
+-test('assembled Galaxy keeps the author in a small credits card and uses shared tokens on deep links', async ({ page }) => {
+-  await page.goto('/galaxy/create?lang=es');
+-  // Operator, 2026-10-24: no personal data or links in the game except a tiny credits control.
+-  await expect(page.getByRole('link', { name: 'Alexander Kholodov', exact: true })).toHaveCount(0);
+-  await page.getByRole('button', { name: 'Créditos' }).click();
+-  const credits = page.getByRole('dialog', { name: 'Créditos' });
+-  await expect(credits).toContainText('Alexander Kholodov · USFQ');
+-  await expect(credits.getByRole('link', { name: 'Portafolio' })).toHaveAttribute('href', '/es/');
+-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+-  await expect(page.locator('link[href="/tokens.css"]')).toHaveCount(1);
+-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--pf-paper').trim())).toBeTruthy();
+-  const version = await page.request.get('/galaxy/version.json');
++test('assembled prototype serves its final mount and printed QR redirects', async ({page}) => {
++  await page.route('**/*', route => {
++    const r=route.request(), url=r.url();
++    if(['GET','HEAD'].includes(r.method()) || /Firestore\/Listen|documents:(batchGet|runQuery)/.test(url)) return route.continue();
++    return route.abort();
++  });
++  await page.goto('/little-galaxy/?lang=es&smoke=readonly');
++  await expect(page).toHaveTitle('Little Galaxy');
++  await expect(page.locator('#world')).toBeVisible();
++  await expect(page.locator('html')).toHaveAttribute('lang','es');
++  const version=await page.request.get('/little-galaxy/version.json');
+   expect((await version.json()).version).toBe(resolvedGalaxy);
+-  const missing = await page.request.get('/a-page-that-does-not-exist');
+-  // Only rendering is under test here; Hosting rewrite status needs a preview.
+-  expect(await missing.text()).toContain('<html lang="en"');
+-  expect(await missing.text()).toContain('404');
++  const legacy=await page.request.get('/galaxy/screen',{maxRedirects:0});
++  expect(legacy.status()).toBe(301);expect(legacy.headers().location).toBe('/little-galaxy/screen');
+ });
+--- a/docs/plan/02-architecture.md
++++ b/docs/plan/02-architecture.md
+@@ -160,3 +160,13 @@
+ Galaxy pages render a compact portfolio header (name, links to portfolio, socials) built from the
+ same-origin `/profile.json` and `/tokens.css` published by the portfolio, so profile data has one
+ source of truth.
++
++## Alpha.2 P2 packaging decision — 2026-10-25
++
++Operator decision (2026-10-24): ship proto3's plain ES modules and registry-pinned three@0.170.0
++through Vite at /little-galaxy/. React views are retired. The galaxy repository keeps its CI,
++rules/emulator tests, stand, version/privacy gates and exact-tag release artifact. Portfolio
++assembly keeps the `galaxy` release key/artifact name and adds an explicit `little-galaxy` mount.
++Printed /galaxy paths redirect to the new root; the old screen redirects to the new screen.
++The prototype's fonts/identity ship locally. Google admin precedes player account/invite UI;
++shared play remains gentle. Preview and real-phone acceptance are still required before release.
+--- a/docs/plan/06-roadmap.md
++++ b/docs/plan/06-roadmap.md
+@@ -29,6 +29,15 @@
+ | P v1.0.0 | Required for the fair (never cut) | Follow latest galaxy releases with previews and per-deploy rollback; verify production and rehearsal. |
+ | G v1.1.0 | After the fair | Close and freeze the season. |
+ | P v1.1.0 | After the fair | Serve the frozen season statically. |
++
++## Alpha.2 P2 implementation — operator update, 2026-10-25
++
++The fair game is proto3 itself, packaged with Vite and pinned three@0.170.0, replacing the React
++views. B1 supplies instance/action admission; the prototype's pinned DOM-free kernel replays it.
++P2 adds verified-Google admin, booth selection, read-only timelapse, local fonts/version gates and
++printed-QR redirects to /little-galaxy/. Player sign-in/shared accounts, destructive mode and
++player-created galaxies/invites UI remain outside tonight's package. See galaxy's P2 report and
++quota model for actual local checks and limitations. No deployed/real-phone acceptance is implied.
+ 
+ ## Remaining work
+ 
+--- a/docs/plan/CHANGELOG.md
++++ b/docs/plan/CHANGELOG.md
+@@ -2,6 +2,13 @@
+ 
+ Every change to `docs/plan/` after it was written. Newest first.
+ Format: `YYYY-MM-DD — <what changed> — <why> — decided by <operator | agent>`.
++
++- 2026-10-25 — Alpha.2 P2 packages proto3's own ES modules instead of React at /little-galaxy/,
++  with registry three@0.170.0, B1 log replay, Google keeper ledger, independent booth selection,
++  read-only timelapse and printed-QR redirects. Release artifact naming and portfolio assembly
++  remain; mount and alpha-tag support are explicit. Quota includes the actual readers/admin.
++  Decided by operator (2026-10-24 captain decision and P2 task); implementation acceptance remains
++  conditional on deployed preview, real phones and the stated traffic envelope.
+ 
+ - 2026-10-24 — Applied the operator's 2026-10-23 decisions: versioning v1.0.0-alpha.N ("para que sea 1.0.0 debe ser PERFECTA E IMPECABLE"), deploy option b ("que los agentes 'prueben' la produccion en su rama de trabajo o links temporales, y yo quiero ver solo la final-final-final que desplegare haciendo el PR."), the sky in three layers ("las tres cosas": Firebase-only for everyone, a stand on Beacon, the laptop as backup), prototypes first (liquid glass, passive and active interactivity, "No se debe ver como IA"), no-pin release following ("NO, NO FIJEMOS NADA, DEBEMOS PODER PROBARLO Y ACTUALIZAR SIN QUE HAYA NINGUN PROBLEMA, HASTA LA FERIA Y DURANTE LA FERIA TAMBIEN!" and "Apruebo tu plan de eliminacion de la version y que se haga todo desarrollo futuro flexible y con rollback tambien"). Updated `02`, `05`, `06`, `08`, the galaxy contract template and CI workflow/scripts; no milestone acceptance or live verification claimed — decided by operator.
+ 

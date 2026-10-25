@@ -1,0 +1,20 @@
+import {afterEach,expect,it,vi} from 'vitest';
+import {setupScreen} from './screen.js';
+const world={restoreView(){},viewState(){return {};}};
+afterEach(()=>{document.getElementById('boothPlaque')?.remove();localStorage.clear();});
+it('lets the booth hide every name with N or a button, and remembers the choice',()=>{
+  history.pushState({},'','/little-galaxy/screen');
+  const labels={setMode:vi.fn()};setupScreen({world,labels});
+  const button=document.getElementById('boothNames');
+  expect(labels.setMode).toHaveBeenLastCalledWith('all');expect(button.getAttribute('aria-pressed')).toBe('true');
+  dispatchEvent(new KeyboardEvent('keydown',{key:'n'}));
+  expect(labels.setMode).toHaveBeenLastCalledWith('none');expect(button.getAttribute('aria-pressed')).toBe('false');
+  expect(localStorage.getItem('little-galaxy.booth-names')).toBe('hidden');
+  dispatchEvent(new KeyboardEvent('keydown',{key:'n',ctrlKey:true}));expect(labels.setMode).toHaveBeenLastCalledWith('none');
+  button.click();expect(labels.setMode).toHaveBeenLastCalledWith('all');
+  expect(localStorage.getItem('little-galaxy.booth-names')).toBe('shown');
+  button.click();
+  document.getElementById('boothPlaque').remove();
+  const again={setMode:vi.fn()};setupScreen({world,labels:again});
+  expect(again.setMode).toHaveBeenLastCalledWith('none');
+});

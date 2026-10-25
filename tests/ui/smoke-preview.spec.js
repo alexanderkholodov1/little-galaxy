@@ -1,29 +1,10 @@
-import { expect, test } from '@playwright/test';
-import { installReadOnlyRoutes } from './read-only.js';
-
-test('hosted surface smoke enforces read-only requests before transmission', async ({ browser }) => {
-  const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 375, height: 812 } });
-  const blocked = await installReadOnlyRoutes(context);
-  const page = await context.newPage();
-  try {
-    const response = await page.goto('/galaxy/version.json');
-    expect(response.status()).toBe(200);
-    expect(await response.json()).toMatchObject({ version: expect.any(String), commit: expect.anything() });
-    for (const path of ['', 'screen', 'create']) {
-      await page.goto(`/galaxy/${path}?smoke=readonly`);
-      await expect(page.locator('h1').first()).toBeVisible();
-      if (path === 'screen') { await expect(page.locator('.join-qr')).toBeVisible(); await expect(page.locator('.galaxy-field')).toBeVisible(); }
-      if (path === 'create') await expect(page.locator('.planet-specimen')).toBeVisible();
-      // Resolve the document again if recovery replaces its execution context.
-      await expect(page.locator('html')).toHaveJSProperty('scrollWidth', 375);
-    }
-    // The application must suppress anonymous creation itself, rather than depend on a network failure.
-    expect(blocked).toEqual([]);
-    // Prove mutations cannot escape even if a stale client or a regression attempts one.
-    await page.evaluate(async () => {
-      await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp', { method: 'POST', body: '{}' }).catch(() => {});
-      await fetch('https://firestore.googleapis.com/v1/projects/demo-little-galaxy/databases/(default)/documents:commit', { method: 'POST', body: '{}' }).catch(() => {});
-    });
-    expect(blocked).toHaveLength(2);
-  } finally { await context.close(); }
+import {expect,test} from '@playwright/test';
+import {isReadOnlyRequest} from './read-only.js';
+test('hosted prototype loads its local assets without identity creation or data writes',async({page,baseURL})=>{
+ const blocked=[];
+ await page.route('**/*',route=>{const r=route.request();if(isReadOnlyRequest(r.method(),r.url()))return route.continue();blocked.push(r.url());return route.abort();});
+ await page.goto('/little-galaxy/?smoke=readonly&lang=en'+(['127.0.0.1','localhost'].includes(new URL(baseURL).hostname)?'&emulators=1':''));await expect(page).toHaveTitle('Little Galaxy');
+ await expect(page.locator('#world')).toBeVisible();await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true',{timeout:30000});
+ expect(blocked).toEqual([]);
+ const metadata=await page.request.get('/little-galaxy/version.json');expect((await metadata.json()).version).toBe('1.0.0-alpha.2');
 });

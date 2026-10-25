@@ -24,7 +24,7 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import { editObject, launchPlanet, ownActive, ownObjects, relaunchObject } from '../../apps/web/src/galaxy-data.ts';
+import { editObject, launchPlanet, ownActive, ownObjects, relaunchObject } from '../../scripts/legacy/galaxy-data.ts';
 import {
   orbitFromVelocity,
   skyBucket,
@@ -35,10 +35,10 @@ import {
 } from '../../packages/shared/src/index.ts';
 import { initializeApp as adminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app';
 import { getFirestore as adminFirestore } from 'firebase-admin/firestore';
-import { sendInteraction, listenRecentEvents } from '../../apps/web/src/interaction-data.ts';
+import { sendInteraction, listenRecentEvents } from '../../scripts/legacy/interaction-data.ts';
 import { messageKeys } from '../../packages/shared/src/index.ts';
 import { applyControl, initialConfig } from '../../apps/stand/src/control.ts';
-import { readConfig } from '../../apps/web/src/live-config.ts';
+import { readConfig } from '../../scripts/legacy/live-config.ts';
 import { startMeteorScheduler, writeMeteorShower } from '../../apps/stand/src/meteors.ts';
 import { startSnapshotWriter } from '../../apps/stand/src/snapshots.ts';
 vi.mock('../../apps/web/src/firebase.ts', () => ({ anonymousUid: vi.fn().mockResolvedValue('screen') }));
@@ -374,7 +374,7 @@ it('keeps public reads minimal and all client admin writes denied', async () => 
   await assertFails(getDocs(collection(publicDb, 'objects')));
   await assertFails(getDoc(doc(publicDb, 'objects', id)));
   await assertSucceeds(getDoc(doc(db(), 'objects', id)));
-  await assertFails(getDoc(doc(publicDb, 'config', 'live')));
+  await assertSucceeds(getDoc(doc(publicDb, 'config', 'live')));
   await assertSucceeds(getDoc(doc(db(), 'config', 'live')));
   await bypass((database) => setDoc(doc(database, 'snapshots', 'live'), { schemaVersion: 1 }));
   await assertSucceeds(getDoc(doc(publicDb, 'snapshots', 'live')));
@@ -665,7 +665,7 @@ it('production edit and hangar helpers complete the round trip without deletion,
   });
 });
 it('the live screen receives owner edits and both hangar transitions through production listeners', async () => {
-  const { listenActive } = await import('../../apps/web/src/galaxy-data.ts');
+  const { listenActive } = await import('../../scripts/legacy/galaxy-data.ts');
   let objects = [];
   const stop = listenActive(
     db('screen'),
@@ -887,7 +887,7 @@ it('requires an active star for a new launch but preserves a previously launched
   expect((await getDoc(doc(db(), 'objects', planet))).data().orbit.hostId).toBe(star);
 });
 it('signed screen fetches a hangared moon host by id and the stand snapshot includes it', async () => {
-  const { listenActive } = await import('../../apps/web/src/galaxy-data.ts');
+  const { listenActive } = await import('../../scripts/legacy/galaxy-data.ts');
   const planet = await launchTyped(db(), 'alice', 'planet'); await ageUser();
   const moon = await launchPlanet(db(), 'alice', { type: 'moon', nameKey: 'n00-00', params: presets.moon[0] }, { ...orbit(), hostId: planet });
   await assertSucceeds(getDoc(doc(db('screen'), 'objects', planet)));
@@ -1091,7 +1091,7 @@ it('stand publishes its first empty snapshot before the interval without any con
 });
 
 it('renders a confirmed empty sky and live launch/edit/replacement/relaunch with no stand or snapshots', async () => {
-  const { listenActive } = await import('../../apps/web/src/galaxy-data.ts');
+  const { listenActive } = await import('../../scripts/legacy/galaxy-data.ts');
   let observed;
   const errors = [];
   const stop = listenActive(db('screen'), (objects, cache) => { if (!cache) observed = objects; }, () => errors.push('failed'));
@@ -1155,7 +1155,7 @@ it('rejects entry 513 atomically while allowing an existing owner to replace at 
 });
 
 it('uses one transaction get per interaction while rules still enforce the live switches', async () => {
-  const { observeTransactions } = await import('../../apps/web/src/firestore-observer.ts');
+  const { observeTransactions } = await import('../../scripts/legacy/firestore-observer.ts');
   const database = db(), reads = [];
   const stop = observeTransactions(database, { attempt() {}, request() {}, read(path) { reads.push(path); } });
   try { await sendInteraction(database, 'alice', 'shake', {}); }
@@ -1164,7 +1164,7 @@ it('uses one transaction get per interaction while rules still enforce the live 
 });
 
 it('avoids duplicate config gets on launch and edit while retaining rule-enforced closed errors', async () => {
-  const { observeTransactions } = await import('../../apps/web/src/firestore-observer.ts');
+  const { observeTransactions } = await import('../../scripts/legacy/firestore-observer.ts');
   const database = db(), reads = [];
   const stop = observeTransactions(database, { attempt() {}, request() {}, read(path) { reads.push(path); } });
   try {

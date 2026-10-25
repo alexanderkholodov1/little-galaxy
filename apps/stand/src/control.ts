@@ -42,7 +42,8 @@ export async function applyControl(database: Firestore, args: string[]) {
   const patch = controlPatch(args);
   await database.runTransaction(async (tx) => {
     const ref = database.doc('config/live'), markerRef = database.doc('migrations/sky-v1');
-    const [snapshot, marker] = await tx.getAll(ref, markerRef);
+    const galaxyMarkerRef = database.doc('migrations/galaxies-v1');
+    const [snapshot, marker, galaxyMarker] = await tx.getAll(ref, markerRef, galaxyMarkerRef);
     if (args[0] === 'init') {
       if (snapshot.exists) throw new Error('config/live already exists; init refuses to overwrite it.');
       tx.create(ref, patch);
@@ -54,6 +55,10 @@ export async function applyControl(database: Firestore, args: string[]) {
       // A deliberate emergency close supersedes the saved flag. Both restoration
       // and this command read these documents, so Firestore retries any race.
       tx.update(markerRef, { seasonOpenBefore: false });
+    }
+    if (galaxyMarker.data()?.seasonOpenBefore !== undefined && patch.seasonOpen !== undefined) {
+      if (patch.seasonOpen) throw new Error('Cannot open the season during galaxy migration recovery.');
+      tx.update(galaxyMarkerRef, { seasonOpenBefore: false });
     }
     const config = { ...snapshot.data(), ...patch };
     if ((config.meteorMinSeconds ?? 360) > (config.meteorMaxSeconds ?? 900)) throw new Error('Meteor minimum must not exceed maximum.');

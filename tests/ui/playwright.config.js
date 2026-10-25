@@ -17,13 +17,14 @@ export default defineConfig({
   outputDir: '../../.ui-results',
   use: {
     baseURL,
+    actionTimeout: 15000,
     browserName: 'chromium',
     launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
     viewport: { width: 375, height: 812 },
   },
   webServer: isPreview ? undefined : {
     command: `${firebaseEnvironment} pnpm --filter @little-galaxy/web dev --port ${port} --strictPort`,
-    url: `http://127.0.0.1:${port}/galaxy/`,
+    url: `http://127.0.0.1:${port}/little-galaxy/`,
     reuseExistingServer: false,
   },
 });

@@ -9,6 +9,7 @@ service cloud.firestore {
     function config() { return get(/databases/$(database)/documents/config/live).data; }
     function afterUser() { return getAfter(userPath()).data; }
     function numberIn(n, low, high) { return n is number && n >= low && n <= high; }
+    function intRange(n, low, high) { return n is int && n >= low && n <= high; }
     function id(s) { return s is string && s.matches('^[A-Za-z0-9_-]{1,100}$'); }
     function paletteIndex(n) { return n is int && n >= 0 && n <= 3; }
     function params(p, type, version) {
@@ -46,7 +47,7 @@ service cloud.firestore {
       return numberIn(o.epoch, request.time.toMillis() - 120000, request.time.toMillis() + 120000);
     }
     function objectSchema(d) {
-      return d.keys().hasAll(['schemaVersion','ownerUid','type','nameKey','params','orbit','status','createdAt','updatedAt','season'])
+      return config().get('dataLayerVersion',1) == 1 && d.keys().hasAll(['schemaVersion','ownerUid','type','nameKey','params','orbit','status','createdAt','updatedAt','season'])
         && d.keys().hasOnly(['schemaVersion','ownerUid','type','nameKey','params','orbit','hostOrbit','status','createdAt','updatedAt','season'])
         && d.schemaVersion in [1,2] && d.ownerUid == request.auth.uid && d.type in ['planet','star','moon']
         && (d.nameKey in ['quiet-aurora','bright-tide','gentle-horizon','distant-garden'] || (d.nameKey is string && d.nameKey.matches('^n[0-3][0-9]-[0-3][0-9]$')))
@@ -74,7 +75,7 @@ service cloud.firestore {
           && archivedMatches(oldId, d.writeId)));
     }
     function userSchema(d) {
-      return d.keys().hasAll(['schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
+      return config().get('dataLayerVersion',1) == 1 && d.keys().hasAll(['schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
         && d.keys().hasOnly(['interactionDay','interactionsToday','editsToday','editDay','schemaVersion','activeObjectId','launchesToday','launchDay','lastWriteAt','lastShakeAt','lastCometAt','lastStarAt','writeId','action'])
         && d.schemaVersion == 1 && (id(d.activeObjectId) || d.activeObjectId == '') && id(d.writeId)
         && d.launchesToday is int && d.launchesToday >= 0 && d.launchesToday <= 5
@@ -250,7 +251,344 @@ service cloud.firestore {
     match /seasons/{season}/meta/{document} { allow get: if season == 'bad-2026' && document == 'manifest'; }
     match /seasons/{season}/log/{chunk} { allow get: if season == 'bad-2026' && chunk.matches('^(objects-[0-9a-f]|log-[0-9a-f]{24})$'); }
     match /snapshots/{snapshotId} { allow get: if snapshotId == 'live'; }
-    match /config/{configId} { allow get: if signed() && configId == 'live'; }
+    match /config/{configId} {
+      allow get: if configId == 'live';
+      allow update: if configId == 'live' && bAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activePublicGalaxyId','boothGalaxyId'])
+        && (request.resource.data.activePublicGalaxyId == resource.data.activePublicGalaxyId || (bGalaxy(request.resource.data.activePublicGalaxyId).visibility == 'public' && bGalaxy(request.resource.data.activePublicGalaxyId).status == 'active'))
+        && exists(bPath(request.resource.data.boothGalaxyId));
+    }
+    // Alpha.2 admission: public history is pseudonymous; private memberships map Auth UIDs.
+    function bAdmin() {
+      return signed() && request.auth.token.get('email_verified', false)
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.auth.token.get('email', '') in get(/databases/$(database)/documents/config/admins).data.emails;
+    }
+    function bPath(g) { return /databases/$(database)/documents/galaxies/$(g); }
+    function bGalaxy(g) { return get(bPath(g)).data; }
+    function bReadable(g) {
+      let galaxy = bGalaxy(g);
+      return galaxy.visibility == 'public' || (signed() && (galaxy.owner == request.auth.uid
+        || exists(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)) || bAdmin()));
+    }
+    function bHead(g) { return getAfter(/databases/$(database)/documents/galaxies/$(g)/control/head).data; }
+    function bMember(g) { return getAfter(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)).data; }
+    function bOpen(g, galaxy, operation) {
+      let flags = config();
+      return signed() && galaxy.status == 'active' && galaxy.writePolicy != 'frozen'
+        && (galaxy.writePolicy == 'public' ? (operation != 'launch' || flags.get('launches',true))
+          && (operation != 'edit' || flags.get('edits',true))
+          && (flags.activePublicGalaxyId == g || bAdmin())
+          && (flags.get('seasonOpen',false) || (operation == 'remove' && bAdmin()))
+          : galaxy.owner == request.auth.uid || (get(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)).data.role in ['owner','editor']) || bAdmin());
+    }
+    function bMin(a,b) { return a < b ? a : b; }
+    function bMax(a,b) { return a > b ? a : b; }
+    function bMass(k) {
+      return k == 'pulsar' ? 1400000 : k == 'star' ? 1000000 : k in ['binary','blackhole'] ? 2000000
+        : k == 'giant' ? 10000 : k == 'planet' ? 1000 : k == 'moon' ? 10 : k == 'nebula' ? 100 : 1;
+    }
+    function bCost(k) {
+      let count = k == 'binary' ? 2 : 1;
+      let stellar = k in ['star','binary','pulsar'] ? 1 : 0;
+      let hole = k == 'blackhole' ? 1 : 0;
+      return {'mass':bMass(k),'count':count,'stellar':stellar,'hole':hole,'compact':stellar > 0 ? count : hole};
+    }
+    function bName(n) { return n is string && n.size() >= 1 && n.size() <= 24 && n.matches('^[^<>\\x00-\\x1f\\x7f]+$'); }
+    function bGalaxySchema(d, g) {
+      return d.keys().hasOnly(['schemaVersion','id','owner','name','mode','visibility','writePolicy','status','generation','createdAt','frozenAt','epoch','kernel','dailyLimit','genesis'])
+        && d.schemaVersion == 1 && d.id == g && id(g) && id(d.owner)
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 80
+        && d.mode in ['gentle','destructive'] && d.visibility in ['public','invite-only']
+        && d.writePolicy in ['public','members','frozen'] && d.status in ['active','frozen','archived']
+        && d.dailyLimit is int && d.dailyLimit >= 300 && d.dailyLimit <= 900
+        && d.generation is int && d.generation >= 1 && d.createdAt is int && d.epoch is int
+        && (d.frozenAt == null || d.frozenAt is int) && d.kernel is string && d.kernel.size() <= 100;
+    }
+    match /galaxies/{g} {
+      allow get: if resource == null ? signed() : resource.data.visibility == 'public' || bReadable(g);
+      allow list: if request.query.limit != null && request.query.limit <= 100 && (resource.data.visibility == 'public' || bAdmin() || (signed() && resource.data.owner == request.auth.uid));
+      // Player-created galaxies are a later package; only allowlisted keepers create galaxies.
+      allow create: if bAdmin() && bGalaxySchema(request.resource.data,g) && request.resource.data.owner == request.auth.uid
+        && !('genesis' in request.resource.data) && request.resource.data.generation == 1 && request.resource.data.status == 'active'
+        && g in getAfter(/databases/$(database)/documents/galaxyAccounts/$(request.auth.uid)).data.ids
+        && getAfter(/databases/$(database)/documents/galaxies/$(g)/control/head).data.sequence == 0;
+      allow update: if bAdmin() && bGalaxySchema(request.resource.data,g)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','mode','writePolicy','status','frozenAt','dailyLimit'])
+        && !(resource.data.status == 'archived' && request.resource.data.status == 'active');
+    }
+    match /galaxyAccounts/{uid} {
+      allow get: if own(uid) || bAdmin();
+      allow create, update: if own(uid) && request.resource.data.keys().hasOnly(['ids'])
+        && request.resource.data.ids is list && request.resource.data.ids.size() <= 3
+        && request.resource.data.ids.size() == (resource == null ? 1 : resource.data.ids.size() + 1)
+        && (resource == null || request.resource.data.ids == resource.data.ids.concat([request.resource.data.ids[request.resource.data.ids.size()-1]]))
+        && getAfter(bPath(request.resource.data.ids[request.resource.data.ids.size()-1])).data.owner == uid
+        && !exists(bPath(request.resource.data.ids[request.resource.data.ids.size()-1]));
+    }
+    function bParameter(n) { return intRange(n, 0, 1000000); }
+    function bDesign(d) {
+      return d is map && d.keys().hasOnly(['colour','palette','size','surface','temperature','rings','oceans','mountains','clouds','atmosphere','corona','craters','icy','texture','glow','variant'])
+        && (!('colour' in d) || bParameter(d.colour))
+        && (!('palette' in d) || bParameter(d.palette))
+        && (!('size' in d) || bParameter(d.size))
+        && (!('surface' in d) || bParameter(d.surface))
+        && (!('temperature' in d) || bParameter(d.temperature))
+        && (!('rings' in d) || bParameter(d.rings))
+        && (!('oceans' in d) || bParameter(d.oceans))
+        && (!('mountains' in d) || bParameter(d.mountains))
+        && (!('clouds' in d) || bParameter(d.clouds))
+        && (!('atmosphere' in d) || bParameter(d.atmosphere))
+        && (!('corona' in d) || bParameter(d.corona))
+        && (!('craters' in d) || bParameter(d.craters))
+        && (!('icy' in d) || bParameter(d.icy))
+        && (!('texture' in d) || bParameter(d.texture))
+        && (!('glow' in d) || bParameter(d.glow))
+        && (!('variant' in d) || bParameter(d.variant));
+    }
+    function bIntent(i) {
+      return id(i.id) && i.effectiveTick is int && (i.type == 'launch'
+        ? i.keys().hasOnly(['id','type','system','kind','origin','velocity','seed','design','effectiveTick','parent'])
+          && i.kind in ['planet','giant','moon','asteroid','comet','meteor','nebula','star','binary','pulsar','blackhole']
+          && i.system is string && i.system.matches('^(0|[1-9]|[12][0-9]|3[01])$')
+          && i.origin is list && i.origin.size() == 2
+          && intRange(i.origin[0],-1000000000000,1000000000000) && intRange(i.origin[1],-1000000000000,1000000000000)
+          && i.velocity is list && i.velocity.size() == 2
+          && intRange(i.velocity[0],-8000000,8000000) && intRange(i.velocity[1],-8000000,8000000)
+          && i.velocity[0]*i.velocity[0]+i.velocity[1]*i.velocity[1] <= 64000000000000
+          && intRange(i.seed, 0, 4294967295) && bDesign(i.design)
+          && (i.kind == 'moon' ? id(i.parent) : !('parent' in i))
+        : i.type == 'edit' ? i.keys().hasOnly(['id','type','bodyId','design','effectiveTick']) && id(i.bodyId) && bDesign(i.design)
+        : i.type == 'remove' && bAdmin() && i.keys().hasOnly(['id','type','bodyId','effectiveTick','reason']) && id(i.bodyId) && i.reason is string && i.reason.size() <= 160);
+    }
+    function bAccepted(g,d,a) {
+      let h = bHead(g);
+      let galaxy = bGalaxy(g);
+      let m = bMember(g);
+      let reqMs = request.time.toMillis();
+      let epochOffset = reqMs - galaxy.epoch;
+      let tick1000 = d.intent.effectiveTick * 1000;
+      return signed() && h.updatedTime == request.time && d.schemaVersion == 1 && h.lastAction == a
+        && d.sequence == h.sequence && d.hash == h.hash && d.memberId == m.memberId && d.displayName == m.displayName
+        && d.generation == galaxy.generation && d.acceptedAt is int
+        && d.acceptedAt >= reqMs - 1500 && d.acceptedAt <= reqMs + 1500
+        && d.previousHash is string && d.hash is string && d.hash.matches('^[a-f0-9]{64}$')
+        && bIntent(d.intent) && d.intent.id == a && d.intent.effectiveTick == h.effectiveTick
+        && tick1000 >= (epochOffset + 500) * 120
+        && tick1000 <= (epochOffset + 3000) * 120
+        && d.keys().hasOnly(['schemaVersion','generation','sequence','previousHash','hash','memberId','displayName','acceptedAt','intent']);
+    }
+    function bSystem(old,s,i,cost) {
+      return s.bodies == old.bodies + cost.count && s.bodies <= 32
+        && s.mass == old.mass + cost.mass && s.mass <= 3200000
+        && s.compact == old.compact + cost.compact && s.compact <= 2
+        && s.giants == old.giants + (i.kind == 'giant' ? 1 : 0) && s.giants <= 6
+        && s.blackholes == old.blackholes + cost.hole && s.blackholes <= 1
+        && s.ordinaryMass == old.ordinaryMass + (cost.compact == 0 ? cost.mass : 0) && s.ordinaryMass <= 200000
+        && s.keys().hasOnly(['bodies','mass','compact','giants','blackholes','ordinaryMass']);
+    }
+    function bHeadLaunch(g,d,old,a,m,prior,memberFirst) {
+      let i = a.intent; let cost = bCost(i.kind); let fresh = !(i.system in old.systems); let nursery = fresh && cost.compact == 0 ? 1 : 0;
+      let s = fresh ? {'bodies':nursery,'mass':nursery*1000000,'compact':nursery,'giants':0,'blackholes':0,'ordinaryMass':0} : old.systems[i.system];
+      let sameWindow = d.window == old.window;
+      let launches = sameWindow ? old.dayLaunches : 0; let contributors = sameWindow ? old.contributors : 0;
+      let priorBodies = prior.get('bodyIds', []);
+      let compactLaunch = !fresh && cost.compact > 0;
+      return d.systems.size() + d.reserves.size() <= 32
+        && (compactLaunch ? !(i.id in old.reserves)
+          && d.reserves[i.id] == {'bodies':cost.count,'mass':cost.mass,'compact':cost.compact,'giants':0,'blackholes':cost.hole,'ordinaryMass':0}
+          && d.reserves.diff(old.reserves).affectedKeys().hasOnly([i.id])
+          : d.reserves == old.reserves)
+        && d.systems.diff(old.systems).affectedKeys().hasOnly([i.system])
+        && bSystem(s,d.systems[i.system],i,cost)
+        && (i.kind != 'moon' || getAfter(/databases/$(database)/documents/galaxies/$(g)/objects/$(i.parent)).data.lastAction == i.id)
+        && d.bodies == old.bodies + cost.count + nursery && d.bodies <= 1024
+        && d.mass == old.mass + cost.mass + nursery*1000000 && d.mass <= 96000000
+        && d.blackholes == old.blackholes + cost.hole && d.blackholes <= 4
+        && (i.kind == 'blackhole' ? a.acceptedAt >= old.lastBlackholeAt + 601500 && d.lastBlackholeAt == a.acceptedAt : d.lastBlackholeAt == old.lastBlackholeAt)
+        && d.dayLaunches == launches + 1 && d.dayLaunches <= 900
+        && d.contributors == contributors + (memberFirst ? 1 : 0)
+        && m.mass == prior.get('mass', 0) + cost.mass
+        && m.blackholes == prior.get('blackholes', 0) + cost.hole
+        && m.stellar == prior.get('stellar', 0) + cost.stellar
+        && m.bodyIds == priorBodies.concat(i.kind == 'binary' ? [i.id,i.id+':b'] : [i.id]);
+    }
+    function bHeadMutation(g,d,old) {
+      let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(d.lastAction)).data;
+      let m = bMember(g);
+      let prior = exists(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)) ? get(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)).data : {};
+      let w = get(/databases/$(database)/documents/quotaWindows/$(d.window)).data;
+      let page = getAfter(/databases/$(database)/documents/galaxies/$(g)/logPages/$(string(int(old.sequence / 64)))).data;
+      let cache = getAfter(/databases/$(database)/documents/galaxies/$(g)/checkpoints/latest).data;
+      let galaxy = bGalaxy(g);
+      let isLaunch = a.intent.type == 'launch';
+      let sameWindow = old.window == d.window;
+      let memberFirst = isLaunch && (!('dayLaunches' in prior) || prior.get('window','') != d.window || prior.dayLaunches == 0);
+      return bOpen(g,galaxy,a.intent.type)
+        && d.sequence == old.sequence+1 && d.sequence <= 4096 && d.effectiveTick > old.effectiveTick
+        && a.sequence == d.sequence && a.hash == d.hash && a.previousHash == old.hash
+        && a.intent.effectiveTick == d.effectiveTick && d.updatedTime == request.time
+        && m.mutationTime == request.time && cache.sequence == d.sequence
+        && d.bucketSlot is int && d.bucketSlot <= int(request.time.toMillis() / 2000) && d.bucketSlot >= int(request.time.toMillis() / 2000)-1
+        && d.tokens == bMin(6,old.tokens+d.bucketSlot-old.bucketSlot)-1 && d.tokens >= 0
+        && d.dayMutations == (sameWindow ? old.dayMutations+1 : 1) && d.dayMutations <= galaxy.dailyLimit
+        && (memberFirst || (sameWindow ? old.dayMutations : 0) < galaxy.dailyLimit - bMax(0,300-(sameWindow ? old.contributors : 0)))
+        && w.id == d.window && w.start <= request.time.toMillis() && w.end > request.time.toMillis()
+        && page.entries.size() == old.sequence%64+1
+        && getAfter(/databases/$(database)/documents/galaxies/$(g)/objects/$(isLaunch ? a.intent.id : a.intent.bodyId)).data.lastAction == a.intent.id
+        && (isLaunch ? bHeadLaunch(g,d,old,a,m,prior,memberFirst)
+          : d.diff(old).affectedKeys().hasOnly(['sequence','hash','effectiveTick','lastAction','updatedTime','bucketSlot','tokens','window','dayLaunches','dayMutations','contributors'])
+            && d.dayLaunches == (sameWindow ? old.dayLaunches : 0)
+            && d.contributors == (sameWindow ? old.contributors : 0))
+        && d.keys().hasOnly(['sequence','hash','effectiveTick','bodies','mass','blackholes','lastBlackholeAt','window','dayLaunches','dayMutations','contributors','tokens','bucketSlot','systems','reserves','lastAction','updatedTime']);
+    }
+    function bMemberSchema(d) {
+      let reqMs = request.time.toMillis();
+      return d.updatedTime == request.time
+        && d.launches is int && d.launches >= 0
+        && intRange(d.dayLaunches, 0, 6)
+        && intRange(d.mass, 0, 3100000)
+        && intRange(d.blackholes, 0, 1)
+        && intRange(d.stellar, 0, 1)
+        && d.bodyIds is list && d.bodyIds.size() <= 3
+        && d.role in ['owner','editor','viewer']
+        && d.window is string && d.lastMutationAt is int
+        && d.firstSeen is int && d.lastSeen is int && d.firstSeen <= d.lastSeen
+        && d.lastSeen >= reqMs - 1500 && d.lastSeen <= reqMs + 1500
+        && id(d.memberId) && bName(d.displayName)
+        && d.keys().hasOnly(['memberId','role','displayName','firstSeen','lastSeen','lastMutationAt','launches','window','dayLaunches','mass','blackholes','stellar','bodyIds','updatedTime','mutationTime']);
+    }
+    function bMemberWrite(g,d,old) {
+      let h = bHead(g);
+      let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data;
+      let launch = a.intent.type == 'launch';
+      return signed()
+        && d.mutationTime == request.time && h.updatedTime == request.time && d.lastMutationAt == a.acceptedAt
+        && (old.get('mutationTime',null) == null || request.time >= old.mutationTime + duration.value(15,'s'))
+        && d.window == h.window
+        && d.launches == ('launches' in old ? old.launches : 0) + (launch ? 1 : 0)
+        && d.dayLaunches == (old.get('window','') == h.window ? old.get('dayLaunches',0) : 0) + (launch ? 1 : 0)
+        && ('role' in old ? d.role == old.role : d.role == (bGalaxy(g).owner == request.auth.uid ? 'owner' : 'editor'))
+        && (!('memberId' in old) || d.memberId == old.memberId)
+        && ('firstSeen' in old ? d.firstSeen == old.firstSeen : d.firstSeen == d.lastSeen)
+        && ('displayName' in old ? d.displayName == old.displayName : d.displayName == 'Anonymous')
+        && (launch || resource == null || d.diff(old).affectedKeys().hasOnly(['lastSeen','lastMutationAt','window','dayLaunches','updatedTime','mutationTime']));
+    }
+    // Renames are outside the daily mutation ceiling, so every profile write waits five minutes.
+    function bProfile(g,d,old) {
+      return d.diff(old).affectedKeys().hasOnly(['displayName','lastSeen','updatedTime']) && bGalaxy(g).status == 'active' && bReadable(g)
+        && request.time >= old.updatedTime + duration.value(300,'s');
+    }
+    function bInitialProfile(g,d) {
+      return d.lastMutationAt == 0 && d.launches == 0 && d.mass == 0 && d.blackholes == 0 && d.stellar == 0
+        && d.bodyIds == [] && d.dayLaunches == 0 && d.mutationTime == null && d.role == 'editor'
+        && d.firstSeen == d.lastSeen && bGalaxy(g).status == 'active' && bReadable(g);
+    }
+    match /galaxies/{g}/members/{uid} {
+      allow get: if own(uid) || bAdmin() || (signed() && bGalaxy(g).owner == request.auth.uid);
+      allow list: if request.query.limit != null && request.query.limit <= 300 && (bAdmin() || (signed() && bGalaxy(g).owner == request.auth.uid));
+      allow create: if bMemberSchema(request.resource.data) && (own(uid)
+        ? (request.resource.data.mutationTime == null ? bInitialProfile(g,request.resource.data) : bMemberWrite(g,request.resource.data,{}))
+        : bAdmin() || (signed() && bGalaxy(g).owner == request.auth.uid && uid != request.auth.uid
+          && request.resource.data.role in ['editor','viewer'] && request.resource.data.mass == 0 && request.resource.data.launches == 0 && request.resource.data.bodyIds == [] && request.resource.data.stellar == 0 && request.resource.data.blackholes == 0));
+      allow update: if bMemberSchema(request.resource.data) && (own(uid)
+        ? (request.resource.data.launches != resource.data.launches
+            ? bMemberWrite(g,request.resource.data,resource.data)
+            : (bProfile(g,request.resource.data,resource.data) || bMemberWrite(g,request.resource.data,resource.data)))
+        : (bAdmin() || (signed() && bGalaxy(g).owner == request.auth.uid)) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','updatedTime']));
+    }
+    // Only a launch creates a body. Edits and removals use the update path and its ownership check.
+    function bObject(g,d,o) {
+      let h = bHead(g); let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data; let i = a.intent;
+      return signed() && h.updatedTime == request.time && d.lastAction == i.id
+        && i.type == 'launch' && o == i.id
+        && d.tombstone == false && d.moons == 0 && d.id == i.id
+        && d.memberId == a.memberId && d.displayName == a.displayName && d.kind == i.kind && d.system == i.system
+        && d.parent == i.get('parent','') && d.launch == i
+        && d.keys().hasOnly(['id','memberId','displayName','kind','system','parent','moons','design','launch','tombstone','lastAction']);
+    }
+    match /galaxies/{g}/control/{name} {
+      allow get: if name in ['head','certified'] && bReadable(g);
+      // Certifications are keyed by sequence and reached tick, so a quiet log can be saved again later.
+      allow create, update: if name == 'certified' && bAdmin()
+        && request.resource.data.keys().hasOnly(['sequence','tick'])
+        && request.resource.data.sequence is int && request.resource.data.tick is int
+        && request.resource.data.sequence <= bHead(g).sequence
+        && (resource == null || (request.resource.data.tick > resource.data.get('tick', -1)
+          && request.resource.data.sequence >= resource.data.sequence))
+        && existsAfter(/databases/$(database)/documents/galaxies/$(g)/certifications/$(string(request.resource.data.sequence) + '-' + string(request.resource.data.tick)));
+      allow create: if name == 'head' && signed() && getAfter(bPath(g)).data.owner == request.auth.uid && !exists(bPath(g))
+        && request.resource.data.sequence == 0 && request.resource.data.bodies == 1 && request.resource.data.mass == 1000000
+        && request.resource.data.systems == {'0':{'bodies':1,'mass':1000000,'compact':1,'giants':0,'blackholes':0,'ordinaryMass':0}}
+        && request.resource.data.blackholes == 0 && request.resource.data.dayMutations == 0 && request.resource.data.dayLaunches == 0 && request.resource.data.tokens == 6
+        && request.resource.data.keys().hasOnly(['sequence','hash','effectiveTick','bodies','mass','blackholes','lastBlackholeAt','window','dayLaunches','dayMutations','contributors','tokens','bucketSlot','systems','reserves','lastAction','updatedTime'])
+        && request.resource.data.reserves == {}
+        && request.resource.data.hash == '' && request.resource.data.effectiveTick == -1 && request.resource.data.lastAction == ''
+        && request.resource.data.lastBlackholeAt == 0 && request.resource.data.contributors == 0
+        && request.resource.data.bucketSlot is int && request.resource.data.bucketSlot <= int(request.time.toMillis() / 2000)
+        && request.resource.data.bucketSlot >= int(request.time.toMillis() / 2000)-1 && request.resource.data.updatedTime == request.time
+        && get(/databases/$(database)/documents/quotaWindows/$(request.resource.data.window)).data.start <= request.time.toMillis()
+        && get(/databases/$(database)/documents/quotaWindows/$(request.resource.data.window)).data.end > request.time.toMillis();
+      allow update: if name == 'head' && bHeadMutation(g,request.resource.data,resource.data);
+    }
+    match /galaxies/{g}/actions/{a} {
+      allow get: if bReadable(g);
+      allow create: if bAccepted(g,request.resource.data,a);
+    }
+    function bLogWrite(g,d,old,page,expectedPub) {
+      let h = bHead(g);
+      let last = d.entries[old.size()];
+      return signed() && h.updatedTime == request.time && d.entries is list
+        && d.entries.size() <= 64 && page == string(int((h.sequence-1) / 64))
+        && d.entries.size() == old.size()+1
+        && last.hash == h.hash && last.sequence == h.sequence
+        && d.public == expectedPub
+        && d.keys().hasOnly(['entries','public']);
+    }
+    match /galaxies/{g}/logPages/{page} {
+      allow get: if resource == null ? bReadable(g) : resource.data.public == true || bReadable(g);
+      allow list: if request.query.limit != null && request.query.limit <= 64 && (resource.data.public == true || bReadable(g));
+      allow create: if bLogWrite(g,request.resource.data,[],page,bGalaxy(g).visibility == 'public');
+      allow update: if bLogWrite(g,request.resource.data,resource.data.entries,page,resource.data.public);
+    }
+    match /galaxies/{g}/objects/{o} {
+      allow get: if bReadable(g);
+      allow create: if bObject(g,request.resource.data,o);
+      allow update: if bObjectUpdate(g,request.resource.data,resource.data,o);
+    }
+    function bObjectUpdate(g,d,old,o) {
+      let h = bHead(g); let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data; let i = a.intent;
+      return signed() && h.updatedTime == request.time && d.lastAction == i.id
+        && (i.type == 'launch' && i.kind == 'moon' && i.parent == o
+          ? !old.tombstone && d.moons == old.moons+1 && d.moons <= 2
+            && old.kind in ['planet','giant'] && old.system == i.system
+            && d.diff(old).affectedKeys().hasOnly(['moons','lastAction'])
+          : i.type in ['edit','remove'] && i.bodyId == o && !old.tombstone && ((old.memberId == a.memberId && o in bMember(g).bodyIds) || bAdmin())
+            && (i.type == 'edit' ? d.diff(old).affectedKeys().hasOnly(['design','lastAction']) && d.design == i.design
+              : bAdmin() && old.moons == 0 && !(old.kind in ['star','binary','pulsar','blackhole']) && d.tombstone == true && d.diff(old).affectedKeys().hasOnly(['tombstone','lastAction'])));
+    }
+    function bCache(g,d,name) {
+      let h = bHead(g); let galaxy = bGalaxy(g);
+      return signed() && name == 'latest' && d.schemaVersion == 1 && h.updatedTime == request.time
+        && d.sequence == h.sequence && d.logHash == h.hash && d.generation == galaxy.generation && d.kernel == galaxy.kernel
+        && d.stateHash is string && (d.stateHash == '' || d.stateHash.matches('^[a-f0-9]{64}$'))
+        && (d.state == null || (d.state is string && d.state.size() <= 14000))
+        && d.keys().hasOnly(['schemaVersion','generation','sequence','kernel','logHash','stateHash','state']);
+    }
+    match /galaxies/{g}/checkpoints/{name} {
+      allow get: if bReadable(g);
+      allow create, update: if bCache(g,request.resource.data,name);
+    }
+    match /galaxies/{g}/genesis/{chunk} { allow get: if bReadable(g); }
+    match /galaxies/{g}/legacyObjects/{id} { allow get: if bAdmin(); }
+    match /galaxies/{g}/legacySky/{id} { allow get: if bAdmin(); }
+    match /galaxies/{g}/certifications/{id} { allow get: if bReadable(g); allow create: if bAdmin(); }
+    match /galaxies/{g}/archive/{id} { allow get: if bReadable(g); allow create: if bAdmin(); }
+    match /quotaWindows/{window} { allow get: if signed(); }
+    match /config/admins { allow get: if bAdmin(); }
+    match /galaxies/{g}/adminActions/{audit} { allow get: if bAdmin(); allow create: if bAdmin() && request.resource.data.actor == request.auth.uid; }
+    match /adminAudit/{audit} { allow get: if bAdmin(); allow create: if bAdmin(); }
+
     // Assistant remains unavailable in this milestone; clients cannot create inbox/outbox docs.
     match /{document=**} { allow read, write: if false; }
   }

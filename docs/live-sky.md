@@ -94,3 +94,11 @@ This is a measured burst plus an explicit whole-day scenario, not billing teleme
 sustained fair rehearsal. Campus Wi-Fi, real phones and production index/billing behavior
 remain operator acceptance. See QUOTA-REPORT.md for all counts and assumptions. No production
 service, rule or index was deployed by this work.
+
+## Alpha.2 B1 replacement contract
+
+The alpha.1 measurements above remain the rollback reference. The alpha.2 instance/action-log
+adapter, migration and strictly-below-50% operating scenario are documented in
+[galaxy-store.md](galaxy-store.md), [alpha2-b1-quota.md](alpha2-b1-quota.md) and RUNBOOK §13.
+Do not add the two complete live-write pipelines or their quota models together as an operating
+configuration. Alpha.2 closes legacy client writes after its one-time import.

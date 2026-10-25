@@ -1,0 +1,5 @@
+@import '@fontsource-variable/unbounded';
+@import '@fontsource-variable/figtree';
+/* The release also retains the observatory fonts for archived specimens. */
+@font-face {font-family: Spectral; src:url('../src/assets/fonts/spectral-latin-400.woff2') format('woff2'); font-display:swap;}
+@font-face {font-family: 'Archivo Narrow'; src:url('../src/assets/fonts/archivo-narrow-latin-400.woff2') format('woff2'); font-display:swap;}

@@ -15,5 +15,41 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "logPages",
+      "fieldPath": "entries",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "checkpoints",
+      "fieldPath": "state",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "control",
+      "fieldPath": "systems",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "genesis",
+      "fieldPath": "bodies",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "objects",
+      "fieldPath": "launch",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "objects",
+      "fieldPath": "design",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "objects",
+      "fieldPath": "legacy",
+      "indexes": []
+    }
+  ]
 }
