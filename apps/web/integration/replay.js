@@ -86,6 +86,22 @@ export class Replay {
       return result;
     };
     this.baseSequence=this.sequence;
+    this.marks=[];this.nextMark=this.sim.steps;
+  }
+  // A coherent copy of the replay about once a second (the last 64), so a late action re-simulates seconds, not the whole log.
+  mark(){
+    this.marks.push({steps:this.sim.steps,sim:clone(this.sim.snapshot()),entries:[...this.entries.values()].map(clone),ids:[...this.ids],homes:[...this.homes],sequence:this.sequence,cursor:this.cursor});
+    if(this.marks.length>64)this.marks.shift();
+    this.nextMark=this.sim.steps+120;
+  }
+  // Back to the newest mark strictly before `tick`; with none, the full reset from the checkpoint or genesis.
+  rewind(tick){
+    const marks=this.marks.filter(m=>m.steps<tick),m=marks[marks.length-1];
+    if(!m){this.reset();return;}
+    this.reset();
+    this.sim.restore(clone(m.sim));this.entries=new Map(m.entries.map(e=>[e.id,clone(e)]));
+    this.ids=new Map(m.ids);this.homes=new Map(m.homes);this.sequence=m.sequence;this.cursor=m.cursor;
+    this.marks=marks;this.nextMark=m.steps+120;
   }
   ensureHome(home,kind){
     if([...this.homes.values()].includes(home)||compact(kind))return;
@@ -107,14 +123,14 @@ export class Replay {
     return body;
   }
   accept(actions){
-    let late=false;
+    let late=false,lateTick=Infinity;
     const all=new Map(this.actions.map(a=>[a.sequence,a]));
     for(const a of actions){
       if(a.generation !== this.galaxy.generation) throw new Error('Action generation mismatch');
       if(a.sequence<=this.baseSequence) continue;
       const old=all.get(a.sequence);
       if(old && !sameAction(old,a)) throw new Error('Conflicting accepted action');
-      if(!old && a.intent.effectiveTick<=this.sim.steps) late=true;
+      if(!old && a.intent.effectiveTick<=this.sim.steps){late=true;lateTick=Math.min(lateTick,a.intent.effectiveTick);}
       all.set(a.sequence,clone(a));
     }
     this.actions=[...all.values()].sort((a,b)=>a.sequence-b.sequence);
@@ -124,7 +140,7 @@ export class Replay {
       if(a.sequence!==this.baseSequence+i+1 || a.intent.effectiveTick<=tick) throw new Error('Incomplete or unordered accepted log');
       tick=a.intent.effectiveTick;
     }
-    if(late) this.reset();
+    if(late) this.rewind(lateTick);
   }
   apply(a){
     const i=a.intent;
@@ -161,11 +177,12 @@ export class Replay {
     while(true){
       const next=this.actions[this.cursor];
       if(next && next.intent.effectiveTick<=this.sim.steps && next.intent.effectiveTick<=target){this.apply(next);this.cursor++;continue;}
+      if(this.sim.steps>=this.nextMark){if(target-this.sim.steps<=64*120)this.mark();else this.nextMark=this.sim.steps+120;}
       if(this.sim.steps>=target || spent>=budget) break;
       const end=Math.min(target,next?.intent.effectiveTick??target);
       if(this.quiet()) {this.sim.steps=end;this.sim.t=end/120;this.sim.syncRails();}
       else {
-        const n=Math.min(end-this.sim.steps,budget-spent);if(n<=0) break;
+        const n=Math.min(end-this.sim.steps,budget-spent,Math.max(1,this.nextMark-this.sim.steps));if(n<=0) break;
         this.sim.run(n);spent+=n;
       }
     }
