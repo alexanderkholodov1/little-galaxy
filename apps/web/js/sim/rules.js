@@ -19,6 +19,9 @@ export const R_GUARD = 1.95;       // guarda del Fogón (los demás compactos ti
 // las órbitas en riel son Kepler exacto alrededor de su anfitrión (R25).
 //   Φ(r) = ½·v²·ln(1 + d²/rc²),  d = max(0, r − r0)
 export const HALO = {r0: 22, rc: 14, v: 2.0};
+// Fair confinement (operator, 2026-10-25: nothing leaves; whatever is thrown far ends near the centre). Beyond `calm`
+// a body is braked by `brake` per step; beyond `wall` a spring pulls it back. Inside `calm` the physics is unchanged.
+export const CONFINE = {calm: 300, brake: 0.08/120, wall: 400, k: 0.02, all: true};
 
 // Ventanas de encuentro y anfitriones
 export const WINDOW = 8;           // s: lo que choca, o pasa cerca de un compacto ajeno, se integra este tiempo

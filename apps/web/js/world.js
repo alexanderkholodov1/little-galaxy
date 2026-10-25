@@ -541,16 +541,20 @@ export function createWorld(canvas, opts = {}){
   let galaxyView = null;
   const homeTarget = new THREE.Vector3();
   let homeR = r => r;          // M4: el mapa se ensancha cuando la galaxia crece
+  // Fair 2026-10-25 (operator): the home view frames the heart of the galaxy, never thousands of units away;
+  // the player can still zoom out by hand.
+  const HOME_R_MAX = 120, HOME_TARGET_MAX = 60;
   // the circle around every founded system (each with its own radius of room), centred between them
   function homeFrame(base){
     const fs = sim.systems.filter(s => s.founded && s.p);
-    if(fs.length < 2) return {target:homeTarget.clone(), R:homeR(base)};
+    if(fs.length < 2) return {target:homeTarget.clone(), R:Math.min(homeR(base), HOME_R_MAX)};
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for(const s of fs){ x0 = Math.min(x0, s.p[0]); x1 = Math.max(x1, s.p[0]); z0 = Math.min(z0, s.p[2]); z1 = Math.max(z1, s.p[2]); }
-    const cx = (x0 + x1)/2, cz = (z0 + z1)/2;
+    let cx = (x0 + x1)/2, cz = (z0 + z1)/2;
+    const off = Math.hypot(cx, cz); if(off > HOME_TARGET_MAX){ cx *= HOME_TARGET_MAX/off; cz *= HOME_TARGET_MAX/off; }
     let R = base;
     for(const s of fs) R = Math.max(R, Math.hypot(s.p[0] - cx, s.p[2] - cz) + 17.5);
-    return {target:new THREE.Vector3(cx, 0, cz), R:R*1.08};
+    return {target:new THREE.Vector3(cx, 0, cz), R:Math.min(R*1.08, HOME_R_MAX)};
   }
   function rememberView(){
     galaxyView = {target:rig.goal.target.clone(), az:rig.goal.az, el:rig.goal.el, dist:rig.goal.dist, shift:{...rig.shiftGoal}};
