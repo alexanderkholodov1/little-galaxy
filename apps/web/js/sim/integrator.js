@@ -1,7 +1,7 @@
 // integrator.js — leapfrog kick-drift-kick con paso fijo (simpléctico: la energía oscila, no se desliza),
 // gravedad mutua con suavizado de Plummer y el halo de la galaxia. Si la nota elige otro integrador,
 // el cambio vive solo en este archivo.
-import {GM, SOFT, HALO} from './rules.js';
+import {GM, SOFT, HALO, CONFINE, TYPE_RULES} from './rules.js';
 
 const EPS2 = SOFT * SOFT;
 
@@ -22,6 +22,7 @@ export function accelInto(b, at, halo = HALO){
       const f = -halo.v * halo.v * d / ((d*d + halo.rc*halo.rc) * r);
       ax += x * f; ay += y * f; az += z * f;
     }
+    if(r > CONFINE.wall && (CONFINE.all || !TYPE_RULES[b.kind]?.primary)){ const s = -CONFINE.k * (r - CONFINE.wall) / r; ax += x * s; ay += y * s; az += z * s; }
   }
   b.a[0] = ax; b.a[1] = ay; b.a[2] = az;
 }
@@ -41,7 +42,9 @@ export function kdk(list, at, dt, halo = HALO){
     b.p[0] += b.v[0]*dt; b.p[1] += b.v[1]*dt; b.p[2] += b.v[2]*dt; }
   for(const b of list){ if(b.pinned) continue; accelInto(b, at, halo); }
   for(const b of list){ if(b.pinned) continue;
-    b.v[0] += b.a[0]*h; b.v[1] += b.a[1]*h; b.v[2] += b.a[2]*h; }
+    b.v[0] += b.a[0]*h; b.v[1] += b.a[1]*h; b.v[2] += b.a[2]*h;
+    if(halo){ const r2 = b.p[0]*b.p[0] + b.p[1]*b.p[1] + b.p[2]*b.p[2];
+      if(r2 > CONFINE.calm*CONFINE.calm && (CONFINE.all || !TYPE_RULES[b.kind]?.primary)){ const f = 1 - CONFINE.brake; b.v[0] *= f; b.v[1] *= f; b.v[2] *= f; } } }
 }
 
 // energía total de los compactos (E = Σ½mv² − Σ Gmᵢmⱼ/√(d²+ε²) + Σ mΦ_halo); con `probe` sin masa propia, su energía específica
