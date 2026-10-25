@@ -4,6 +4,7 @@ body[data-booth] .dock,body[data-booth] .gesture-hint,body[data-booth] .credits-
 #boothJoin svg{background:#fff1de;width:112px;height:112px;border:8px solid #fff1de}
 #boothJoin span{font:600 20px 'Unbounded Variable',sans-serif;display:grid;gap:8px}
 #boothJoin small{font:400 16px 'Figtree Variable',sans-serif}
-#boothFullscreen{color:#fff1de;background:#182030;border:1px solid #56ccf2;padding:8px;font:inherit;cursor:pointer}
-body.booth-idle{cursor:none}body.booth-idle #boothFullscreen{opacity:.2}
+#boothFullscreen,#boothNames{color:#fff1de;background:#182030;border:1px solid #56ccf2;padding:8px;font:inherit;cursor:pointer}
+#boothNames[aria-pressed="false"]{border-color:#fff1de}
+body.booth-idle{cursor:none}body.booth-idle #boothFullscreen,body.booth-idle #boothNames{opacity:.2}
 @media(max-width:600px){#boothPlaque{right:16px;bottom:16px}#boothJoin span{display:none}#boothJoin svg{width:88px;height:88px}}

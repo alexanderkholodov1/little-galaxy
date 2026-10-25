@@ -191,6 +191,14 @@ describe('GalaxyStore memory driver', () => {
     expect((await driver.get('galaxies/g/members/u'))!.displayName).toBe('Alice');
     expect(await store.touch('g')).toBe(false);
   });
+  it('refuses the prototype rude words as whole words, accents and case ignored', async () => {
+    const { store, driver } = await fixture();
+    for (const name of ['Puta', 'el cabrón', 'SHIT happens', 'Coño'])
+      await expect(store.setName('g', name)).rejects.toThrow('kinder name');
+    expect(await driver.get('galaxies/g/members/u')).toBeNull();
+    await store.setName('g', 'Cassidy Shittake');
+    expect((await driver.get('galaxies/g/members/u'))!.displayName).toBe('Cassidy Shittake');
+  });
   it('refuses a rename within five minutes of the previous profile write', async () => {
     const { store, driver } = await fixture();
     await store.setName('g', 'Alice');

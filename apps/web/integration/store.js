@@ -33,9 +33,12 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       const current=loaded.player&&loaded.player.displayName!=='Anonymous'?loaded.player.displayName:'';
       try{await backend.store.setName(id,name);}
       catch(error){
-        // Profile writes are five minutes apart; keep the name the sky already knows.
-        if(!/Profile cooldown/.test(error.message))throw error;
-        emit('notice',document.documentElement.lang==='es'?'Podrás cambiar tu nombre de nuevo en unos minutos.':'You can change your name again in a few minutes.');
+        // Profile writes are five minutes apart and rude names never reach the sky;
+        // either way, keep the name the sky already knows.
+        const es=document.documentElement.lang==='es';
+        if(/Profile cooldown/.test(error.message))emit('notice',es?'Podrás cambiar tu nombre de nuevo en unos minutos.':'You can change your name again in a few minutes.');
+        else if(/kinder name/.test(error.message))emit('notice',es?'Elige un nombre más amable. Por ahora tus astros siguen anónimos.':'Please choose a kinder name. Your stars stay anonymous for now.');
+        else throw error;
         return {displayName:current,anonymous:!current};
       }
       loaded.player={...(loaded.player??{}),displayName:name||'Anonymous'};

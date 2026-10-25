@@ -31,7 +31,9 @@ A member profile is galaxy-scoped, private and keyed by Auth UID. `memberId` is 
 pseudonym. First launch can create Anonymous membership. Use the `player` returned by `loadGalaxy` for the private name and inventory. Existing membership
 identity is reused automatically; `memberId` is only the seed for a new membership. Do not expose UID mappings in logs or exported public genesis.
 Chosen labels are nonunique, escaped text, at most 24 Unicode code points (a stricter bound than
-24 grapheme clusters). First/last seen and launch totals live in the membership. `touch()` writes
+24 grapheme clusters). `setName` refuses the prototype's rude words (`isRudeName`: whole words,
+accents and case ignored); rules cannot hold a word list, so a tampered client could still
+write one, which is why the booth can hide names. First/last seen and launch totals live in the membership. `touch()` writes
 only after five minutes; call it only while foreground. Every profile write, a rename included,
 comes at least five minutes after the previous one (rules and `setName`); renames are outside
 the daily mutation ceiling, so a faster loop could drain the write quota. A phone that renames

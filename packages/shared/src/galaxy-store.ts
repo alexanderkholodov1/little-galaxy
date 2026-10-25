@@ -1,4 +1,5 @@
 /** Versioned admission and persistence contract. Physics is supplied by the pinned simulation kernel. */
+import { isRudeName } from './rude.js';
 export const GALAXY_SCHEMA = 1;
 export const LIMITS = {
   accounts: 3,
@@ -943,6 +944,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
     edit: mutate,
     async setName(id, name) {
       name = normalizeName(name);
+      check(!isRudeName(name), 'Please choose a kinder name');
       const now = options.now();
       await driver.transaction(async (tx) => {
         const old = await tx.get<Member>(pathMember(id));

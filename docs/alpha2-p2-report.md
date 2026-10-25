@@ -14,7 +14,7 @@ assembly are retained. No production Hosting, rules, provider or account configu
 | --- | --- |
 | `/little-galaxy/` | Named or anonymous players, anonymous Firebase Auth, accepted shared launches, persistent workshop, live frozen/read-only state |
 | `/little-galaxy/admin` | Verified Google identity plus server allowlist, separate public/booth selection, create/freeze/archive, exported three-step body removals, verified sky saves, member metrics |
-| `/little-galaxy/screen` | Booth pointer followed live, full-screen control, names, QR to the game, no Auth creation or writes |
+| `/little-galaxy/screen` | Booth pointer followed live, full-screen control (`F`), names shown or hidden (`N` or button, remembered by the TV), QR to the game, no Auth creation or writes |
 | `/little-galaxy/timelapse?g=<id>` | Genesis/history replay, play/pause, speed and scrub, no Auth creation or writes |
 
 Launch design, mass and host-relative origin/velocity are quantized into B1's bounded intent.

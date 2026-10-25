@@ -31,3 +31,10 @@ it('keeps the current name and explains the wait when a rename comes within five
  expect(notices).toEqual(['You can change your name again in a few minutes.']);
  removeEventListener('galaxy:notice',listen);adapter.stop();
 });
+it('keeps a rude name off the sky and explains why',async()=>{
+ const {driver,adapter}=await fixture(),notices=[];const listen=({detail})=>notices.push(detail);addEventListener('galaxy:notice',listen);
+ expect(await adapter.setName('g','Coño')).toEqual({displayName:'',anonymous:true});
+ expect(notices).toEqual(['Please choose a kinder name. Your stars stay anonymous for now.']);
+ expect(await driver.get('galaxies/g/members/player')).toBeNull();
+ removeEventListener('galaxy:notice',listen);adapter.stop();
+});
