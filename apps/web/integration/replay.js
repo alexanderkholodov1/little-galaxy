@@ -1,7 +1,7 @@
 import {compact} from './homes.js';
 import {encodeName,decodeName,legacyName} from './names.js';
 import {Sim, elements, TYPE_RULES, accelInto} from '../js/sim/index.js';
-import {PROTOTYPE_KERNEL} from '@little-galaxy/shared';
+import {canonicalBytes,PROTOTYPE_KERNEL} from '@little-galaxy/shared';
 export const KERNEL = PROTOTYPE_KERNEL;
 const COMMON = {size:'size',pal:'palette'};
 const FIELDS = {
@@ -29,6 +29,11 @@ export function launchIntent(raw,galaxy,now,lastTick){
   return intent;
 }
 const clone = v => structuredClone(v);
+// A local commit and its Firestore echo have identical values, but map keys can arrive in any order.
+const sameAction=(a,b)=>{
+  const x=canonicalBytes(a),y=canonicalBytes(b);
+  return x.length===y.length&&x.every((value,i)=>value===y[i]);
+};
 const vector = v => [v[0]/1e6,0,v[1]/1e6];
 function legacyState(row,epoch){
   const o=row.legacy?.orbit;
@@ -108,7 +113,7 @@ export class Replay {
       if(a.generation !== this.galaxy.generation) throw new Error('Action generation mismatch');
       if(a.sequence<=this.baseSequence) continue;
       const old=all.get(a.sequence);
-      if(old && JSON.stringify(old)!==JSON.stringify(a)) throw new Error('Conflicting accepted action');
+      if(old && !sameAction(old,a)) throw new Error('Conflicting accepted action');
       if(!old && a.intent.effectiveTick<=this.sim.steps) late=true;
       all.set(a.sequence,clone(a));
     }
