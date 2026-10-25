@@ -1090,7 +1090,7 @@ export function createWorld(canvas, opts = {}){
       const p0 = restPos(new THREE.Vector3());
       W.benchState = 'launching';
       emit('shared-pending');
-      W.requestLaunch({design:{...b.d}, origin:[p0.x,p0.z], velocity:[aim.vel.x,aim.vel.z],
+      W.requestLaunch({name:W.pendingName, design:{...b.d}, origin:[p0.x,p0.z], velocity:[aim.vel.x,aim.vel.z],
         system:launchHost().id, strength:aim.strength, el:aim.pred.el, outcome:aim.pred.outcome, compact:!!aim.pred.compact});
       return null;
     }
@@ -1530,8 +1530,8 @@ export function createWorld(canvas, opts = {}){
     enterToss, exitToss, loadToy,
     paintSky, setMotion, setQuality, labelItems,
     // para las pruebas (tools/): poner la cámara en un ángulo y una distancia exactos
-    debugCam: o => { const v = views().home; snapTo({...v, ...o, target:o.target ? new THREE.Vector3(...o.target) : v.target}); rig.idle = -1e9; },
-    aimState:aim, views, maxPull, pullFor, launchInfo,
+    debugCam: import.meta.env.DEV ? o => { const v = views().home; snapTo({...v, ...o, target:o.target ? new THREE.Vector3(...o.target) : v.target}); rig.idle = -1e9; } : undefined,
+    aimState:aim, views, maxPull, pullFor:import.meta.env.DEV?pullFor:undefined, launchInfo:import.meta.env.DEV?launchInfo:undefined,
     benchType: () => W.benchBody ? W.benchBody.d.type : null,
     sunScreen: () => project(SUN),
     isAuroraOn: () => !!aurora,

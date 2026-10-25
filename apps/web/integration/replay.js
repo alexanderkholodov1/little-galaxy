@@ -1,4 +1,6 @@
-import {Sim, elements, TYPE_RULES} from '../js/sim/index.js';
+import {compact} from './homes.js';
+import {encodeName,decodeName,legacyName} from './names.js';
+import {Sim, elements, TYPE_RULES, accelInto} from '../js/sim/index.js';
 import {PROTOTYPE_KERNEL} from '@little-galaxy/shared';
 export const KERNEL = PROTOTYPE_KERNEL;
 const COMMON = {size:'size',pal:'palette'};
@@ -22,7 +24,7 @@ export function decodeDesign(type,seed,values){
 export function launchIntent(raw,galaxy,now,lastTick){
   const intent={id:raw.id,type:'launch',kind:raw.design.type,system:raw.system,seed:raw.design.seed>>>0,
     origin:raw.origin.map(x=>Math.round(x*1e6)),velocity:raw.velocity.map(x=>Math.round(x*1e6)),
-    design:encodeDesign(raw.design),effectiveTick:Math.max(lastTick+1,Math.ceil((now-galaxy.epoch+2400)*.12))};
+    design:{...encodeDesign(raw.design),...(raw.anchor?{colour:raw.anchor}:{}),...(encodeName(raw.name)?{glow:encodeName(raw.name)}:{})},effectiveTick:Math.max(lastTick+1,Math.ceil((now-galaxy.epoch+2400)*.12))};
   if(raw.parent) intent.parent=raw.parent;
   return intent;
 }
@@ -38,7 +40,8 @@ function legacyState(row,epoch){
   const rate=Math.sqrt(15/o.a**3)/(1-o.e*Math.cos(E));
   const vx=-o.a*Math.sin(E)*rate, vz=o.a*Math.sqrt(1-o.e*o.e)*Math.cos(E)*rate;
   const c=Math.cos(o.omega),s=Math.sin(o.omega),dir=o.direction||1;
-  return {p:[x*c-z*s,0,(x*s+z*c)*dir],v:[vx*c-vz*s,0,(vx*s+vz*c)*dir]};
+  const inclination=o.inclination||0,si=Math.sin(inclination),ci=Math.cos(inclination);
+  return {p:[x*c-z*s,(x*s+z*c)*dir*si,(x*s+z*c)*dir*ci],v:[vx*c-vz*s,(vx*s+vz*c)*dir*si,(vx*s+vz*c)*dir*ci]};
 }
 export class Replay {
   constructor({galaxy,genesis=[],actions=[],checkpoint=null,trusted=false}){
@@ -60,17 +63,41 @@ export class Replay {
         const d=row.design||{};
         const design={type:row.kind,seed:0,size:d.size??.5,pal:d.palette??d.colour??0,sea:d.oceans??.5,
           relief:d.mountains??.5,cloud:d.clouds??.5,rings:!!d.rings,temp:d.temperature??.3,corona:d.corona??.5,craters:d.craters??.6};
-        this.add(row.id,row.kind,legacyState(row,this.galaxy.epoch),design,row.memberId,row.displayName,'0',this.galaxy.epoch);
+        const home=row.system||'0';this.ensureHome(home,row.kind);const host=this.anchor(home);const state=legacyState(row,this.galaxy.epoch);
+        this.add(row.id,row.kind,{p:state.p.map((x,k)=>x+host.p[k]),v:state.v.map((x,k)=>x+host.v[k])},design,row.memberId,row.displayName,home,this.galaxy.epoch,row.legacy?.name||legacyName(row.legacy?.nameKey));
       }
     }
+    // Admission homes conservatively fund capture. An unfunded traveller remains integrated;
+    // no velocity, eccentricity or launch orbit is silently settled into a different home.
+    const settle=this.sim.settle.bind(this.sim);
+    const blocked=new Set();
+    this.sim.settle=body=>{
+      const result=settle(body),entry=this.entries.get(body.id);
+      if(result==='rail'&&entry&&this.systemHome(body.host)!==entry.home){
+        body.mode='drift';body.hold=0;accelInto(body,this.sim.primaries(),this.sim.halo);
+        if(!blocked.has(body.id)){blocked.add(body.id);this.sim.emit('reservation',body,{});}
+        return 'drift';
+      }
+      return result;
+    };
     this.baseSequence=this.sequence;
   }
-  add(logical,kind,coords,design,owner,label,home,born){
+  ensureHome(home,kind){
+    if([...this.homes.values()].includes(home)||compact(kind))return;
+    const body=this.add(`seed:${home}`,'star',{p:[Number(home)*80,0,0],v:[0,0,0]}, {type:'star',seed:Number(home),size:.5,temp:.3,corona:.55},'',null,home,this.galaxy.epoch,`Campfire ${Number(home)+1}`);
+    body.founded=true;
+  }
+  anchor(home,code){
+    const primary=code?code-1:Number([...this.homes].find(([,h])=>h===home)?.[0]??0);
+    const system=this.sim.systems.find(s=>s.prim.includes(primary));
+    return system||{p:[0,0,0],v:[0,0,0]};
+  }
+  add(logical,kind,coords,design,owner,label,home,born,name){
     const id=this.sim.nextId;
-    const body=this.sim.add({id,type:kind,p:coords.p,v:coords.v,owner},{launch:true});
     this.ids.set(logical,id);
-    this.entries.set(id,{id,logical,design,name:`${kind} · ${logical.slice(0,8)}`,born,owner,home,
+    this.entries.set(id,{id,logical,design,name:name||`${kind} · ${logical.slice(0,8)}`,born,owner,home,
       maker:{name:label === 'Anonymous' ? '' : label,anon:!label || label === 'Anonymous'}});
+    const body=this.sim.add({id,type:kind,p:coords.p,v:coords.v,owner},{launch:true});
     if(TYPE_RULES[kind].primary) this.homes.set(String(body.id),home);
     return body;
   }
@@ -96,7 +123,11 @@ export class Replay {
   }
   apply(a){
     const i=a.intent;
-    if(i.type==='launch') this.add(i.id,i.kind,{p:vector(i.origin),v:vector(i.velocity)},decodeDesign(i.kind,i.seed,i.design),a.memberId,a.displayName,i.system,a.acceptedAt);
+    if(i.type==='launch'){
+      this.ensureHome(i.system,i.kind);
+      const host=this.anchor(i.system,i.design.colour),p=vector(i.origin),v=vector(i.velocity);
+      this.add(i.id,i.kind,{p:p.map((x,k)=>x+host.p[k]),v:v.map((x,k)=>x+host.v[k])},decodeDesign(i.kind,i.seed,i.design),a.memberId,a.displayName,i.system,a.acceptedAt,decodeName(i.design.glow));
+    }
     else {
       const id=this.ids.get(i.bodyId),e=this.entries.get(id),b=this.sim.byId(id);
       if(!e||!b) throw new Error('Unknown action body');

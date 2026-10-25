@@ -1,3 +1,5 @@
+import {launchVoice} from './voice.js';
+import {chooseHome} from './homes.js';
 import {setupTimelapse} from './timelapse.js';
 import {watchVersion} from './version.js';
 export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft}){
@@ -31,10 +33,11 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   worker.onmessage=({data})=>{
     if(data.error){toast(data.error);return;}
     const entries=world.applySharedState(data.state,normDesign,store.owner());
-    if(ready) for(const event of data.events||[]) world.sim.emit(event.type,world.sim.byId(event.id),{...event.values,...Object.fromEntries(Object.entries(event.refs).map(([k,id])=>[k,world.sim.byId(id)]))});
+    if(ready) for(const event of data.events||[]) {if(event.type==='reservation'&&entries.find(e=>e.id===event.id)?.mine)toast(document.documentElement.lang==='es'?'Ese fuego aún no tiene sitio. Tu astro sigue viajando.':'That fire has no room yet. Your star keeps travelling.');world.sim.emit(event.type,world.sim.byId(event.id),{...event.values,...Object.fromEntries(Object.entries(event.refs).map(([k,id])=>[k,world.sim.byId(id)]))});}
     ready=data.ready;document.body.dataset.skyReady=String(ready);
     document.body.dataset.tick=String(data.state.sim.steps);document.body.dataset.sequence=String(data.state.sequence);
     document.body.dataset.galaxy=store.galaxyId;
+    if(S.focus && S.focus!=='fire'&&!world.entries.includes(S.focus)){S.focus=null;document.getElementById('focusCard').hidden=true;}
     updateCount();
     for(const [logical,res] of pending){
       const entry=entries.find(e=>e.logical===logical);
@@ -45,16 +48,22 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   world.requestLaunch=async raw=>{
     saveDraft();
     try{
-      const home=world.sharedHomes.get(String(raw.system).split('+')[0])||'0';
+      const preferred=world.sharedHomes.get(String(raw.system).split('+')[0])||'0';
+      const home=chooseHome(store.loaded().head,raw.design.type,preferred);
+      const host=world.sim.sysById.get(raw.system)||world.sim.hostAt([raw.origin[0],0,raw.origin[1]]);
+      const design={...raw.design};
+      const anchor=home===preferred?Number(String(raw.system).split('+')[0])+1:0;
+      const relative={...raw,design,anchor,system:home,origin:[raw.origin[0]-host.p[0],raw.origin[1]-host.p[2]],velocity:[raw.velocity[0]-host.v[0],raw.velocity[1]-host.v[2]]};
+      if(home!==preferred)toast(document.documentElement.lang==='es'?'Este fuego está lleno. Tu astro encenderá otro cercano.':'This fire is full. Your star will join another fire nearby.');
       const parent=raw.design.type==='moon'?world.entries.find(e=>['planet','giant'].includes(e.design.type)&&e.home===home)?.logical:undefined;
       if(raw.design.type==='moon'&&!parent)throw new Error('A moon needs a planet or giant in this system. Your moon is still in your hand.');
-      const accepted=await store.launch(store.galaxyId,{...raw,system:home,...(parent?{parent}:{})});
+      const accepted=await store.launch(store.galaxyId,{...relative,...(parent?{parent}:{})});
       pending.set(accepted.intent.id,raw);
       worker.postMessage({actions:[accepted],tick:target()});
-    }catch(error){world.failSharedLaunch();toast(error.message);}
+    }catch(error){world.failSharedLaunch();toast(launchVoice(error));}
   };
   const onActions=({detail})=>{worker.postMessage({actions:detail,tick:target()});};
-  const onManifest=({detail})=>{S.galaxy=detail;readonly();worker.postMessage({tick:target()});};
+  const onManifest=({detail})=>{saveDraft();S.galaxy=detail;readonly();worker.postMessage({tick:target()});};
   const onError=({detail})=>toast(`The sky cannot hear you. Your draft is safe. ${detail.message}`);
   const onSelection=()=>{saveDraft();location.reload();};
   addEventListener('galaxy:actions',onActions);addEventListener('galaxy:manifest',onManifest);

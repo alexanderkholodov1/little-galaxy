@@ -1,8 +1,9 @@
+import {observeAction} from './homes.js';
 import {openSession} from './session.js';
 import {launchIntent} from './replay.js';
 export function createSharedStore({galaxyId=null,booth=false,readOnly=false,replay=false,session=openSession}={}){
   let backend,loaded,stops=[],member='',selection,stopped=false;
-  const emit=(name,detail)=>dispatchEvent(new CustomEvent(`galaxy:${name}`,{detail}));
+  const emit=(name,detail)=>{if(name==='actions'&&loaded)for(const action of detail)observeAction(loaded.head,action);return dispatchEvent(new CustomEvent(`galaxy:${name}`,{detail}));};
   const stop=()=>{stopped=true;stops.splice(0).forEach(fn=>fn());};
   const S={galaxyId:galaxyId||'',readOnly,owner:()=>member,loaded:()=>loaded,backend:()=>backend,
     async loadGalaxy(){

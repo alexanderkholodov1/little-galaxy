@@ -2,8 +2,11 @@ import {replace} from './prototype-overlay.mjs';
 export function sharedOverlay(file,source){
   if(file==='js/store.js')return "export {createSharedStore as createLocalStore} from '../integration/store.js';\n";
   if(file==='js/main.js'){
+    source="import {recoverWorkshop} from '../integration/draft.js';\n"+source;
     source="import {setupScreen} from '../integration/screen.js';\n"+source;
     source="import {startSharedWorld} from '../integration/shared-world.js';\n"+source;
+    source="import {setupTheme} from '../integration/theme.js';\n"+source;
+    source=replace(source, '  setupShake();', '  setupTheme();\n  setupShake();');
     source=replace(source, 'const QS = new URLSearchParams(location.search);', 'const QS = new URLSearchParams(location.search);\nconst ROUTE = location.pathname.replace(/\\/$/, \'\');');
     source=replace(source, "galaxyId: QS.get('galaxy') || null", "galaxyId: QS.get('g') || QS.get('galaxy') || null");
     source=replace(source, "from './metrics.js'", "from '../integration/metrics.js'");
@@ -13,10 +16,10 @@ export function sharedOverlay(file,source){
     const end=source.indexOf('\n\n  splitSplash();',start);
     if(start<0||end<0)throw new Error('Prototype load seam changed');
     source=source.slice(0,start)+`  world.shared = true;
-  try{ const draft = JSON.parse(localStorage.getItem('little-galaxy.workshop')); if(draft){S.design = normDesign(draft.design); S.name = draft.name;} }catch(_){}
+  try{ const draft = recoverWorkshop(localStorage,getLang()); if(draft){S.design = normDesign(draft.design); S.name = draft.name;} }catch(_){}
 `+source.slice(end);
     source=replace(source, '  setupShake();', '  setupShake();\n  setupScreen({world,labels});');
-    source=replace(source,"  wireWorldEvents();", "  wireWorldEvents();\n  startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});\n  world.on('shared-pending', () => {aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});\n  world.on('shared-denied', () => {aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand');});");
+    source=replace(source,"  wireWorldEvents();", "  wireWorldEvents();\n  startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});\n  world.on('shared-pending', () => {aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});\n  world.on('shared-denied', () => {aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});");
     source=replace(source,'  watchVersion(saveSky);','');
     source=source.replace("import {watchVersion} from '../integration/version.js';\n",'');
     source=replace(source,'  if(S.frozen) freezeUi();','');
@@ -38,7 +41,7 @@ export function sharedOverlay(file,source){
       const p0 = restPos(new THREE.Vector3());
       W.benchState = 'launching';
       emit('shared-pending');
-      W.requestLaunch({design:{...b.d}, origin:[p0.x,p0.z], velocity:[aim.vel.x,aim.vel.z],
+      W.requestLaunch({name:W.pendingName, design:{...b.d}, origin:[p0.x,p0.z], velocity:[aim.vel.x,aim.vel.z],
         system:launchHost().id, strength:aim.strength, el:aim.pred.el, outcome:aim.pred.outcome, compact:!!aim.pred.compact});
       return null;
     }
@@ -70,6 +73,9 @@ export function sharedOverlay(file,source){
 `;
     source=replace(source,'  function serialize(){',methods+'  function serialize(){');
     source=replace(source, '    frame, resize, setMode,', `    viewState: () => ({az:rig.goal.az,el:rig.goal.el,dist:rig.goal.dist,target:rig.goal.target.toArray()}),\n    restoreView: o => {if([o.az,o.el,o.dist,...(o.target||[])].every(Number.isFinite) && o.target?.length===3) snapTo({...views().home,...o,target:new THREE.Vector3(...o.target)});},\n    frame, resize, setMode,`);
+    source=replace(source, 'debugCam: o =>', 'debugCam: import.meta.env.DEV ? o =>');
+    source=replace(source, 'rig.idle = -1e9; },', 'rig.idle = -1e9; } : undefined,');
+    source=replace(source, 'aimState:aim, views, maxPull, pullFor, launchInfo,', 'aimState:aim, views, maxPull, pullFor:import.meta.env.DEV?pullFor:undefined, launchInfo:import.meta.env.DEV?launchInfo:undefined,');
     source=replace(source,'    addEntry, removeEntry, orbitOf,','    applySharedState, completeSharedLaunch, failSharedLaunch,\n    addEntry, removeEntry, orbitOf,');
   }
   if(file==='js/strings/galaxy.js'){

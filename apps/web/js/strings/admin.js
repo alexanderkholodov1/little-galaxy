@@ -30,7 +30,7 @@ export const en = {
 };
 
 Object.assign(en, {
-    'admin.google':'Sign in with Google', 'admin.subtitle':'Observatory · keeper’s ledger',
+    'admin.certify':'Save verified sky', 'admin.google':'Sign in with Google', 'admin.subtitle':'Observatory · keeper’s ledger',
     'admin.local':'Verified Google account on the private keeper’s allowlist. Permissions are checked by Firestore.',
     'admin.limit':'Three galaxies per account. Start fresh by creating another galaxy; history is retained.',
     'admin.warning':'An export is verified and downloaded before this operation. Keep it on your own media. The accepted history is retained.',
@@ -39,7 +39,7 @@ Object.assign(en, {
     'admin.backup':'Export history', 'admin.backupId':'Export / result', 'admin.removed':'Removal recorded; history retained.'
   });
   Object.assign(es, {
-    'admin.google':'Entrar con Google', 'admin.subtitle':'Observatorio · registro del guardián',
+    'admin.certify':'Guardar cielo verificado', 'admin.google':'Entrar con Google', 'admin.subtitle':'Observatorio · registro del guardián',
     'admin.local':'Cuenta de Google verificada en la lista privada del guardián. Firestore comprueba los permisos.',
     'admin.limit':'Tres galaxias por cuenta. Crea otra para empezar de nuevo; el historial se conserva.',
     'admin.warning':'Antes de cambiarla se verifica y descarga una exportación. Guárdala en tus propios medios. El historial se conserva.',

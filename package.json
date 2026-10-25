@@ -11,7 +11,7 @@
     "build:rehearsal": "node scripts/with-example-env.js pnpm run build",
     "typecheck": "turbo run typecheck --concurrency=1",
     "lint": "turbo run lint --concurrency=1 && eslint eslint.config.js vitest.config.js scripts tests apps/web/vite.config.js apps/web/eslint.web.js scripts/privacy-check",
-    "test": "turbo run test --concurrency=1 && vitest run && pnpm run test:ui",
+    "test": "turbo run test --concurrency=1 && vitest run && node tests/prototype/physics.mjs && pnpm run test:ui",
     "test:rules": "firebase emulators:exec --only firestore,auth --project demo-little-galaxy \"pnpm exec vitest run --config tests/rules/vitest.config.js\"",
     "privacy": "node scripts/privacy-check",
     "privacy:rehearsal": "node scripts/with-example-env.js pnpm run privacy",

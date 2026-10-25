@@ -7,7 +7,7 @@ export function requireGoogleAdmin(user){
   if(!user?.emailVerified||!user.email||!user.providerData?.some(p=>p.providerId==='google.com'))throw new Error('A verified Google account on the keeper’s allowlist is required.');
 }
 export function summarizeMembers(members,now,galaxyId){
-  const out={visits:null,tosses:null,players:members.length,named:0,anonymous:0,activeNow:0,activeToday:0,activeWeek:0,launches:0,types:{},hours:Array(24).fill(0),topLaunchers:[],members:[],sparkline:[],busiestHour:null,bodiesByGalaxy:[]};
+  const out={observedAt:now,visits:null,tosses:null,players:members.length,named:0,anonymous:0,activeNow:0,activeToday:0,activeWeek:0,launches:0,types:{},hours:Array(24).fill(0),topLaunchers:[],members:[],sparkline:[],busiestHour:null,bodiesByGalaxy:[]};
   const tops=new Map();
   for(const member of members){
     const m={...member,galaxyId,active:member.lastSeen<=now&&member.lastSeen>=now-300000};out.members.push(m);
@@ -41,21 +41,24 @@ export function createAdminStore(){
   }
   async function certify(id){
     worlds.delete(id);const loaded=await full(id),g=loaded.galaxy;
-    const replay=new Replay(loaded),tick=Math.max(loaded.head.effectiveTick,Math.ceil(((g.frozenAt??backend.clock.now())-g.epoch)*.12));
+    const cutoff=g.status==='active'?Math.floor((backend.clock.now()-g.epoch)*.12):Infinity;
+    const actions=loaded.actions.filter(a=>a.intent.effectiveTick<=cutoff);
+    const replay=new Replay({...loaded,actions}),tick=Math.max(0,actions.at(-1)?.intent.effectiveTick??0);
     while(!replay.advanceTo(tick,480))await new Promise(resolve=>setTimeout(resolve,0));
     const state=JSON.stringify(replay.state()),sequence=replay.sequence;
-    const cache={schemaVersion:1,generation:g.generation,sequence,kernel:KERNEL,logHash:await verifyTail(loaded.actions,0,'',false),state,stateHash:await canonicalHash(state)};
+    const cache={schemaVersion:1,generation:g.generation,sequence,kernel:KERNEL,logHash:await verifyTail(actions,0,'',false),state,stateHash:await canonicalHash(state)};
     await backend.driver.transaction(async tx=>{
       const manifest=await tx.get(`galaxies/${id}`),head=await tx.get(`galaxies/${id}/control/head`);
       const path=`galaxies/${id}/certifications/${sequence}`,old=await tx.get(path);
-      if(manifest.status==='active'||manifest.generation!==g.generation||head.sequence!==sequence)throw new Error('The sky changed before certification. Freeze and retry.');
+      if(manifest.generation!==g.generation||manifest.kernel!==KERNEL||head.sequence<sequence)throw new Error('The sky changed before certification. Freeze and retry.');
       if(!old)tx.set(path,cache);
     });
     // The pointer rule requires an already committed immutable certification.
     await backend.driver.transaction(async tx=>{
       const manifest=await tx.get(`galaxies/${id}`),head=await tx.get(`galaxies/${id}/control/head`);
-      if(manifest.status==='active'||manifest.generation!==g.generation||head.sequence!==sequence)throw new Error('The sky changed before publication. Freeze and retry.');
-      tx.set(`galaxies/${id}/control/certified`,{sequence});
+      if(manifest.generation!==g.generation||manifest.kernel!==KERNEL||head.sequence<sequence)throw new Error('The sky changed before publication. Freeze and retry.');
+      const pointer=await tx.get(`galaxies/${id}/control/certified`);
+      if(!pointer||pointer.sequence<=sequence)tx.set(`galaxies/${id}/control/certified`,{sequence});
     });
   }
   const S={
@@ -69,10 +72,12 @@ export function createAdminStore(){
         const loaded=await full(g.id);return {...g,state:g.status==='active'?'open':g.status,lore:g.id,bodies:loaded.head.bodies,players:'—'};
       }));
     },
+    async canCreate(){const account=await backend.driver.get(`galaxyAccounts/${auth.currentUser.uid}`);return (account?.ids.length??0)<3;},
     async getSelection(){return backend.selection;},
     async createGalaxy({name}){
       const id='g-'+crypto.randomUUID();await backend.store.admin.create(initialGalaxy(id,auth.currentUser.uid,name,backend.clock.now(),KERNEL));clear();return id;
     },
+    async certify(id){await certify(id);return 'Verified sky saved';},
     async freeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'frozen'});clear();await certify(id);return 'Frozen and certified';},
     async unfreeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'active',writePolicy:'public'});clear();},
     async archive(id){const g=(await full(id)).galaxy;await S.backup(id);await backend.store.admin.update(id,g.generation,{status:'archived'});clear();return 'History retained';},

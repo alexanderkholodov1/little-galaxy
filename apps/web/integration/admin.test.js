@@ -6,5 +6,5 @@ it('rejects anonymous, unverified and non-Google identity before opening the adm
 });
 it('derives membership activity and launches without fabricating visits or tracking cosmetic throws',()=>{
  const now=Date.now(),members=[{memberId:'a',displayName:'Ada',firstSeen:now-10000,lastSeen:now,launches:2},{memberId:'b',displayName:'Anonymous',firstSeen:now-900000,lastSeen:now-400000,launches:1}];
- const result=summarizeMembers(members,now,'g');expect(result.players).toBe(2);expect(result.named).toBe(1);expect(result.anonymous).toBe(1);expect(result.activeNow).toBe(1);expect(result.launches).toBe(3);expect(result.visits).toBeNull();
+ const result=summarizeMembers(members,now,'g');expect(result.players).toBe(2);expect(result.named).toBe(1);expect(result.anonymous).toBe(1);expect(result.activeNow).toBe(1);expect(result.launches).toBe(3);expect(result.visits).toBeNull();expect(summarizeMembers(members,now+300001,'g').activeNow).toBe(0);
 });

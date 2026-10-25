@@ -1,3 +1,4 @@
+/* global window */
 import {initializeApp,deleteApp} from 'firebase-admin/app';
 import {getFirestore} from 'firebase-admin/firestore';
 import {initialGalaxy,initialHead,quotaWindow,PROTOTYPE_KERNEL} from '../../packages/shared/src/index.ts';

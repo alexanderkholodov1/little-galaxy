@@ -1,2 +1,2 @@
-// Exact upstream DOM-free simulation source. Re-sync only into a new kernel generation.
-export const PROTOTYPE_KERNEL = 'proto3-4afe7f699169ea74c7102829be932238acd44968e3f5a3021536fdc485bf184d';
+// Pinned upstream simulation and P2 admission/replay protocol. Re-sync only into a new kernel generation.
+export const PROTOTYPE_KERNEL = 'proto3-ed2f1b0ac6cdf637229711dc5c1b94e3645a4d18eea47786082e1393b50bf30e';

@@ -27,8 +27,8 @@ import {
   positionAt,
   SCHEMA_VERSION,
 } from '../packages/shared/src/index.js';
-import { launchPlanet } from '../apps/web/src/galaxy-data';
-import { sendInteraction } from '../apps/web/src/interaction-data';
+import { launchPlanet } from './legacy/galaxy-data';
+import { sendInteraction } from './legacy/interaction-data';
 import { applyControl } from '../apps/stand/src/control';
 import path from 'node:path';
 import fs from 'node:fs';

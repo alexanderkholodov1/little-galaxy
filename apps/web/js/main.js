@@ -1,5 +1,7 @@
+import {setupTheme} from '../integration/theme.js';
 import {startSharedWorld} from '../integration/shared-world.js';
 import {setupScreen} from '../integration/screen.js';
+import {recoverWorkshop} from '../integration/draft.js';
 // main.js — Little Galaxy · "Fogata". Orquesta el mundo 3D, el sonido y el vidrio.
 import {createWorld} from './world.js';
 import {TYPES, TYPE_INFO, PALETTES, defaultDesign, normDesign, starColor} from './bodies.js';
@@ -126,7 +128,7 @@ async function boot(){
   S.frozen = S.galaxy.status === 'frozen' || S.galaxy.status === 'archived';
   const saved = loaded.state;
   world.shared = true;
-  try{ const draft = JSON.parse(localStorage.getItem('little-galaxy.workshop')); if(draft){S.design = normDesign(draft.design); S.name = draft.name;} }catch(_){}
+  try{ const draft = recoverWorkshop(localStorage,getLang()); if(draft){S.design = normDesign(draft.design); S.name = draft.name;} }catch(_){}
 
 
   splitSplash();
@@ -138,7 +140,7 @@ async function boot(){
   wireWorldEvents();
   startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});
   world.on('shared-pending', () => {aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
-  world.on('shared-denied', () => {aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand');});
+  world.on('shared-denied', () => {aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});
   indexLayers();
   setMode('home', {instant:true});
   glass.scan();
@@ -160,6 +162,7 @@ async function boot(){
   const unlock = () => audio.unlock();
   addEventListener('pointerdown', unlock, {once:true, capture:true});
   addEventListener('keydown', unlock, {once:true, capture:true});
+  setupTheme();
   setupShake();
   setupScreen({world,labels});
 

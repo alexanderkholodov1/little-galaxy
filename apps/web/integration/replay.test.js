@@ -36,3 +36,29 @@ it('can skip an empty quiet week exactly, without millions of integration steps'
  const r=new Replay({galaxy,genesis:[],actions:[]});r.advanceTo(7*86400*120);
  expect(r.sim.steps).toBe(7*86400*120);expect(r.sim.central.p).toEqual([0,0,0]);
 });
+it('funds one deterministic nursery for a new admission home and launches relative to its moving anchor',()=>{
+ const one=action(1),two=action(2);one.intent.system='1';two.intent.system='1';
+ const r=new Replay({galaxy,genesis:[],actions:[one,two]});r.advanceTo(240);
+ const seed=[...r.entries.values()].find(e=>e.logical==='seed:1');expect(seed).toBeDefined();
+ const host=r.sim.byId(seed.id),body=r.sim.byId(r.ids.get(two.intent.id));
+ expect(Math.hypot(body.p[0]-host.p[0],body.p[2]-host.p[2])).toBeCloseTo(7,10);
+ expect(r.sim.primaries()).toHaveLength(2);
+});
+it('keeps the prototype specimen name inside the admitted bounded design',()=>{
+ const intent=launchIntent({id:'named',name:'Brasa Tímida',design:{type:'planet',seed:42,size:.5},origin:[7,0],velocity:[0,1.4],system:'0'},galaxy,0,0);
+ const r=new Replay({galaxy,genesis:[],actions:[{...action(1),intent}]});r.advanceTo(intent.effectiveTick);
+ expect([...r.entries.values()][0].name).toBe('Brasa Tímida');
+});
+it('does not convert an unreserved inter-home traveller into an authoritative captured rail',()=>{
+ const a=action(1),b=action(2);b.intent.system='1';
+ const r=new Replay({galaxy,genesis:[],actions:[a,b]});r.advanceTo(240);
+ const traveller=r.sim.byId(r.ids.get(a.intent.id)),host=r.anchor('1');
+ traveller.p=[host.p[0]+7,0,host.p[2]];traveller.v=[host.v[0],0,host.v[2]+Math.sqrt(15/7)];
+ r.sim.settle(traveller);expect(traveller.mode).toBe('drift');
+});
+it('retains legacy orbital elements, inclination and specimen names from genesis',()=>{
+ const record={id:'legacy',memberId:'old-member',displayName:'Anonymous',kind:'planet',system:'0',design:{size:.6,palette:2,oceans:.5},legacy:{nameKey:'quiet-aurora',orbit:{a:7,e:.3,meanAnomaly:1,omega:.4,inclination:.1,direction:-1,epoch:0}}};
+ const r=new Replay({galaxy,genesis:[record],actions:[]}),entry=[...r.entries.values()][0],body=r.sim.byId(entry.id);
+ expect(entry.name).not.toContain('legacy');expect(entry.design.pal).toBe(2);expect(body.p[1]).not.toBe(0);
+ expect(Math.atan(body.p[1]/body.p[2])).toBeCloseTo(.1,10);
+});

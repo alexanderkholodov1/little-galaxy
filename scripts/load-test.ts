@@ -17,10 +17,10 @@ import {
   planetDefaults,
   SEASON,
 } from '../packages/shared/src/index.js';
-import { launchPlanet, editObject, listenActive } from '../apps/web/src/galaxy-data';
-import { sendInteraction, listenRecentEvents } from '../apps/web/src/interaction-data';
-import { observeTransactions } from '../apps/web/src/firestore-observer';
-import { setUidProvider } from '../apps/web/src/session-uid';
+import { launchPlanet, editObject, listenActive } from './legacy/galaxy-data';
+import { sendInteraction, listenRecentEvents } from './legacy/interaction-data';
+import { observeTransactions } from './legacy/firestore-observer';
+import { setUidProvider } from './legacy/session-uid';
 import { startSnapshotWriter } from '../apps/stand/src/snapshots';
 import { buildSeason, startMemoryWriter } from '../apps/stand/src/memory';
 import { startMeteorScheduler, writeMeteorShower } from '../apps/stand/src/meteors';
@@ -491,8 +491,8 @@ async function main() {
   }
 
   const md = generateQuotaReportMarkdown(metrics);
-  fs.writeFileSync(path.resolve(import.meta.dirname, '../docs/live-sky.md'), liveSkyMarkdown(metrics), 'utf8');
-  const outPath = path.resolve(import.meta.dirname, '../docs/QUOTA-REPORT.md');
+  fs.writeFileSync(path.resolve(import.meta.dirname, '../docs/legacy-live-sky.md'), liveSkyMarkdown(metrics), 'utf8');
+  const outPath = path.resolve(import.meta.dirname, '../docs/LEGACY-QUOTA-REPORT.md');
   fs.writeFileSync(outPath, md, 'utf8');
   console.log(md);
   console.log(`[load-test] Wrote quota report to ${outPath}`);

@@ -13,8 +13,9 @@ export async function openSession({readOnly=false,admin=false,history=false}={})
   // Public viewers do not bootstrap private membership or create an Auth account.
   const driver=readOnly?{...transport,get:path=>path.includes('/members/')?Promise.resolve(null):transport.get(path)}:transport;
   const selection=await driver.get('config/live');
-  let memberId=localStorage.getItem('little-galaxy.member-seed');
-  if(!memberId){memberId=crypto.randomUUID();if(!readOnly)localStorage.setItem('little-galaxy.member-seed',memberId);}
+  // Existing galaxy membership is recovered by private Auth UID; only a new profile uses
+  // this independent public seed. Never correlate new galaxies with a browser-global label.
+  const memberId=crypto.randomUUID();
   const store=createGalaxyStore(driver,{uid:auth.currentUser?.uid??'readonly',memberId,now:clock.now,admin,
     // B1 verifies this immutable admin-only certification's state hash, manifest and generation first.
     // Phone caches always arrive with their log and must never be promoted by comparing their own hash.

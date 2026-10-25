@@ -226,3 +226,24 @@ The worker additionally checks the state's galaxy/generation/sequence before res
 An empty or provably nonintersecting, single-primary quiet sky can skip elapsed integration;
 encountering/complex skies still integrate fixed steps in bounded worker batches. Long complex
 cold replays and cross-device exact floating-point comparison remain device acceptance items.
+
+The P2 replay protocol is included in the kernel pin. Quantized launch vectors are relative to
+the chosen physical system's centre and velocity at the accepted tick. `design.colour` records
+its numeric primary selector plus one (zero/absent selects the funded home's seed); `design.glow`
+encodes the prototype's generated specimen name. Those parameters are unused by the prototype's
+material codec. This keeps the 512-byte bounded intent and preserves the dotted launch orbit
+while the host moves during the launching interval. A different-kernel galaxy is rejected;
+never silently reinterpret previously published absolute-vector intents as this protocol.
+
+Routing hints mirror accepted lifetime budgets. A full selected home reuses a funded home with
+space, then allocates a new ordinary-body nursery only when required. The reducer materializes
+that charged seed exactly once. Physical founded hosts can share their funded home envelope.
+Ordinary capture into an unfunded home remains integrated rather than becoming an unauthorized
+rail; velocities are unchanged. B1 supplies no ordinary transfer reservation extension. The
+UI retains the prototype's unresolved binary recipe and system-orbiting moons.
+
+The keeper can **Save verified sky** during active play as well as on freeze. Certification
+replays an immutable accepted prefix through its last effective tick, never beyond an action
+it has not seen. Active saves cover only ticks already reached; frozen saves include admitted
+future launches. Publishing a pointer never replaces a newer sequence. This gives late joiners
+an admin-verified prefix plus later accepted actions without trusting a phone's hash hint.

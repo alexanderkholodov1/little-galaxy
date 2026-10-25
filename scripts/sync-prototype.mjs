@@ -27,8 +27,10 @@ for(const file of files){
   await mkdir(dirname(output), {recursive:true});
   await writeFile(output, integratePrototype(file, original));
 }
+for(const file of ['replay.js','homes.js','names.js']) kernel.update(file).update(await readFile(resolve(root,'integration',file),'utf8'));
+kernel.update(await readFile(resolve(root,'../../packages/shared/src/names.ts'),'utf8'));
 const version = 'proto3-' + kernel.digest('hex');
-await writeFile(resolve(root, '../../packages/shared/src/prototype-kernel.ts'), `// Exact upstream DOM-free simulation source. Re-sync only into a new kernel generation.\nexport const PROTOTYPE_KERNEL = '${version}';\n`);
+await writeFile(resolve(root, '../../packages/shared/src/prototype-kernel.ts'), `// Pinned upstream simulation and P2 admission/replay protocol. Re-sync only into a new kernel generation.\nexport const PROTOTYPE_KERNEL = '${version}';\n`);
 const checkpoint = (await readFile(resolve(source, 'CHECKPOINT.md'), 'utf8')).trim().split('\n').at(-1);
 await writeFile(resolve(root, 'prototype-state.json'), JSON.stringify({checkpoint, files:hashes}, null, 2) + '\n');
 for(const name of ['CHECKPOINT.md', 'SIM-DECISIONS.md', 'NOTES.md']){
@@ -39,3 +41,8 @@ for(const name of ['CHECKPOINT.md', 'SIM-DECISIONS.md', 'NOTES.md']){
   }catch(error){ if(error.code !== 'ENOENT') throw error; }
 }
 console.log(`Packaged ${files.length} prototype files. ${checkpoint}`);
+
+// The upstream mathematical checks run against the packaged kernel, outside the release payload.
+const physics = await readFile(resolve(source, 'tools/physics-test.mjs'), 'utf8');
+await mkdir(resolve(root, '../../tests/prototype'), {recursive:true});
+await writeFile(resolve(root, '../../tests/prototype/physics.mjs'), physics.replace("'../js/sim/index.js'", "'../../apps/web/js/sim/index.js'"));
