@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0-alpha.3–8 — 2026-10-25, during the fair (operator's orders)
+
+- alpha.3: release PR #13's fixes, which its merge had not released (the version had not been bumped); the release
+  path ran install and build only.
+- alpha.4: no launch limits; Firestore rules open to anyone, signed in or not.
+- alpha.5: a late shared launch rewinds the replay to its last one-second mark instead of the checkpoint or genesis,
+  so other screens update at once instead of freezing for seconds.
+- alpha.6: confine every body (brake beyond 300, spring beyond 400) and cap the home view; rolled back in production
+  to alpha.5 because stars and planets clustered.
+- alpha.7: no notice when other bodies form a double system.
+- alpha.8: light bodies lose only radial speed beyond 60 and feel a spring beyond 100; compact bodies feel only a
+  conservative spring beyond 150; the whole-galaxy view shows up to 40 names on phones and 80 on desktop.
+
 ## 1.0.0-alpha.2.60–61 — 2026-10-25
 
 - Route reserve-only founded systems through a funded admission home with a matching replay frame.
