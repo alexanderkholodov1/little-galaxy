@@ -60,3 +60,13 @@ it('explains a reserved-home fallback only after acceptance, without calling the
  expect(f.toast.mock.calls.flat().join(' ')).not.toMatch(/full/);
  expect(f.world.failSharedLaunch).not.toHaveBeenCalled();
 });
+it('reports a rejected transaction with its original permission error and no success notice',async()=>{
+ const f=fixture(),cause=Object.assign(new Error('Missing permissions'),{code:'permission-denied'});
+ const error=new Error('Your star is still in your hand.',{cause});
+ const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+ f.store.launch.mockRejectedValue(error);
+ await f.world.requestLaunch({system:'0',design:{type:'planet',seed:1},origin:[7,0],velocity:[0,1.4]});
+ expect(warn).toHaveBeenCalledExactlyOnceWith('Launch was not accepted.',error);
+ expect(f.world.failSharedLaunch).toHaveBeenCalledOnce();
+ expect(f.toast).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('permissions'));
+});
