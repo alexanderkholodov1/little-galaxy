@@ -326,5 +326,35 @@ function relang(){`);
 [data-motion="reduce"] .welcome{transition:none}
 `;
   }
+  if(file==='js/glass.js'){
+    // Each lens map was encoded with a synchronous canvas.toDataURL (a GPU readback on phones) whenever a panel changed
+    // size: about a second and a half for the result card after a launch, and every panel at once when a minimised
+    // page came back. Maps are now drawn on a CPU canvas, encoded asynchronously (toBlob), cached by size, and
+    // resize bursts settle into one late pass.
+    source=replace(source,"  const ro = 'ResizeObserver' in window ? new ResizeObserver(entries => {\n    for(const e of entries) refresh(e.target);\n  }) : null;",`  const later = new Set();
+  let laterT = 0;
+  const ro = 'ResizeObserver' in window ? new ResizeObserver(entries => {
+    for(const e of entries) later.add(e.target);
+    clearTimeout(laterT);
+    laterT = setTimeout(() => { const els = [...later]; later.clear(); for(const el of els) refresh(el); }, 180);
+  }) : null;
+  const maps = new Map();`);
+    source=replace(source,"  function lensMap(w, h, r, bezel){\n    const s = 0.5, cw = Math.max(8, Math.round(w*s)), ch = Math.max(8, Math.round(h*s));\n    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;\n    const x = cv.getContext('2d'), img = x.createImageData(cw, ch), d = img.data;",
+`  function lensMap(w, h, r, bezel){
+    const key = w + 'x' + h + ':' + r + ':' + bezel;
+    if(!maps.has(key)){
+      if(maps.size > 48){ const [k, p] = maps.entries().next().value; maps.delete(k); p.then(u => u && URL.revokeObjectURL(u)); }
+      maps.set(key, drawLens(w, h, r, bezel));
+    }
+    return maps.get(key);
+  }
+  function drawLens(w, h, r, bezel){
+    const s = 0.5, cw = Math.max(8, Math.round(w*s)), ch = Math.max(8, Math.round(h*s));
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    const x = cv.getContext('2d', {willReadFrequently:true}), img = x.createImageData(cw, ch), d = img.data;`);
+    source=replace(source,"    x.putImageData(img, 0, 0);\n    return cv.toDataURL();\n  }","    x.putImageData(img, 0, 0);\n    return new Promise(done => cv.toBlob(b => done(b ? URL.createObjectURL(b) : ''), 'image/png'));\n  }");
+    source=replace(source,"    const im = f.querySelector('feImage');\n    im.setAttribute('href', lensMap(w, h, r, bezel));",
+"    const im = f.querySelector('feImage');\n    lensMap(w, h, r, bezel).then(u => { if(u && it.w === w && it.h === h) im.setAttribute('href', u); });");
+  }
   return source;
 }
