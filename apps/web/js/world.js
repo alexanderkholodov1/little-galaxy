@@ -37,6 +37,7 @@ export function createWorld(canvas, opts = {}){
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 1200);
   const sim = new Sim({seed: opts.seed ?? 1});
+  const toySim = new Sim({seed:1});
   const listeners = {};
   const emit = (ev, ...a) => (listeners[ev] || []).forEach(fn => fn(...a));
   const W = {renderer, scene, camera, sim, entries:[], mode:'home', t:0, px:1, rm:RM, fps:60, owner:'local'};
@@ -636,7 +637,7 @@ export function createWorld(canvas, opts = {}){
     const spec = {type:design.type, meteor:!!design.meteor, toy, group, p, v, comet};
     let sb;
     if(launch && !toy){ const r = sim.launch(spec, {owner:W.owner, now:Date.now()}); if(!r.ok) return null; sb = r.body; }
-    else sb = sim.add(spec);
+    else sb = toy && W.shared ? toySim.add(spec) : sim.add(spec);
     const e = makeEntry(sb, {design, name, mine, born, maker, toy, life, scale0});
     if(toy){
       const toys = W.entries.filter(x => x.toy && !x.dying);
@@ -646,7 +647,7 @@ export function createWorld(canvas, opts = {}){
     return e;
   }
   function removeEntry(e){
-    scene.remove(e.body.root); e.body.dispose(); sim.remove(e.sb);
+    scene.remove(e.body.root); e.body.dispose(); (e.toy && W.shared ? toySim : sim).remove(e.sb);
     W.entries = W.entries.filter(x => x !== e);
     if(W.lastLaunched === e) W.lastLaunched = null;
   }
@@ -774,6 +775,30 @@ export function createWorld(canvas, opts = {}){
   const portraitR = () => camera.aspect < 0.9 ? 11 : 17.5;
 
   /* ---------------------------------------------------------------- guardar y cargar la galaxia */
+  function applySharedState(state, norm, owner){
+    const ids = new Set(state.entries.map(e=>e.id));
+    for(const e of [...W.entries]) if(!e.toy && !ids.has(e.id)) removeEntry(e);
+    sim.restore(state.sim);
+    W.sharedHomes = new Map(state.homes);
+    for(const m of state.entries){
+      let e = W.entries.find(e=>!e.toy && e.id===m.id);
+      const design = norm(m.design);
+      if(!e){ e = makeEntry(sim.byId(m.id), {...m, design, mine:m.owner===owner}); }
+      else {
+        e.sb = sim.byId(m.id);
+        if(JSON.stringify(e.design)!==JSON.stringify(design)){ e.body.setDesign(design); e.design=design; }
+      }
+      e.logical=m.logical; e.home=m.home;
+    }
+    return W.entries.filter(e=>!e.toy);
+  }
+  function completeSharedLaunch(entry,res){
+    if(W.benchBody){scene.remove(W.benchBody.root); W.benchBody.dispose();}
+    W.benchBody=null; W.benchState='gone'; W.lastLaunched=entry;
+    sparks(entry.body.root.position, '#ff8a5b', 34, 3.2);
+    emit('launch', {...res,entry,entries:[entry],toy:false});
+  }
+  function failSharedLaunch(){W.benchState='pad'; settleBack=.3; emit('shared-denied');}
   function serialize(){
     const snap = sim.snapshot();
     const toyIds = new Set(W.entries.filter(e => e.toy).map(e => e.id));
@@ -1060,6 +1085,15 @@ export function createWorld(canvas, opts = {}){
     band.visible = false; path.visible = false;
     if(aim.s < 0.06){ W.benchState = 'pad'; settleBack = 0.3; emit('aim-cancel'); return null; }
     if(aim.dirty || !aim.pred) runPredict();
+    if(W.shared && !W.padToy){
+      if(W.readOnly){ emit('shared-denied'); return null; }
+      const p0 = restPos(new THREE.Vector3());
+      W.benchState = 'launching';
+      emit('shared-pending');
+      W.requestLaunch({design:{...b.d}, origin:[p0.x,p0.z], velocity:[aim.vel.x,aim.vel.z],
+        system:launchHost().id, strength:aim.strength, el:aim.pred.el, outcome:aim.pred.outcome, compact:!!aim.pred.compact});
+      return null;
+    }
     // presupuestos (R7): si no se admite, el astro se queda en la mano, con su diseño intacto
     if(!W.padToy){
       restPos(_hp);
@@ -1307,7 +1341,7 @@ export function createWorld(canvas, opts = {}){
   function frame(dtRaw){
     const dt = Math.min(dtRaw, 0.05);
     W.t += dt; timeU.value = W.t;
-    sim.advance(dt);
+    if(W.shared) toySim.advance(dt); else sim.advance(dt);
     updateExtent(dt);
     // marco baricéntrico: el Fogón se mece un poco cuando algo pesado lo acompaña
     SUN.set(sim.central.p[0], sim.central.p[1], sim.central.p[2]);
@@ -1489,6 +1523,7 @@ export function createWorld(canvas, opts = {}){
   return Object.assign(W, {
     on:(ev, fn) => ((listeners[ev] ||= []).push(fn)),
     frame, resize, setMode, recenter, homeFocus, isOffHome, focus, project, pxRadius,
+    applySharedState, completeSharedLaunch, failSharedLaunch,
     addEntry, removeEntry, orbitOf, systemsInfo, flyToSystem, serialize, loadGalaxy, setBenchDesign, moveBenchToPad, moveBenchBack, startAurora, sparks, warm,
     enterToss, exitToss, loadToy,
     paintSky, setMotion, setQuality, labelItems,

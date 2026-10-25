@@ -1,3 +1,4 @@
+import {PROTOTYPE_KERNEL} from '@little-galaxy/shared';
 import { fairMutationLimit } from '../../../scripts/galaxy-quota.js';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
@@ -249,7 +250,7 @@ export async function migrateGalaxies(database: Firestore) {
     if (state.data()?.complete) return;
     if (live.data()?.seasonOpen !== false) throw new Error('Migration window changed');
     const g = {
-      ...initialGalaxy('bad-2026', 'operator', 'BAD 2026', marker.createdAt, 'legacy-orbit-v2'),
+      ...initialGalaxy('bad-2026', 'operator', 'BAD 2026', marker.createdAt, PROTOTYPE_KERNEL),
       dailyLimit: fairLimit,
       genesis: plan.chunks.map((c) => ({ id: c.id, hash: c.hash })),
     };

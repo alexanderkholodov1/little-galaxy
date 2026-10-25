@@ -134,3 +134,4 @@ export default {
     'result.aim.pairStats': 'each keeps its own things; together they sway',
   },
 };
+

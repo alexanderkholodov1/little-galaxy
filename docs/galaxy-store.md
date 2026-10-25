@@ -198,3 +198,31 @@ An oversized import fails preflight before deployment. See the executable quota 
 
 Resumable import batches check the completion marker in their transaction. A delayed duplicate
 writer cannot reset body/profile data after a different writer finishes and phones resume editing.
+
+## P2 packaged game
+
+`apps/web/integration/` connects the copied ES-module game to this contract. The sync allowlist is
+`scripts/sync-prototype.mjs`; `prototype-state.json` records upstream hashes and CHECKPOINT's last
+line. `PROTOTYPE_KERNEL` pins the SHA-256 of the exact upstream DOM-free simulation sources.
+The import prepares this same kernel version; unknown versions fail visibly instead of seeding
+an invented local world. The worker replays accepted facts in integer tick order, rewinding a
+late action, and keeps cosmetic throws outside the authoritative simulation.
+
+The per-type design codec maps prototype controls to B1's bounded integer fields. Launches are
+quantized to millionths and aimed 2.4 seconds ahead of anchored server time; the specimen stays
+in hand with a launching message until its accepted tick. The persisted nonce/intent is retained
+after failure. Only an explicit new gesture retries it. The workshop draft is separately saved
+before any request, background transition, selection switch or user-approved version reload.
+
+Public screen/replay viewers do not create anonymous Auth identities or touch private membership.
+Players use anonymous Auth even when choosing a name. A visible active player can call `touch`
+every five minutes; hidden listeners stop and foreground resumes reload a coherent boundary.
+Prototype local visit/toss analytics are not sent to Firestore; admin reports membership and
+accepted facts rather than claiming unmeasured visits.
+
+Unsigned phone checkpoints remain comparison hints. An admin-only immutable certification can
+bootstrap a late join after B1 checks its state hash, generation, kernel and covered sequence.
+The worker additionally checks the state's galaxy/generation/sequence before restoring it.
+An empty or provably nonintersecting, single-primary quiet sky can skip elapsed integration;
+encountering/complex skies still integrate fixed steps in bounded worker batches. Long complex
+cold replays and cross-device exact floating-point comparison remain device acceptance items.

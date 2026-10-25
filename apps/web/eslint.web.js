@@ -1,1 +1,2 @@
-export default {files: ['apps/web/integration/**/*.js'], languageOptions: {globals: {window: "readonly", document: "readonly", localStorage: "readonly", location: "readonly", navigator: "readonly", performance: "readonly", requestAnimationFrame: "readonly"}}};
+import globals from 'globals';
+export default {files:['apps/web/integration/**/*.js'],languageOptions:{globals:{...globals.browser,...globals.worker,__APP_VERSION__:'readonly',__APP_COMMIT__:'readonly'}}};

@@ -148,7 +148,7 @@ async function clockConfig<T extends Document>(
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ documents: [`${root}/config/live`] }),

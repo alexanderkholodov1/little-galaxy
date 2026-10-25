@@ -6,7 +6,7 @@ import { resolveFirebaseConfig } from './firebase-config';
 const { config, emulators } = resolveFirebaseConfig(import.meta.env);
 export const sessionConfigured = config !== null;
 const app = config ? initializeApp(config) : null;
-const auth = app ? getAuth(app) : null;
+export const auth = app ? getAuth(app) : null;
 export const firestore = app ? getFirestore(app) : null;
 
 const browserLocation = typeof window === 'undefined' ? undefined : window.location;

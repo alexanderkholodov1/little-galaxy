@@ -18,13 +18,17 @@ const source = process.argv[2];
 if(!source) throw new Error('Usage: node scripts/sync-prototype.mjs /path/to/proto3');
 const root = resolve(import.meta.dirname, '../apps/web');
 const hashes = {};
+const kernel = createHash('sha256');
 for(const file of files){
   const original = await readFile(resolve(source, file), 'utf8');
+  if(file.startsWith('js/sim/')) kernel.update(file).update(original);
   hashes[file] = createHash('sha256').update(original).digest('hex');
   const output = resolve(root, file);
   await mkdir(dirname(output), {recursive:true});
   await writeFile(output, integratePrototype(file, original));
 }
+const version = 'proto3-' + kernel.digest('hex');
+await writeFile(resolve(root, '../../packages/shared/src/prototype-kernel.ts'), `// Exact upstream DOM-free simulation source. Re-sync only into a new kernel generation.\nexport const PROTOTYPE_KERNEL = '${version}';\n`);
 const checkpoint = (await readFile(resolve(source, 'CHECKPOINT.md'), 'utf8')).trim().split('\n').at(-1);
 await writeFile(resolve(root, 'prototype-state.json'), JSON.stringify({checkpoint, files:hashes}, null, 2) + '\n');
 for(const name of ['CHECKPOINT.md', 'SIM-DECISIONS.md', 'NOTES.md']){

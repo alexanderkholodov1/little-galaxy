@@ -13,7 +13,7 @@ const RUDE = new Set(['culo','culos','puta','puto','putita','mierda','cabron','c
 const mem = new Map();                       // respaldo si localStorage no existe (Node, privacidad)
 function lsStore(){
   try{ const ls = globalThis.localStorage; if(ls) return ls; }catch(_){}
-  return globalThis.__fogLS || mem;          // __fogLS: doble de pruebas (interface get/setItem)
+  return (import.meta.env.DEV && globalThis.__fogLS) || mem;          // __fogLS: doble de pruebas (interface get/setItem)
 }
 
 export function getPlayer(){

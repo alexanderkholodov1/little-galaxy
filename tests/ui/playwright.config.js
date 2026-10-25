@@ -23,7 +23,7 @@ export default defineConfig({
   },
   webServer: isPreview ? undefined : {
     command: `${firebaseEnvironment} pnpm --filter @little-galaxy/web dev --port ${port} --strictPort`,
-    url: `http://127.0.0.1:${port}/galaxy/`,
+    url: `http://127.0.0.1:${port}/little-galaxy/`,
     reuseExistingServer: false,
   },
 });

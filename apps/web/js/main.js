@@ -1,4 +1,4 @@
-import {watchVersion} from '../integration/version.js';
+import {startSharedWorld} from '../integration/shared-world.js';
 // main.js — Little Galaxy · "Fogata". Orquesta el mundo 3D, el sonido y el vidrio.
 import {createWorld} from './world.js';
 import {TYPES, TYPE_INFO, PALETTES, defaultDesign, normDesign, starColor} from './bodies.js';
@@ -7,7 +7,7 @@ import {createGlass} from './glass.js';
 import {circularSpeed, GM} from './physics.js';
 import {t, register, translateDom, onLang, getLang, setLang} from './i18n.js';
 import {createLocalStore} from './store.js';
-import {track, flush} from './metrics.js';
+import {track, flush} from '../integration/metrics.js';
 import {getPlayer, askPlayer} from './ui/player.js';
 import {loadPrefs, savePrefs as storePrefs, createPrefsPanel} from './ui/prefs.js';
 import {createLabels, strings as labelStrings} from './ui/labels.js';
@@ -47,7 +47,7 @@ function randomName(){
 
 /* ------------------------------------------------------------------ estado */
 const QS = new URLSearchParams(location.search);
-const store = createLocalStore({galaxyId: QS.get('galaxy') || null, booth: QS.has('booth')});
+const store = createLocalStore({galaxyId: QS.get('galaxy') || null, booth: QS.has('booth') || location.pathname.endsWith('/screen'), readOnly: location.pathname.endsWith('/screen') || QS.get('smoke') === 'readonly'});
 // R14: métricas locales por galaxia (js/metrics.js). Nunca rompen el juego: un fallo se ignora.
 function metric(ev, extra){
   try{ track(ev, {galaxyId:store.galaxyId, memberId:store.owner(), displayName:S.player && !S.player.anonymous ? S.player.displayName : '', ...extra}); }catch(_){}
@@ -117,14 +117,15 @@ async function boot(){
 
   world.owner = store.owner();
   if(import.meta.env.DEV && new URLSearchParams(location.search).has('sandbox')) Object.assign(world.sim.budget, {playerBlackHoles:99, playerStellar:99, blackHoleGapMs:0});
-  const loaded = await store.loadGalaxy().catch(() => ({player:null, state:null}));
+  const loaded = await store.loadGalaxy();
+  world.owner = store.owner();
   S.player = loaded.player;
   S.galaxy = loaded.galaxy || {status:'active'};
   S.frozen = S.galaxy.status === 'frozen' || S.galaxy.status === 'archived';
   const saved = loaded.state;
-  if(saved){ try{ world.loadGalaxy(saved, normDesign); }catch(err){ console.warn('galaxy restore failed', err); seedGalaxy(); } }
-  else { seedGalaxy(); if(!S.frozen) await migrateLegacy(); }
-  world.warm(RM ? 12 : saved ? 4 : 26);
+  world.shared = true;
+  try{ const draft = JSON.parse(localStorage.getItem('little-galaxy.workshop')); if(draft){S.design = normDesign(draft.design); S.name = draft.name;} }catch(_){}
+
 
   splitSplash();
   setupHome(); setupWorkshop(); setupLaunch(); setupSound(); setupCredits(); setupPrefs(); setupLabels();
@@ -133,6 +134,9 @@ async function boot(){
   onLang(relang);
   world.on('frame', onFrame);
   wireWorldEvents();
+  startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});
+  world.on('shared-pending', () => {aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
+  world.on('shared-denied', () => {aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand');});
   indexLayers();
   setMode('home', {instant:true});
   glass.scan();
@@ -167,7 +171,7 @@ async function boot(){
   document.body.classList.add('splashing');
   setTimeout(() => { $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }, RM ? 1200 : 3000);
   setInterval(saveSky, 8000);
-  watchVersion(saveSky);
+
   addEventListener('pagehide', () => { saveSky(); flush(); });
   document.addEventListener('visibilitychange', () => {
     if(document.hidden){ saveSky(); flush(); } else metric('visit');
@@ -175,7 +179,7 @@ async function boot(){
   // R14: una visita al entrar; "sigo aquí" cada 5 min solo con la página a la vista
   metric('visit');
   setInterval(() => { if(!document.hidden) metric('session_ping'); }, 5*60*1000);
-  if(S.frozen) freezeUi();
+
   if(DEBUG) setupDebug();
 }
 
@@ -596,6 +600,7 @@ async function ensurePlayer(){
   try{ return await asking; } finally { asking = null; }
 }
 function goLaunch(){
+  if(S.frozen || store.readOnly){toast(t('shared.frozen')); return;}
   world.pendingName = S.name;
   world.pendingMaker = makerOf(S.player);
   world.moveBenchToPad();
@@ -745,10 +750,6 @@ function wireWorldEvents(){
     aimStats(() => t('launch.went.stats'));
     S.flight = {entry:res.entry, predicted:res.outcome, compact:!!res.compact, t:0, shown:false, escaped:false};
     updateCount(); saveSky();
-    const sb = res.entry.sb;
-    store.launch(store.galaxyId, {id:'l' + sb.id + '-' + Date.now().toString(36), type:'launch', kind:res.entry.design.type,
-      seed:res.entry.design.seed >>> 0, origin:[sb.p[0], sb.p[2]], velocity:[sb.v[0], sb.v[2]], design:res.entry.design,
-      displayName:res.entry.maker && !res.entry.maker.anon ? res.entry.maker.name : ''}).catch(() => {});
     metric('launch', {type:res.entry.design.type});
   });
   const tracked = e => S.tossFlight && S.tossFlight.entry === e;
@@ -1013,7 +1014,7 @@ function freezeUi(){
 /* ================================================================== guardar la galaxia (detrás de js/store.js) */
 function saveSky(){
   if(!world || S.frozen) return;
-  try{ store.save(world.serialize()); }catch(_){}
+  try{ localStorage.setItem('little-galaxy.workshop', JSON.stringify({design:S.design,name:S.name})); }catch(_){}
 }
 // una sola vez: los astros propios del formato viejo (fogata.sky.v1) entran a la galaxia nueva
 async function migrateLegacy(){

@@ -23,7 +23,7 @@ const SETS = {
 const mem = new Map();                        // respaldo cuando no hay localStorage (Node, privado)
 function lsStore(){
   try{ const ls = globalThis.localStorage; if(ls) return ls; }catch(_){}
-  return globalThis.__fogLS || mem;
+  return (import.meta.env.DEV && globalThis.__fogLS) || mem;
 }
 function readJSON(k){
   try{ const raw = lsStore().getItem(k); return raw ? JSON.parse(raw) : null; }
