@@ -139,8 +139,8 @@ async function boot(){
   world.on('frame', onFrame);
   wireWorldEvents();
   startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});
-  world.on('shared-pending', () => {aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
-  world.on('shared-denied', () => {aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});
+  world.on('shared-pending', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
+  world.on('shared-denied', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});
   indexLayers();
   setMode('home', {instant:true});
   glass.scan();
@@ -785,6 +785,7 @@ function wireWorldEvents(){
     if(S.flight && S.flight.entry === e && !S.flight.shown) showResult('puff', e);
   });
   world.on('launch-denied', x => {
+    audio.aimEnd(); $('#outcomeTag').classList.remove('show');
     audio.back();
     const msg = () => t('launch.denied.' + x.reason);
     toast(msg());

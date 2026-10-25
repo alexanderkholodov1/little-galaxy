@@ -16,6 +16,12 @@ export function uiOverlay(file,source){
   const _c = new THREE.Color();
   function writeTrails(){`);
   }
+  if(file==='js/world.js'){
+    // Releasing ends the aim: the last prediction no longer re-shows the dotted path, and a launch waiting for the
+    // shared sky rests back on the pad instead of hanging where the band was let go.
+    source=replace(source,'    if(aim.dirty || !aim.pred) runPredict();\n','    if(aim.dirty || !aim.pred) runPredict();\n    band.visible = false; path.visible = false;\n');
+    source=replace(source,"        if(W.benchState === 'pad'){","        if(W.benchState === 'pad' || W.benchState === 'launching'){");
+  }
   if(file==='js/audio.js'){
     source=replace(source,"debug(){ return {ctx: A.ctx ? A.ctx.state : 'none',","debug(){ return {ctx: A.ctx ? A.ctx.state : 'none', creak:!!creak,");
     // Sound is on by default: any later gesture resumes a context the browser kept suspended (or iOS interrupted),
@@ -27,6 +33,10 @@ export function uiOverlay(file,source){
     source=replace(source,"    setMusic(on){\n      A.musicOn = on;","    status(){ return !A.musicOn ? 'off' : A.unlocked && A.ctx && A.ctx.state === 'running' ? 'playing' : 'waiting'; },\n    onState(fn){ stateFns.push(fn); },\n    setMusic(on){\n      A.musicOn = on; notify();");
   }
   if(file==='js/main.js'){
+    // The band's creak and the outcome tag end when the band is let go, also while the shared sky decides or refuses.
+    source=replace(source,"  world.on('shared-pending', () => {","  world.on('shared-pending', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); ");
+    source=replace(source,"  world.on('shared-denied', () => {","  world.on('shared-denied', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); ");
+    source=replace(source,"  world.on('launch-denied', x => {\n    audio.back();","  world.on('launch-denied', x => {\n    audio.aimEnd(); $('#outcomeTag').classList.remove('show');\n    audio.back();");
     // Phones grant audio on pointerup/touchend/click, not on pointerdown: keep listening until a gesture counts.
     source=replace(source,`  const unlock = () => audio.unlock();
   addEventListener('pointerdown', unlock, {once:true, capture:true});

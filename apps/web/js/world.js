@@ -1094,6 +1094,7 @@ export function createWorld(canvas, opts = {}){
     band.visible = false; path.visible = false;
     if(aim.s < 0.06){ W.benchState = 'pad'; settleBack = 0.3; emit('aim-cancel'); return null; }
     if(aim.dirty || !aim.pred) runPredict();
+    band.visible = false; path.visible = false;
     if(W.shared && !W.padToy){
       if(W.readOnly){ emit('shared-denied'); return null; }
       const p0 = restPos(new THREE.Vector3());
@@ -1400,7 +1401,7 @@ export function createWorld(canvas, opts = {}){
         // en la plataforma se ilumina desde el fuego y desde tu lado: nunca queda a contraluz
         ctxBody.light.copy(SUN).lerp(camera.position, W.benchState === 'toPad' ? 0.3 : 0.55); ctxBody.mode = 'galaxy';
         b.manualSpin = false;
-        if(W.benchState === 'pad'){
+        if(W.benchState === 'pad' || W.benchState === 'launching'){
           const rest = restPos(_hp).setY(LIFT + (RM ? 0 : Math.sin(W.t*2)*0.08));
           b.root.position.lerp(rest, settleBack > 0 ? 0.35 : 1);
           settleBack = Math.max(0, settleBack - dt);
