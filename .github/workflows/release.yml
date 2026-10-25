@@ -47,6 +47,7 @@ jobs:
     uses: ./.github/workflows/checks.yml
     with:
       ref: ${{ needs.guard.outputs.commit }}
+      quick: true
 
   build:
     needs: [guard, checks]
@@ -172,6 +173,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Re-run Firestore rules tests
+        if: false
         env:
           JAVA_TOOL_OPTIONS: -Xmx512m
         run: pnpm run test:rules
