@@ -166,6 +166,9 @@ export async function prepareGalaxies(database: Firestore) {
         createdAt: live.readTime.toMillis(),
         deploymentStarted: false,
       });
+    // A failed earlier run restored the season and cleared this; record it again before closing.
+    else if (marker.data()?.seasonOpenBefore === undefined)
+      tx.update(markerRef, { seasonOpenBefore: live.data()!.seasonOpen });
     tx.update(liveRef, { seasonOpen: false });
     return true;
   });

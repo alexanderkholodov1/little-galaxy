@@ -384,6 +384,23 @@ describe('release migration', () => {
     expect(loaded.genesis[0].legacy.orbit).toEqual(legacy.orbit);
     expect(loaded.actions).toHaveLength(0);
   });
+  it('ends a failed-then-retried release with the season as it was', async () => {
+    const { releaseGalaxies } = await import('../../apps/stand/src/galaxies.ts');
+    const db = await adminDb();
+    await patch('config/live', { seasonOpen: true });
+    // Fails in preflight planning, before any deploy: the source cannot be imported.
+    await seed('objects/broken', { ownerUid: 'alice', type: 'planet', status: 'active' });
+    const deploy = async () => {};
+    await expect(releaseGalaxies(db, deploy, async () => {})).rejects.toThrow('Unsupported source');
+    expect((await db.doc('config/live').get()).data().seasonOpen).toBe(true);
+    await db.doc('objects/broken').delete();
+    await releaseGalaxies(db, deploy, async () => {});
+    expect((await db.doc('config/live').get()).data()).toMatchObject({
+      seasonOpen: true,
+      dataLayerVersion: 2,
+    });
+    expect((await db.doc('migrations/galaxies-v1').get()).data().complete).toBe(true);
+  });
   it('retains a closed recovery window after deploy failure and honors emergency close', async () => {
     const { releaseGalaxies, restoreGalaxySeason } = await import(
       '../../apps/stand/src/galaxies.ts'
