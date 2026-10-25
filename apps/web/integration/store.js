@@ -30,7 +30,16 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
     },
     async setName(id,name){
       if(readOnly||loaded.galaxy.status!=='active')throw new Error('This sky is resting. You can look, but cannot launch here.');
-      await backend.store.setName(id,name);return {displayName:name||'',anonymous:!name};
+      const current=loaded.player&&loaded.player.displayName!=='Anonymous'?loaded.player.displayName:'';
+      try{await backend.store.setName(id,name);}
+      catch(error){
+        // Profile writes are five minutes apart; keep the name the sky already knows.
+        if(!/Profile cooldown/.test(error.message))throw error;
+        emit('notice',document.documentElement.lang==='es'?'Podrás cambiar tu nombre de nuevo en unos minutos.':'You can change your name again in a few minutes.');
+        return {displayName:current,anonymous:!current};
+      }
+      loaded.player={...(loaded.player??{}),displayName:name||'Anonymous'};
+      return {displayName:name||'',anonymous:!name};
     },
     async launch(id,raw){
       if(readOnly||document.hidden||!navigator.onLine)throw new Error('The sky cannot hear you while offline. Your star is still in your hand.');

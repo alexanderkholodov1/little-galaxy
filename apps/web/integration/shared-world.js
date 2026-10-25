@@ -65,9 +65,10 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   const onActions=({detail})=>{worker.postMessage({actions:detail,tick:target()});};
   const onManifest=({detail})=>{saveDraft();S.galaxy=detail;readonly();worker.postMessage({tick:target()});};
   const onError=({detail})=>toast(`The sky cannot hear you. Your draft is safe. ${detail.message}`);
+  const onNotice=({detail})=>toast(detail);
   const onSelection=()=>{saveDraft();location.reload();};
   addEventListener('galaxy:actions',onActions);addEventListener('galaxy:manifest',onManifest);
-  addEventListener('galaxy:error',onError);addEventListener('galaxy:selection',onSelection);
+  addEventListener('galaxy:error',onError);addEventListener('galaxy:selection',onSelection);addEventListener('galaxy:notice',onNotice);
   const timer=setInterval(()=>{
     if(!visible)return;
     const tick=target();if(tick!==lastTarget){lastTarget=tick;worker.postMessage({tick});}

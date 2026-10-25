@@ -191,6 +191,15 @@ describe('GalaxyStore memory driver', () => {
     expect((await driver.get('galaxies/g/members/u'))!.displayName).toBe('Alice');
     expect(await store.touch('g')).toBe(false);
   });
+  it('refuses a rename within five minutes of the previous profile write', async () => {
+    const { store, driver } = await fixture();
+    await store.setName('g', 'Alice');
+    const m = (await driver.get('galaxies/g/members/u'))!;
+    await driver.seed('galaxies/g/members/u', { ...m, lastSeen: now - 60_000 });
+    await expect(store.setName('g', 'Bob')).rejects.toThrow('Profile cooldown');
+    await driver.seed('galaxies/g/members/u', { ...m, lastSeen: now - 300_000 });
+    await store.setName('g', 'Bob');
+  });
 });
 
 it('loads a trusted verified checkpoint and only its later tail', async () => {

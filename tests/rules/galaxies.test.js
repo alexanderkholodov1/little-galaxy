@@ -17,6 +17,7 @@ import {
   limit,
   where,
   writeBatch,
+  serverTimestamp,
 } from 'firebase/firestore';
 import {
   createGalaxyStore,
@@ -183,6 +184,18 @@ describe('privacy and administration', () => {
     );
     await assertFails(updateDoc(doc(db, 'galaxies/g/members/alice'), { launches: 999 }));
     expect(await store().touch('g')).toBe(false);
+  });
+  it('allows any profile write, rename included, only five minutes after the previous one', async () => {
+    await store().setName('g', 'Alice');
+    const member = doc(context().firestore(), 'galaxies/g/members/alice');
+    const rename = (displayName) =>
+      updateDoc(member, { displayName, lastSeen: Date.now(), updatedTime: serverTimestamp() });
+    await patch('galaxies/g/members/alice', { updatedTime: new Date(Date.now() - 16000) });
+    await assertFails(rename('Bob'));
+    await patch('galaxies/g/members/alice', { updatedTime: new Date(Date.now() - 299000) });
+    await assertFails(rename('Bob'));
+    await patch('galaxies/g/members/alice', { updatedTime: new Date(Date.now() - 301000) });
+    await assertSucceeds(rename('Bob'));
   });
   it.each([
     {},

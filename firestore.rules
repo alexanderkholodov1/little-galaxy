@@ -455,9 +455,10 @@ service cloud.firestore {
         && d.dayLaunches == (old.get('window','') == h.window ? old.get('dayLaunches',0) : 0) + (launch ? 1 : 0)
         && (launch || d.diff(old).affectedKeys().hasOnly(['lastSeen','lastMutationAt','window','dayLaunches','updatedTime','mutationTime']));
     }
+    // Renames are outside the daily mutation ceiling, so every profile write waits five minutes.
     function bProfile(g,d,old) {
       return d.diff(old).affectedKeys().hasOnly(['displayName','lastSeen','updatedTime']) && bGalaxy(g).status == 'active' && bReadable(g)
-        && request.time >= old.updatedTime + duration.value(d.displayName == old.displayName ? 300 : 15,'s');
+        && request.time >= old.updatedTime + duration.value(300,'s');
     }
     function bInitialProfile(g,d) {
       return d.lastMutationAt == 0 && d.launches == 0 && d.mass == 0 && d.blackholes == 0 && d.stellar == 0

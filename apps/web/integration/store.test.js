@@ -24,3 +24,10 @@ it('uses private name admission and public member labels for named and anonymous
  const {driver,adapter}=await fixture();expect(await adapter.setName('g','Ada')).toEqual({displayName:'Ada',anonymous:false});
  expect((await driver.get('galaxies/g/members/player')).displayName).toBe('Ada');expect(adapter.owner()).toBe('public-member');adapter.stop();
 });
+it('keeps the current name and explains the wait when a rename comes within five minutes',async()=>{
+ const {adapter}=await fixture(),notices=[];const listen=({detail})=>notices.push(detail);addEventListener('galaxy:notice',listen);
+ await adapter.setName('g','Ada');
+ expect(await adapter.setName('g','Grace')).toEqual({displayName:'Ada',anonymous:false});
+ expect(notices).toEqual(['You can change your name again in a few minutes.']);
+ removeEventListener('galaxy:notice',listen);adapter.stop();
+});

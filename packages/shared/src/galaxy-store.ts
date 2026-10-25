@@ -946,7 +946,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
       const now = options.now();
       await driver.transaction(async (tx) => {
         const old = await tx.get<Member>(pathMember(id));
-        check(!old || now - old.lastSeen >= 15_000, 'Profile cooldown');
+        check(!old || now - old.lastSeen >= 300_000, 'Profile cooldown');
         tx.set(pathMember(id), {
           ...(old ?? initialMember(options.memberId, now)),
           displayName: name,
