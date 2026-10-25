@@ -139,8 +139,8 @@ async function boot(){
   world.on('frame', onFrame);
   wireWorldEvents();
   startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});
-  world.on('shared-pending', () => {aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
-  world.on('shared-denied', () => {aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});
+  world.on('shared-pending', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
+  world.on('shared-denied', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});
   indexLayers();
   setMode('home', {instant:true});
   glass.scan();
@@ -160,8 +160,7 @@ async function boot(){
     world.parallax.y = clamp((e.beta - 40)/30, -1, 1);
   }, {passive:true});
   const unlock = () => audio.unlock();
-  addEventListener('pointerdown', unlock, {once:true, capture:true});
-  addEventListener('keydown', unlock, {once:true, capture:true});
+  for(const g of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(g, unlock, {capture:true, passive:true});
   setupTheme();
   setupShake();
   setupScreen({world,labels});
@@ -786,6 +785,7 @@ function wireWorldEvents(){
     if(S.flight && S.flight.entry === e && !S.flight.shown) showResult('puff', e);
   });
   world.on('launch-denied', x => {
+    audio.aimEnd(); $('#outcomeTag').classList.remove('show');
     audio.back();
     const msg = () => t('launch.denied.' + x.reason);
     toast(msg());
@@ -879,6 +879,8 @@ function updateSystems(force){
 function setupSound(){
   const m = $('#btnMusic');
   m.setAttribute('aria-pressed', S.musicOn);
+  m.dataset.audio = audio.status();
+  audio.onState(s => { m.dataset.audio = s; });
   m.addEventListener('click', () => {
     S.musicOn = !S.musicOn; m.setAttribute('aria-pressed', S.musicOn);
     audio.unlock(); audio.setMusic(S.musicOn); savePrefs();

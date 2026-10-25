@@ -117,7 +117,7 @@
 }
 .pu-body::-webkit-scrollbar{display:none}
 .pu-grp{display:flex;flex-direction:column;gap:9px}
-.pu-panel.pu-in .pu-grp{
+.pu-panel.pu-open .pu-grp{
   animation:fadeup .5s var(--out) both;
   animation-delay:calc(var(--i, 0)*40ms + 90ms);
 }
