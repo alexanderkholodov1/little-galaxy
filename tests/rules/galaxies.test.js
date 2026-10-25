@@ -292,6 +292,28 @@ describe('hostile clients bypassing adapter admission', () => {
       await assertFails(s.launch('g', intent()));
     }
   });
+  it('refuses an edit that would create a body nobody launched', async () => {
+    const real = firestoreGalaxyDriver(context('mallory').firestore());
+    // A hostile client pretends the body exists so its own ownership precheck passes.
+    const ghost = { id: 'ghost', memberId: 'm-mallory', kind: 'planet', system: '0', parent: '',
+      moons: 0, design: {}, tombstone: false, lastAction: '' };
+    const s = createGalaxyStore(
+      {
+        ...real,
+        transaction: (run) =>
+          real.transaction((tx) =>
+            run({ get: (p) => (p.endsWith('/objects/ghost') ? ghost : tx.get(p)), set: tx.set }),
+          ),
+      },
+      { uid: 'mallory', memberId: 'm-mallory', now: () => Date.now(), admin: true },
+    );
+    await store('mallory').setName('g', 'Mallory');
+    const edit = { id: 'evil', type: 'edit', bodyId: 'ghost', design: { colour: 1 } };
+    await assertFails(s.edit('g', { ...edit, effectiveTick: intent().effectiveTick }));
+    expect((await getDoc(doc(context().firestore(), 'galaxies/g/actions/evil'))).exists()).toBe(
+      false,
+    );
+  });
   it('rejects forged effective time and generation', async () => {
     for (const field of ['generation', 'effectiveTick'])
       await assertFails(

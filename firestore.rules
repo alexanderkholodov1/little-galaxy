@@ -473,14 +473,14 @@ service cloud.firestore {
       allow update: if bMemberSchema(request.resource.data) && (own(uid) && (bProfile(g,request.resource.data,resource.data) || bMemberWrite(g,request.resource.data,resource.data))
         || (bAdmin() || (signed() && bGalaxy(g).owner == request.auth.uid)) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','updatedTime']));
     }
+    // Only a launch creates a body. Edits and removals use the update path and its ownership check.
     function bObject(g,d,o) {
       let h = bHead(g); let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data; let i = a.intent;
       return signed() && h.updatedTime == request.time && d.lastAction == i.id
-        && (i.type == 'launch' ? o == i.id
-          && d.keys().hasOnly(['id','memberId','displayName','kind','system','parent','moons','design','launch','tombstone','lastAction'])
-          && d.id == i.id && d.memberId == a.memberId && d.displayName == a.displayName && d.kind == i.kind && d.system == i.system
-          && d.parent == i.get('parent','') && d.moons == 0 && d.design == i.design && d.launch == i && d.tombstone == false
-          : i.bodyId == o);
+        && i.type == 'launch' && o == i.id
+        && d.keys().hasOnly(['id','memberId','displayName','kind','system','parent','moons','design','launch','tombstone','lastAction'])
+        && d.id == i.id && d.memberId == a.memberId && d.displayName == a.displayName && d.kind == i.kind && d.system == i.system
+        && d.parent == i.get('parent','') && d.moons == 0 && d.design == i.design && d.launch == i && d.tombstone == false;
     }
     match /galaxies/{g}/control/{name} {
       allow get: if name in ['head','certified'] && bReadable(g);

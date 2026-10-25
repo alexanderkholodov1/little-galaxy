@@ -1,5 +1,5 @@
 // @vitest-environment node
-import {expect,it} from 'vitest';
+import {expect,it,vi} from 'vitest';
 import {Replay, encodeDesign, decodeDesign, launchIntent, KERNEL} from './replay.js';
 const galaxy={id:'test',generation:1,epoch:0,kernel:KERNEL,status:'active'};
 const action=(sequence,kind='planet',tick=sequence*120)=>({generation:1,sequence,memberId:'alice',displayName:'Alice',acceptedAt:0,
@@ -61,4 +61,14 @@ it('retains legacy orbital elements, inclination and specimen names from genesis
  const r=new Replay({galaxy,genesis:[record],actions:[]}),entry=[...r.entries.values()][0],body=r.sim.byId(entry.id);
  expect(entry.name).not.toContain('legacy');expect(entry.design.pal).toBe(2);expect(body.p[1]).not.toBe(0);
  expect(Math.atan(body.p[1]/body.p[2])).toBeCloseTo(.1,10);
+});
+it('skips and reports once an accepted edit or removal whose body is unknown, so the galaxy still loads',()=>{
+ const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+ const ghost={generation:1,sequence:2,memberId:'mallory',displayName:'Mallory',acceptedAt:0,intent:{id:'evil',type:'edit',bodyId:'ghost',design:{colour:1},effectiveTick:240}};
+ const gone={...ghost,sequence:3,intent:{id:'gone',type:'remove',bodyId:'ghost',reason:'x',effectiveTick:360}};
+ const r=new Replay({galaxy,genesis:[],actions:[action(1),ghost,gone]});
+ expect(r.advanceTo(600)).toBe(true);expect(r.sequence).toBe(3);expect(r.entries.size).toBe(1);
+ r.reset();r.advanceTo(600);
+ expect(warn).toHaveBeenCalledTimes(2);expect([...r.skipped]).toEqual(['evil','gone']);
+ warn.mockRestore();
 });

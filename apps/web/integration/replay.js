@@ -47,7 +47,7 @@ export class Replay {
   constructor({galaxy,genesis=[],actions=[],checkpoint=null,trusted=false}){
     if(galaxy.kernel !== KERNEL) throw new Error('Unsupported simulation kernel');
     if(checkpoint && !trusted) throw new Error('Checkpoint must be verified');
-    this.galaxy=clone(galaxy);this.genesis=clone(genesis);this.checkpoint=checkpoint;this.actions=[];
+    this.galaxy=clone(galaxy);this.genesis=clone(genesis);this.checkpoint=checkpoint;this.actions=[];this.skipped=new Set();
     this.reset();this.accept(actions);
   }
   reset(){
@@ -130,8 +130,11 @@ export class Replay {
     }
     else {
       const id=this.ids.get(i.bodyId),e=this.entries.get(id),b=this.sim.byId(id);
-      if(!e||!b) throw new Error('Unknown action body');
-      if(i.type==='remove'){this.sim.remove(b);this.entries.delete(id);}
+      // An accepted fact about a body this log never created changes nothing; it must not stop loading.
+      if(!e||!b){
+        if(!this.skipped.has(i.id)){this.skipped.add(i.id);console.warn(`Skipped accepted ${i.type} ${i.id}: unknown body ${i.bodyId}`);}
+      }
+      else if(i.type==='remove'){this.sim.remove(b);this.entries.delete(id);}
       else e.design={...e.design,...decodeDesign(e.design.type,e.design.seed,i.design)};
     }
     this.sequence=a.sequence;

@@ -206,7 +206,10 @@ writer cannot reset body/profile data after a different writer finishes and phon
 line. `PROTOTYPE_KERNEL` pins the SHA-256 of the exact upstream DOM-free simulation sources.
 The import prepares this same kernel version; unknown versions fail visibly instead of seeding
 an invented local world. The worker replays accepted facts in integer tick order, rewinding a
-late action, and keeps cosmetic throws outside the authoritative simulation.
+late action, and keeps cosmetic throws outside the authoritative simulation. Only a launch can create
+a body document; edits and removals must update an existing body they own. Should an edit or
+removal of an unknown body ever be in an accepted log, replay skips it and warns once rather
+than refusing to load the galaxy.
 
 The per-type design codec maps prototype controls to B1's bounded integer fields. Launches are
 quantized to millionths and aimed 2.4 seconds ahead of anchored server time; the specimen stays
