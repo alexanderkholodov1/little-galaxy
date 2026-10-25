@@ -24,8 +24,6 @@ export function createAudio(){
     if(!AC) return false;
     const ctx = A.ctx = new AC();
     ctx.addEventListener('statechange', notify);
-    // iOS: play as a game's soundtrack, not as ambient sound the ringer switch silences
-    try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(_){}
     if(ctx.state !== 'running') ctx.resume().catch(() => {});
     comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.3;
@@ -53,13 +51,21 @@ export function createAudio(){
     musicEngine = createMusic({ctx, out:music, verb:verbIn, hz, voice, noise, kalimba, bell,
       seed:(Math.random()*2**32)>>>0});
     musicEngine.setVolume(A.musicVol*.8/.7);
-    // R10: ya no se suspende al ocultar la página (eso callaba la música para siempre en algunos teléfonos);
-    // al volver, se reanuda si el sistema la suspendió, y el motor se re-ancla sin reproducir lo atrasado
-    document.addEventListener('visibilitychange', () => {
+    // Operador (2026-10-25): con el navegador minimizado o el teléfono apagado no debe sonar nada.
+    // Al ocultar: fundido corto y suspensión. Al volver: se reanuda y el motor se re-ancla sin reproducir lo atrasado.
+    const quiet = () => {
+      if(!A.ctx || A.ctx.state !== 'running') return;
+      const t = A.ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0, t, .05);
+      setTimeout(() => { if(document.hidden && A.ctx.state === 'running') A.ctx.suspend().catch(() => {}); }, 250);
+    };
+    const wake = () => {
       if(document.hidden || !A.ctx || A.ctx.state === 'closed') return;
-      if(A.ctx.state === 'running') musicEngine.resume();
-      else A.ctx.resume().catch(() => {});
-    });
+      const back = () => { const t = A.ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(.85, t, .3); musicEngine.resume(); };
+      if(A.ctx.state === 'running') back(); else A.ctx.resume().then(back).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', () => document.hidden ? quiet() : wake());
+    addEventListener('pagehide', quiet);
+    addEventListener('pageshow', wake);
     return true;
   }
   const now = () => A.ctx.currentTime;
