@@ -845,7 +845,7 @@ function wireWorldEvents(){
   world.on('binary', (e, x) => {
     if(!x.formed) return;
     if(flightOf(e) || flightOf(x.other)){ audio.settle(); showResult('binary', S.flight.entry); return; }
-    toast(t('galaxy.toast.binary', {name:nameOf(e.fire ? x.other : e)}));
+    // Fair 2026-10-25 (operator): no notice for other people's double systems; it fired all the time.
   });
   world.on('system', e => {
     audio.cometBack();
