@@ -72,3 +72,19 @@ it('skips and reports once an accepted edit or removal whose body is unknown, so
  expect(warn).toHaveBeenCalledTimes(2);expect([...r.skipped]).toEqual(['evil','gone']);
  warn.mockRestore();
 });
+it('accepts the same committed launch from Firestore with recursively reordered map keys',()=>{
+ const a=action(1);
+ const reorder=v=>Array.isArray(v)?v.map(reorder):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().reverse().map(k=>[k,reorder(v[k])])):v;
+ const remote=reorder(a);
+ expect(JSON.stringify(remote)).not.toBe(JSON.stringify(a));
+ for(const [first,second] of [[a,remote],[remote,a]]){
+  const r=new Replay({galaxy,actions:[first]});r.advanceTo(180);
+  expect(()=>r.accept([second])).not.toThrow();r.advanceTo(240);
+  expect(r.entries.size).toBe(1);expect(r.actions).toHaveLength(1);
+ }
+});
+it('still rejects duplicate sequences with changed accepted content',()=>{
+ const a=action(1),r=new Replay({galaxy,actions:[a]});
+ expect(()=>r.accept([{...a,intent:{...a.intent,effectiveTick:121}}])).toThrow('Conflicting accepted action');
+ expect(()=>r.accept([{...a,memberId:'another'}])).toThrow('Conflicting accepted action');
+});

@@ -17,7 +17,10 @@ function pump(){
       });
     }
     const ready=replay.advanceTo(target,480);
-    postMessage({state:replay.state(),ready,events:ready?events.slice(-64):[]});events=[];
+    // Catch-up slices are historical, not renderable frames. Publishing them removes live bodies
+    // on resume/late delivery, destroys their trails and visibly rewinds the sky.
+    if(ready)postMessage({state:replay.state(),ready,events:events.slice(-64)});
+    events=[];
     busy=false;
     if(!ready)setTimeout(pump,0);
   }catch(error){busy=false;postMessage({error:error.message});}

@@ -28,6 +28,7 @@ import {
   quotaWindow,
 } from '../../packages/shared/src/galaxy-store.ts';
 import { firestoreGalaxyDriver } from '../../packages/shared/src/firestore-galaxy-driver.ts';
+import { Replay, KERNEL } from '../../apps/web/integration/replay.js';
 let env;
 let now;
 let galaxy;
@@ -84,6 +85,25 @@ beforeEach(async () => {
   await seed('config/admins', { emails: ['kholodov.alexander1@gmail.com'] });
 });
 describe('atomic galaxy admission', () => {
+  it('replays local commit, Firestore log and a returned-session retry as one accepted launch', async () => {
+    const s = store(), i = intent();
+    const local = await s.launch('g', i);
+    const loaded = await s.loadGalaxy('g');
+    const replay = new Replay({galaxy: {...loaded.galaxy, kernel: KERNEL}, actions: [local]});
+    replay.advanceTo(i.effectiveTick);
+    // Firestore maps have no insertion-order contract. Mirror production normalization even
+    // when this emulator happens to preserve the writer's field order.
+    const reorder = value => Array.isArray(value) ? value.map(reorder) : value && typeof value === 'object'
+      ? Object.fromEntries(Object.keys(value).sort().reverse().map(key => [key, reorder(value[key])])) : value;
+    expect(() => replay.accept(reorder(loaded.actions))).not.toThrow();
+    // A lost commit acknowledgement can be retried from another session without another mutation.
+    const returned = await store().launch('g', structuredClone(i));
+    expect(() => replay.accept([returned])).not.toThrow();
+    replay.advanceTo(i.effectiveTick + 120);
+    expect(replay.entries.size).toBe(1);
+    expect((await s.loadGalaxy('g')).head.sequence).toBe(1);
+    await expect(store().launch('g', {...i, seed: i.seed + 1})).rejects.toThrow('Nonce already used');
+  });
   it('accepts a real adapter transaction, loads history and deduplicates a nonce', async () => {
     const s = store(),
       i = intent();
