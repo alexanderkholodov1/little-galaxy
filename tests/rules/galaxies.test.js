@@ -707,3 +707,10 @@ it('never lets a stale migration overwrite a phone edit after another migration 
   });
   expect(copied).toBe(false);
 });
+
+it('lets read-only booth and replay viewers read the public selection without creating Auth identities', async () => {
+  const db=env.unauthenticatedContext().firestore();
+  await assertSucceeds(getDoc(doc(db,'config/live')));
+  await assertFails(getDoc(doc(db,'config/admins')));
+  await assertFails(updateDoc(doc(db,'config/live'),{boothGalaxyId:'other'}));
+});

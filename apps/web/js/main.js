@@ -1,4 +1,5 @@
 import {startSharedWorld} from '../integration/shared-world.js';
+import {setupScreen} from '../integration/screen.js';
 // main.js — Little Galaxy · "Fogata". Orquesta el mundo 3D, el sonido y el vidrio.
 import {createWorld} from './world.js';
 import {TYPES, TYPE_INFO, PALETTES, defaultDesign, normDesign, starColor} from './bodies.js';
@@ -159,6 +160,7 @@ async function boot(){
   addEventListener('pointerdown', unlock, {once:true, capture:true});
   addEventListener('keydown', unlock, {once:true, capture:true});
   setupShake();
+  setupScreen({world,labels});
 
   let last = performance.now();
   const loop = now => { const dt = (now - last)/1000; last = now; world.frame(dt); requestAnimationFrame(loop); };

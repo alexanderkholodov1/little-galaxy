@@ -56,3 +56,12 @@ test('admin removal requires exact-name typing and a three-second hold; freeze c
  await page.locator('#ad-tab-galaxies').click();await page.locator(`[data-galaxy="${id}"] [data-action="freeze"]`).click();
  await expect.poll(()=>withDatabase(async db=>(await db.doc(`galaxies/${id}/control/certified`).get()).data()?.sequence)).toBe(2);
 });
+test('the booth follows the keeper selection and displays a QR for the final game route without writes',async({page})=>{
+ const first=await seedGalaxy(),second=await seedGalaxy();
+ await withDatabase(db=>db.doc('config/live').update({boothGalaxyId:first}));
+ const writes=[];page.on('request',request=>{if(/accounts:signUp|documents:commit|Firestore\/Write/.test(request.url()))writes.push(request.url());});
+ await page.goto('/little-galaxy/screen');await expect(page.locator('body')).toHaveAttribute('data-galaxy',first,{timeout:20000});
+ await expect(page.locator('#boothJoin')).toHaveAttribute('href',/\/little-galaxy\/$/);
+ await withDatabase(db=>db.doc('config/live').update({boothGalaxyId:second}));
+ await expect(page.locator('body')).toHaveAttribute('data-galaxy',second,{timeout:20000});expect(writes).toEqual([]);
+});

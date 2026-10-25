@@ -251,7 +251,7 @@ service cloud.firestore {
     match /seasons/{season}/log/{chunk} { allow get: if season == 'bad-2026' && chunk.matches('^(objects-[0-9a-f]|log-[0-9a-f]{24})$'); }
     match /snapshots/{snapshotId} { allow get: if snapshotId == 'live'; }
     match /config/{configId} {
-      allow get: if signed() && configId == 'live';
+      allow get: if configId == 'live';
       allow update: if configId == 'live' && bAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activePublicGalaxyId','boothGalaxyId'])
         && (request.resource.data.activePublicGalaxyId == resource.data.activePublicGalaxyId || (bGalaxy(request.resource.data.activePublicGalaxyId).visibility == 'public' && bGalaxy(request.resource.data.activePublicGalaxyId).status == 'active'))

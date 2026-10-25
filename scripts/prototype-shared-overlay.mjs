@@ -2,6 +2,7 @@ import {replace} from './prototype-overlay.mjs';
 export function sharedOverlay(file,source){
   if(file==='js/store.js')return "export {createSharedStore as createLocalStore} from '../integration/store.js';\n";
   if(file==='js/main.js'){
+    source="import {setupScreen} from '../integration/screen.js';\n"+source;
     source="import {startSharedWorld} from '../integration/shared-world.js';\n"+source;
     source=replace(source, "from './metrics.js'", "from '../integration/metrics.js'");
     source=replace(source,"booth: QS.has('booth')", "booth: QS.has('booth') || location.pathname.endsWith('/screen'), readOnly: location.pathname.endsWith('/screen') || QS.get('smoke') === 'readonly'");
@@ -12,6 +13,7 @@ export function sharedOverlay(file,source){
     source=source.slice(0,start)+`  world.shared = true;
   try{ const draft = JSON.parse(localStorage.getItem('little-galaxy.workshop')); if(draft){S.design = normDesign(draft.design); S.name = draft.name;} }catch(_){}
 `+source.slice(end);
+    source=replace(source, '  setupShake();', '  setupShake();\n  setupScreen({world,labels});');
     source=replace(source,"  wireWorldEvents();", "  wireWorldEvents();\n  startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});\n  world.on('shared-pending', () => {aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});\n  world.on('shared-denied', () => {aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand');});");
     source=replace(source,'  watchVersion(saveSky);','');
     source=source.replace("import {watchVersion} from '../integration/version.js';\n",'');
@@ -65,6 +67,7 @@ export function sharedOverlay(file,source){
   function failSharedLaunch(){W.benchState='pad'; settleBack=.3; emit('shared-denied');}
 `;
     source=replace(source,'  function serialize(){',methods+'  function serialize(){');
+    source=replace(source, '    frame, resize, setMode,', `    viewState: () => ({az:rig.goal.az,el:rig.goal.el,dist:rig.goal.dist,target:rig.goal.target.toArray()}),\n    restoreView: o => {if([o.az,o.el,o.dist,...(o.target||[])].every(Number.isFinite) && o.target?.length===3) snapTo({...views().home,...o,target:new THREE.Vector3(...o.target)});},\n    frame, resize, setMode,`);
     source=replace(source,'    addEntry, removeEntry, orbitOf,','    applySharedState, completeSharedLaunch, failSharedLaunch,\n    addEntry, removeEntry, orbitOf,');
   }
   if(file==='js/strings/galaxy.js'){

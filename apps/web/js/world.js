@@ -1522,6 +1522,8 @@ export function createWorld(canvas, opts = {}){
 
   return Object.assign(W, {
     on:(ev, fn) => ((listeners[ev] ||= []).push(fn)),
+    viewState: () => ({az:rig.goal.az,el:rig.goal.el,dist:rig.goal.dist,target:rig.goal.target.toArray()}),
+    restoreView: o => {if([o.az,o.el,o.dist,...(o.target||[])].every(Number.isFinite) && o.target?.length===3) snapTo({...views().home,...o,target:new THREE.Vector3(...o.target)});},
     frame, resize, setMode, recenter, homeFocus, isOffHome, focus, project, pxRadius,
     applySharedState, completeSharedLaunch, failSharedLaunch,
     addEntry, removeEntry, orbitOf, systemsInfo, flyToSystem, serialize, loadGalaxy, setBenchDesign, moveBenchToPad, moveBenchBack, startAurora, sparks, warm,
