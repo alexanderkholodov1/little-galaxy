@@ -18,7 +18,8 @@ export function createCertifier({driver,now,load}){
   async function run(id){
     if(!skies.has(id))skies.set(id,await open(id));
     const sky=skies.get(id),root=`galaxies/${id}`;
-    // Taken before reading the log: anything accepted after it is due at least 0.5 s later.
+    // Taken before reading the log. Rules make an action due at least 0.5 s after its commit;
+    // certifying 2 s behind the read also covers a slow commit that the read did not see.
     const readAt=now();
     const galaxy=await driver.get(root);
     if(!galaxy||galaxy.generation!==sky.replay.galaxy.generation||galaxy.kernel!==KERNEL){
@@ -33,7 +34,7 @@ export function createCertifier({driver,now,load}){
     }
     const last=sky.replay.actions.at(-1)?.intent.effectiveTick??0;
     const tick=galaxy.status==='active'&&galaxy.writePolicy!=='frozen'
-      ?Math.floor((readAt-galaxy.epoch-250)*120/1000)
+      ?Math.floor((readAt-galaxy.epoch-2000)*120/1000)
       :Math.max(last,Math.ceil(((galaxy.frozenAt??galaxy.epoch)-galaxy.epoch)*120/1000));
     if(tick<=sky.tick)return null;
     while(!sky.replay.advanceTo(tick,480))await pause();

@@ -253,8 +253,8 @@ rail; velocities are unchanged. B1 supplies no ordinary transfer reservation ext
 UI retains the prototype's unresolved binary recipe and system-orbiting moons.
 
 The keeper can **Save verified sky** during active play as well as on freeze. Certification
-replays the accepted log up to the **current tick** (taken before reading the log, so an action
-accepted afterwards is due later), and a frozen galaxy up to its frozen tick including admitted
+replays the accepted log up to the **current tick** less two seconds (taken before reading the
+log; rules make any action committed afterwards due at least half a second after its commit), and a frozen galaxy up to its frozen tick including admitted
 future launches. While the admin page is open and signed in, it certifies the active public and
 booth galaxies every ten minutes. It keeps each replay in memory, so a save replays only the
 time since the previous one; the first save after opening the page starts from the latest

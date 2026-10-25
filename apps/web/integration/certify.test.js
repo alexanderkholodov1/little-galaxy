@@ -7,7 +7,7 @@ import {unpackLoaded,verifyCertified} from './checkpoint.js';
 const epoch=1_760_000_000_000;
 const action=(sequence,tick,extra={})=>({generation:1,sequence,memberId:'alice',displayName:'Alice',acceptedAt:epoch,hash:'h'+sequence,previousHash:'',
   intent:{id:`body-${sequence}`,type:'launch',kind:'planet',system:'0',effectiveTick:tick,seed:42,origin:[7000000,0],velocity:[0,1463850],design:encodeDesign({type:'planet',size:.5,pal:2,sea:.75}),...extra}});
-const due=ms=>Math.floor((ms-250)*120/1000);
+const due=ms=>Math.floor((ms-2000)*120/1000);
 async function fixture(actions=[],genesis=[],age=60_000){
   let now=epoch+age;
   const driver=new MemoryGalaxyDriver(()=>now);
@@ -64,7 +64,7 @@ it('keeps a 600-body certification far below the 1 MiB Firestore document limit'
   let s=7;const rnd=()=>((s=(s*1103515245+12345)%2147483648)/2147483648);
   const genesis=Array.from({length:600},(_,k)=>({id:'obj'+String(k).padStart(5,'0'),memberId:'m-'+k.toString(16).padStart(24,'0'),displayName:'Anonymous',kind:'planet',system:String(Math.floor(k/30)),
     design:{size:.5,palette:1,oceans:.5},legacy:{nameKey:'quiet-aurora',orbit:{a:3.5+rnd()*16,e:rnd()*.5,inclination:0,omega:rnd()*6-3,meanAnomaly:rnd()*6-3,epoch,direction:1}}}));
-  const f=await fixture([],genesis,1000);
+  const f=await fixture([],genesis,3000);
   const saved=await f.certifier.certify('g');
   const doc=await f.driver.get(`galaxies/g/certifications/0-${saved.tick}`);
   const bytes=new TextEncoder().encode(JSON.stringify(doc)).length;
