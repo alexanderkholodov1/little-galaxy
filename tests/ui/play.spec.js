@@ -125,3 +125,16 @@ for(const size of [{width:390,height:844},{width:1440,height:900}]){
  });
 }
 
+test('the systems list opens from one button and flies to the chosen system',async({page})=>{
+ await page.setViewportSize(phone.viewport);await ready(page,await seedGalaxy());
+ await page.evaluate(()=>{const w=window.__fog.world,real=w.systemsInfo.bind(w);w.systemsInfo=()=>[...real(),{id:'far',p:[140,0,-90],members:2,fire:false,names:['Vega'],kinds:['star']}];w.flown=[];w.flyToSystem=id=>w.flown.push(id);});
+ const button=page.locator('#btnSystems');await expect(button).toBeVisible({timeout:8000});
+ await expect(page.locator('#sysRow')).toHaveCount(0);await expect(page.locator('.sys-chip')).toHaveCount(0);
+ await button.click();
+ const list=page.locator('#sysList');await expect(list).toBeVisible();
+ await expect(list.locator('.sys-item')).toHaveCount(2);await expect(list).toContainText('Vega');await expect(list).toContainText(/2 stars/);
+ await page.keyboard.press('Escape');await expect(list).toBeHidden();
+ await button.click();await list.getByRole('button',{name:/Vega/}).click();
+ await expect(list).toBeHidden();expect(await page.evaluate(()=>window.__fog.world.flown)).toEqual(['far']);
+ await button.click();await list.locator('.x-btn,[data-close]').first().click();await expect(list).toBeHidden();
+});

@@ -852,27 +852,53 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;', '<':'&lt;', '>
 function updateSystems(force){
   if(!world) return;
   const list = world.systemsInfo();
-  let row = $('#sysRow');
-  if(list.length < 2){ if(row) row.hidden = true; return; }
-  if(!row){
-    row = document.createElement('div'); row.id = 'sysRow'; row.className = 'sys-row'; row.setAttribute('role', 'group');
-    $('.layer[data-layer="home"]').append(row);
+  let btn = $('#btnSystems');
+  if(!btn){
+    btn = document.createElement('button'); btn.id = 'btnSystems'; btn.className = 'icon-btn glass sys-btn';
+    btn.setAttribute('aria-haspopup', 'dialog'); btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="6" cy="7" r="2.2"/><circle cx="17" cy="9" r="1.6"/><circle cx="10" cy="17" r="2.6"/></svg>';
+    btn.addEventListener('click', () => { audio.tap(1); $('#sysList') && !$('#sysList').hidden ? closeSystems() : openSystems(); });
+    $('.layer[data-layer="home"]').append(btn);
+    addEventListener('keydown', e => { if(e.key === 'Escape' && $('#sysList') && !$('#sysList').hidden){ e.stopPropagation(); closeSystems(); btn.focus(); } }, true);
   }
-  row.setAttribute('aria-label', t('systems.aria'));
-  row.hidden = false;
+  btn.setAttribute('aria-label', t('systems.aria')); btn.title = t('systems.aria');
+  btn.hidden = list.length < 2;
+  if(btn.hidden) closeSystems();
+  else if($('#sysList') && !$('#sysList').hidden) fillSystems(list, force);
+}
+function openSystems(){
+  let panel = $('#sysList');
+  if(!panel){
+    panel = document.createElement('div'); panel.id = 'sysList'; panel.className = 'glass sys-list'; panel.setAttribute('role', 'dialog');
+    panel.innerHTML = '<b class="sys-list-title"></b><button class="x-btn" data-close><svg aria-hidden="true"><use href="#i-close"/></svg></button><ul></ul>';
+    panel.querySelector('[data-close]').addEventListener('click', () => { audio.back(); closeSystems(); });
+    $('.layer[data-layer="home"]').append(panel);
+  }
+  panel.hidden = false; $('#btnSystems').setAttribute('aria-expanded', 'true');
+  fillSystems(world.systemsInfo(), true);
+  glass.add(panel); glass.refresh(panel);
+}
+function closeSystems(){
+  const panel = $('#sysList'); if(!panel || panel.hidden) return;
+  panel.hidden = true; $('#btnSystems')?.setAttribute('aria-expanded', 'false');
+}
+function fillSystems(list, force){
+  const panel = $('#sysList');
+  panel.setAttribute('aria-label', t('systems.aria'));
+  panel.querySelector('.sys-list-title').textContent = t('systems.aria');
+  panel.querySelector('[data-close]').setAttribute('aria-label', t('focus.close'));
   const sig = list.map(s => s.id + ':' + s.members + ':' + s.names.join(',')).join('|') + getLang();
-  if(row.dataset.sig === sig && !force) return;
-  row.dataset.sig = sig;
-  row.innerHTML = '';
+  if(panel.dataset.sig === sig && !force) return;
+  panel.dataset.sig = sig;
+  const ul = panel.querySelector('ul'); ul.innerHTML = '';
   for(const s of list){
-    const b = document.createElement('button');
-    b.className = 'chip glass sys-chip'; b.title = t('systems.hint');
+    const li = document.createElement('li'), b = document.createElement('button');
+    b.className = 'sys-item'; b.title = t('systems.hint');
     const name = s.fire ? t('systems.fire') : (s.names[0] || t('type.' + (s.kinds[0] === 'blackhole' ? 'blackhole' : 'star') + '.label'));
     b.innerHTML = `<i class="sys-dot${s.fire ? ' fire' : s.kinds.includes('blackhole') ? ' dark' : ''}" aria-hidden="true"></i><span>${esc(name)}</span><small class="num">${esc(t('systems.count', {n:s.members}))}</small>`;
-    b.addEventListener('click', () => { audio.tap(2); closeFocus(); world.flyToSystem(s.id); $('#btnRecenter').hidden = false; });
-    row.append(b);
+    b.addEventListener('click', () => { audio.tap(2); closeSystems(); closeFocus(); world.flyToSystem(s.id); $('#btnRecenter').hidden = false; });
+    li.append(b); ul.append(li);
   }
-  glass.scan();
 }
 
 /* ================================================================== sonido y autor */

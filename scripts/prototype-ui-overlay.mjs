@@ -181,5 +181,77 @@ export function uiOverlay(file,source){
   }
   if(file==='js/ui/prefs.js') source=replace(source,'  music:true, musicVol:.7,','  music:true, musicVol:.55,');
   if(file==='js/audio.js') source=replace(source,'musicOn:true, unlocked:false, musicVol:.7,','musicOn:true, unlocked:false, musicVol:.55,');
+  if(file==='js/main.js'){
+    // One systems button opens a small glass list (name, bodies); choosing one flies there. No chips on the sky.
+    const start=source.indexOf('function updateSystems(force){'), end=source.indexOf('\n  glass.scan();\n}\n', start);
+    if(start<0 || end<0) throw new Error('Prototype seam changed: updateSystems');
+    source=source.slice(0, start)+`function updateSystems(force){
+  if(!world) return;
+  const list = world.systemsInfo();
+  let btn = $('#btnSystems');
+  if(!btn){
+    btn = document.createElement('button'); btn.id = 'btnSystems'; btn.className = 'icon-btn glass sys-btn';
+    btn.setAttribute('aria-haspopup', 'dialog'); btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="6" cy="7" r="2.2"/><circle cx="17" cy="9" r="1.6"/><circle cx="10" cy="17" r="2.6"/></svg>';
+    btn.addEventListener('click', () => { audio.tap(1); $('#sysList') && !$('#sysList').hidden ? closeSystems() : openSystems(); });
+    $('.layer[data-layer="home"]').append(btn);
+    addEventListener('keydown', e => { if(e.key === 'Escape' && $('#sysList') && !$('#sysList').hidden){ e.stopPropagation(); closeSystems(); btn.focus(); } }, true);
+  }
+  btn.setAttribute('aria-label', t('systems.aria')); btn.title = t('systems.aria');
+  btn.hidden = list.length < 2;
+  if(btn.hidden) closeSystems();
+  else if($('#sysList') && !$('#sysList').hidden) fillSystems(list, force);
+}
+function openSystems(){
+  let panel = $('#sysList');
+  if(!panel){
+    panel = document.createElement('div'); panel.id = 'sysList'; panel.className = 'glass sys-list'; panel.setAttribute('role', 'dialog');
+    panel.innerHTML = '<b class="sys-list-title"></b><button class="x-btn" data-close><svg aria-hidden="true"><use href="#i-close"/></svg></button><ul></ul>';
+    panel.querySelector('[data-close]').addEventListener('click', () => { audio.back(); closeSystems(); });
+    $('.layer[data-layer="home"]').append(panel);
+  }
+  panel.hidden = false; $('#btnSystems').setAttribute('aria-expanded', 'true');
+  fillSystems(world.systemsInfo(), true);
+  glass.add(panel); glass.refresh(panel);
+}
+function closeSystems(){
+  const panel = $('#sysList'); if(!panel || panel.hidden) return;
+  panel.hidden = true; $('#btnSystems')?.setAttribute('aria-expanded', 'false');
+}
+function fillSystems(list, force){
+  const panel = $('#sysList');
+  panel.setAttribute('aria-label', t('systems.aria'));
+  panel.querySelector('.sys-list-title').textContent = t('systems.aria');
+  panel.querySelector('[data-close]').setAttribute('aria-label', t('focus.close'));
+  const sig = list.map(s => s.id + ':' + s.members + ':' + s.names.join(',')).join('|') + getLang();
+  if(panel.dataset.sig === sig && !force) return;
+  panel.dataset.sig = sig;
+  const ul = panel.querySelector('ul'); ul.innerHTML = '';
+  for(const s of list){
+    const li = document.createElement('li'), b = document.createElement('button');
+    b.className = 'sys-item'; b.title = t('systems.hint');
+    const name = s.fire ? t('systems.fire') : (s.names[0] || t('type.' + (s.kinds[0] === 'blackhole' ? 'blackhole' : 'star') + '.label'));
+    b.innerHTML = \`<i class="sys-dot\${s.fire ? ' fire' : s.kinds.includes('blackhole') ? ' dark' : ''}" aria-hidden="true"></i><span>\${esc(name)}</span><small class="num">\${esc(t('systems.count', {n:s.members}))}</small>\`;
+    b.addEventListener('click', () => { audio.tap(2); closeSystems(); closeFocus(); world.flyToSystem(s.id); $('#btnRecenter').hidden = false; });
+    li.append(b); ul.append(li);
+  }
+}
+`+source.slice(end+'\n  glass.scan();\n}\n'.length);
+  }
+  if(file==='css/style.css'){
+    source+=`
+/* systems: one button, a small glass list */
+.sys-btn{position:absolute;top:calc(122px + var(--st));left:14px;z-index:2}
+.sys-btn[hidden],.sys-list[hidden]{display:none}
+.sys-list{position:absolute;top:calc(174px + var(--st));left:14px;z-index:3;width:min(280px,calc(100vw - 28px));max-height:min(320px,50vh);overflow:auto;padding:16px 8px 8px;border-radius:20px}
+.sys-list-title{display:block;padding:0 56px 8px 12px;font-size:.86rem;color:var(--crema-2)}
+.sys-list ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.sys-item{width:100%;min-height:44px;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;color:var(--crema);text-align:left}
+.sys-item span{flex:1}
+.sys-item small{color:var(--lav-t);font-size:.74rem}
+.sys-item:hover,.sys-item:focus-visible{background:rgba(255,241,222,.08)}
+@media (min-width:720px){ .sys-btn{top:calc(84px + var(--st));left:28px} .sys-list{top:calc(136px + var(--st));left:28px} }
+`;
+  }
   return source;
 }
