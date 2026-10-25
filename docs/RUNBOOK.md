@@ -33,7 +33,7 @@ Este manual contiene las instrucciones operativas para **Galaxia Colectiva** en 
       Stand startup creates missing `config/live` with closed defaults and preserves existing settings. Explicitly open only when ready. The optional `control init` command refuses to overwrite an existing document.
    3. En la TV: abrir `https://alexanderkholodov.web.app/galaxy/screen`, pulsar **F** para el modo quiosco (el cursor se oculta a los 2.5 s). Tras un reload, el layout quiosco se restaura automáticamente; pulsar **F** restaura de inmediato la pantalla completa del navegador.
    4. Probar desde el teléfono: escanear el QR, lanzar un planeta y confirmar que aparece en la TV.
-3. **Durante el día**: escenas y kill switches vía `control`; monitorear cuota Spark; rollback desde el checkout de portfolio.
+3. **Durante el día**: escenas y kill switches vía `control`; monitorear cuota Spark; rollback desde el checkout de portfolio. Alpha.2 (§14): certificar la galaxia de la feria justo antes de abrir y dejar abierta la página del guardián (certifica cada 10 min); **N** oculta los nombres en la TV; volver a alpha.1 deja alpha.1 solo para mirar.
 4. **Cierre**: cerrar temporada con `seasonOpen off`. La exportación estática reproducible hoy es el ensayo `freeze-season` **solo contra emulador demo** (sección 10). La publicación de producción en `/galaxy/season/…` es un hito posterior; verificar el timelapse estático cuando ese camino exista.
 
 ---
@@ -234,6 +234,13 @@ pnpm run rollback
 From Galaxy: `node ../portfolio-v0.3.0/scripts/rollback.mjs --dry-run` (path may be `../portfolio` depending on checkout layout).
 
 Rollback restores the previous Hosting release pointer. It does not change `games.json`. Client tabs missing chunks soft-reload once via `galaxy.reload_guard`; drafts and screen camera stay in `localStorage`.
+
+**Rolling Hosting back from alpha.2 to alpha.1 gives a view-only alpha.1.** The alpha.2 release
+migration sets `config/live.dataLayerVersion: 2`, and every alpha.1 write rule requires version 1,
+so alpha.1 phones can look at the old sky but cannot launch or edit; nothing sets the version
+back, and the alpha.2 galaxy keeps its own history. To restore play, roll forward to alpha.2.
+Phones that already followed the `/galaxy` → `/little-galaxy/` redirect may have cached it
+(the portfolio patches use 301), so after a rollback they can still land on `/little-galaxy/`.
 
 ### Preview deploy / smoke (portfolio)
 
@@ -742,14 +749,29 @@ is used. This change does not deploy rules or enable providers automatically.
 The release game mounts at `/little-galaxy/`; admin at `/little-galaxy/admin`. The admin retains
 the prototype's ledger layout, with Google identity checked independently by Firestore rules.
 Start fresh by creating another galaxy, then select **Open to public** and **Show at fair**
-independently. The account limit is three galaxies. Freeze retains accepted future launches,
-closes writes and publishes a verified, pinned-kernel replay certification for later joins.
-Archive retains the same history; switch both selections first.
+independently. **Open to public** and **Freeze** first show a sheet saying what happens (every
+playing phone reloads into the newly opened galaxy; a frozen galaxy becomes read-only); one tap
+confirms, Esc cancels. Only allowlisted keepers can create galaxies; the account limit is three.
+Freeze retains accepted future launches, closes writes and publishes a verified, pinned-kernel
+replay certification for later joins. Archive retains the same history; switch both selections
+first.
 
-During active play, **Save verified sky** publishes an immutable accepted prefix through its
-last reached launch tick. Later phones verify that cache and replay subsequent actions. Save
-after a busy period or before restarting the booth; there is no periodic checkpoint writer.
-Cold complex histories can take time to rebuild, so confirm recovery on the actual phones.
+During active play, **Save verified sky** certifies the sky up to the current tick. While the
+admin page stays open and signed in, it also certifies the active public galaxy and the booth
+galaxy automatically every ten minutes. A phone that opens or comes back restores the newest
+certification and replays only the time since then. Keep the keeper page open on the laptop all
+day (it does not need to be visible; quota: `alpha2-b1-quota.md`, 144 writes for twelve hours).
+How long a late join takes depends on the body count (P2 report, "Late-join replay time"): on a
+desktop core, 30 bodies replay ten minutes in about 2 s, 300 bodies in about 3.5 minutes (about
+5 minutes counting the time that passes meanwhile); a phone is slower.
+
+**Certify the fair galaxy right before opening.** Open the admin page, sign in and press
+**Save verified sky** on the fair galaxy, then leave the page open. The first save replays from
+the previous certification, or from genesis (the migration time) if there is none, so it takes
+longer the longer ago the migration ran. Run the release migration the same morning, shortly
+before opening, unless the galaxy has few bodies. Wait for "Verified sky saved" before opening
+the doors. Then open the game on a phone that has never loaded it and check that it is ready
+within seconds.
 
 A body removal shows the exact galaxy/count, requires typing its name, then a three-second
 Space/pointer hold and release. A click or Enter cannot confirm. The browser verifies and
@@ -767,6 +789,12 @@ Booth: `/little-galaxy/screen` follows `config/live.boothGalaxyId` independently
 Its QR always points to `/little-galaxy/`. Press **F** or the fullscreen button after loading.
 The camera survives reloads. Names use the prototype's bounded label overlay. This public viewer
 creates no Auth identity and performs no Firestore writes; `config/live` is public read-only.
+
+**Hide names on the booth:** press **N** on the TV's keyboard, or the **Names** button under the
+QR (it dims when idle; move the mouse to see it). Press again to show them. The TV remembers the
+choice across reloads in its own browser storage. Phones still see their own names. The game
+refuses rude words when a name is chosen, but a tampered phone could still write one; names are
+frozen into the accepted log, so hiding them on the TV is the remedy during the fair.
 
 Timelapse: open a frozen galaxy's **Watch the timelapse** link, or
 `/little-galaxy/timelapse?g=<id>`. Play/pause, choose speed and scrub the continuous ruler.
