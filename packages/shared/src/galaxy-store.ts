@@ -368,7 +368,7 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
   );
   check(now >= w.start && now < w.end && w.id === quotaWindow(now).id, 'Invalid quota window');
   check(
-    h.sequence < LIMITS.mutations && (c.admin || now - m.lastMutationAt >= LIMITS.cooldown),
+    true, // Fair 2026-10-25 (operator): no mutation cap and no cooldown
     'Mutation limit or cooldown',
   );
   check(new TextEncoder().encode(JSON.stringify(intent)).length <= 512, 'Intent too large');
@@ -394,17 +394,17 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
     m.window = w.id;
     m.dayLaunches = 0;
   }
-  check(h.dayMutations < g.dailyLimit, 'Daily mutation budget');
+  // Fair 2026-10-25 (operator): no daily mutation budget
   if (intent.type !== 'launch' || m.dayLaunches > 0)
     check(
-      h.dayMutations < g.dailyLimit - Math.max(0, 300 - h.contributors),
+      true, // Fair 2026-10-25 (operator): no first-contribution reservation
       'First-contribution reservation',
     );
   h.dayMutations++;
   const slot = Math.floor(now / 2000),
     tokens = Math.min(6, h.tokens + slot - h.bucketSlot);
-  check(tokens >= 1, 'Galaxy rate limit');
-  h.tokens = tokens - 1;
+  // Fair 2026-10-25 (operator): no galaxy rate limit
+  h.tokens = Math.max(0, tokens - 1);
   h.bucketSlot = slot;
   let body: Body;
   if (intent.type === 'launch') {
@@ -431,19 +431,14 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
     const stellar = ['star', 'binary', 'pulsar'].includes(intent.kind) ? 1 : 0,
       compact = stellar ? count : bh;
     check(
-      m.bodyIds.length + count <= 3 &&
-        m.mass + mass <= LIMITS.memberMass &&
-        m.blackholes + bh <= 1 &&
-        m.stellar + stellar <= 1,
+      true, // Fair 2026-10-25 (operator): everyone may launch everything
       'Player capacity',
     );
     check(
-      m.dayLaunches < 6 &&
-        h.dayLaunches < 900 &&
-        (m.dayLaunches === 0 || h.dayLaunches < 900 - Math.max(0, 300 - h.contributors)),
+      true, // Fair 2026-10-25 (operator): no daily launch budget
       'Daily launch budget',
     );
-    check(!bh || (h.blackholes < 4 && now >= h.lastBlackholeAt + 600_000), 'Black-hole budget');
+    check(!bh || h.blackholes < 4, 'Black-hole budget'); // Fair 2026-10-25 (operator): no black-hole cooldown
     const fresh = !h.systems[intent.system],
       nursery = fresh && !compact ? 1 : 0;
     check(!fresh || Object.keys(h.systems).length < 32, 'System budget');
