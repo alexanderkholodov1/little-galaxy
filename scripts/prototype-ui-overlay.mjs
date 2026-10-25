@@ -21,6 +21,10 @@ export function uiOverlay(file,source){
     // shared sky rests back on the pad instead of hanging where the band was let go.
     source=replace(source,'    if(aim.dirty || !aim.pred) runPredict();\n','    if(aim.dirty || !aim.pred) runPredict();\n    band.visible = false; path.visible = false;\n');
     source=replace(source,"        if(W.benchState === 'pad'){","        if(W.benchState === 'pad' || W.benchState === 'launching'){");
+    // A draft left in the workshop (or set aside while tossing) waits off-sky: it never floats in the galaxy view.
+    source=replace(source,'      b.update(ctxBody);\n','      b.root.visible = !(W.mode === \'home\' && (W.benchState === \'bench\' || W.benchState === \'toBench\'));\n      b.update(ctxBody);\n');
+    source=replace(source,'      stash.root.position.copy(BENCH); stash.root.scale.setScalar(1);','      stash.root.position.copy(BENCH); stash.root.scale.setScalar(1); stash.root.visible = false;');
+    source=replace(source,"    W.benchBody = stash; W.benchState = stash ? 'bench' : 'none';","    W.benchBody = stash; W.benchState = stash ? 'bench' : 'none';\n    if(stash) stash.root.visible = true;");
   }
   if(file==='js/audio.js'){
     source=replace(source,"debug(){ return {ctx: A.ctx ? A.ctx.state : 'none',","debug(){ return {ctx: A.ctx ? A.ctx.state : 'none', creak:!!creak,");

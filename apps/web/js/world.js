@@ -941,7 +941,7 @@ export function createWorld(canvas, opts = {}){
     hop = null;
     if(W.benchBody && W.benchState !== 'gone' && W.benchState !== 'none'){
       stash = W.benchBody;
-      stash.root.position.copy(BENCH); stash.root.scale.setScalar(1);
+      stash.root.position.copy(BENCH); stash.root.scale.setScalar(1); stash.root.visible = false;
     }
     W.benchBody = null; W.benchState = 'none';
     pad.visible = true;
@@ -953,6 +953,7 @@ export function createWorld(canvas, opts = {}){
     if(W.benchBody && W.padToy){ scene.remove(W.benchBody.root); W.benchBody.dispose(); }
     W.padToy = null;
     W.benchBody = stash; W.benchState = stash ? 'bench' : 'none';
+    if(stash) stash.root.visible = true;
     stash = null;
   }
   function loadToy(design, {shower = 0} = {}){
@@ -1407,6 +1408,7 @@ export function createWorld(canvas, opts = {}){
           settleBack = Math.max(0, settleBack - dt);
         }
       }
+      b.root.visible = !(W.mode === 'home' && (W.benchState === 'bench' || W.benchState === 'toBench'));
       b.update(ctxBody);
     }
     // banco: rueda de alfarero; solo existe cerca del taller (de lejos flotaba en el espacio como un objeto raro)

@@ -58,3 +58,17 @@ test('a star launch stops the band sound and clears the aim, accepted or refused
  v=await view(page);expect((await sound(page)).creak).toBe(false);expect(v.path).toBe(false);
  await page.waitForTimeout(1200);v=await view(page);expect(v.bench.state).toBe('pad');
 });
+
+test('leaving the workshop without launching takes the draft out of the sky',async({page})=>{
+ await page.setViewportSize(phone.viewport);await ready(page,await seedGalaxy());
+ await page.locator('#btnCreate').click();await expect.poll(async()=>(await view(page)).bench?.state).toBe('bench');
+ await page.waitForTimeout(1500);await page.locator('#wsBack').click();
+ await page.waitForTimeout(2500);
+ const bench=(await view(page)).bench;expect(bench===null||bench.visible===false).toBe(true);
+ // back in the workshop the draft is there again, unchanged
+ await page.locator('#btnCreate').click();await expect.poll(async()=>(await view(page)).bench?.visible).toBe(true);
+ await page.locator('#btnToPad').click();await page.locator('.pu-in').fill('Ida');await page.locator('.pu-cta').click();
+ await page.waitForFunction(()=>window.__fog.world.benchState==='pad');
+ await page.locator('#lpBack').click();await page.waitForTimeout(500);await page.locator('#wsBack').click();await page.waitForTimeout(2800);
+ const after=(await view(page)).bench;expect(after===null||after.visible===false).toBe(true);
+});
