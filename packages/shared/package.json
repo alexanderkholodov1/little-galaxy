@@ -3,11 +3,17 @@
   "private": true,
   "type": "module",
   "version": "1.0.0-alpha.1",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./firestore": "./src/firestore-galaxy-driver.ts"
+  },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --pool=threads"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "firebase": "^13.0.0"
+  }
 }

@@ -19,3 +19,4 @@ export * from './interactions.js';
 export * from './season.js';
 
 export { skyBucket, SKY_ALPHABET } from './sky.js';
+export * from './galaxy-store.js';
