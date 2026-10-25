@@ -266,7 +266,6 @@ export default {
     'author.title': 'Autor',
     'author.close': 'Cerrar la ficha del autor',
     'author.who': 'Alexander Kholodov · USFQ',
-    'author.portfolio': 'Portafolio',
     'author.tech': '3D con three.js · sonido y gravedad generados en tu navegador · tipografías Unbounded y Figtree',
 
     'err.title': 'El cielo no pudo encenderse',
@@ -522,7 +521,6 @@ export default {
     'author.title': 'Author',
     'author.close': 'Close the author sheet',
     'author.who': 'Alexander Kholodov · USFQ',
-    'author.portfolio': 'Portfolio',
     'author.tech': '3D with three.js · sound and gravity generated in your browser · Unbounded and Figtree typefaces',
 
     'err.title': 'The sky couldn’t light up',
