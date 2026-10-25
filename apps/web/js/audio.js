@@ -13,7 +13,7 @@ export {PIECES};
 const TYPE_TIMBRE = {planet:0, giant:-5, star:5, binary:3, moon:7, asteroid:-3, comet:9, nebula:2, pulsar:8, blackhole:-8};
 
 export function createAudio(){
-  const A = {ctx:null, sfxOn:true, musicOn:true, unlocked:false, musicVol:.7, sfxVol:.8};
+  const A = {ctx:null, sfxOn:true, musicOn:true, unlocked:false, musicVol:.55, sfxVol:.8};
   let master, sfx, music, verbIn, noiseBuf, comp, musicEngine = null;
   const stateFns = [];
   const notify = () => stateFns.forEach(fn => fn(S.status()));

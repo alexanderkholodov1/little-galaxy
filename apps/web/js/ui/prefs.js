@@ -7,7 +7,7 @@ const KEY = 'fogata.prefs.v2', KEY1 = 'fogata.prefs.v1';
 
 export const DEFAULTS = {
   lang:null,                                  // sigue al i18n del lead
-  music:true, musicVol:.7,
+  music:true, musicVol:.55,
   sfx:true, sfxVol:.8,
   names:'auto',                               // 'auto' | 'all' | 'mine' | 'none'
   motion:'system',                            // 'system' | 'reduce' | 'full'

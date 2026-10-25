@@ -138,5 +138,27 @@ export function uiOverlay(file,source){
 @keyframes music-wait{0%,100%{opacity:1}50%{opacity:.4}}
 `;
   }
+  if(file==='js/music.js'){
+    // Calmer score: slower tempi, fewer and softer notes, three-note pads that barely overlap, no loud thumps.
+    for(const [a,b] of [["bpm:48, minutes:5, metre:4","bpm:40, minutes:5, metre:4"],["bpm:76, minutes:6, metre:4","bpm:56, minutes:6, metre:4"],["bpm:60, minutes:5.5, metre:3","bpm:50, minutes:5.5, metre:3"],["bpm:68, minutes:6.5, metre:4","bpm:52, minutes:6.5, metre:4"]]) source=replace(source,a,b);
+    source=replace(source,"const lift=[.82,1,1.1,.88][section]","const lift=[.86,1,1.04,.9][section]");
+    // while the next piece fades in, the outgoing one only lets its last chord ring: no two melodies at once
+    source=replace(source,"    if(time>=p.end-.06) return;","    if(time>=p.end-(instrument==='pad'?2*FADE:FADE)) return;");
+    source=replace(source,"  function pad(duration, gain=.037) {\n    root.forEach((deg,i)=>add('pad', i*.021, deg, gain*(i===0?1:.47), duration, 3.2));","  function pad(duration, gain=.026) {\n    [root[0],root[2],root[4]].forEach((deg,i)=>add('pad', i*.021, deg, gain*(i===0?1:.47), duration, 3.6));");
+    source=replace(source,"    if(bar%2===0) pad(length*2+2);\n    let degree=5+Math.floor(rng()*7);\n    const n=section===0?2:3+Math.floor(rng()*3);\n    for(let i=0;i<n;i++) { degree=clamp(degree+[-2,-1,1,2][Math.floor(rng()*4)],5,13); add('kalimba',.7+i*(.42+rng()*.55),degree,.045,1.4); }",
+      "    if(bar%2===0) pad(length*2-3);\n    let degree=5+Math.floor(rng()*7);\n    const n=section===0?1:2+Math.floor(rng()*2);\n    for(let i=0;i<n;i++) { degree=clamp(degree+[-2,-1,1,2][Math.floor(rng()*4)],5,12); add('kalimba',.9+i*(.95+rng()*.8),degree,.032,1.6); }");
+    source=replace(source,"    if(bar%4===0) pad(length*4+1,.031);\n    const motif=[0,2,3,5,3,2,4,2], rotate=Math.floor(rng()*5), base=root[0]+5;\n    for(let i=0;i<8;i++) if(i===0 || rng()>.13) add('kalimba',(i*.5+(i%2?.045:0))*beat,base+motif[(i+rotate)%8]+(rng()<.17?5:0),i%2?.043:.052,.75+rng()*.4);\n    if(bar%2===1) add('bell',(2+rng())*beat,8+Math.floor(rng()*5),.026,2.3);",
+      "    if(bar%4===0) pad(length*4-3,.024);\n    const motif=[0,2,3,5,3,2,4,2], rotate=Math.floor(rng()*5), base=root[0]+5;\n    for(let i=0;i<8;i+=2) if(i===0 || rng()>.35) add('kalimba',i*.5*beat,base+motif[(i+rotate)%8],i?.030:.036,.9+rng()*.4);\n    if(bar%4===1) add('bell',(2+rng())*beat,8+Math.floor(rng()*4),.020,2.3);");
+    source=replace(source,"    if(bar%4===0) pad(length*4+1,.033);\n    add('kalimba',0,root[0]+5,.058,1.6);\n    add('kalimba',beat,root[2]+5+Math.floor(rng()*2),.041,1.5);\n    add('kalimba',2*beat,root[3]+5+Math.floor(rng()*2),.038,1.6);\n    if(rng()>.28) add('bell',(1.5+rng())*beat,7+Math.floor(rng()*6),.030,2.7);",
+      "    if(bar%4===0) pad(length*4-3,.025);\n    add('kalimba',0,root[0]+5,.040,1.6);\n    if(rng()>.3) add('kalimba',beat,root[2]+5+Math.floor(rng()*2),.030,1.5);\n    if(rng()>.6) add('kalimba',2*beat,root[3]+5+Math.floor(rng()*2),.028,1.6);\n    if(rng()>.7) add('bell',(1.5+rng())*beat,7+Math.floor(rng()*5),.020,2.7);");
+    source=replace(source,"    if(bar%2===0) pad(19,.042);\n    add('breath',rng()*2,null,.040,4+rng()*2,1.3);\n    add('bell',.3+rng()*2,5+Math.floor(rng()*9),.060,4+rng()*2);\n    add('bell',4+rng()*2,7+Math.floor(rng()*7),.046,3+rng()*3);",
+      "    if(bar%2===0) pad(13,.028);\n    add('breath',rng()*2,null,.028,4+rng()*2,1.6);\n    add('bell',.3+rng()*2,5+Math.floor(rng()*8),.036,4+rng()*2);\n    if(rng()>.4) add('bell',4+rng()*2,7+Math.floor(rng()*6),.026,3+rng()*2);");
+    source=replace(source,"    if(bar%4===0) pad(length*4+1,.029);\n    add('thump',0,-10,.095,.65,.018);\n    add('thump',2*beat,-10+(rng()<.3?3:0),.070,.6,.018);\n    for(let i=0;i<4;i++) add('brush',(i+.5)*beat,null,i%2?.044:.031,.25+rng()*.12,.035);\n    for(let i=0;i<4;i++) if(i===0 || rng()>.23) add('kalimba',(i+.25+(i%2?.10:0))*beat,root[1]+5+Math.floor(rng()*5),.046,1.05);\n    if(section===2) add('bell',3.5*beat,10+Math.floor(rng()*4),.025,2);",
+      "    if(bar%4===0) pad(length*4-3,.023);\n    add('thump',0,-10,.042,.7,.04);\n    for(const i of [1,3]) add('brush',(i+.5)*beat,null,.018,.25+rng()*.12,.05);\n    for(const i of [0,2]) if(i===0 || rng()>.4) add('kalimba',(i+.25)*beat,root[1]+5+Math.floor(rng()*4),.032,1.2);\n    if(section===2 && bar%2===0) add('bell',3.5*beat,9+Math.floor(rng()*4),.018,2);");
+    // a softer kalimba: no bright click partial
+    source=replace(source,"      voice(e,when,bus,f*3,g*.22,d*.18,.008,'sine',4000);\n      voice(e,when,bus,f*2,g*.35,.06,.008,'triangle',3800);","      voice(e,when,bus,f*3,g*.14,d*.18,.012,'sine',3000);");
+  }
+  if(file==='js/ui/prefs.js') source=replace(source,'  music:true, musicVol:.7,','  music:true, musicVol:.55,');
+  if(file==='js/audio.js') source=replace(source,'musicOn:true, unlocked:false, musicVol:.7,','musicOn:true, unlocked:false, musicVol:.55,');
   return source;
 }
