@@ -217,6 +217,8 @@ body.splashing .brand{opacity:0;transform:translateY(8px) scale(.96)}
 .credits > b{font-family:var(--f-display);font-weight:600;font-size:1rem}
 .credits-who{font-weight:760;font-size:.95rem}
 .credits-tech{font-size:.78rem;color:var(--lav-t);margin-top:4px;line-height:1.4}
+.credits-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.credits-links a{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;text-decoration:none;color:inherit}
 .credits.closing{animation:sheetout .25s var(--out) forwards}
 @keyframes sheetin{from{opacity:0;transform:translateY(12px) scale(.86)}to{opacity:1;transform:none}}
 @keyframes sheetout{to{opacity:0;transform:translateY(8px) scale(.94)}}
@@ -440,3 +442,28 @@ html[data-motion="reduce"] *,html[data-motion="reduce"] *::before,html[data-moti
 .sys-dot.dark{background:#0a0d14;box-shadow:0 0 0 2px var(--brasa),0 0 12px rgba(86,204,242,.7)}
 .outcome-tag.long{color:var(--menta-t,#b5f0de)}
 @media (min-width:720px){ .sys-row{top:calc(84px + var(--st));left:28px} }
+
+/* music on but the browser is still waiting for a first gesture: the note breathes until it plays */
+#btnMusic[data-audio="waiting"] svg:first-child{animation:music-wait 2.4s ease-in-out infinite}
+[data-motion="reduce"] #btnMusic[data-audio="waiting"] svg:first-child{animation:none;opacity:.6}
+@keyframes music-wait{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* systems: one button, a small glass list */
+.sys-btn{position:absolute;top:calc(122px + var(--st));left:14px;z-index:2}
+.sys-btn[hidden],.sys-list[hidden]{display:none}
+.sys-list{position:absolute;top:calc(174px + var(--st));left:14px;z-index:3;width:min(280px,calc(100vw - 28px));max-height:min(320px,50vh);overflow:auto;padding:16px 8px 8px;border-radius:20px}
+.sys-list-title{display:block;padding:0 56px 8px 12px;font-size:.86rem;color:var(--crema-2)}
+.sys-list ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.sys-item{width:100%;min-height:44px;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;color:var(--crema);text-align:left}
+.sys-item span{flex:1}
+.sys-item small{color:var(--lav-t);font-size:.74rem}
+.sys-item:hover,.sys-item:focus-visible{background:rgba(255,241,222,.08)}
+@media (min-width:720px){ .sys-btn{top:calc(84px + var(--st));left:28px} .sys-list{top:calc(136px + var(--st));left:28px} }
+
+/* welcome: one calm moment over the live galaxy; its tap is the gesture that lets the music start */
+.welcome{position:fixed;inset:0;z-index:19;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(90% 70% at 50% 42%,rgba(10,8,24,.18) 0%,rgba(10,8,24,.62) 100%);transition:opacity .6s var(--inout),visibility .6s}
+.welcome.gone{opacity:0;visibility:hidden;pointer-events:none}
+.welcome-in{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:420px}
+.welcome .splash-line{margin:24px 0 48px}
+[data-motion="reduce"] .welcome{transition:none}

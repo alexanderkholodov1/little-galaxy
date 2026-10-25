@@ -19,6 +19,7 @@ import galaxyStrings from './strings/galaxy.js';
 import playerStrings from './strings/player-ui.js';
 register(core);
 register(playerStrings);
+register({es:{'welcome.enter':'Entrar', 'welcome.line':'Una galaxia hecha entre todos. Entra con sonido.'}, en:{'welcome.enter':'Enter', 'welcome.line':'A galaxy everyone builds together. Come in with sound.'}});
 register(labelStrings);
 register(galaxyStrings);
 window.__FOG_T = translateDom;
@@ -123,7 +124,7 @@ async function boot(){
   if(import.meta.env.DEV && new URLSearchParams(location.search).has('sandbox')) Object.assign(world.sim.budget, {playerBlackHoles:99, playerStellar:99, blackHoleGapMs:0});
   const loaded = await store.loadGalaxy();
   world.owner = store.owner();
-  S.player = loaded.player;
+  S.player = loaded.player || localPlayer();
   S.galaxy = loaded.galaxy || {status:'active'};
   S.frozen = S.galaxy.status === 'frozen' || S.galaxy.status === 'archived';
   const saved = loaded.state;
@@ -139,8 +140,8 @@ async function boot(){
   world.on('frame', onFrame);
   wireWorldEvents();
   startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});
-  world.on('shared-pending', () => {aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
-  world.on('shared-denied', () => {aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});
+  world.on('shared-pending', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
+  world.on('shared-denied', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});
   indexLayers();
   setMode('home', {instant:true});
   glass.scan();
@@ -160,8 +161,7 @@ async function boot(){
     world.parallax.y = clamp((e.beta - 40)/30, -1, 1);
   }, {passive:true});
   const unlock = () => audio.unlock();
-  addEventListener('pointerdown', unlock, {once:true, capture:true});
-  addEventListener('keydown', unlock, {once:true, capture:true});
+  for(const g of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(g, unlock, {capture:true, passive:true});
   setupTheme();
   setupShake();
   setupScreen({world,labels});
@@ -175,7 +175,7 @@ async function boot(){
   requestAnimationFrame(() => $('#veil').classList.add('is-done'));
   // pantalla de título: el nombre del juego aparece grande y se retira a la esquina
   document.body.classList.add('splashing');
-  setTimeout(() => { $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }, RM ? 1200 : 3000);
+  if(!welcome()) setTimeout(() => { $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }, RM ? 1200 : 3000);
   setInterval(saveSky, 8000);
 
   addEventListener('pagehide', () => { saveSky(); flush(); });
@@ -195,6 +195,30 @@ function splitSplash(){
     const t = sp.textContent; sp.textContent = '';
     for(const ch of t){ const i = document.createElement('i'); i.textContent = ch; i.style.setProperty('--k', k++); sp.append(i); }
   });
+}
+function welcome(){
+  const WKEY = 'little-galaxy.welcomed';
+  if(store.readOnly || QS.has('booth') || /\/(screen|timelapse)$/.test(ROUTE)) return false;
+  try{ if(sessionStorage.getItem(WKEY)) return false; }catch(_){}
+  const box = document.createElement('div');
+  box.id = 'welcome'; box.className = 'welcome'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'welcomeTitle');
+  box.innerHTML = '<div class="welcome-in"><h1 class="splash-title" id="welcomeTitle" aria-label="Little Galaxy"><span class="w1">Little</span><span class="w2">Galaxy</span></h1><p class="splash-line"></p><button class="cta welcome-go" type="button"><span class="cta-orb" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6.5l6 5.5-6 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="cta-txt"></span></button></div>';
+  const line = box.querySelector('.splash-line'), txt = box.querySelector('.cta-txt'), go = box.querySelector('.welcome-go');
+  const words = () => { line.textContent = t('welcome.line'); txt.textContent = t('welcome.enter'); };
+  words(); const off = onLang(words);
+  $('#splash').classList.add('gone');
+  document.body.append(box);
+  let k = 0;
+  box.querySelectorAll('.splash-title span').forEach(sp => { const s = sp.textContent; sp.textContent = ''; for(const ch of s){ const i = document.createElement('i'); i.textContent = ch; i.style.setProperty('--k', k++); sp.append(i); } });
+  requestAnimationFrame(() => go.focus({preventScroll:true}));
+  go.addEventListener('click', () => {
+    try{ sessionStorage.setItem(WKEY, '1'); }catch(_){}
+    audio.unlock(); audio.tap(2);
+    box.classList.add('gone'); document.body.classList.remove('splashing');
+    if(typeof off === 'function') off();
+    setTimeout(() => box.remove(), RM ? 0 : 700);
+  }, {once:true});
+  return true;
 }
 // al cambiar de idioma: lo que el juego escribe por su cuenta se vuelve a escribir
 function relang(){
@@ -588,7 +612,31 @@ function setupLaunch(){
   });
 }
 // R4: la primera vez que alguien va a lanzar, una pantalla le pide su nombre (o anónimo). Después, nunca más.
-let asking = null;
+let asking = null, nameRetry = 0;
+async function saveName(pl){
+  const want = {displayName:pl.anonymous ? '' : pl.name, anonymous:!!pl.anonymous};
+  try{ localStorage.setItem(PKEY + store.galaxyId, JSON.stringify(want)); }catch(_){}
+  clearTimeout(nameRetry);
+  try{ return await store.setName(store.galaxyId, want.displayName); }
+  catch(err){
+    console.warn('The sky did not keep the name yet; this phone keeps it and tries again.', err);
+    let tries = 0;
+    const again = () => store.setName(store.galaxyId, want.displayName).catch(() => { if(++tries < 4) nameRetry = setTimeout(again, 330000); });
+    nameRetry = setTimeout(again, 20000);
+    return want;
+  }
+}
+// a visitor who already chose in this galaxy on this phone is not asked again after a reload; the sky learns the name
+// in the background. The choice is kept per galaxy: a new galaxy asks again and is never linked to the last one.
+const PKEY = 'little-galaxy.player:';
+function localPlayer(){
+  let pl = null;
+  try{ pl = JSON.parse(localStorage.getItem(PKEY + store.galaxyId)); }catch(_){}
+  if(!pl || typeof pl.displayName !== 'string' || store.readOnly) return null;
+  const want = {displayName:pl.anonymous ? '' : pl.displayName, anonymous:!!pl.anonymous};
+  setTimeout(() => saveName({name:want.displayName, anonymous:want.anonymous}).then(p => { S.player = p; prefsPanel && prefsPanel.refresh(); }), 1500);
+  return want;
+}
 async function ensurePlayer(){
   if(S.player) return true;
   if(asking) return asking;
@@ -596,7 +644,7 @@ async function ensurePlayer(){
     audio.credits(true);
     const pl = await askPlayer({t, onLang, glass, mode:'first'});
     if(!pl){ audio.back(); return false; }
-    S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name);
+    S.player = await saveName(pl);
     metric('player_new');
     audio.settle();
     toast(S.player.anonymous ? t('player.toast.anon') : t('player.toast.named', {name:S.player.displayName}));
@@ -786,6 +834,7 @@ function wireWorldEvents(){
     if(S.flight && S.flight.entry === e && !S.flight.shown) showResult('puff', e);
   });
   world.on('launch-denied', x => {
+    audio.aimEnd(); $('#outcomeTag').classList.remove('show');
     audio.back();
     const msg = () => t('launch.denied.' + x.reason);
     toast(msg());
@@ -852,33 +901,61 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;', '<':'&lt;', '>
 function updateSystems(force){
   if(!world) return;
   const list = world.systemsInfo();
-  let row = $('#sysRow');
-  if(list.length < 2){ if(row) row.hidden = true; return; }
-  if(!row){
-    row = document.createElement('div'); row.id = 'sysRow'; row.className = 'sys-row'; row.setAttribute('role', 'group');
-    $('.layer[data-layer="home"]').append(row);
+  let btn = $('#btnSystems');
+  if(!btn){
+    btn = document.createElement('button'); btn.id = 'btnSystems'; btn.className = 'icon-btn glass sys-btn';
+    btn.setAttribute('aria-haspopup', 'dialog'); btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="6" cy="7" r="2.2"/><circle cx="17" cy="9" r="1.6"/><circle cx="10" cy="17" r="2.6"/></svg>';
+    btn.addEventListener('click', () => { audio.tap(1); $('#sysList') && !$('#sysList').hidden ? closeSystems() : openSystems(); });
+    $('.layer[data-layer="home"]').append(btn);
+    addEventListener('keydown', e => { if(e.key === 'Escape' && $('#sysList') && !$('#sysList').hidden){ e.stopPropagation(); closeSystems(); btn.focus(); } }, true);
   }
-  row.setAttribute('aria-label', t('systems.aria'));
-  row.hidden = false;
+  btn.setAttribute('aria-label', t('systems.aria')); btn.title = t('systems.aria');
+  btn.hidden = list.length < 2;
+  if(btn.hidden) closeSystems();
+  else if($('#sysList') && !$('#sysList').hidden) fillSystems(list, force);
+}
+function openSystems(){
+  let panel = $('#sysList');
+  if(!panel){
+    panel = document.createElement('div'); panel.id = 'sysList'; panel.className = 'glass sys-list'; panel.setAttribute('role', 'dialog');
+    panel.innerHTML = '<b class="sys-list-title"></b><button class="x-btn" data-close><svg aria-hidden="true"><use href="#i-close"/></svg></button><ul></ul>';
+    panel.querySelector('[data-close]').addEventListener('click', () => { audio.back(); closeSystems(); });
+    $('.layer[data-layer="home"]').append(panel);
+  }
+  panel.hidden = false; $('#btnSystems').setAttribute('aria-expanded', 'true');
+  fillSystems(world.systemsInfo(), true);
+  glass.add(panel); glass.refresh(panel);
+}
+function closeSystems(){
+  const panel = $('#sysList'); if(!panel || panel.hidden) return;
+  panel.hidden = true; $('#btnSystems')?.setAttribute('aria-expanded', 'false');
+}
+function fillSystems(list, force){
+  const panel = $('#sysList');
+  panel.setAttribute('aria-label', t('systems.aria'));
+  panel.querySelector('.sys-list-title').textContent = t('systems.aria');
+  panel.querySelector('[data-close]').setAttribute('aria-label', t('focus.close'));
   const sig = list.map(s => s.id + ':' + s.members + ':' + s.names.join(',')).join('|') + getLang();
-  if(row.dataset.sig === sig && !force) return;
-  row.dataset.sig = sig;
-  row.innerHTML = '';
+  if(panel.dataset.sig === sig && !force) return;
+  panel.dataset.sig = sig;
+  const ul = panel.querySelector('ul'); ul.innerHTML = '';
   for(const s of list){
-    const b = document.createElement('button');
-    b.className = 'chip glass sys-chip'; b.title = t('systems.hint');
+    const li = document.createElement('li'), b = document.createElement('button');
+    b.className = 'sys-item'; b.title = t('systems.hint');
     const name = s.fire ? t('systems.fire') : (s.names[0] || t('type.' + (s.kinds[0] === 'blackhole' ? 'blackhole' : 'star') + '.label'));
     b.innerHTML = `<i class="sys-dot${s.fire ? ' fire' : s.kinds.includes('blackhole') ? ' dark' : ''}" aria-hidden="true"></i><span>${esc(name)}</span><small class="num">${esc(t('systems.count', {n:s.members}))}</small>`;
-    b.addEventListener('click', () => { audio.tap(2); closeFocus(); world.flyToSystem(s.id); $('#btnRecenter').hidden = false; });
-    row.append(b);
+    b.addEventListener('click', () => { audio.tap(2); closeSystems(); closeFocus(); world.flyToSystem(s.id); $('#btnRecenter').hidden = false; });
+    li.append(b); ul.append(li);
   }
-  glass.scan();
 }
 
 /* ================================================================== sonido y autor */
 function setupSound(){
   const m = $('#btnMusic');
   m.setAttribute('aria-pressed', S.musicOn);
+  m.dataset.audio = audio.status();
+  audio.onState(s => { m.dataset.audio = s; });
   m.addEventListener('click', () => {
     S.musicOn = !S.musicOn; m.setAttribute('aria-pressed', S.musicOn);
     audio.unlock(); audio.setMusic(S.musicOn); savePrefs();
@@ -895,7 +972,7 @@ function setupPrefs(){
     onEditName: async () => {
       audio.tap(2);
       const pl = await askPlayer({t, onLang, glass, mode:'edit'});
-      if(pl){ S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name); audio.settle(); }
+      if(pl){ S.player = await saveName(pl); audio.settle(); }
       prefsPanel.refresh();
     },
     onChange: applyPref});

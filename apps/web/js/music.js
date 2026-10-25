@@ -1,10 +1,10 @@
 // Fogata: an endless, seeded score. No DOM or AudioContext is needed by compose().
 export const PIECES = Object.freeze([
-  {id:'embers', name:{es:'Brasas lentas', en:'Slow embers'}, bpm:48, minutes:5, metre:4},
-  {id:'steps', name:{es:'Pasitos de madera', en:'Little wooden steps'}, bpm:76, minutes:6, metre:4},
-  {id:'cradle', name:{es:'Cuna en órbita', en:'Orbiting cradle'}, bpm:60, minutes:5.5, metre:3},
+  {id:'embers', name:{es:'Brasas lentas', en:'Slow embers'}, bpm:40, minutes:5, metre:4},
+  {id:'steps', name:{es:'Pasitos de madera', en:'Little wooden steps'}, bpm:56, minutes:6, metre:4},
+  {id:'cradle', name:{es:'Cuna en órbita', en:'Orbiting cradle'}, bpm:50, minutes:5.5, metre:3},
   {id:'air', name:{es:'Vidrio y aliento', en:'Glass and breath'}, bpm:0, minutes:5, metre:0},
-  {id:'hearth', name:{es:'Pulso de hogar', en:'Hearth pulse'}, bpm:68, minutes:6.5, metre:4},
+  {id:'hearth', name:{es:'Pulso de hogar', en:'Hearth pulse'}, bpm:52, minutes:6.5, metre:4},
 ].map(p => Object.freeze({...p, name:Object.freeze(p.name)})));
 const FADE = 8, AHEAD = 1.5, TICK = 200;
 const CHORDS = [[-5,-2,0,2,3],[-6,-1,0,2,3],[-4,-1,0,3,6],[-7,-4,-1,2,3]];
@@ -39,51 +39,50 @@ const sectionAt = (p,t) => SECTIONS[Math.min(3,Math.floor(Math.max(0,t-p.start)/
 function phraseEvents(p, bar) {
   const length=barLength(p), offset=bar*length, rng=random(mix(p.seed,bar));
   const section=Math.min(3, Math.floor(offset/(p.minutes*60)*4));
-  const lift=[.82,1,1.1,.88][section], beat=p.bpm ? 60/p.bpm : 1;
+  const lift=[.86,1,1.04,.9][section], beat=p.bpm ? 60/p.bpm : 1;
   const root=CHORDS[(Math.floor(bar/(p.id==='embers'?2:4))+Math.floor(rng()*2))%4];
   const events=[];
   function add(instrument, pos, degree, gain, duration, attack=.012) {
     // Every phrase has new pitch/rhythm decisions, microtiming, articulation and
     // dynamics. Humanisation is seeded, never read from wall time or Math.random.
     const time=p.start+offset+pos+(pos===0 ? 0 : rng()*.026);
-    if(time>=p.end-.06) return;
+    if(time>=p.end-(instrument==='pad'?2*FADE:FADE)) return;
     events.push({time, instrument, degree, gain:gain*lift*(.88+rng()*.24), duration,
       attack:Math.max(.008,attack), piece:p.id, visit:p.index, section:SECTIONS[section],
       bar, pan:(rng()-.5)*.65});
   }
-  function pad(duration, gain=.037) {
-    root.forEach((deg,i)=>add('pad', i*.021, deg, gain*(i===0?1:.47), duration, 3.2));
+  function pad(duration, gain=.026) {
+    [root[0],root[2],root[4]].forEach((deg,i)=>add('pad', i*.021, deg, gain*(i===0?1:.47), duration, 3.6));
   }
   if(p.id==='embers') {
     // The inherited five-note, ±6-cent pad and drifting upper-register kalimba.
-    if(bar%2===0) pad(length*2+2);
+    if(bar%2===0) pad(length*2-3);
     let degree=5+Math.floor(rng()*7);
-    const n=section===0?2:3+Math.floor(rng()*3);
-    for(let i=0;i<n;i++) { degree=clamp(degree+[-2,-1,1,2][Math.floor(rng()*4)],5,13); add('kalimba',.7+i*(.42+rng()*.55),degree,.045,1.4); }
+    const n=section===0?1:2+Math.floor(rng()*2);
+    for(let i=0;i<n;i++) { degree=clamp(degree+[-2,-1,1,2][Math.floor(rng()*4)],5,12); add('kalimba',.9+i*(.95+rng()*.8),degree,.032,1.6); }
   } else if(p.id==='steps') {
-    if(bar%4===0) pad(length*4+1,.031);
+    if(bar%4===0) pad(length*4-3,.024);
     const motif=[0,2,3,5,3,2,4,2], rotate=Math.floor(rng()*5), base=root[0]+5;
-    for(let i=0;i<8;i++) if(i===0 || rng()>.13) add('kalimba',(i*.5+(i%2?.045:0))*beat,base+motif[(i+rotate)%8]+(rng()<.17?5:0),i%2?.043:.052,.75+rng()*.4);
-    if(bar%2===1) add('bell',(2+rng())*beat,8+Math.floor(rng()*5),.026,2.3);
+    for(let i=0;i<8;i+=2) if(i===0 || rng()>.35) add('kalimba',i*.5*beat,base+motif[(i+rotate)%8],i?.030:.036,.9+rng()*.4);
+    if(bar%4===1) add('bell',(2+rng())*beat,8+Math.floor(rng()*4),.020,2.3);
   } else if(p.id==='cradle') {
-    if(bar%4===0) pad(length*4+1,.033);
-    add('kalimba',0,root[0]+5,.058,1.6);
-    add('kalimba',beat,root[2]+5+Math.floor(rng()*2),.041,1.5);
-    add('kalimba',2*beat,root[3]+5+Math.floor(rng()*2),.038,1.6);
-    if(rng()>.28) add('bell',(1.5+rng())*beat,7+Math.floor(rng()*6),.030,2.7);
+    if(bar%4===0) pad(length*4-3,.025);
+    add('kalimba',0,root[0]+5,.040,1.6);
+    if(rng()>.3) add('kalimba',beat,root[2]+5+Math.floor(rng()*2),.030,1.5);
+    if(rng()>.6) add('kalimba',2*beat,root[3]+5+Math.floor(rng()*2),.028,1.6);
+    if(rng()>.7) add('bell',(1.5+rng())*beat,7+Math.floor(rng()*5),.020,2.7);
   } else if(p.id==='air') {
     // Eight-second bookkeeping cells, no audible pulse or recurring metre.
-    if(bar%2===0) pad(19,.042);
-    add('breath',rng()*2,null,.040,4+rng()*2,1.3);
-    add('bell',.3+rng()*2,5+Math.floor(rng()*9),.060,4+rng()*2);
-    add('bell',4+rng()*2,7+Math.floor(rng()*7),.046,3+rng()*3);
+    if(bar%2===0) pad(13,.028);
+    add('breath',rng()*2,null,.028,4+rng()*2,1.6);
+    add('bell',.3+rng()*2,5+Math.floor(rng()*8),.036,4+rng()*2);
+    if(rng()>.4) add('bell',4+rng()*2,7+Math.floor(rng()*6),.026,3+rng()*2);
   } else {
-    if(bar%4===0) pad(length*4+1,.029);
-    add('thump',0,-10,.095,.65,.018);
-    add('thump',2*beat,-10+(rng()<.3?3:0),.070,.6,.018);
-    for(let i=0;i<4;i++) add('brush',(i+.5)*beat,null,i%2?.044:.031,.25+rng()*.12,.035);
-    for(let i=0;i<4;i++) if(i===0 || rng()>.23) add('kalimba',(i+.25+(i%2?.10:0))*beat,root[1]+5+Math.floor(rng()*5),.046,1.05);
-    if(section===2) add('bell',3.5*beat,10+Math.floor(rng()*4),.025,2);
+    if(bar%4===0) pad(length*4-3,.023);
+    add('thump',0,-10,.042,.7,.04);
+    for(const i of [1,3]) add('brush',(i+.5)*beat,null,.018,.25+rng()*.12,.05);
+    for(const i of [0,2]) if(i===0 || rng()>.4) add('kalimba',(i+.25)*beat,root[1]+5+Math.floor(rng()*4),.032,1.2);
+    if(section===2 && bar%2===0) add('bell',3.5*beat,9+Math.floor(rng()*4),.018,2);
   }
   return events;
 }
@@ -129,8 +128,7 @@ export function createMusicRenderer(env) {
       for(const det of [-6,6]) voice(e,when,bus,f,g*.64,d,a,e.degree< -3?'sine':'triangle',e.degree< -3?760:1100,det);
     } else if(e.instrument==='kalimba') {
       voice(e,when,bus,f,g,d,a,'sine',3200);
-      voice(e,when,bus,f*3,g*.22,d*.18,.008,'sine',4000);
-      voice(e,when,bus,f*2,g*.35,.06,.008,'triangle',3800);
+      voice(e,when,bus,f*3,g*.14,d*.18,.012,'sine',3000);
     } else if(e.instrument==='bell') {
       voice(e,when,bus,f,g,d,.010,'sine',4000);
       voice(e,when,bus,f*2,g*.4,d*.6,.010,'sine',4000,4);

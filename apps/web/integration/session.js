@@ -1,3 +1,4 @@
+import './uuid.js';
 import {createGalaxyStore} from '@little-galaxy/shared';
 import {firestoreGalaxyDriver,ServerClock} from '@little-galaxy/shared/firestore';
 import {auth,firestore,startAnonymousSession} from '../src/firebase.ts';

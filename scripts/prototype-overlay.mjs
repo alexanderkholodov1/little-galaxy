@@ -1,5 +1,6 @@
 import {adminOverlay} from './prototype-admin-overlay.mjs';
 import {sharedOverlay} from './prototype-shared-overlay.mjs';
+import {uiOverlay} from './prototype-ui-overlay.mjs';
 // Keep the upstream game intact; apply the small, reviewable packaging seams here.
 export function replace(source, before, after){
   if(!source.includes(before)) throw new Error(`Prototype seam changed: ${before.slice(0, 100)}`);
@@ -20,5 +21,5 @@ export function integratePrototype(file, source){
     source = replace(source, "const DEBUG = /[?&]debug\\b/.test(location.search);", "const DEBUG = import.meta.env.DEV && /[?&]debug\\b/.test(location.search);");
     source = replace(source, "if(new URLSearchParams(location.search).has('sandbox'))", "if(import.meta.env.DEV && new URLSearchParams(location.search).has('sandbox'))");
   }
-  return adminOverlay(file, sharedOverlay(file, source));
+  return uiOverlay(file, adminOverlay(file, sharedOverlay(file, source)));
 }

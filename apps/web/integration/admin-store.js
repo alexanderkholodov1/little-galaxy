@@ -1,3 +1,4 @@
+import './uuid.js';
 import {GoogleAuthProvider,signInWithPopup,signOut} from 'firebase/auth';
 import {auth} from '../src/firebase.ts';
 import {initialGalaxy,canonicalHash,createGalaxyStore} from '@little-galaxy/shared';

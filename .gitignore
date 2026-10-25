@@ -16,3 +16,4 @@ playwright-report/
 .alpha1-evidence/
 .pnpm-store/
 .pnpm-cache/
+.local-sky/

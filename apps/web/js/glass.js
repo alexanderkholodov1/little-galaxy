@@ -9,14 +9,27 @@ export function createGlass({rm} = {}){
   const defs = document.getElementById('glassDefs');
   const items = new Map();   // el -> {id, w, h, rect}
   let n = 0;
+  const later = new Set();
+  let laterT = 0;
   const ro = 'ResizeObserver' in window ? new ResizeObserver(entries => {
-    for(const e of entries) refresh(e.target);
+    for(const e of entries) later.add(e.target);
+    clearTimeout(laterT);
+    laterT = setTimeout(() => { const els = [...later]; later.clear(); for(const el of els) refresh(el); }, 180);
   }) : null;
+  const maps = new Map();
 
   function lensMap(w, h, r, bezel){
+    const key = w + 'x' + h + ':' + r + ':' + bezel;
+    if(!maps.has(key)){
+      if(maps.size > 48){ const [k, p] = maps.entries().next().value; maps.delete(k); p.then(u => u && URL.revokeObjectURL(u)); }
+      maps.set(key, drawLens(w, h, r, bezel));
+    }
+    return maps.get(key);
+  }
+  function drawLens(w, h, r, bezel){
     const s = 0.5, cw = Math.max(8, Math.round(w*s)), ch = Math.max(8, Math.round(h*s));
     const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
-    const x = cv.getContext('2d'), img = x.createImageData(cw, ch), d = img.data;
+    const x = cv.getContext('2d', {willReadFrequently:true}), img = x.createImageData(cw, ch), d = img.data;
     r = Math.min(r, w/2, h/2);
     const sdf = (px, py) => {
       const qx = Math.abs(px - w/2) - (w/2 - r), qy = Math.abs(py - h/2) - (h/2 - r);
@@ -36,7 +49,7 @@ export function createGlass({rm} = {}){
       const k = (j*cw + i)*4; d[k] = R; d[k+1] = G; d[k+2] = 128; d[k+3] = 255;
     }
     x.putImageData(img, 0, 0);
-    return cv.toDataURL();
+    return new Promise(done => cv.toBlob(b => done(b ? URL.createObjectURL(b) : ''), 'image/png'));
   }
 
   function refresh(el){
@@ -60,7 +73,7 @@ export function createGlass({rm} = {}){
     f.setAttribute('primitiveUnits', 'userSpaceOnUse');
     f.setAttribute('x', 0); f.setAttribute('y', 0); f.setAttribute('width', w); f.setAttribute('height', h);
     const im = f.querySelector('feImage');
-    im.setAttribute('href', lensMap(w, h, r, bezel));
+    lensMap(w, h, r, bezel).then(u => { if(u && it.w === w && it.h === h) im.setAttribute('href', u); });
     im.setAttribute('x', 0); im.setAttribute('y', 0); im.setAttribute('width', w); im.setAttribute('height', h);
     f.querySelector('feDisplacementMap').setAttribute('scale', Math.round(Math.min(46, bezel*1.9)));
     const bf = `url(#${it.id}) blur(9px) saturate(170%) brightness(1.04)`;

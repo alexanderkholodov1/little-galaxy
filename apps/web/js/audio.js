@@ -13,14 +13,18 @@ export {PIECES};
 const TYPE_TIMBRE = {planet:0, giant:-5, star:5, binary:3, moon:7, asteroid:-3, comet:9, nebula:2, pulsar:8, blackhole:-8};
 
 export function createAudio(){
-  const A = {ctx:null, sfxOn:true, musicOn:true, unlocked:false, musicVol:.7, sfxVol:.8};
+  const A = {ctx:null, sfxOn:true, musicOn:true, unlocked:false, musicVol:.55, sfxVol:.8};
   let master, sfx, music, verbIn, noiseBuf, comp, musicEngine = null;
+  const stateFns = [];
+  const notify = () => stateFns.forEach(fn => fn(S.status()));
 
   function ensure(){
-    if(A.ctx){ if(A.ctx.state === 'suspended' && !document.hidden) A.ctx.resume(); return true; }
+    if(A.ctx){ if(A.ctx.state !== 'running' && A.ctx.state !== 'closed' && !document.hidden) A.ctx.resume().catch(() => {}); return true; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if(!AC) return false;
     const ctx = A.ctx = new AC();
+    ctx.addEventListener('statechange', notify);
+    if(ctx.state !== 'running') ctx.resume().catch(() => {});
     comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.3;
     master = ctx.createGain(); master.gain.value = 0.85;
@@ -47,13 +51,21 @@ export function createAudio(){
     musicEngine = createMusic({ctx, out:music, verb:verbIn, hz, voice, noise, kalimba, bell,
       seed:(Math.random()*2**32)>>>0});
     musicEngine.setVolume(A.musicVol*.8/.7);
-    // R10: ya no se suspende al ocultar la página (eso callaba la música para siempre en algunos teléfonos);
-    // al volver, se reanuda si el sistema la suspendió, y el motor se re-ancla sin reproducir lo atrasado
-    document.addEventListener('visibilitychange', () => {
+    // Operador (2026-10-25): con el navegador minimizado o el teléfono apagado no debe sonar nada.
+    // Al ocultar: fundido corto y suspensión. Al volver: se reanuda y el motor se re-ancla sin reproducir lo atrasado.
+    const quiet = () => {
+      if(!A.ctx || A.ctx.state !== 'running') return;
+      const t = A.ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0, t, .05);
+      setTimeout(() => { if(document.hidden && A.ctx.state === 'running') A.ctx.suspend().catch(() => {}); }, 250);
+    };
+    const wake = () => {
       if(document.hidden || !A.ctx || A.ctx.state === 'closed') return;
-      if(A.ctx.state === 'running') musicEngine.resume();
-      else A.ctx.resume().catch(() => {});
-    });
+      const back = () => { const t = A.ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(.85, t, .3); musicEngine.resume(); };
+      if(A.ctx.state === 'running') back(); else A.ctx.resume().then(back).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', () => document.hidden ? quiet() : wake());
+    addEventListener('pagehide', quiet);
+    addEventListener('pageshow', wake);
     return true;
   }
   const now = () => A.ctx.currentTime;
@@ -166,6 +178,7 @@ export function createAudio(){
     unlock(){
       if(!ensure()) return;
       if(!A.unlocked){ A.unlocked = true; if(A.musicOn) startMusic(); }
+      notify();
     },
     tap(i = 0){ if(!ok()) return; kalimba(5 + (i % 5), {gain:.05, dur:.5, wet:.2}); click(); },
     back(){ if(!ok()) return; kalimba(7, {gain:.04, dur:.4}); kalimba(4, {gain:.04, dur:.5, when:.07}); },
@@ -233,9 +246,11 @@ export function createAudio(){
       noise({dur:5, gain:.018, f0:3000, f1:5200, q:.4, wet:.8, attack:2}); },
     credits(open){ if(!ok()) return; open ? (kalimba(7, {gain:.03}), kalimba(9, {gain:.03, when:.06})) : kalimba(4, {gain:.03}); },
     setSfx(on){ A.sfxOn = on; if(on && ensure()) kalimba(7, {gain:.04}); },
-    debug(){ return {ctx: A.ctx ? A.ctx.state : 'none', generative: !!musicEngine?.state().running, music: musicEngine?.state() || null}; },
+    debug(){ return {ctx: A.ctx ? A.ctx.state : 'none', creak:!!creak, generative: !!musicEngine?.state().running, music: musicEngine?.state() || null}; },
+    status(){ return !A.musicOn ? 'off' : A.unlocked && A.ctx && A.ctx.state === 'running' ? 'playing' : 'waiting'; },
+    onState(fn){ stateFns.push(fn); },
     setMusic(on){
-      A.musicOn = on;
+      A.musicOn = on; notify();
       if(!A.unlocked || !ensure()) return;
       if(on) musicEngine.start(); else musicEngine.stop(.6);
     },

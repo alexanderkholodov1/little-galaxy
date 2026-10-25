@@ -1,3 +1,4 @@
+import './uuid.js';
 import {observeAction} from './homes.js';
 import {openSession} from './session.js';
 import {launchIntent} from './replay.js';

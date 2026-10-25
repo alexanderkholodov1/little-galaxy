@@ -7,7 +7,7 @@ const KEY = 'fogata.prefs.v2', KEY1 = 'fogata.prefs.v1';
 
 export const DEFAULTS = {
   lang:null,                                  // sigue al i18n del lead
-  music:true, musicVol:.7,
+  music:true, musicVol:.55,
   sfx:true, sfxVol:.8,
   names:'auto',                               // 'auto' | 'all' | 'mine' | 'none'
   motion:'system',                            // 'system' | 'reduce' | 'full'
@@ -290,7 +290,7 @@ export function createPrefsPanel({t:tt, onLang, getLang, setLang, glass, root = 
     opener = document.activeElement instanceof HTMLElement ? document.activeElement : opener;
     panel.hidden = false;
     rv();
-    panel.classList.remove('pu-in'); void panel.offsetWidth; panel.classList.add('pu-in');
+    panel.classList.remove('pu-open'); void panel.offsetWidth; panel.classList.add('pu-open');
     if(glass && glass.scan) glass.scan();
     if(glass && glass.refresh) glass.refresh(panel);
     panel.focus({preventScroll:true});
@@ -299,7 +299,7 @@ export function createPrefsPanel({t:tt, onLang, getLang, setLang, glass, root = 
     if(panel.hidden) return;
     clearTimeout(closing);
     opener = opener && opener.isConnected ? opener : null;
-    panel.classList.remove('pu-in'); void panel.offsetWidth; panel.classList.add('pu-out');
+    panel.classList.remove('pu-open'); void panel.offsetWidth; panel.classList.add('pu-out');
     closing = setTimeout(() => {
       panel.hidden = true;
       panel.classList.remove('pu-out');
