@@ -1,5 +1,5 @@
 import {launchVoice} from './voice.js';
-import {chooseHome} from './homes.js';
+import {routeLaunch} from './launch-routing.js';
 import {setupTimelapse} from './timelapse.js';
 import {watchVersion} from './version.js';
 export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft}){
@@ -52,16 +52,11 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   world.requestLaunch=async raw=>{
     saveDraft();
     try{
-      const preferred=world.sharedHomes.get(String(raw.system).split('+')[0])||'0';
-      const home=chooseHome(store.loaded().head,raw.design.type,preferred);
-      const host=world.sim.sysById.get(raw.system)||world.sim.hostAt([raw.origin[0],0,raw.origin[1]]);
-      const design={...raw.design};
-      const anchor=home===preferred?Number(String(raw.system).split('+')[0])+1:0;
-      const relative={...raw,design,anchor,system:home,origin:[raw.origin[0]-host.p[0],raw.origin[1]-host.p[2]],velocity:[raw.velocity[0]-host.v[0],raw.velocity[1]-host.v[2]]};
-      if(home!==preferred)toast(document.documentElement.lang==='es'?'Este fuego está lleno. Tu astro encenderá otro cercano.':'This fire is full. Your star will join another fire nearby.');
-      const parent=raw.design.type==='moon'?world.entries.find(e=>['planet','giant'].includes(e.design.type)&&e.home===home)?.logical:undefined;
-      if(raw.design.type==='moon'&&!parent)throw new Error('A moon needs a planet or giant in this system. Your moon is still in your hand.');
-      const accepted=await store.launch(store.galaxyId,{...relative,...(parent?{parent}:{})});
+      const {launch,rerouted,reserved}=routeLaunch(world,store.loaded().head,raw);
+      const accepted=await store.launch(store.galaxyId,launch);
+      if(rerouted)toast(reserved&&launch.system==='0'
+        ? (document.documentElement.lang==='es'?'Este fuego joven aún está creciendo. Tu astro se unirá al fuego central.':'This young fire is still growing. Your star will join the central fire.')
+        : (document.documentElement.lang==='es'?'Tu astro se unirá a otro fuego con espacio para cuidarlo.':'Your star will join another fire with room to care for it.'));
       pending.set(accepted.intent.id,raw);
       worker.postMessage({actions:[accepted],tick:target()});
     }catch(error){world.failSharedLaunch();toast(launchVoice(error));}

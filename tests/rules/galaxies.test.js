@@ -28,6 +28,8 @@ import {
   quotaWindow,
 } from '../../packages/shared/src/galaxy-store.ts';
 import { firestoreGalaxyDriver } from '../../packages/shared/src/firestore-galaxy-driver.ts';
+import { routeLaunch } from '../../apps/web/integration/launch-routing.js';
+import { launchIntent } from '../../apps/web/integration/replay.js';
 import { Replay, KERNEL } from '../../apps/web/integration/replay.js';
 let env;
 let now;
@@ -103,6 +105,45 @@ describe('atomic galaxy admission', () => {
     expect(replay.entries.size).toBe(1);
     expect((await s.loadGalaxy('g')).head.sequence).toBe(1);
     await expect(store().launch('g', {...i, seed: i.seed + 1})).rejects.toThrow('Nonce already used');
+  });
+  it('launches planet, moon and comet at a founded reserve and the central fire for a second client', async () => {
+    const writer=store(),reader=store('observer');
+    const star=await writer.launch('g',intent('founder',{kind:'star',origin:[60000000,0],velocity:[0,0]}));
+    const loaded=await reader.loadGalaxy('g');
+    const liveGalaxy={...loaded.galaxy,kernel:KERNEL};
+    const first=new Replay({galaxy:liveGalaxy,actions:loaded.actions});
+    const second=new Replay({galaxy:liveGalaxy,actions:loaded.actions});
+    first.advanceTo(star.intent.effectiveTick+1);
+    const starId=first.ids.get('founder');
+    expect(first.sim.byId(starId).founded).toBe(true);
+    expect(loaded.head.reserves.founder).toBeDefined();
+    const received=[];
+    const stop=reader.subscribeToActions('g',1,actions=>received.push(...actions),error=>{throw error;});
+    try {
+      for(const site of ['founded','central'])for(const kind of ['planet','moon','comet']){
+        const head=(await writer.loadGalaxy('g')).head;
+        const selected=first.sim.systems.find(s=>s.prim.includes(site==='founded'?starId:0));
+        // Production's founded-system hint points at the reserved logical home.
+        const homes=new Map(first.homes);homes.set(String(starId),'founder');
+        const world={sim:first.sim,sharedHomes:homes,entries:[...first.entries.values()]};
+        const raw={id:`${site}-${kind}`,system:selected.id,design:{type:kind,seed:42,size:.5},
+          origin:[selected.p[0]+7,selected.p[2]],velocity:[selected.v[0],selected.v[2]+1.4]};
+        const {launch}=routeLaunch(world,head,raw);
+        const frame=first.anchor(launch.system,launch.anchor);
+        // The wire frame must reconstruct the submitted world position and velocity.
+        expect(launch.origin.map((x,k)=>x+frame.p[k*2])).toEqual(raw.origin);
+        expect(launch.velocity.map((x,k)=>x+frame.v[k*2])).toEqual(raw.velocity);
+        if(kind==='moon')expect(launch.parent).toBe(`${site}-planet`);
+        const i=launchIntent(launch,liveGalaxy,Date.now(),head.effectiveTick);
+        const accepted=await assertSucceeds(store(`${site}-${kind}`).launch('g',i));
+        first.accept([accepted]);first.advanceTo(i.effectiveTick);
+        await expect.poll(()=>received.some(a=>a.intent.id===i.id)).toBe(true);
+        second.accept(received);second.advanceTo(i.effectiveTick);
+        expect(second.entries.get(second.ids.get(i.id))).toMatchObject({logical:i.id,home:i.system});
+        expect(second.state()).toEqual(first.state());
+      }
+      expect((await reader.loadGalaxy('g')).head.sequence).toBe(7);
+    } finally {stop();}
   });
   it('accepts a real adapter transaction, loads history and deduplicates a nonce', async () => {
     const s = store(),
