@@ -14,8 +14,8 @@ test.describe('sound',()=>{
   try{
    const page=await context.newPage();await ready(page,await seedGalaxy());
    const music=page.locator('#btnMusic');
-   await expect(music).toHaveAttribute('aria-pressed','true');await expect(music).toHaveAttribute('data-audio','waiting');
-   await page.touchscreen.tap(195,700);
+   // ready() taps the welcome moment's Enter: that first gesture starts the music
+   await expect(music).toHaveAttribute('aria-pressed','true');
    await expect.poll(async()=>(await sound(page)).ctx).toBe('running');
    await expect.poll(async()=>(await sound(page)).generative).toBe(true);
    await expect(music).toHaveAttribute('data-audio','playing');
