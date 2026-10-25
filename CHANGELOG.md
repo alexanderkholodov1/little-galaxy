@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-alpha.2.60–61 — 2026-10-25
+
+- Route reserve-only founded systems through a funded admission home with a matching replay frame.
+- Choose the nearby moon parent within its persisted home and explain accepted reroutes honestly.
+- Log original launch errors and distinguish permission failures and player quotas in English/Spanish.
+- Cover founded and central-fire planet, moon and comet launches with emulator and second-client regressions.
+
 ## 1.0.0-alpha.1 — Vivo
 
 - Keep Home and Screen live through client-maintained Firestore sky shards without a stand.

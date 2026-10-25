@@ -11,3 +11,7 @@ applied there. The patch passes `git apply --check` against the current local pl
 `alpha2-b1.patch` records the alpha.2 operator instruction, data contract, R25 override and smaller
 quota envelope in the portfolio plan and its CHANGELOG. Apply in the portfolio checkout; B1's
 sandbox cannot write there. The implementation docs and migration live in this repository.
+
+`alpha2-r3-sync.patch` logs the operator-directed emergency fix for launches beside a reserved
+founder, coherent funded-home fallback frames, nearby moon parents and launch diagnostics.
+It preserves the numeric B1 admission/rules contract and requires deployed-preview/phone acceptance.

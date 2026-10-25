@@ -1,0 +1,17 @@
+--- a/docs/plan/CHANGELOG.md
++++ b/docs/plan/CHANGELOG.md
+@@ -2,6 +2,14 @@
+
+ Every change to `docs/plan/` after it was written. Newest first.
+ Format: `YYYY-MM-DD — <what changed> — <why> — decided by <operator | agent>`.
++
++- 2026-10-25 — Repair founded-system follow-up launches: while B1 admits only numeric homes,
++  route reserve-only founders through a funded home with matching replay anchor and relative
++  coordinates. Select moon parents by persisted home and proximity; explain reroutes only after
++  acceptance and retain original launch errors in the console, including permission failures.
++  Add emulator and two-client browser regressions for planet, moon and comet at both fires.
++  Keep deployed rules unchanged; preview and real-phone acceptance remain required — emergency
++  fair fix instructed by operator; implementation decided by agent.
+
+ - 2026-10-22 — Recorded the operator's decisions of 2026-10-22 in `08-decisions.md` with his
+   words: objective "todo el juego y todo lo planificado listo" for 2026-10-23; the assistant is out
