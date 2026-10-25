@@ -81,13 +81,20 @@ test('launched bodies move every frame and their orbit lines survive the page be
  const motion=await page.evaluate(()=>new Promise(done=>{const w=window.__fog.world,e=w.entries.find(x=>!x.toy),out=[];let last=e.body.root.position.clone();
   const step=()=>{const p=e.body.root.position;out.push(p.distanceTo(last));last=p.clone();if(out.length<60)requestAnimationFrame(step);else done(out);};requestAnimationFrame(step);}));
  const still=motion.filter(d=>d<1e-6).length;expect(still/motion.length).toBeLessThan(.1);
+ const speeds=await page.evaluate(()=>new Promise(done=>{const w=window.__fog.world,e=w.entries.find(x=>!x.toy),out=[];let last=e.body.root.position.clone(),t=performance.now();
+  const step=now=>{const p=e.body.root.position;if(now>t)out.push(p.distanceTo(last)/(now-t));last=p.clone();t=now;if(out.length<60)requestAnimationFrame(step);else done(out);};requestAnimationFrame(step);}));
  const before=(await view(page)).trails[0];expect(before.n).toBeGreaterThan(20);
  // hide the page and freeze it like a phone in a pocket, then come back
  const cdp=await page.context().newCDPSession(page);
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>'hidden'});document.dispatchEvent(new Event('visibilitychange'));});
  await cdp.send('Page.setWebLifecycleState',{state:'frozen'});await new Promise(r=>setTimeout(r,9000));await cdp.send('Page.setWebLifecycleState',{state:'active'});
- await page.evaluate(()=>{delete document.hidden;delete document.visibilityState;document.dispatchEvent(new Event('visibilitychange'));});
- await page.waitForTimeout(4000);
+ // coming back shows the current sky at once: at most a jump or two, never a fast-forward to catch up
+ const back=await page.evaluate(()=>new Promise(done=>{const w=window.__fog.world,e=w.entries.find(x=>!x.toy),out=[];let last=e.body.root.position.clone(),t=performance.now();
+  delete document.hidden;delete document.visibilityState;document.dispatchEvent(new Event('visibilitychange'));
+  const step=now=>{const p=e.body.root.position;if(now>t)out.push(p.distanceTo(last)/(now-t));last=p.clone();t=now;if(out.length<150)requestAnimationFrame(step);else done(out);};requestAnimationFrame(step);}));
+ const median=[...speeds].sort((a,b)=>a-b)[speeds.length>>1];
+ expect(back.filter(v=>v>median*2.5).length).toBeLessThanOrEqual(3);
+ await page.waitForTimeout(2500);
  const after=(await view(page)).trails[0];
  expect(after.n).toBeGreaterThan(100);expect(after.gap).toBeLessThan(Math.max(1,before.gap*2.5));
 });
