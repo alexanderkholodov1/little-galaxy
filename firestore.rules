@@ -405,7 +405,7 @@ service cloud.firestore {
         && d.bodies == old.bodies + cost.count + nursery && d.bodies <= 1024
         && d.mass == old.mass + cost.mass + nursery*1000000 && d.mass <= 96000000
         && d.blackholes == old.blackholes + cost.hole && d.blackholes <= 4
-        && (i.kind == 'blackhole' ? a.acceptedAt >= old.lastBlackholeAt + 601500 && d.lastBlackholeAt == a.acceptedAt : d.lastBlackholeAt == old.lastBlackholeAt)
+        && (i.kind == 'blackhole' ? request.time.toMillis() >= old.lastBlackholeAt + 601500 && d.lastBlackholeAt == a.acceptedAt : d.lastBlackholeAt == old.lastBlackholeAt)
         && d.dayLaunches == launches + 1 && d.dayLaunches <= 900
         && d.contributors == contributors + (memberFirst ? 1 : 0)
         && m.mass == prior.get('mass', 0) + cost.mass
@@ -472,7 +472,7 @@ service cloud.firestore {
         && (!('memberId' in old) || d.memberId == old.memberId)
         && ('firstSeen' in old ? d.firstSeen == old.firstSeen : d.firstSeen == d.lastSeen)
         && ('displayName' in old ? d.displayName == old.displayName : d.displayName == 'Anonymous')
-        && (launch || resource == null || d.diff(old).affectedKeys().hasOnly(['lastSeen','lastMutationAt','window','dayLaunches','updatedTime','mutationTime']));
+        && (launch || d.diff(old).affectedKeys().hasOnly(['lastSeen','lastMutationAt','window','dayLaunches','updatedTime','mutationTime']));
     }
     // Renames are outside the daily mutation ceiling, so every profile write waits five minutes.
     function bProfile(g,d,old) {
@@ -504,7 +504,7 @@ service cloud.firestore {
         && i.type == 'launch' && o == i.id
         && d.tombstone == false && d.moons == 0 && d.id == i.id
         && d.memberId == a.memberId && d.displayName == a.displayName && d.kind == i.kind && d.system == i.system
-        && d.parent == i.get('parent','') && d.launch == i
+        && d.parent == i.get('parent','') && d.design == i.design && d.launch == i
         && d.keys().hasOnly(['id','memberId','displayName','kind','system','parent','moons','design','launch','tombstone','lastAction']);
     }
     match /galaxies/{g}/control/{name} {
@@ -542,6 +542,7 @@ service cloud.firestore {
         && d.entries.size() <= 64 && page == string(int((h.sequence-1) / 64))
         && d.entries.size() == old.size()+1
         && last.hash == h.hash && last.sequence == h.sequence
+        && d.entries == old.concat([getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data])
         && d.public == expectedPub
         && d.keys().hasOnly(['entries','public']);
     }
