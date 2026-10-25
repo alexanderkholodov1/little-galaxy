@@ -34,6 +34,13 @@ export function uiOverlay(file,source){
   for(const g of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(g, unlock, {capture:true, passive:true});`);
     source=replace(source,"  const m = $('#btnMusic');\n  m.setAttribute('aria-pressed', S.musicOn);","  const m = $('#btnMusic');\n  m.setAttribute('aria-pressed', S.musicOn);\n  m.dataset.audio = audio.status();\n  audio.onState(s => { m.dataset.audio = s; });");
   }
+  // The settings panel's open state shared its class with the name field (.pu-in: 52px tall, nearly clear), so an
+  // open panel showed as a thin strip and only its closing animation was visible.
+  if(file==='js/ui/prefs.js'){
+    source=replace(source,"    panel.classList.remove('pu-in'); void panel.offsetWidth; panel.classList.add('pu-in');","    panel.classList.remove('pu-open'); void panel.offsetWidth; panel.classList.add('pu-open');");
+    source=replace(source,"    panel.classList.remove('pu-in'); void panel.offsetWidth; panel.classList.add('pu-out');","    panel.classList.remove('pu-open'); void panel.offsetWidth; panel.classList.add('pu-out');");
+  }
+  if(file==='css/player-ui.css') source=replace(source,'.pu-panel.pu-in .pu-grp{','.pu-panel.pu-open .pu-grp{');
   if(file==='css/style.css'){
     source+=`
 /* music on but the browser is still waiting for a first gesture: the note breathes until it plays */

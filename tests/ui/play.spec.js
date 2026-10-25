@@ -1,4 +1,4 @@
-/* global window */
+/* global window, getComputedStyle */
 import {expect,test} from '@playwright/test';
 import {seedGalaxy,ready} from './galaxy-fixture.js';
 test.setTimeout(150000);
@@ -20,3 +20,18 @@ test.describe('sound',()=>{
   }finally{await context.close();}
  });
 });
+
+for(const size of [{width:390,height:844},{width:1440,height:900}]){
+ test(`the settings panel opens whole and closes cleanly at ${size.width}px`,async({page})=>{
+  await page.setViewportSize(size);await ready(page,await seedGalaxy());
+  const panel=page.locator('.pu-panel');
+  await page.locator('#btnPrefs').click();await expect(panel).toBeVisible();
+  await page.waitForTimeout(700);
+  const box=await panel.boundingBox();expect(box.height).toBeGreaterThan(300);
+  expect(await panel.evaluate(el=>getComputedStyle(el).opacity)).toBe('1');
+  await expect(panel.locator('.pu-sw').first()).toBeInViewport();
+  await panel.locator('.x-btn').click();await expect(panel).toBeHidden();
+  await page.locator('#btnPrefs').click();await expect(panel).toBeVisible();
+  await page.locator('#btnPrefs').click();await expect(panel).toBeHidden();
+ });
+}
