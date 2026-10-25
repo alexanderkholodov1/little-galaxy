@@ -217,6 +217,8 @@ body.splashing .brand{opacity:0;transform:translateY(8px) scale(.96)}
 .credits > b{font-family:var(--f-display);font-weight:600;font-size:1rem}
 .credits-who{font-weight:760;font-size:.95rem}
 .credits-tech{font-size:.78rem;color:var(--lav-t);margin-top:4px;line-height:1.4}
+.credits-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.credits-links a{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;text-decoration:none;color:inherit}
 .credits.closing{animation:sheetout .25s var(--out) forwards}
 @keyframes sheetin{from{opacity:0;transform:translateY(12px) scale(.86)}to{opacity:1;transform:none}}
 @keyframes sheetout{to{opacity:0;transform:translateY(8px) scale(.94)}}
