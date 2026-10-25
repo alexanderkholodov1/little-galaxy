@@ -1,7 +1,7 @@
 // world.js — un solo mundo 3D: la galaxia, el banco del taller y la plataforma de lanzamiento
 // viven en la misma escena. Pasar de una pantalla a otra es mover la cámara, nunca cortar.
 import * as THREE from 'three';
-import {Sim, predict, elements} from './sim/index.js';
+import {Sim, predict, elements, propagate} from './sim/index.js';
 import {Body, GALAXY_SCALE, TYPE_INFO, glowTex, raysTex, sprite, NOISE, mulberry} from './bodies.js';
 
 THREE.ColorManagement.enabled = false;
@@ -678,6 +678,7 @@ export function createWorld(canvas, opts = {}){
     if(galaxyView) galaxyView.target.add(v);
     anchor.add(v); anchorGoal.add(v);
     for(const e of W.entries){ const b = e.trail.buf; for(let i = 0; i < e.trail.n; i++){ const j = ((e.trail.head - 1 - i) % TRAIL_K + TRAIL_K) % TRAIL_K; b[j*3] += v.x; b[j*3+1] += v.y; b[j*3+2] += v.z; } }
+    for(const list of skyState.snaps.values()) for(const s of list) if(s.k < skyState.k){ s.p[0] += v.x; s.p[1] += v.y; s.p[2] += v.z; }
     for(let i = 0; i < BURST_N; i++) if(burst.life[i] > 0){ burst.pos[i*3] += v.x; burst.pos[i*3+1] += v.y; burst.pos[i*3+2] += v.z; }
   }
   sim.on((type, sb, extra) => {
@@ -775,6 +776,69 @@ export function createWorld(canvas, opts = {}){
   const portraitR = () => camera.aspect < 0.9 ? 11 : 17.5;
 
   /* ---------------------------------------------------------------- guardar y cargar la galaxia */
+  const SKY_HZ = 120, SKY_DELAY = 16, SKY_JUMP = 90;
+  const skyState = {k:-1, clock:null, r:null, snaps:new Map()}, _sky = [0, 0, 0], _orb = {p:[0, 0, 0], v:[0, 0, 0]};
+  const skyNow = () => performance.now()/1000;
+  const skyClock = () => skyState.clock ? skyState.clock.tick + (skyNow() - skyState.clock.at)*SKY_HZ : skyState.k;
+  function noteSkyState(k){
+    // a short rewind (a late launch re-simulated) keeps drawing what was shown until the sky passes it again
+    if(k <= skyState.k && skyState.k - k <= SKY_JUMP) return false;
+    const jump = skyState.k < 0 || Math.abs(k - skyState.k) > SKY_JUMP, want = skyClock();
+    skyState.clock = jump || Math.abs(k - want) > 60 ? {tick:k, at:skyNow()} : {tick:want + (k - want)*0.1, at:skyNow()};
+    if(jump) skyState.r = null;
+    skyState.k = k;
+    if(jump) skyState.snaps.clear();
+    for(const b of sim.bodies){
+      let list = skyState.snaps.get(b.id);
+      if(!list) skyState.snaps.set(b.id, list = []);
+      list.push({k, p:[...b.p], v:[...b.v]});
+      if(list.length > 3) list.shift();
+    }
+    for(const id of [...skyState.snaps.keys()]) if(!sim.byId(id)) skyState.snaps.delete(id);
+    return jump;
+  }
+  // the drawn sky time advances with each frame's own (display-paced) step and leans gently toward the sky clock
+  function skyTick(dtRaw){
+    const want = skyClock() - SKY_DELAY;
+    skyState.r = skyState.r === null || Math.abs(want - skyState.r) > 30 ? want : skyState.r + dtRaw*SKY_HZ + (want - skyState.r)*0.04;
+  }
+  function skyPos(sb, out){
+    const list = W.shared && skyState.r !== null && skyState.snaps.get(sb.id);
+    if(!list || !list.length){ out[0] = sb.p[0]; out[1] = sb.p[1]; out[2] = sb.p[2]; return out; }
+    const r = skyState.r;
+    let i = list.length - 1;
+    while(i > 0 && list[i].k > r) i--;
+    const a = list[i], b = list[i + 1];
+    if(r <= a.k){ out[0] = a.p[0]; out[1] = a.p[1]; out[2] = a.p[2]; return out; }
+    if(!b){
+      // past the newest state: coast along its velocity for at most a quarter second
+      const t = Math.min(r - a.k, 30)/SKY_HZ;
+      for(let j = 0; j < 3; j++) out[j] = a.p[j] + a.v[j]*t;
+      return out;
+    }
+    const h = (b.k - a.k)/SKY_HZ, u = (r - a.k)/(b.k - a.k), u2 = u*u, u3 = u2*u;
+    const h00 = 2*u3 - 3*u2 + 1, h10 = u3 - 2*u2 + u, h01 = -2*u3 + 3*u2, h11 = u3 - u2;
+    for(let j = 0; j < 3; j++) out[j] = h00*a.p[j] + h10*h*a.v[j] + h01*b.p[j] + h11*h*b.v[j];
+    return out;
+  }
+  // a whole trail from the orbit itself: the path this body flew in the last seconds (never before its launch)
+  function orbitTrail(e){
+    const sb = e.sb, tr = e.trail;
+    const s = sb.mode === 'rail' ? sim.sysById.get(sb.host) : sim.hostAt(sb.p, sb.mode === 'n' ? sb : null);
+    const hp = s && s.p ? s.p : [0, 0, 0], hv = s && s.v ? s.v : [0, 0, 0];
+    const mu = s && s.p ? s.mu + (sb.mode === 'n' ? 15*sb.m : 0) : 15;
+    const r0 = [sb.p[0] - hp[0], sb.p[1] - hp[1], sb.p[2] - hp[2]], v0 = [sb.v[0] - hv[0], sb.v[1] - hv[1], sb.v[2] - hv[2]];
+    const age = e.born ? Math.max(0, (Date.now() - e.born)/1000) : Infinity;
+    const n = Math.min(TRAIL_K, Math.floor(age/TRAIL_EVERY) + 1);
+    tr.n = 0; tr.head = 0; tr.acc = 0;
+    if(n < 2 || !(mu > 0) || ![...r0, ...v0].every(Number.isFinite) || Math.hypot(...r0) < 1e-6) return;
+    for(let i = 0; i < n; i++){
+      const o = propagate(r0, v0, mu, -(n - 1 - i)*TRAIL_EVERY, _orb);
+      if(![...o.p].every(Number.isFinite)){ tr.n = 0; return; }
+      tr.buf[i*3] = hp[0] + o.p[0]; tr.buf[i*3+1] = hp[1] + o.p[1]; tr.buf[i*3+2] = hp[2] + o.p[2];
+    }
+    tr.head = n % TRAIL_K; tr.n = n;
+  }
   function applySharedState(state, norm, owner){
     const ids = new Set(state.entries.map(e=>e.id));
     for(const e of [...W.entries]) if(!e.toy && !ids.has(e.id)) removeEntry(e);
@@ -790,6 +854,7 @@ export function createWorld(canvas, opts = {}){
       }
       e.logical=m.logical; e.home=m.home;
     }
+    if(noteSkyState(state.sim.steps)) for(const e of W.entries) if(!e.toy) orbitTrail(e);
     return W.entries.filter(e=>!e.toy);
   }
   function completeSharedLaunch(entry,res){
@@ -826,7 +891,8 @@ export function createWorld(canvas, opts = {}){
       tr.acc += dt;
       if(tr.acc >= TRAIL_EVERY || tr.n === 0){
         tr.acc = 0;
-        tr.buf[tr.head*3] = e.sb.p[0]; tr.buf[tr.head*3+1] = e.sb.p[1]; tr.buf[tr.head*3+2] = e.sb.p[2];
+        const q = e.body.root.position;
+        tr.buf[tr.head*3] = q.x; tr.buf[tr.head*3+1] = q.y; tr.buf[tr.head*3+2] = q.z;
         tr.head = (tr.head + 1) % TRAIL_K; tr.n = Math.min(TRAIL_K, tr.n + 1);
       }
     }
@@ -857,7 +923,7 @@ export function createWorld(canvas, opts = {}){
         const ax = tr.buf[a*3], ay = tr.buf[a*3+1], az = tr.buf[a*3+2];
         let bx, by, bz;
         if(i < n-1){ const b = idx(i+1); bx = tr.buf[b*3]; by = tr.buf[b*3+1]; bz = tr.buf[b*3+2]; }
-        else { bx = e.sb.p[0]; by = e.sb.p[1]; bz = e.sb.p[2]; }
+        else { const q = e.body.root.position; bx = q.x; by = q.y; bz = q.z; }
         trailPos[o++] = ax; trailPos[o++] = ay; trailPos[o++] = az;
         trailPos[o++] = bx; trailPos[o++] = by; trailPos[o++] = bz;
         const fa = Math.pow(i/n, 1.6)*base, fb = Math.pow((i+1)/n, 1.6)*base;
@@ -1355,7 +1421,8 @@ export function createWorld(canvas, opts = {}){
     if(W.shared) toySim.advance(dt); else sim.advance(dt);
     updateExtent(dt);
     // marco baricéntrico: el Fogón se mece un poco cuando algo pesado lo acompaña
-    SUN.set(sim.central.p[0], sim.central.p[1], sim.central.p[2]);
+    if(W.shared && skyState.k >= 0) skyTick(dtRaw);
+    skyPos(sim.central, _sky); SUN.set(_sky[0], _sky[1], _sky[2]);
     fire.position.copy(SUN);
     W.dust.position.copy(SUN); W.embers.position.copy(SUN);
     sampleTrails(dt);
@@ -1373,7 +1440,8 @@ export function createWorld(canvas, opts = {}){
     ctxBody.cam = camera.position;
     let dead = null;
     for(const e of W.entries){
-      e.body.root.position.set(e.sb.p[0], e.sb.p[1], e.sb.p[2]);
+      if(e.toy) e.body.root.position.set(e.sb.p[0], e.sb.p[1], e.sb.p[2]);
+      else { skyPos(e.sb, _sky); e.body.root.position.set(_sky[0], _sky[1], _sky[2]); }
       // recién lanzado: se encoge despacio de la escala de la plataforma a la de la galaxia
       const rs = e.body.root.scale.x;
       if(Math.abs(rs - e.scaleGoal) > 1e-3) e.body.root.scale.setScalar(rs + (e.scaleGoal - rs)*(1 - Math.exp(-dt*1.1)));

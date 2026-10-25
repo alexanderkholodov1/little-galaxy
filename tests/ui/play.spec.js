@@ -1,6 +1,6 @@
-/* global window, getComputedStyle */
+/* global window, document, requestAnimationFrame, getComputedStyle */
 import {expect,test} from '@playwright/test';
-import {seedGalaxy,ready,throwBody} from './galaxy-fixture.js';
+import {seedGalaxy,ready,workshop,throwBody} from './galaxy-fixture.js';
 test.setTimeout(150000);
 const phone={viewport:{width:390,height:844},hasTouch:true,isMobile:true};
 const view=page=>page.evaluate(()=>window.__fog.world.debugView());
@@ -39,6 +39,20 @@ for(const size of [{width:390,height:844},{width:1440,height:900}]){
  });
 }
 
+test('leaving the workshop without launching takes the draft out of the sky',async({page})=>{
+ await page.setViewportSize(phone.viewport);await ready(page,await seedGalaxy());
+ await page.locator('#btnCreate').click();await expect.poll(async()=>(await view(page)).bench?.state).toBe('bench');
+ await page.waitForTimeout(1500);await page.locator('#wsBack').click();
+ await page.waitForTimeout(2500);
+ const bench=(await view(page)).bench;expect(bench===null||bench.visible===false).toBe(true);
+ // back in the workshop the draft is there again, unchanged
+ await page.locator('#btnCreate').click();await expect.poll(async()=>(await view(page)).bench?.visible).toBe(true);
+ await page.locator('#btnToPad').click();await page.locator('.pu-in').fill('Ida');await page.locator('.pu-cta').click();
+ await page.waitForFunction(()=>window.__fog.world.benchState==='pad');
+ await page.locator('#lpBack').click();await page.waitForTimeout(500);await page.locator('#wsBack').click();await page.waitForTimeout(2800);
+ const after=(await view(page)).bench;expect(after===null||after.visible===false).toBe(true);
+});
+
 test('a star launch stops the band sound and clears the aim, accepted or refused',async({page})=>{
  await page.setViewportSize(phone.viewport);await ready(page,await seedGalaxy());
  await page.locator('#btnCreate').click();await chooseType(page,'star');
@@ -59,16 +73,21 @@ test('a star launch stops the band sound and clears the aim, accepted or refused
  await page.waitForTimeout(1200);v=await view(page);expect(v.bench.state).toBe('pad');
 });
 
-test('leaving the workshop without launching takes the draft out of the sky',async({page})=>{
+test('launched bodies move every frame and their orbit lines survive the page being hidden',async({page})=>{
  await page.setViewportSize(phone.viewport);await ready(page,await seedGalaxy());
- await page.locator('#btnCreate').click();await expect.poll(async()=>(await view(page)).bench?.state).toBe('bench');
- await page.waitForTimeout(1500);await page.locator('#wsBack').click();
- await page.waitForTimeout(2500);
- const bench=(await view(page)).bench;expect(bench===null||bench.visible===false).toBe(true);
- // back in the workshop the draft is there again, unchanged
- await page.locator('#btnCreate').click();await expect.poll(async()=>(await view(page)).bench?.visible).toBe(true);
- await page.locator('#btnToPad').click();await page.locator('.pu-in').fill('Ida');await page.locator('.pu-cta').click();
- await page.waitForFunction(()=>window.__fog.world.benchState==='pad');
- await page.locator('#lpBack').click();await page.waitForTimeout(500);await page.locator('#wsBack').click();await page.waitForTimeout(2800);
- const after=(await view(page)).bench;expect(after===null||after.visible===false).toBe(true);
+ await workshop(page,'Orbit');await throwBody(page);await launched(page,1);
+ await page.waitForTimeout(6000);
+ // every rendered frame advances the body: no frozen frames between 10 Hz sky states
+ const motion=await page.evaluate(()=>new Promise(done=>{const w=window.__fog.world,e=w.entries.find(x=>!x.toy),out=[];let last=e.body.root.position.clone();
+  const step=()=>{const p=e.body.root.position;out.push(p.distanceTo(last));last=p.clone();if(out.length<60)requestAnimationFrame(step);else done(out);};requestAnimationFrame(step);}));
+ const still=motion.filter(d=>d<1e-6).length;expect(still/motion.length).toBeLessThan(.1);
+ const before=(await view(page)).trails[0];expect(before.n).toBeGreaterThan(20);
+ // hide the page and freeze it like a phone in a pocket, then come back
+ const cdp=await page.context().newCDPSession(page);
+ await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>'hidden'});document.dispatchEvent(new Event('visibilitychange'));});
+ await cdp.send('Page.setWebLifecycleState',{state:'frozen'});await new Promise(r=>setTimeout(r,9000));await cdp.send('Page.setWebLifecycleState',{state:'active'});
+ await page.evaluate(()=>{delete document.hidden;delete document.visibilityState;document.dispatchEvent(new Event('visibilitychange'));});
+ await page.waitForTimeout(4000);
+ const after=(await view(page)).trails[0];
+ expect(after.n).toBeGreaterThan(100);expect(after.gap).toBeLessThan(Math.max(1,before.gap*2.5));
 });
