@@ -220,6 +220,32 @@ it('loads a trusted verified checkpoint and only its later tail', async () => {
   expect(result.actions).toEqual([]);
 });
 
+it('loads the certification a tick-keyed pointer names, so a quiet log can be certified again later', async () => {
+  const d = new MemoryGalaxyDriver(() => now);
+  const a = await prepareMutation(context(), launch);
+  await d.seed('galaxies/g', galaxy);
+  await d.seed('galaxies/g/control/head', a.head);
+  const certification = async (state: string) => ({
+    schemaVersion: 1,
+    generation: 1,
+    sequence: 1,
+    kernel: galaxy.kernel,
+    logHash: a.action.hash,
+    stateHash: await canonicalHash(state),
+    state,
+  });
+  await d.seed('galaxies/g/certifications/1-600', await certification('older'));
+  await d.seed('galaxies/g/certifications/1-72600', await certification('ten minutes later'));
+  await d.seed('galaxies/g/control/certified', { sequence: 1, tick: 72600 });
+  const s = createGalaxyStore(d, {
+    uid: 'u',
+    memberId: 'm1',
+    now: () => now,
+    verifyCheckpoint: async () => true,
+  });
+  expect((await s.loadGalaxy('g')).checkpoint?.state).toBe('ten minutes later');
+});
+
 it('seals pages at 64, follows rollover, and loads a complete bounded tail', async () => {
   let clock = now;
   const d = new MemoryGalaxyDriver(() => clock);

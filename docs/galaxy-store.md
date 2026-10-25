@@ -193,7 +193,8 @@ Memory practice must explicitly seed `seasonOpen: true` when its write policy is
 Phone hashing requires a secure browser context; use the deployed HTTPS preview for phone checks.
 
 Import preparation accounts for read-request rule dependencies as well as commit dependencies.
-It chooses a ceiling of 600 down to 300 using actual genesis size; fourteen chunks choose 350.
+It chooses a ceiling of 550 down to 300 using actual genesis size (one chunk: 550; eleven: 400;
+fourteen: 300), after charging twelve hours of automatic certification.
 An oversized import fails preflight before deployment. See the executable quota model.
 
 Resumable import batches check the completion marker in their transaction. A delayed duplicate
@@ -246,7 +247,15 @@ rail; velocities are unchanged. B1 supplies no ordinary transfer reservation ext
 UI retains the prototype's unresolved binary recipe and system-orbiting moons.
 
 The keeper can **Save verified sky** during active play as well as on freeze. Certification
-replays an immutable accepted prefix through its last effective tick, never beyond an action
-it has not seen. Active saves cover only ticks already reached; frozen saves include admitted
-future launches. Publishing a pointer never replaces a newer sequence. This gives late joiners
-an admin-verified prefix plus later accepted actions without trusting a phone's hash hint.
+replays the accepted log up to the **current tick** (taken before reading the log, so an action
+accepted afterwards is due later), and a frozen galaxy up to its frozen tick including admitted
+future launches. While the admin page is open and signed in, it certifies the active public and
+booth galaxies every ten minutes. It keeps each replay in memory, so a save replays only the
+time since the previous one; the first save after opening the page starts from the latest
+certification (or genesis). A certification is `certifications/{sequence}-{tick}` holding the
+gzip-compressed, base64-encoded replay state (`encoding: 'gzip-base64'`; 600 bodies ≈ 110 KB
+instead of ≈ 470 KB of JSON). Certification and `control/certified {sequence, tick}` are written
+in one commit; the rule requires the certification and only lets the pointer move to a later
+tick. Late joiners load the newest certification plus later accepted actions, never a phone's
+hash hint. A browser without `DecompressionStream` ignores the certification and replays from
+genesis. Pointers written as `{sequence}` alone are still read as `certifications/{sequence}`.

@@ -144,7 +144,7 @@ drafts/themes are recovered on the new route without deleting the original store
 
 | Scenario | Reads | Writes |
 | --- | ---: | ---: |
-| 300-visitor fair day, 400 mutations | **23,416 (46.832%)** | **2,900 (14.5%)** |
+| 300-visitor fair day, 400 mutations | **23,801 (47.602%)** | **3,044 (15.22%)** |
 | Idle day | 50 (0.1%) | 0 |
 | Idle week | 350 | 0 |
 | Optional two leased stands, idle day | 1,982 (3.964%) | 962 (4.81%) |
@@ -152,13 +152,37 @@ drafts/themes are recovered on the new route without deleting the original store
 
 The fair row includes eleven genesis chunks, 125 foreground resumes, two mean foreground phones
 plus TV, 100 replay views, 100 activity samples, two booth starts, keeper dashboard/refreshes,
-admin operations and reserve. It leaves **1,584 reads below the half-quota gate**. Existing galaxy
+twelve hours of automatic ten-minute certification, admin operations and reserve. It leaves
+**1,199 reads below the half-quota gate**. Existing galaxy
 settings are preserved: review/lower an already-created galaxy's `dailyLimit` before opening.
-Migration sizes its ceiling to actual genesis (one chunk: 600; eleven: 400; fourteen: 350), and
+Migration sizes its ceiling to actual genesis (one chunk: 550; eleven: 400; fourteen: 300), and
 fails an oversized import. Do not add legacy enrichment/optional stand leases to the fair row.
 Imports/quota-window preparation belong on a prior Pacific day or must fit that day's remaining
 budget. See `alpha2-b1-quota.md` for all bounds; this is a model, not observed billing or a global
 anonymous-read limit. Hosting/font transfer is a separate project budget.
+
+## Late-join replay time
+
+A phone that opens or returns to the galaxy restores the newest admin certification and replays
+the time since it was saved. The keeper page certifies every ten minutes, so the certification
+is at most ten minutes old (five on average). Measured on this machine (Intel i5-4590, 3.3 GHz,
+Node 22, one core) with real `planGalaxyImport` genesis of planets spread across its systems,
+a certification ten minutes old (72,000 steps), by `scripts/late-join-bench.ts`:
+
+| Bodies | Systems | Packed certification | Restore | Replay 10 min | Per galaxy-second | Catch-up while time runs |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 30 | 1 | 6 KB | 4 ms | **1.8 s** | 3 ms | 1.8 s |
+| 100 | 4 | 23 KB | 6 ms | 22.6 s | 38 ms | 23.5 s |
+| 300 | 10 | 66 KB | 19 ms | **208 s** | 347 ms | 319 s |
+
+"Catch-up" is replay ÷ (1 − cost per galaxy-second): real time keeps moving while the phone
+replays. At 30 bodies a late join is immediate. At 300 bodies it takes about five minutes on a
+desktop core even with a fresh certification, and keeping up in real time costs about a third
+of that core; a phone core is slower. This is the simulation's own cost (not changed here), so
+the body count is the lever: measure the production galaxy's body count and try a late join on
+a real phone before opening. The first certification after the keeper page opens replays from
+the previous certification, or from genesis if there is none: migrate and certify right before
+opening (RUNBOOK §14).
 
 ## Remaining operator gates and open questions
 
@@ -170,8 +194,8 @@ anonymous-read limit. Hosting/font transfer is a separate project budget.
 3. Run a deployed HTTPS preview on actual phones: cold/late replay time, two-device numerical
    agreement, mid-edit deploy/rollback, booth switch, QR reachability, Google popup and Wi-Fi
    reconnection. No production readiness claim replaces that AGENTS.md gate.
-4. Long complex cold replay is still fixed-step work, and certified snapshots must fit the
-   Firestore document limit. The prototype's unresolved binary recipe and system-orbiting moons
+4. Long complex cold replay is still fixed-step work; see the late-join table above. Certified
+   snapshots are compressed (600 bodies ≈ 110 KB). The prototype's unresolved binary recipe and system-orbiting moons
    remain. Ordinary capture cannot enter an unfunded B1 home: it stays integrated with unchanged
    velocity until a funded path exists; an ordinary transfer-reservation extension is absent.
 5. Player sign-in/shared portfolio accounts (R19/R23), destructive mode (R22), and player-created

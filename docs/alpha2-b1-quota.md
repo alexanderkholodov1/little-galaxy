@@ -16,8 +16,9 @@ Sources: [Firestore quotas](https://firebase.google.com/docs/firestore/quotas) a
 | 100 timelapse views: 4 metadata reads, all 7 pages and 11 genesis chunks | 2,200 | 0 |
 | Two booth cold starts: 7 public metadata/listener reads, full history | 50 | 0 |
 | Keeper login, 3 galaxy cards, player dashboard and 2 explicit refreshes | 1,100 | 0 |
+| Keeper page open 12 h: automatic certification every 10 min (72 runs × 5 reads, 2 writes) + 25-read bootstrap | 385 | 144 |
 | Ten admin operations/exports, certifications, parents, retries and other reserve | 500 | 100 |
-| **300-visitor fair day** | **23,416 (46.832%)** | **2,900 (14.5%)** |
+| **300-visitor fair day** | **23,801 (47.602%)** | **3,044 (15.22%)** |
 | Idle day, one 50-read bootstrap/reconnection allowance | 50 (0.1%) | 0 |
 | **Idle week** | **350** | **0** |
 | Optional two leased stands, idle day including bootstrap | 1,982 (3.964%) | 962 (4.81%) |
@@ -25,17 +26,18 @@ Sources: [Firestore quotas](https://firebase.google.com/docs/firestore/quotas) a
 
 New galaxies default to **400 accepted mutations/day** (launches, edits and body removals combined).
 The 300 first-contribution reservation and six-launch/three-slot player bounds remain. At eleven
-imported chunks the old 600 ceiling would cost **29,005 reads**, so it cannot ship as this default.
+imported chunks the old 600 ceiling would cost **29,390 reads**, so it cannot ship as this default.
 Migration chooses the highest 300–600 ceiling fitting the actual genesis footprint with at least
-1,000 reads of margin below half: one chunk permits 600; eleven choose 400; fourteen choose 350.
+1,000 reads of margin below half: one chunk permits 550; eleven choose 400; fourteen choose 300.
 An import too large for 300 fails before publication. Existing imported settings are preserved;
 the captain must review/lower an already-created galaxy's dailyLimit before opening it under P2.
 
 The eight phone bootstrap reads are server-clock config, selection listener, manifest listener,
 head, private member, unsigned-cache probe, certification pointer, and the current action-page
 listener's initial delivery. Packed pages and genesis chunks are additional. This charges the
-cache probes even when absent and assumes **no certified-cache savings**. Late certified joins
-can cost less. Public booth readers omit private membership. Timelapse omits membership, cache
+cache probes even when absent and assumes **no certified-cache savings**. A join that finds a
+certification reads it (1) instead of the genesis chunks (11) and only the later pages, so the
+certified case never costs more than this row. Public booth readers omit private membership. Timelapse omits membership, cache
 and live-action listeners, because it must load history before a checkpoint for scrubbing.
 
 The dashboard caches manifests/full history and explicitly refreshes. Its 1,100 reads cover
@@ -45,13 +47,20 @@ Visits and cosmetic throws are uncollected, not fabricated counters. Activity ex
 from five-minute samples; touch runs only in a visible, active player session. More than the
 budgeted 100 long-session samples must be charged separately.
 
-Ten administrative commands/exports and at most 100 extra writes fit the reserve. Certification
-publishes immutable state before its pointer in two guarded transactions; phone caches never
-establish physics. Exports use cached complete accepted history where possible and download
+Ten administrative commands/exports and at most 100 extra writes fit the reserve. While the
+keeper page is open and signed in, it certifies the active public galaxy and the booth galaxy
+every ten minutes. Each run per galaxy reads the manifest and the open log page, then commits
+the certification and its pointer together (2 writes); the commit's rules read the allowlist,
+the head and the new certification (3 reads). The replay stays in memory, so runs read no
+genesis; the first run per galaxy loads its latest certification or genesis (25 reads allowed).
+The fair row assumes the booth shows the fair galaxy (one certified galaxy) for twelve hours:
+**385 reads, 144 writes**. A different booth galaxy doubles the runs: 24,186 reads (48.372%),
+3,188 writes, still under half. Phone caches never establish physics. Exports use cached complete accepted history where possible and download
 locally. Body removals are already part of the 400 accepted mutations. No recursive purge,
-periodic position writer, Cloud Function, background telemetry or certification daemon exists.
+periodic position writer, Cloud Function or background telemetry exists; certification runs
+only in an open, signed-in keeper page.
 
-There are **1,584 reads of headroom** below the 25,000-read gate in the default fair envelope.
+There are **1,199 reads of headroom** below the 25,000-read gate in the default fair envelope.
 Legacy archive/meteors/snapshot publications and optional stand leases stay disabled for that
 fair scenario. The idle optional-stand row is separate: adding it to the fair total would exceed
 the gate. Stand tooling remains available, and the shared game does not need a running stand.
@@ -65,7 +74,8 @@ real fair Wi-Fi, device replay time and cross-device numerical agreement remain 
 
 Packed pages retain 64 entries, a 128 KiB cap and 2,000-byte action envelope. The game stores no
 trajectory arrays and writes no positions. Phone caches retain B1's 14,000-character bound;
-admin certifications hold the full replay state and must fit Firestore's 1 MiB document bound.
+admin certifications hold the full replay state, gzip-compressed and base64-encoded: about
+110 KB at 600 bodies (tested below 256 KiB), far below Firestore's 1 MiB document bound.
 The conservative fair transfer envelope remains 1.5 GiB (cold genesis/pages, repeated page
 snapshots, certificates, replay readers and protocol margin), below half of the 10 GiB monthly
 Firestore allowance for this one fair plus the idle week. These are wire-size allowances, not

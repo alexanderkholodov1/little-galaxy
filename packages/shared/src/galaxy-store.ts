@@ -842,9 +842,14 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
       check(g && h, 'Missing galaxy/head');
       let checkpoint: Checkpoint | null = null;
       if (options.verifyCheckpoint) {
-        const pointer = await driver.get<{ sequence: number }>(`${p}/control/certified`);
+        const pointer = await driver.get<{ sequence: number; tick?: number }>(
+          `${p}/control/certified`,
+        );
         if (pointer) {
-          const trusted = await driver.get<Checkpoint>(`${p}/certifications/${pointer.sequence}`);
+          // A certification is keyed by its sequence and the tick it reached; quiet logs advance by tick.
+          const key =
+            pointer.tick === undefined ? `${pointer.sequence}` : `${pointer.sequence}-${pointer.tick}`;
+          const trusted = await driver.get<Checkpoint>(`${p}/certifications/${key}`);
           if (
             trusted &&
             trusted.sequence === pointer.sequence &&

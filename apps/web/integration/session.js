@@ -1,6 +1,7 @@
 import {createGalaxyStore} from '@little-galaxy/shared';
 import {firestoreGalaxyDriver,ServerClock} from '@little-galaxy/shared/firestore';
 import {auth,firestore,startAnonymousSession} from '../src/firebase.ts';
+import {verifyCertified} from './checkpoint.js';
 export async function openSession({readOnly=false,admin=false,history=false}={}){
   if(!firestore||!auth)throw new Error('This sky is not connected yet. Please try again soon.');
   await auth.authStateReady();
@@ -19,9 +20,6 @@ export async function openSession({readOnly=false,admin=false,history=false}={})
   const store=createGalaxyStore(driver,{uid:auth.currentUser?.uid??'readonly',memberId,now:clock.now,admin,
     // B1 verifies this immutable admin-only certification's state hash, manifest and generation first.
     // Phone caches always arrive with their log and must never be promoted by comparing their own hash.
-    verifyCheckpoint:history?undefined:async(cache,actions,g)=>{
-      if(actions.length)return false;
-      try{const state=JSON.parse(cache.state);return state.kernel===g.kernel&&state.galaxyId===g.id&&state.generation===g.generation&&state.sequence===cache.sequence;}catch{return false;}
-    }});
+    verifyCheckpoint:history?undefined:verifyCertified});
   return {store,driver,clock,selection,memberId};
 }

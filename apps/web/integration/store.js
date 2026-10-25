@@ -1,6 +1,7 @@
 import {observeAction} from './homes.js';
 import {openSession} from './session.js';
 import {launchIntent} from './replay.js';
+import {unpackLoaded} from './checkpoint.js';
 export function createSharedStore({galaxyId=null,booth=false,readOnly=false,replay=false,session=openSession}={}){
   let backend,loaded,stops=[],member='',selection,stopped=false;
   const emit=(name,detail)=>{if(name==='actions'&&loaded)for(const action of detail)observeAction(loaded.head,action);return dispatchEvent(new CustomEvent(`galaxy:${name}`,{detail}));};
@@ -21,7 +22,7 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       stops.push(backend.store.subscribeToGalaxy(S.galaxyId,next=>{
         if(next&&loaded?.galaxy.id===next.id){loaded.galaxy=next;emit('manifest',next);}
       },error=>emit('error',error)));
-      loaded=await backend.store.loadGalaxy(S.galaxyId);
+      loaded=await unpackLoaded(await backend.store.loadGalaxy(S.galaxyId));
       member=loaded.player?.memberId??backend.memberId;
       if(!readOnly)stops.push(backend.store.subscribeToActions(S.galaxyId,loaded.head.sequence,actions=>emit('actions',actions),error=>emit('error',error)));
       else if(booth)stops.push(backend.store.subscribeToActions(S.galaxyId,loaded.head.sequence,actions=>emit('actions',actions),error=>emit('error',error)));

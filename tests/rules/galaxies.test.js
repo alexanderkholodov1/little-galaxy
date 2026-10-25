@@ -16,6 +16,7 @@ import {
   query,
   limit,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import {
   createGalaxyStore,
@@ -497,9 +498,20 @@ describe('remaining role, system and read boundaries', () => {
       'galaxies/g/legacySky/a',
     ])
       await assertFails(setDoc(doc(user, path), { fake: true }));
-    await assertFails(setDoc(doc(user, 'galaxies/g/control/certified'), { sequence: 1 }));
-    await assertSucceeds(setDoc(doc(admin, 'galaxies/g/certifications/1'), { sequence: 1 }));
-    await assertSucceeds(setDoc(doc(admin, 'galaxies/g/control/certified'), { sequence: 1 }));
+    await assertFails(setDoc(doc(user, 'galaxies/g/control/certified'), { sequence: 1, tick: 600 }));
+    const certify = (db, sequence, tick) => {
+      const batch = writeBatch(db);
+      batch.set(doc(db, `galaxies/g/certifications/${sequence}-${tick}`), { sequence });
+      batch.set(doc(db, 'galaxies/g/control/certified'), { sequence, tick });
+      return batch.commit();
+    };
+    await assertFails(certify(user, 1, 600));
+    // One commit; a quiet log is certified again at a later tick, never an earlier one.
+    await assertSucceeds(certify(admin, 1, 600));
+    await assertSucceeds(certify(admin, 1, 72600));
+    await assertFails(certify(admin, 1, 7200));
+    await assertFails(certify(admin, 2, 80000));
+    await assertFails(setDoc(doc(admin, 'galaxies/g/control/certified'), { sequence: 1, tick: 90000 }));
     await assertFails(
       setDoc(doc(user, 'galaxies/g/adminActions/a'), { actor: 'alice', type: 'update' }),
     );

@@ -714,7 +714,7 @@ Rules deployment retains the existing required-reviewer release environment.
 Before opening: integrate the pinned kernel and legacy genesis reader; anchor the client clock;
 verify the accepted log on the deployed preview and real phones; test a hidden/resumed phone,
 nonce retry, freeze/switch race, and no-stand late join. Review `alpha2-b1-quota.md`: its fair model
-has 1,584 reads below the 50% gate and excludes optional services. UI confirmations, backup
+has 1,199 reads below the 50% gate and excludes optional services. UI confirmations, backup
 exports/restore/purge, dashboard and new routes belong to their packages; B1 provides no purge API.
 
 P2 defaults `dailyLimit` to 400 accepted mutations/day, including edits/removals. This revised
@@ -727,7 +727,8 @@ restored closed season stays closed to canonical actions; admin tombstones remai
 repair. Clients forging an open local config cannot bypass these server checks.
 
 Import preparation accounts for read-request rule dependencies as well as commit dependencies.
-It chooses a ceiling of 600 down to 300 using actual genesis size; fourteen chunks choose 350.
+It chooses a ceiling of 550 down to 300 using actual genesis size (one chunk: 550; eleven: 400;
+fourteen: 300), after charging twelve hours of automatic certification.
 An oversized import fails preflight before deployment. See the executable quota model.
 
 ## 14. Alpha.2 P2 — prototype game and keeper’s ledger

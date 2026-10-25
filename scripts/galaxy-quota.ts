@@ -1,6 +1,9 @@
 /** P2 operating envelope: 300 visitors, 125 resumes, 100 replay readers, one keeper and one TV. */
-export function galaxyQuotaModel({ mutations = 400, genesisChunks = 11 } = {}) {
+export function galaxyQuotaModel({ mutations = 400, genesisChunks = 11, certifiedGalaxies = 1, keeperHours = 12 } = {}) {
   const pages = Math.ceil(mutations / 64), meanPages = Math.ceil((pages + 1) / 2);
+  // Ten-minute runs, each per certified galaxy: manifest + open log page reads, then one commit of
+  // certification + pointer whose rules read the allowlist, head and the new certification.
+  const runs = keeperHours * 6 * certifiedGalaxies;
   const rows = [
     {name:`${mutations} accepted mutations; 18 explicit/dependency reads plus 3% retries`,reads:Math.ceil(mutations*18*1.03),writes:mutations*6},
     // Clock config, selection, manifest, head, private member, unsigned cache probe,
@@ -13,6 +16,7 @@ export function galaxyQuotaModel({ mutations = 400, genesisChunks = 11 } = {}) {
     {name:`100 timelapse readers: config, selection, manifest, head + ${pages} pages + ${genesisChunks} genesis chunks`,reads:100*(4+pages+genesisChunks),writes:0},
     {name:'Two booth cold starts: seven public metadata/listener reads + complete history',reads:2*(7+pages+genesisChunks),writes:0},
     {name:'Keeper login, three galaxy cards, player dashboard and two explicit refreshes',reads:1100,writes:0},
+    {name:`Keeper page open ${keeperHours} h: automatic certification every 10 min of ${certifiedGalaxies} galaxy(ies), 5 reads per run + 25-read bootstrap each`,reads:runs*5+25*certifiedGalaxies,writes:runs*2},
     {name:'Ten admin operations/exports, certifications, parents, retries and other reserve',reads:500,writes:100},
   ];
   return {rows,reads:rows.reduce((n,r)=>n+r.reads,0),writes:rows.reduce((n,r)=>n+r.writes,0),readLimit:25000,writeLimit:10000};

@@ -484,10 +484,14 @@ service cloud.firestore {
     }
     match /galaxies/{g}/control/{name} {
       allow get: if name in ['head','certified'] && bReadable(g);
+      // Certifications are keyed by sequence and reached tick, so a quiet log can be saved again later.
       allow create, update: if name == 'certified' && bAdmin()
-        && request.resource.data.keys().hasOnly(['sequence']) && request.resource.data.sequence is int
+        && request.resource.data.keys().hasOnly(['sequence','tick'])
+        && request.resource.data.sequence is int && request.resource.data.tick is int
         && request.resource.data.sequence <= bHead(g).sequence
-        && exists(/databases/$(database)/documents/galaxies/$(g)/certifications/$(string(request.resource.data.sequence)));
+        && (resource == null || (request.resource.data.tick > resource.data.get('tick', -1)
+          && request.resource.data.sequence >= resource.data.sequence))
+        && existsAfter(/databases/$(database)/documents/galaxies/$(g)/certifications/$(string(request.resource.data.sequence) + '-' + string(request.resource.data.tick)));
       allow create: if name == 'head' && signed() && getAfter(bPath(g)).data.owner == request.auth.uid && !exists(bPath(g))
         && request.resource.data.sequence == 0 && request.resource.data.bodies == 1 && request.resource.data.mass == 1000000
         && request.resource.data.systems == {'0':{'bodies':1,'mass':1000000,'compact':1,'giants':0,'blackholes':0,'ordinaryMass':0}}
