@@ -673,3 +673,54 @@ An incomplete or mismatched existing release fails loudly for review.
 
 The portfolio receiver and its production policy remain separately owned. This
 builder performed no GitHub dispatch, rule/index deployment or Hosting mutation.
+
+## 13. Alpha.2 B1 galaxies and admission
+
+The existing operator-approved `release-sky` workflow entry now runs `releaseGalaxies`.
+It preflights CLI access, persists `migrations/galaxies-v1`, closes legacy writes, validates the
+source, deploys rules/indexes, imports sources into `galaxies/bad-2026` (name **BAD 2026**),
+read-back verifies public genesis chunks and publishes both galaxy pointers atomically.
+`restore-season` recovers both alpha.2 and any older alpha.1 window. A possibly applied deploy
+with incomplete migration leaves the season closed. Rerun the failed release; do not delete its
+marker. An emergency `control flag seasonOpen off` supersedes the saved state for either migration.
+Existing global objects/shards/archive are retained for old object URLs and rollback inspection.
+`config/live.dataLayerVersion = 2` closes the old player write path even after flag restoration.
+Old phones keep their local draft and must load the new packaged client to contribute again.
+
+The import stores exact private legacy objects/shards, publicly hashed genesis without Auth UID
+mappings, private entitlement profiles, and counted physical bodies. It fails on unsupported data
+or exceeded budgets; it never silently clamps a legacy orbit or drops an object. The initial
+manifest uses kernel `legacy-orbit-v2`: the frontend must support that genesis format before this
+release is deployed. Imported ownership uses private UID memberships; the first galaxy's logical
+owner is `operator`, with administration granted independently by the email allowlist.
+
+The release provisions a rolling 370 Pacific quota windows, including DST boundaries, in
+`quotaWindows`. Renew descriptors through the same admin tooling before expiry. Client clocks
+cannot create/reset the quota calendar. Do this preparation outside the fair quota day or include
+all imported documents and descriptors in that day's usage.
+
+The runtime admin allowlist is **only `config/admins.emails`**. Migration creates it only if absent,
+with `kholodov.alexander1@gmail.com`. To change it, edit that array with an authorized Firebase
+Console/Admin SDK operator; client rules forbid writing the allowlist. No custom Auth claims or
+email-only UI checks are required: rules also require verified email and `google.com` provider.
+Keep at least one working admin account before removing an address.
+
+Stop existing alpha.1 stand binaries before opening alpha.2; a new alpha.2 daemon exits after
+recognizing data-layer version 2, disabling the obsolete enrichment stream. No new rules, indexes,
+allowlist, credential, public name or production Hosting were deployed by B1 implementation.
+Rules deployment retains the existing required-reviewer release environment.
+
+Before opening: integrate the pinned kernel and legacy genesis reader; anchor the client clock;
+verify the accepted log on the deployed preview and real phones; test a hidden/resumed phone,
+nonce retry, freeze/switch race, and no-stand late join. Review `alpha2-b1-quota.md`: its fair model
+has only 362 reads below the 50% gate and excludes optional services. UI confirmations, backup
+exports/restore/purge, dashboard and new routes belong to their packages; B1 provides no purge API.
+
+B1 defaults `dailyLimit` to 600 accepted mutations/day, including edits/removals. This revised
+quota budget includes up to fourteen imported genesis chunks per cold/resume join; a 900-action
+scenario with the imported world does not fit the requested 50% margin. Raising the limit is
+an admin data operation and needs a revised fair-day model.
+
+The migrated public galaxy honors the existing seasonOpen/launches/edits kill switches. A
+restored closed season stays closed to canonical actions; admin tombstones remain available for
+repair. Clients forging an open local config cannot bypass these server checks.

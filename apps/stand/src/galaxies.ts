@@ -55,7 +55,7 @@ export async function planGalaxyImport(objects: Row[], sky: Row[], at: number) {
       m.blackholes += hole;
       m.stellar += stellar;
       m.bodyIds.push(row.id);
-      if (count === 2) m.bodyIds.push(row.id + '-b');
+      if (count === 2) m.bodyIds.push(row.id + ':b');
       m.launches++;
       if (m.bodyIds.length > 3 || m.mass > 3100000 || m.blackholes > 1 || m.stellar > 1)
         throw new Error('Legacy player capacity exceeded');
@@ -109,6 +109,7 @@ export async function planGalaxyImport(objects: Row[], sky: Row[], at: number) {
       data: {
         id: row.id,
         memberId: label,
+        displayName: 'Anonymous',
         kind,
         system: systemId,
         parent: '',
@@ -120,12 +121,24 @@ export async function planGalaxyImport(objects: Row[], sky: Row[], at: number) {
       },
     });
   }
-  for (let start = 0; start < bodies.length; start += 32) {
-    const data = { bodies: bodies.slice(start, start + 32).map((r) => plain(r.data)) };
-    if (Buffer.byteLength(JSON.stringify(data)) > 60000)
-      throw new Error('Legacy genesis chunk capacity exceeded');
+  let chunkBodies: Json[] = [],
+    chunkBytes = Buffer.byteLength(JSON.stringify({ bodies: [] }));
+  const flush = async () => {
+    if (!chunkBodies.length) return;
+    const data = { bodies: chunkBodies };
     chunks.push({ id: String(chunks.length), data, hash: await canonicalHash(data) });
+    chunkBodies = [];
+    chunkBytes = Buffer.byteLength(JSON.stringify({ bodies: [] }));
+  };
+  for (const body of bodies) {
+    const value = plain(body.data),
+      bytes = Buffer.byteLength(JSON.stringify(value));
+    if (bytes + 13 > 60000) throw new Error('Legacy genesis chunk capacity exceeded');
+    if (chunkBytes + bytes + (chunkBodies.length ? 1 : 0) > 60000) await flush();
+    chunkBytes += bytes + (chunkBodies.length ? 1 : 0);
+    chunkBodies.push(value);
   }
+  await flush();
   // Keep the exact private source separately; public genesis excludes technical UID mappings.
   return {
     head,

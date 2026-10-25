@@ -28,9 +28,8 @@ stop();
 ```
 
 A member profile is galaxy-scoped, private and keyed by Auth UID. `memberId` is its public
-pseudonym. First launch can create Anonymous membership. Read the caller's existing membership
-before constructing a returning session, and use its existing `memberId`; never mint a different
-label per reconnect. Do not expose UID mappings in logs or exported public genesis.
+pseudonym. First launch can create Anonymous membership. Use the `player` returned by `loadGalaxy` for the private name and inventory. Existing membership
+identity is reused automatically; `memberId` is only the seed for a new membership. Do not expose UID mappings in logs or exported public genesis.
 Chosen labels are nonunique, escaped text, at most 24 Unicode code points (a stricter bound than
 24 grapheme clusters). First/last seen and launch totals live in the membership. `touch()` writes
 only after five minutes; call it only while foreground. `metrics()` returns at most 300 members,
@@ -119,7 +118,7 @@ import { MemoryGalaxyDriver, createGalaxyStore, initialGalaxy, initialHead, quot
   from '@little-galaxy/shared';
 const driver = new MemoryGalaxyDriver();
 const now = Date.now();
-await driver.seed('config/live', { activePublicGalaxyId: 'practice', boothGalaxyId: 'practice' });
+await driver.seed('config/live', { seasonOpen: true, activePublicGalaxyId: 'practice', boothGalaxyId: 'practice' });
 await driver.seed('galaxies/practice', initialGalaxy('practice', 'owner', 'Practice', now, kernelHash));
 await driver.seed('galaxies/practice/control/head', initialHead(now));
 const window = quotaWindow(now);
@@ -157,3 +156,38 @@ unfunded destination; extending ordinary inter-system reservations needs another
 New galaxies default to a shared 600-mutation Pacific-day ceiling (launches, edits and admin body
 removals). The admin may configure `dailyLimit` from 300 to 900 after reviewing the quota model.
 This supplements the six-launch player ceiling; it does not promise six launches to each player.
+
+The binary's second ownership slot is `<nonce>:b`; colons are forbidden in action nonces. A
+kernel must likewise namespace implicit seed/nursery IDs (for example `seed:<system>`) so a
+visitor's valid nonce cannot shadow a pre-existing physical component.
+
+Use `subscribeToSelection` for rare active-public/booth pointer changes and `subscribeToGalaxy`
+for lifecycle changes. Start the manifest subscription **before** `loadGalaxy(id)`; the store
+reuses its first server snapshot rather than billing another manifest fetch. Both return stop
+functions; stop them when hidden. The quota model charges one extra selection listener per
+join/resume and up to fourteen genesis chunks, plus the private player inventory read (the same
+total envelope as sixteen without the listener and inventory). A frozen renderer evaluates through `max(head.effectiveTick, ceil((frozenAt-epoch)*120/1000))`
+so a launch already admitted for a future tick is included. Repeating a freeze preserves its date.
+
+Import genesis chunks pack complete legacy records up to the 60,000-byte JSON target rather than
+wasting one chunk per fixed body count. Their hashes and exact legacy orbital fields remain stable.
+The quota model still charges the conservative fourteen-chunk bound, not a free genesis download.
+
+Body identity records retain the public creator `displayName` selected at launch, while Auth UID
+ownership remains private. Later profile renames do not silently rewrite historical authorship;
+name redaction/export policy is a separate administrative feature.
+
+`loadGalaxy().player` returns only the caller's private profile and up to three ownership slots;
+it is null before first participation. Nonce recovery checks that persisted membership, so a
+returning session does not need to retain its originally proposed public member label.
+
+Packed pages have a 128 KiB payload cap and at most 64 entries; accepted actions have a
+2,000-byte JSON envelope. This replaces the note's 32 KiB page target, which a fixture of
+64 valid full-design planet actions exceeded. The richer rollover fixture and real twenty-phone
+last-slot/page-fill race guard against blocking a galaxy before the next page can open.
+
+Public admissions also honor the existing `config/live.seasonOpen`, `launches` and `edits`
+controls, including against clients forging their local config view. An emergency close therefore
+still closes the migrated public world. Verified admin tombstones remain available for repair.
+Memory practice must explicitly seed `seasonOpen: true` when its write policy is public.
+Phone hashing requires a secure browser context; use the deployed HTTPS preview for phone checks.

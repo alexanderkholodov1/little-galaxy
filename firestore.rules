@@ -272,11 +272,14 @@ service cloud.firestore {
     }
     function bHead(g) { return getAfter(/databases/$(database)/documents/galaxies/$(g)/control/head).data; }
     function bMember(g) { return getAfter(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)).data; }
-    function bAction(g) { return getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(bHead(g).lastAction)).data; }
-    function bOpen(g) {
+    function bOpen(g, operation) {
       let galaxy = bGalaxy(g);
+      let flags = config();
       return signed() && galaxy.status == 'active' && galaxy.writePolicy != 'frozen'
-        && (galaxy.writePolicy == 'public' ? config().activePublicGalaxyId == g || bAdmin()
+        && (galaxy.writePolicy == 'public' ? (flags.get('seasonOpen',false) || (operation == 'remove' && bAdmin()))
+          && (flags.activePublicGalaxyId == g || bAdmin())
+          && (operation != 'launch' || flags.get('launches',true))
+          && (operation != 'edit' || flags.get('edits',true))
           : galaxy.owner == request.auth.uid || (get(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)).data.role in ['owner','editor']) || bAdmin());
     }
     function bMin(a,b) { return a < b ? a : b; }
@@ -285,11 +288,13 @@ service cloud.firestore {
       return k == 'pulsar' ? 1400000 : k == 'star' ? 1000000 : k in ['binary','blackhole'] ? 2000000
         : k == 'giant' ? 10000 : k == 'planet' ? 1000 : k == 'moon' ? 10 : k == 'nebula' ? 100 : 1;
     }
-    function bCompact(k) { return k == 'binary' ? 2 : k in ['star','pulsar','blackhole'] ? 1 : 0; }
-    function bStellar(k) { return k in ['star','pulsar','binary'] ? 1 : 0; }
-    function bCount(k) { return k == 'binary' ? 2 : 1; }
-    function bHole(k) { return k == 'blackhole' ? 1 : 0; }
-    function bName(n) { return n is string && n.size() >= 1 && n.size() <= 24 && !n.matches('.*[<>\\x00-\\x1f\\x7f].*'); }
+    function bCost(k) {
+      let count = k == 'binary' ? 2 : 1;
+      let stellar = k in ['star','binary','pulsar'] ? 1 : 0;
+      let hole = k == 'blackhole' ? 1 : 0;
+      return {'mass':bMass(k),'count':count,'stellar':stellar,'hole':hole,'compact':stellar > 0 ? count : hole};
+    }
+    function bName(n) { return n is string && n.size() >= 1 && n.size() <= 24 && n.matches('^[^<>\\x00-\\x1f\\x7f]+$'); }
     function bGalaxySchema(d, g) {
       return d.keys().hasOnly(['schemaVersion','id','owner','name','mode','visibility','writePolicy','status','generation','createdAt','frozenAt','epoch','kernel','dailyLimit','genesis'])
         && d.schemaVersion == 1 && d.id == g && id(g) && id(d.owner)
@@ -378,7 +383,7 @@ service cloud.firestore {
         && s.ordinaryMass == old.ordinaryMass + (cost.compact == 0 ? cost.mass : 0) && s.ordinaryMass <= 200000;
     }
     function bHeadLaunch(g,d,old,a,m,prior) {
-      let i = a.intent; let cost = {'mass': bMass(a.intent.kind),'count':bCount(a.intent.kind),'compact':bCompact(a.intent.kind),'hole':bHole(a.intent.kind),'stellar':bStellar(a.intent.kind)}; let fresh = !(i.system in old.systems); let nursery = fresh && cost.compact == 0 ? 1 : 0;
+      let i = a.intent; let cost = bCost(i.kind); let fresh = !(i.system in old.systems); let nursery = fresh && cost.compact == 0 ? 1 : 0;
       let s = old.systems.get(i.system, {'bodies':nursery,'mass':nursery*1000000,'compact':nursery,'giants':0,'blackholes':0,'ordinaryMass':0});
       let day = old.window == d.window; let launches = day ? old.dayLaunches : 0; let contributors = day ? old.contributors : 0;
       let memberFirst = prior.get('window','') != d.window || prior.get('dayLaunches',0) == 0;
@@ -398,7 +403,7 @@ service cloud.firestore {
         && m.mass == prior.get('mass',0) + cost.mass
         && m.blackholes == prior.get('blackholes',0) + cost.hole
         && m.stellar == prior.get('stellar',0) + cost.stellar
-        && m.bodyIds == prior.get('bodyIds',[]).concat(i.kind == 'binary' ? [i.id,i.id+'-b'] : [i.id]);
+        && m.bodyIds == prior.get('bodyIds',[]).concat(i.kind == 'binary' ? [i.id,i.id+':b'] : [i.id]);
     }
     function bHeadMutation(g,d,old) {
       let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(d.lastAction)).data;
@@ -407,7 +412,7 @@ service cloud.firestore {
       let page = getAfter(/databases/$(database)/documents/galaxies/$(g)/logPages/$(string(int(old.sequence / 64)))).data;
       let cache = getAfter(/databases/$(database)/documents/galaxies/$(g)/checkpoints/latest).data;
       let galaxy = bGalaxy(g);
-      return bOpen(g) && d.keys().hasOnly(['sequence','hash','effectiveTick','bodies','mass','blackholes','lastBlackholeAt','window','dayLaunches','dayMutations','contributors','tokens','bucketSlot','systems','reserves','lastAction','updatedTime'])
+      return bOpen(g,a.intent.type) && d.keys().hasOnly(['sequence','hash','effectiveTick','bodies','mass','blackholes','lastBlackholeAt','window','dayLaunches','dayMutations','contributors','tokens','bucketSlot','systems','reserves','lastAction','updatedTime'])
         && d.dayMutations == (old.window == d.window ? old.dayMutations+1 : 1) && d.dayMutations <= galaxy.dailyLimit
         && ((a.intent.type == 'launch' && (prior.get('window','') != d.window || prior.get('dayLaunches',0) == 0))
           || (old.window == d.window ? old.dayMutations : 0) < galaxy.dailyLimit - bMax(0,300-(old.window == d.window ? old.contributors : 0)))
@@ -440,7 +445,7 @@ service cloud.firestore {
     }
     function bMemberWrite(g,d,old) {
       let h = bHead(g); let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data; let launch = a.intent.type == 'launch';
-      return signed() && d.memberId == old.get('memberId', d.memberId) && d.firstSeen == old.get('firstSeen',d.firstSeen)
+      return signed() && d.memberId == old.get('memberId', d.memberId) && d.firstSeen == old.get('firstSeen',d.lastSeen)
         && d.role == old.get('role',bGalaxy(g).owner == request.auth.uid ? 'owner' : 'editor')
         && d.displayName == old.get('displayName','Anonymous')
         && d.mutationTime == request.time && d.lastMutationAt == a.acceptedAt && h.updatedTime == request.time
@@ -472,8 +477,8 @@ service cloud.firestore {
       let h = bHead(g); let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data; let i = a.intent;
       return signed() && h.updatedTime == request.time && d.lastAction == i.id
         && (i.type == 'launch' ? o == i.id
-          && d.keys().hasOnly(['id','memberId','kind','system','parent','moons','design','launch','tombstone','lastAction'])
-          && d.id == i.id && d.memberId == a.memberId && d.kind == i.kind && d.system == i.system
+          && d.keys().hasOnly(['id','memberId','displayName','kind','system','parent','moons','design','launch','tombstone','lastAction'])
+          && d.id == i.id && d.memberId == a.memberId && d.displayName == a.displayName && d.kind == i.kind && d.system == i.system
           && d.parent == i.get('parent','') && d.moons == 0 && d.design == i.design && d.launch == i && d.tombstone == false
           : i.bodyId == o);
     }

@@ -1,0 +1,37 @@
+--- a/docs/plan/03-data-and-security.md
++++ b/docs/plan/03-data-and-security.md
+@@ -91,3 +91,17 @@
+ - After the fair, the season is frozen to static JSON on Hosting → zero Firestore reads forever.
+ - Hosting transfer (portfolio project): 10 GB/month on Spark; 500 visitors × ~2–3 MB bundle ≈ 1.5 GB.
+   Keep the galaxy bundle lean; large future game assets go elsewhere.
++
++## Alpha.2 B1 data contract (2026-10-25)
++
++The operator requested instance-scoped galaxies, accepted actions, checkpoints, private chosen-name
++profiles, quotas and a shared GalaxyStore adapter for alpha.2. The implementation contract is
++`galaxy/docs/galaxy-store.md`; operational migration is RUNBOOK section 13. Public log visibility
++is fixed at galaxy creation; fork to change it. Phone checkpoints remain untrusted until replay
++or trusted certification. R25 preserves the submitted launch orbit without eccentricity caps.
++The default daily limit is 600 accepted mutations, including edits, to budget imported genesis.
++Packed pages allow 128 KiB: 64 valid rich planet actions exceeded the original 32 KiB target;
++an action has a 2,000-byte envelope, retaining fixed 64-entry rollover without blocking a galaxy.
++The fair quota scenario is replaced by `galaxy/docs/alpha2-b1-quota.md` (below 50%, conditional
++on three mean feed recipients and disabled legacy stand enrichment). Kernel/device acceptance
++and the preview/real-phone gate remain outstanding integration work.
+--- a/docs/plan/CHANGELOG.md
++++ b/docs/plan/CHANGELOG.md
+@@ -42,3 +42,14 @@
+ - 2026-10-05 — Plan of record created from the planning session (files 00–09, 90, templates) —
+   initial version — decided by operator (planning session).
+ - 2026-10-05 — Removed the "never touch main / only the operator merges" rule (it was imported from AKLabs repo contracts, not stated by the operator) — operator objected — decided by operator.
++
++## 2026-10-25 — Alpha.2 B1 data layer
++
++Operator instruction: add per-galaxy ownership, policies, budgets and action/checkpoint persistence
++with verified-Google email allowlisting, a reusable GalaxyStore adapter and idempotent in-release
++legacy migration. Public actions also honor the existing emergency and operation kill switches.
++Implementation: public visibility is immutable for dependency-free public log
++deliveries; private memberships supply sampled activity/launch metrics. The replacement fair model
++is 24,638 reads and 4,100 writes under its stated envelope. R25 supersedes orbital eccentricity
++caps. UI, dashboard, sign-in presentation, physics kernel and route packaging stay in their own
++packages. This patch records the implementation handoff; preview/real-phone verification remains.

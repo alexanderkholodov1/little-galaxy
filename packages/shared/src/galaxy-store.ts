@@ -146,6 +146,7 @@ export interface AcceptedAction {
 export interface Body {
   id: string;
   memberId: string;
+  displayName: string;
   kind: BodyKind;
   system: string;
   parent: string;
@@ -516,10 +517,11 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
     m.blackholes += bh;
     m.stellar += stellar;
     m.bodyIds.push(intent.id);
-    if (count === 2) m.bodyIds.push(intent.id + '-b');
+    if (count === 2) m.bodyIds.push(intent.id + ':b');
     body = {
       id: intent.id,
       memberId: m.memberId,
+      displayName: normalizeName(m.displayName),
       kind: intent.kind,
       system: intent.system,
       parent: intent.parent ?? '',
@@ -563,6 +565,7 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
     intent,
   };
   const action: AcceptedAction = { ...payload, hash: await canonicalHash(payload) };
+  check(new TextEncoder().encode(JSON.stringify(action)).length <= 2000, 'Action byte limit');
   h.hash = action.hash;
   return { action, head: h, member: m, body };
 }
@@ -601,13 +604,30 @@ export interface StoreOptions {
   ) => Promise<boolean>;
 }
 export interface LoadedGalaxy {
+  player: Member | null;
   galaxy: Galaxy;
   head: Head;
   actions: AcceptedAction[];
   checkpoint: Checkpoint | null;
   genesis: Json[];
 }
+export interface GalaxySelection {
+  seasonOpen: boolean;
+  launches?: boolean;
+  edits?: boolean;
+  activePublicGalaxyId: string;
+  boothGalaxyId: string;
+}
 export interface GalaxyStore {
+  subscribeToGalaxy(
+    id: string,
+    next: (galaxy: Galaxy | null) => void,
+    error: (error: Error) => void,
+  ): () => void;
+  subscribeToSelection(
+    next: (selection: GalaxySelection | null) => void,
+    error: (error: Error) => void,
+  ): () => void;
   loadGalaxy(id?: string): Promise<LoadedGalaxy>;
   subscribeToActions(
     id: string,
@@ -648,8 +668,14 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
     return driver.transaction(async (tx) => {
       const existing = await tx.get<AcceptedAction>(`${p}/actions/${intent.id}`);
       if (existing) {
+        const ownMember = await tx.get<Member>(pathMember(id));
         check(
-          existing.memberId === options.memberId &&
+          ownMember &&
+            existing.memberId === ownMember.memberId &&
+            (options.admin ||
+              ownMember.bodyIds.includes(
+                existing.intent.type === 'launch' ? existing.intent.id : existing.intent.bodyId,
+              )) &&
             (await canonicalHash(existing.intent)) === (await canonicalHash(intent)),
           'Nonce already used',
         );
@@ -659,7 +685,12 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
         tx.get<Galaxy>(p),
         tx.get<Head>(`${p}/control/head`),
         tx.get<Member>(pathMember(id)),
-        tx.get<{ activePublicGalaxyId: string }>('config/live'),
+        tx.get<{
+          activePublicGalaxyId: string;
+          seasonOpen?: boolean;
+          launches?: boolean;
+          edits?: boolean;
+        }>('config/live'),
         tx.get<QuotaWindow>(`quotaWindows/${w.id}`),
       ]);
       check(g && h && window, 'Missing galaxy/head/quota window');
@@ -667,6 +698,14 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
         g.writePolicy !== 'public' || live?.activePublicGalaxyId === id || options.admin,
         'Public galaxy switched; preserve draft',
       );
+      if (g.writePolicy === 'public') {
+        check(
+          live?.seasonOpen === true || (intent.type === 'remove' && options.admin),
+          'Public admissions closed',
+        );
+        check(intent.type !== 'launch' || live?.launches !== false, 'Public launches disabled');
+        check(intent.type !== 'edit' || live?.edits !== false, 'Public edits disabled');
+      }
       const pagePath = `${p}/logPages/${Math.floor(h.sequence / 64)}`,
         page = await tx.get<LogPage>(pagePath);
       const body =
@@ -703,7 +742,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
       check((page?.entries.length ?? 0) === h.sequence % 64, 'Missing log page');
       const entries = [...(page?.entries ?? []), r.action];
       check(
-        new TextEncoder().encode(JSON.stringify(entries)).length <= 32768,
+        new TextEncoder().encode(JSON.stringify(entries)).length <= 131072,
         'Log page byte limit',
       );
       tx.set(`${p}/control/head`, r.head);
@@ -734,7 +773,57 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
       return r.action;
     });
   }
+  async function verifiedCache(
+    checkpoint: Checkpoint,
+    actions: AcceptedAction[],
+    galaxy: Galaxy,
+    checkStateHash = false,
+  ) {
+    try {
+      if (!Number.isSafeInteger(checkpoint.sequence) || checkpoint.sequence < 0) return false;
+      if (checkStateHash && (await canonicalHash(checkpoint.state)) !== checkpoint.stateHash)
+        return false;
+      return Boolean(await options.verifyCheckpoint?.(checkpoint, actions, galaxy));
+    } catch {
+      // Cache parsing/verification cannot make the accepted action log unavailable.
+      return false;
+    }
+  }
+  const watchedManifests = new Map<string, Promise<Galaxy | null>>();
   const store: GalaxyStore = {
+    subscribeToGalaxy(id, next, error) {
+      let resolve!: (value: Galaxy | null) => void,
+        reject!: (reason: Error) => void,
+        settled = false;
+      const ready = new Promise<Galaxy | null>((ok, fail) => {
+        resolve = ok;
+        reject = fail;
+      });
+      void ready.catch(() => {});
+      watchedManifests.set(id, ready);
+      const stop = driver.watch<Galaxy>(
+        base(id),
+        (value) => {
+          settled = true;
+          resolve(value);
+          watchedManifests.set(id, Promise.resolve(value));
+          next(value);
+        },
+        (problem) => {
+          settled = true;
+          reject(problem);
+          error(problem);
+        },
+      );
+      return () => {
+        stop();
+        watchedManifests.delete(id);
+        if (!settled) reject(new Error('Galaxy subscription stopped'));
+      };
+    },
+    subscribeToSelection(next, error) {
+      return driver.watch<GalaxySelection>('config/live', next, error);
+    },
     async loadGalaxy(id) {
       if (!id) {
         const live = await driver.get<{ activePublicGalaxyId: string }>('config/live');
@@ -742,12 +831,13 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
         id = live.activePublicGalaxyId;
       }
       const p = base(id),
-        [g, h, cache] = await Promise.all([
-          driver.get<Galaxy>(p),
+        [g, h, cache, player] = await Promise.all([
+          watchedManifests.get(id) ?? driver.get<Galaxy>(p),
           driver.get<Head>(`${p}/control/head`),
           options.verifyCheckpoint
             ? driver.get<Checkpoint>(`${p}/checkpoints/latest`)
             : Promise.resolve(null),
+          driver.get<Member>(pathMember(id)),
         ]);
       check(g && h, 'Missing galaxy/head');
       let checkpoint: Checkpoint | null = null;
@@ -762,8 +852,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
             trusted.schemaVersion === 1 &&
             trusted.generation === g.generation &&
             trusted.kernel === g.kernel &&
-            (await canonicalHash(trusted.state)) === trusted.stateHash &&
-            (await options.verifyCheckpoint(trusted, [], g))
+            (await verifiedCache(trusted, [], g, true))
           )
             checkpoint = trusted;
         }
@@ -801,11 +890,12 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
         cache.kernel === g.kernel &&
         cache.sequence <= h.sequence &&
         options.verifyCheckpoint &&
-        (await options.verifyCheckpoint(cache, actions, g))
+        (await verifiedCache(cache, actions, g))
       )
         checkpoint = cache;
       return {
         galaxy: g,
+        player,
         head: h,
         checkpoint,
         genesis,
@@ -892,7 +982,10 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
             ...g,
             ...patch,
             ...(patch.status && patch.status !== 'active' ? { writePolicy: 'frozen' } : {}),
-            frozenAt: patch.status === 'frozen' ? options.now() : g.frozenAt,
+            frozenAt:
+              patch.status && patch.status !== 'active' && g.status === 'active'
+                ? options.now()
+                : g.frozenAt,
           });
           tx.set(`${base(id)}/adminActions/${nonce}`, {
             type: 'update',

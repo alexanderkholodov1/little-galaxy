@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import {
   createGalaxyStore,
+  canonicalHash,
   initialGalaxy,
   initialHead,
   initialMember,
@@ -77,7 +78,7 @@ beforeEach(async () => {
   await seed('galaxies/g', galaxy);
   await seed('galaxies/g/control/head', initialHead(now));
   await seed('quotaWindows/' + quotaWindow(now).id, quotaWindow(now));
-  await seed('config/live', { activePublicGalaxyId: 'g', boothGalaxyId: 'g', seasonOpen: false });
+  await seed('config/live', { activePublicGalaxyId: 'g', boothGalaxyId: 'g', seasonOpen: true });
   await seed('config/admins', { emails: ['kholodov.alexander1@gmail.com'] });
 });
 describe('atomic galaxy admission', () => {
@@ -240,19 +241,25 @@ describe('hostile clients bypassing adapter admission', () => {
       { uid: 'alice', memberId: 'm-alice', now: () => Date.now() },
     );
   }
-  it.each(['dayMutations', 'mass', 'bodies', 'blackholes', 'dayLaunches', 'contributors', 'tokens', 'sequence'])(
-    'rejects forged head %s deltas in actual rules',
-    async (field) => {
-      const s = forged((path, d) => {
-        if (path.endsWith('/control/head')) d[field] += 1;
-        return d;
-      });
-      await assertFails(s.launch('g', intent()));
-      expect((await getDoc(doc(context().firestore(), 'galaxies/g/actions/n1'))).exists()).toBe(
-        false,
-      );
-    },
-  );
+  it.each([
+    'dayMutations',
+    'mass',
+    'bodies',
+    'blackholes',
+    'dayLaunches',
+    'contributors',
+    'tokens',
+    'sequence',
+  ])('rejects forged head %s deltas in actual rules', async (field) => {
+    const s = forged((path, d) => {
+      if (path.endsWith('/control/head')) d[field] += 1;
+      return d;
+    });
+    await assertFails(s.launch('g', intent()));
+    expect((await getDoc(doc(context().firestore(), 'galaxies/g/actions/n1'))).exists()).toBe(
+      false,
+    );
+  });
   it.each(['mass', 'blackholes', 'stellar', 'dayLaunches', 'launches'])(
     'rejects forged member %s deltas',
     async (field) => {
@@ -498,3 +505,152 @@ it('anchors a skewed device through authenticated emulator REST readTime', async
   expect((await driver.get('config/live')).activePublicGalaxyId).toBe('g');
   expect(Math.abs(clock.now() - Date.now())).toBeLessThan(1500);
 });
+
+it('serializes twenty real phones racing for the last galaxy slot without partial records', async () => {
+  const h = initialHead(Date.now());
+  h.bodies = 1023;
+  h.mass = 32991000;
+  h.systems = Object.fromEntries(
+    Array.from({ length: 32 }, (_, i) => [
+      String(i),
+      {
+        bodies: i === 0 ? 31 : 32,
+        mass: i === 0 ? 1030000 : 1031000,
+        compact: 1,
+        giants: 0,
+        blackholes: 0,
+        ordinaryMass: i === 0 ? 30000 : 31000,
+      },
+    ]),
+  );
+  galaxy = { ...galaxy, epoch: Date.now() - 2_000_000 };
+  await seed('galaxies/g', galaxy);
+  const entries = [];
+  let prefixHash = '';
+  for (let i = 0; i < 63; i++) {
+    const payload = {
+      schemaVersion: 1,
+      generation: 1,
+      sequence: i + 1,
+      previousHash: prefixHash,
+      memberId: 'member-' + String(i).padStart(30, '0'),
+      displayName: 'W'.repeat(24),
+      acceptedAt: Date.now() - (63 - i) * 16000,
+      intent: {
+        ...intent('past-' + String(i).padStart(30, '0')),
+        system: String(i % 32),
+        design: {
+          size: 1000000,
+          palette: 1000000,
+          oceans: 1000000,
+          mountains: 1000000,
+          clouds: 1000000,
+          rings: 1000000,
+          atmosphere: 1000000,
+        },
+        effectiveTick: (i + 1) * 120,
+      },
+    };
+    prefixHash = await canonicalHash(payload);
+    entries.push({ ...payload, hash: prefixHash });
+  }
+  h.sequence = 63;
+  h.hash = prefixHash;
+  h.dayMutations = 63;
+  h.dayLaunches = 63;
+  h.contributors = 63;
+  expect(Buffer.byteLength(JSON.stringify(entries))).toBeGreaterThan(32768);
+  await seed('galaxies/g/logPages/0', { entries, public: true });
+  await seed('galaxies/g/control/head', h);
+  const racers = Array.from({ length: 20 }, (_, i) => store('racer' + i));
+  await Promise.all(racers.map((racer) => racer.loadGalaxy('g')));
+  const outcomes = await Promise.allSettled(
+    racers.map((racer, i) => racer.launch('g', intent('race' + i))),
+  );
+  expect(outcomes.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+  await env.withSecurityRulesDisabled(async (c) => {
+    const db = c.firestore();
+    expect((await getDocs(collection(db, 'galaxies/g/actions'))).size).toBe(1);
+    expect((await getDocs(collection(db, 'galaxies/g/members'))).size).toBe(1);
+    expect((await getDoc(doc(db, 'galaxies/g/control/head'))).data().bodies).toBe(1024);
+    expect((await getDoc(doc(db, 'galaxies/g/logPages/0'))).data().entries).toHaveLength(64);
+  });
+});
+
+it('rejects a forged historical first-seen date on first participation', async () => {
+  const driver = firestoreGalaxyDriver(context().firestore());
+  const hostile = createGalaxyStore(
+    {
+      ...driver,
+      transaction: (run) =>
+        driver.transaction((tx) =>
+          run({
+            get: tx.get,
+            set: (path, data) =>
+              tx.set(path, path.endsWith('/members/alice') ? { ...data, firstSeen: 0 } : data),
+          }),
+        ),
+    },
+    { uid: 'alice', memberId: 'm-alice', now: () => Date.now() },
+  );
+  await assertFails(hostile.launch('g', intent()));
+});
+
+it.each(['line\nline\nline', '<script>', 'x'.repeat(25)])(
+  'denies forged invalid public name %j in rules',
+  async (displayName) => {
+    const driver = firestoreGalaxyDriver(context().firestore());
+    await assertFails(
+      driver.transaction(async (tx) => {
+        tx.set('galaxies/g/members/alice', {
+          ...initialMember('m-alice', Date.now()),
+          displayName,
+        });
+      }),
+    );
+  },
+);
+
+it.each(['seasonOpen', 'launches', 'edits'])(
+  'enforces the existing public %s kill switch against a forged client view',
+  async (flag) => {
+    if (flag === 'edits') {
+      await store().launch('g', intent());
+      await patch('galaxies/g/members/alice', {
+        mutationTime: new Date(Date.now() - 20000),
+        lastMutationAt: Date.now() - 20000,
+      });
+    }
+    await patch('config/live', { [flag]: false });
+    const real = firestoreGalaxyDriver(context().firestore());
+    const hostile = createGalaxyStore(
+      {
+        ...real,
+        transaction: (run) =>
+          real.transaction((tx) =>
+            run({
+              get: async (path) => {
+                const value = await tx.get(path);
+                return path === 'config/live'
+                  ? { ...value, seasonOpen: true, launches: true, edits: true }
+                  : value;
+              },
+              set: tx.set,
+            }),
+          ),
+      },
+      { uid: 'alice', memberId: 'm-alice', now: () => Date.now() },
+    );
+    const action =
+      flag === 'edits'
+        ? hostile.edit('g', {
+            id: 'rejected',
+            type: 'edit',
+            bodyId: 'n1',
+            design: { colour: 2 },
+            effectiveTick: intent().effectiveTick,
+          })
+        : hostile.launch('g', intent('rejected'));
+    await assertFails(action);
+  },
+);

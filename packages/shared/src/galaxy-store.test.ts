@@ -142,7 +142,11 @@ describe('canonical log', () => {
 describe('GalaxyStore memory driver', () => {
   async function fixture() {
     const driver = new MemoryGalaxyDriver(() => now);
-    await driver.seed('config/live', { activePublicGalaxyId: 'g', boothGalaxyId: 'g' });
+    await driver.seed('config/live', {
+      seasonOpen: true,
+      activePublicGalaxyId: 'g',
+      boothGalaxyId: 'g',
+    });
     await driver.seed('galaxies/g', galaxy);
     await driver.seed('galaxies/g/control/head', initialHead(now));
     await driver.seed(`quotaWindows/${quotaWindow(now).id}`, quotaWindow(now));
@@ -219,7 +223,7 @@ it('loads a trusted verified checkpoint and only its later tail', async () => {
 it('seals pages at 64, follows rollover, and loads a complete bounded tail', async () => {
   let clock = now;
   const d = new MemoryGalaxyDriver(() => clock);
-  await d.seed('config/live', { activePublicGalaxyId: 'g' });
+  await d.seed('config/live', { seasonOpen: true, activePublicGalaxyId: 'g' });
   await d.seed('galaxies/g', galaxy);
   await d.seed('galaxies/g/control/head', initialHead(now));
   await d.seed('quotaWindows/' + quotaWindow(clock).id, quotaWindow(clock));
@@ -234,10 +238,24 @@ it('seals pages at 64, follows rollover, and loads a complete bounded tail', asy
   );
   for (let i = 0; i < 70; i++) {
     clock += 16000;
-    const s = createGalaxyStore(d, { uid: 'u' + i, memberId: 'm' + i, now: () => clock });
+    const label = 'member-' + String(i).padStart(30, '0');
+    await d.seed('galaxies/g/members/u' + i, {
+      ...initialMember(label, clock),
+      displayName: 'W'.repeat(24),
+    });
+    const s = createGalaxyStore(d, { uid: 'u' + i, memberId: label, now: () => clock });
     await s.launch('g', {
       ...launch,
-      id: 'n' + i,
+      id: 'nonce-' + String(i).padStart(30, '0'),
+      design: {
+        size: 1000000,
+        palette: 1000000,
+        oceans: 1000000,
+        mountains: 1000000,
+        clouds: 1000000,
+        rings: 1000000,
+        atmosphere: 1000000,
+      },
       system: String(Math.floor(i / 25)),
       effectiveTick: Math.ceil(((clock - galaxy.epoch + 1000) * 120) / 1000),
     });
@@ -247,6 +265,9 @@ it('seals pages at 64, follows rollover, and loads a complete bounded tail', asy
   expect(errors).toEqual([]);
   expect(seen).toEqual(Array.from({ length: 70 }, (_, i) => i + 1));
   expect((await d.get<{ entries: unknown[] }>('galaxies/g/logPages/0'))?.entries).toHaveLength(64);
+  const packed = await d.get('galaxies/g/logPages/0');
+  expect(new TextEncoder().encode(JSON.stringify(packed)).length).toBeGreaterThan(32768);
+  expect(new TextEncoder().encode(JSON.stringify(packed)).length).toBeLessThan(131072);
   expect((await reader.loadGalaxy('g')).actions).toHaveLength(70);
 });
 
@@ -295,4 +316,87 @@ it('charges edits to the same daily mutation ceiling and rolls over only in a re
   });
   expect(edit.head.dayMutations).toBe(600);
   expect(edit.head.dayLaunches).toBe(0);
+});
+
+it('namespaces binary component IDs so another valid nonce cannot collide with the second star', async () => {
+  const result = await prepareMutation(context(), { ...launch, kind: 'binary', system: '1' });
+  expect(result.member.bodyIds).toEqual(['nonce1', 'nonce1:b']);
+  await expect(prepareMutation(context(), { ...launch, id: 'nonce1:b' })).rejects.toThrow();
+});
+
+it('reuses the initial manifest subscription and retains the original freeze date on retry', async () => {
+  let clock = now;
+  const d = new MemoryGalaxyDriver(() => clock);
+  await d.seed('galaxies/g', galaxy);
+  await d.seed('galaxies/g/control/head', initialHead(now));
+  const read = d.get.bind(d);
+  let manifestReads = 0;
+  d.get = async function <T extends object>(path: string) {
+    if (path === 'galaxies/g') manifestReads++;
+    return read<T>(path);
+  };
+  const s = createGalaxyStore(d, {
+    uid: 'owner',
+    memberId: 'owner-label',
+    admin: true,
+    now: () => clock,
+  });
+  const statuses: string[] = [];
+  const stop = s.subscribeToGalaxy(
+    'g',
+    (g) => {
+      if (g) statuses.push(g.status);
+    },
+    (e) => {
+      throw e;
+    },
+  );
+  await s.loadGalaxy('g');
+  expect(manifestReads).toBe(1);
+  await s.admin.update('g', 1, { status: 'frozen' });
+  clock += 20000;
+  await s.admin.update('g', 1, { status: 'frozen' });
+  expect((await read<import('./galaxy-store.js').Galaxy>('galaxies/g'))?.frozenAt).toBe(now);
+  expect(statuses).toEqual(['active', 'frozen', 'frozen']);
+  stop();
+});
+
+it('persists the chosen public creator label with the body and accepted action', async () => {
+  const c = context();
+  c.member.displayName = 'Alice';
+  const r = await prepareMutation(c, launch);
+  expect(r.body.displayName).toBe('Alice');
+  expect(r.action.displayName).toBe('Alice');
+});
+
+it('ignores corrupt certified and phone caches even when their verifier throws', async () => {
+  const d = new MemoryGalaxyDriver(() => now),
+    r = await prepareMutation(context(), launch);
+  await d.seed('galaxies/g', galaxy);
+  await d.seed('galaxies/g/control/head', r.head);
+  await d.seed('galaxies/g/logPages/0', { entries: [r.action], public: true });
+  const cache = {
+    schemaVersion: 1,
+    generation: 1,
+    sequence: 1,
+    kernel: galaxy.kernel,
+    logHash: r.head.hash,
+    stateHash: await canonicalHash('{'),
+    state: '{',
+  };
+  await d.seed('galaxies/g/checkpoints/latest', cache);
+  await d.seed('galaxies/g/certifications/1', cache);
+  await d.seed('galaxies/g/control/certified', { sequence: 1 });
+  const s = createGalaxyStore(d, {
+    uid: 'u',
+    memberId: 'm1',
+    now: () => now,
+    verifyCheckpoint: async (cp) => {
+      JSON.parse(cp.state as string);
+      return true;
+    },
+  });
+  const loaded = await s.loadGalaxy('g');
+  expect(loaded.checkpoint).toBeNull();
+  expect(loaded.actions).toHaveLength(1);
 });
