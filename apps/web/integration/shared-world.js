@@ -2,12 +2,10 @@ import {launchVoice} from './voice.js';
 import {chooseHome} from './homes.js';
 import {setupTimelapse} from './timelapse.js';
 import {watchVersion} from './version.js';
-import {createSharedPresentation} from './presentation.js';
 export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft}){
   const worker=new Worker(new URL('./replay-worker.js',import.meta.url),{type:'module'});
   const replayMode=location.pathname.replace(/\/$/,'').endsWith('/timelapse');
   let playback=null,lastLiveTick=0;
-  const presentation=createSharedPresentation(world);
   const pending=new Map();let ready=false,lastTarget=-1,visible=!document.hidden;
   world.shared=true;
   function target(){
@@ -39,7 +37,6 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     if(data.error){toast(data.error);return;}
     if(!data.ready)return;
     const entries=world.applySharedState(data.state,normDesign,store.owner());
-    presentation.accept(data.state.sim.steps);
     if(ready) for(const event of data.events||[]) {if(event.type==='reservation'&&entries.find(e=>e.id===event.id)?.mine)toast(document.documentElement.lang==='es'?'Ese fuego aún no tiene sitio. Tu astro sigue viajando.':'That fire has no room yet. Your star keeps travelling.');world.sim.emit(event.type,world.sim.byId(event.id),{...event.values,...Object.fromEntries(Object.entries(event.refs).map(([k,id])=>[k,world.sim.byId(id)]))});}
     ready=data.ready;document.body.dataset.skyReady=String(ready);
     document.body.dataset.tick=String(data.state.sim.steps);document.body.dataset.sequence=String(data.state.sequence);
@@ -84,7 +81,6 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   const visibility=async()=>{
     visible=!document.hidden;
     if(!visible){store.stop();saveDraft();return;}
-    presentation.reset();
     try{
       // Re-anchor to server time; reload a coherent boundary before reattaching the log.
       const backend=store.backend();backend.selection=await backend.driver.get('config/live');
@@ -95,7 +91,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   document.addEventListener('visibilitychange',visibility);
   const stopVersion=watchVersion(saveDraft);
   return ()=>{
-    clearInterval(timer);clearInterval(touch);stopVersion();presentation.stop();worker.terminate();store.stop();
+    clearInterval(timer);clearInterval(touch);stopVersion();worker.terminate();store.stop();
     document.removeEventListener('visibilitychange',visibility);
     removeEventListener('galaxy:actions',onActions);removeEventListener('galaxy:manifest',onManifest);
     removeEventListener('galaxy:error',onError);removeEventListener('galaxy:selection',onSelection);removeEventListener('galaxy:notice',onNotice);

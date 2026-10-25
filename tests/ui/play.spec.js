@@ -91,3 +91,19 @@ test('launched bodies move every frame and their orbit lines survive the page be
  const after=(await view(page)).trails[0];
  expect(after.n).toBeGreaterThan(100);expect(after.gap).toBeLessThan(Math.max(1,before.gap*2.5));
 });
+
+test('one interpolation layer: at phone size every frame moves a body forward, never back',async({page})=>{
+ await page.setViewportSize(phone.viewport);await ready(page,await seedGalaxy());
+ await workshop(page,'Glide');await throwBody(page);await launched(page,1);
+ await page.waitForTimeout(5000);
+ // the render frame is the game's own (no wrapper blending positions between worker states)
+ expect(await page.evaluate(()=>Object.prototype.hasOwnProperty.call(window.__fog.world,'frame')&&window.__fog.world.frame.name==='render')).toBe(false);
+ const steps=await page.evaluate(()=>new Promise(done=>{const w=window.__fog.world,e=w.entries.find(x=>!x.toy),out=[];let last=e.body.root.position.clone();
+  const step=()=>{const p=e.body.root.position;out.push([p.x-last.x,p.y-last.y,p.z-last.z]);last=p.clone();if(out.length<120)requestAnimationFrame(step);else done(out);};requestAnimationFrame(step);}));
+ const len=d=>Math.hypot(...d),moving=steps.slice(1);
+ expect(moving.filter(d=>len(d)<1e-6).length/moving.length).toBeLessThan(.05);
+ // consecutive steps keep their direction: no step points back against the one before it
+ let back=0;for(let i=1;i<moving.length;i++){const a=moving[i-1],b=moving[i];if(len(a)>1e-6&&len(b)>1e-6&&(a[0]*b[0]+a[1]*b[1]+a[2]*b[2])/(len(a)*len(b))<0)back++;}
+ expect(back).toBe(0);
+});
+
