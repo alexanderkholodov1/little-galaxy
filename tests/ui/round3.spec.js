@@ -1,8 +1,9 @@
-/* global window */
+/* global window, document, getComputedStyle */
 import {expect,test} from '@playwright/test';
 import {seedGalaxy,ready,enter,workshop} from './galaxy-fixture.js';
 test.setTimeout(150000);
 const phone={viewport:{width:390,height:844},hasTouch:true,isMobile:true};
+const sound=page=>page.evaluate(()=>window.__fog.audio.debug());
 async function toPadWithoutAsking(page){
  await page.locator('#btnToPad').click();
  await page.waitForFunction(()=>window.__fog.world.benchState==='pad',null,{timeout:8000});
@@ -27,3 +28,32 @@ test.describe('the first-launch name is asked once',()=>{
  }
 });
 
+test.describe('welcome',()=>{
+ test('a calm welcome over the live galaxy starts the music with one tap and shows once per visit',async({browser})=>{
+  const context=await browser.newContext({...phone,locale:'es-EC'});
+  try{
+   const page=await context.newPage();const id=await seedGalaxy();
+   await page.goto(`/little-galaxy/?galaxy=${id}&lang=es`);await page.locator('body[data-sky-ready="true"]').waitFor({timeout:30000});
+   const welcome=page.locator('#welcome');await expect(welcome).toBeVisible();
+   await expect(welcome.getByRole('heading',{name:'Little Galaxy'})).toBeVisible();
+   const go=welcome.getByRole('button',{name:'Entrar'});await expect(go).toBeVisible();
+   // the sky keeps moving behind it
+   expect(await page.evaluate(()=>getComputedStyle(document.querySelector('#welcome')).backgroundColor)).not.toBe('rgb(0, 0, 0)');
+   await go.tap();await expect(welcome).toBeHidden();
+   await expect.poll(async()=>(await sound(page)).ctx).toBe('running');
+   await expect.poll(async()=>(await sound(page)).generative).toBe(true);
+   await expect(page.locator('#btnMusic')).toHaveAttribute('data-audio','playing');
+   await page.reload();await page.locator('body[data-sky-ready="true"]').waitFor({timeout:30000});
+   await page.waitForTimeout(600);await expect(welcome).toBeHidden();
+   // English
+   const en=await context.newPage();await en.goto(`/little-galaxy/?galaxy=${id}&lang=en`);
+   await en.locator('body[data-sky-ready="true"]').waitFor({timeout:30000});
+   // a new tab is a new visit
+   await expect(en.locator('#welcome').getByRole('button',{name:'Enter'})).toBeVisible();
+  }finally{await context.close();}
+ });
+ test('the booth screen never shows the welcome',async({page})=>{
+  await seedGalaxy();await page.goto('/little-galaxy/screen');
+  await page.waitForTimeout(4000);await expect(page.locator('#welcome')).toHaveCount(0);
+ });
+});

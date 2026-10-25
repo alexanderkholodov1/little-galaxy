@@ -19,6 +19,7 @@ import galaxyStrings from './strings/galaxy.js';
 import playerStrings from './strings/player-ui.js';
 register(core);
 register(playerStrings);
+register({es:{'welcome.enter':'Entrar', 'welcome.line':'Una galaxia hecha entre todos. Entra con sonido.'}, en:{'welcome.enter':'Enter', 'welcome.line':'A galaxy everyone builds together. Come in with sound.'}});
 register(labelStrings);
 register(galaxyStrings);
 window.__FOG_T = translateDom;
@@ -174,7 +175,7 @@ async function boot(){
   requestAnimationFrame(() => $('#veil').classList.add('is-done'));
   // pantalla de título: el nombre del juego aparece grande y se retira a la esquina
   document.body.classList.add('splashing');
-  setTimeout(() => { $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }, RM ? 1200 : 3000);
+  if(!welcome()) setTimeout(() => { $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }, RM ? 1200 : 3000);
   setInterval(saveSky, 8000);
 
   addEventListener('pagehide', () => { saveSky(); flush(); });
@@ -194,6 +195,30 @@ function splitSplash(){
     const t = sp.textContent; sp.textContent = '';
     for(const ch of t){ const i = document.createElement('i'); i.textContent = ch; i.style.setProperty('--k', k++); sp.append(i); }
   });
+}
+function welcome(){
+  const WKEY = 'little-galaxy.welcomed';
+  if(store.readOnly || QS.has('booth') || /\/(screen|timelapse)$/.test(ROUTE)) return false;
+  try{ if(sessionStorage.getItem(WKEY)) return false; }catch(_){}
+  const box = document.createElement('div');
+  box.id = 'welcome'; box.className = 'welcome'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'welcomeTitle');
+  box.innerHTML = '<div class="welcome-in"><h1 class="splash-title" id="welcomeTitle" aria-label="Little Galaxy"><span class="w1">Little</span><span class="w2">Galaxy</span></h1><p class="splash-line"></p><button class="cta welcome-go" type="button"><span class="cta-orb" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6.5l6 5.5-6 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="cta-txt"></span></button></div>';
+  const line = box.querySelector('.splash-line'), txt = box.querySelector('.cta-txt'), go = box.querySelector('.welcome-go');
+  const words = () => { line.textContent = t('welcome.line'); txt.textContent = t('welcome.enter'); };
+  words(); const off = onLang(words);
+  $('#splash').classList.add('gone');
+  document.body.append(box);
+  let k = 0;
+  box.querySelectorAll('.splash-title span').forEach(sp => { const s = sp.textContent; sp.textContent = ''; for(const ch of s){ const i = document.createElement('i'); i.textContent = ch; i.style.setProperty('--k', k++); sp.append(i); } });
+  requestAnimationFrame(() => go.focus({preventScroll:true}));
+  go.addEventListener('click', () => {
+    try{ sessionStorage.setItem(WKEY, '1'); }catch(_){}
+    audio.unlock(); audio.tap(2);
+    box.classList.add('gone'); document.body.classList.remove('splashing');
+    if(typeof off === 'function') off();
+    setTimeout(() => box.remove(), RM ? 0 : 700);
+  }, {once:true});
+  return true;
 }
 // al cambiar de idioma: lo que el juego escribe por su cuenta se vuelve a escribir
 function relang(){

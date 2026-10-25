@@ -457,3 +457,11 @@ html[data-motion="reduce"] *,html[data-motion="reduce"] *::before,html[data-moti
 .sys-item small{color:var(--lav-t);font-size:.74rem}
 .sys-item:hover,.sys-item:focus-visible{background:rgba(255,241,222,.08)}
 @media (min-width:720px){ .sys-btn{top:calc(84px + var(--st));left:28px} .sys-list{top:calc(136px + var(--st));left:28px} }
+
+/* welcome: one calm moment over the live galaxy; its tap is the gesture that lets the music start */
+.welcome{position:fixed;inset:0;z-index:19;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(90% 70% at 50% 42%,rgba(10,8,24,.18) 0%,rgba(10,8,24,.62) 100%);transition:opacity .6s var(--inout),visibility .6s}
+.welcome.gone{opacity:0;visibility:hidden;pointer-events:none}
+.welcome-in{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:420px}
+.welcome .splash-line{margin:24px 0 48px}
+[data-motion="reduce"] .welcome{transition:none}
