@@ -308,8 +308,8 @@ service cloud.firestore {
     match /galaxies/{g} {
       allow get: if resource == null ? signed() : resource.data.visibility == 'public' || bReadable(g);
       allow list: if request.query.limit != null && request.query.limit <= 100 && (resource.data.visibility == 'public' || bAdmin() || (signed() && resource.data.owner == request.auth.uid));
-      allow create: if signed() && bGalaxySchema(request.resource.data,g) && request.resource.data.owner == request.auth.uid
-        && (bAdmin() || (request.auth.token.firebase.sign_in_provider == 'google.com' && request.auth.token.get('email_verified',false)))
+      // Player-created galaxies are a later package; only allowlisted keepers create galaxies.
+      allow create: if bAdmin() && bGalaxySchema(request.resource.data,g) && request.resource.data.owner == request.auth.uid
         && !('genesis' in request.resource.data) && request.resource.data.generation == 1 && request.resource.data.status == 'active'
         && g in getAfter(/databases/$(database)/documents/galaxyAccounts/$(request.auth.uid)).data.ids
         && getAfter(/databases/$(database)/documents/galaxies/$(g)/control/head).data.sequence == 0;
@@ -556,7 +556,7 @@ service cloud.firestore {
     match /galaxies/{g}/archive/{id} { allow get: if bReadable(g); allow create: if bAdmin(); }
     match /quotaWindows/{window} { allow get: if signed(); }
     match /config/admins { allow get: if bAdmin(); }
-    match /galaxies/{g}/adminActions/{audit} { allow get: if bAdmin(); allow create: if (bAdmin() || (signed() && bGalaxy(g).owner == request.auth.uid)) && request.resource.data.actor == request.auth.uid; }
+    match /galaxies/{g}/adminActions/{audit} { allow get: if bAdmin(); allow create: if bAdmin() && request.resource.data.actor == request.auth.uid; }
     match /adminAudit/{audit} { allow get: if bAdmin(); allow create: if bAdmin(); }
 
     // Assistant remains unavailable in this milestone; clients cannot create inbox/outbox docs.

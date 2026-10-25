@@ -414,30 +414,55 @@ describe('release migration', () => {
 });
 
 describe('remaining role, system and read boundaries', () => {
-  it('creates at most three account galaxies and rejects anonymous creation', async () => {
-    const google = { ...provider, email: 'player@example.com' };
-    const signed = createGalaxyStore(firestoreGalaxyDriver(context('player', google).firestore()), {
-      uid: 'player',
-      memberId: 'player-label',
+  it('creates at most three account galaxies, only for allowlisted keepers', async () => {
+    const keeper = createGalaxyStore(firestoreGalaxyDriver(context('operator', provider).firestore()), {
+      uid: 'operator',
+      memberId: 'operator-label',
       now: () => Date.now(),
     });
     for (let i = 0; i < 3; i++)
       await assertSucceeds(
-        signed.admin.create(
-          initialGalaxy('own' + i, 'player', 'Own galaxy', Date.now(), 'kernel-sha256'),
+        keeper.admin.create(
+          initialGalaxy('own' + i, 'operator', 'Own galaxy', Date.now(), 'kernel-sha256'),
         ),
       );
     await expect(
-      signed.admin.create(initialGalaxy('own4', 'player', 'Fourth', Date.now(), 'kernel-sha256')),
+      keeper.admin.create(initialGalaxy('own4', 'operator', 'Fourth', Date.now(), 'kernel-sha256')),
     ).rejects.toThrow();
     await assertFails(
       store().admin.create(
         initialGalaxy('anonymous', 'alice', 'Anonymous galaxy', Date.now(), 'kernel-sha256'),
       ),
     );
+    // Any other verified Google account is not a keeper.
+    const google = { ...provider, email: 'stranger@example.com' };
+    const stranger = createGalaxyStore(firestoreGalaxyDriver(context('stranger', google).firestore()), {
+      uid: 'stranger',
+      memberId: 'stranger-label',
+      now: () => Date.now(),
+    });
     await assertFails(
-      setDoc(doc(context('player', google).firestore(), 'galaxyAccounts/player'), {
-        ids: ['own0', 'own1', 'own2', 'fourth'],
+      stranger.admin.create(initialGalaxy('mine', 'stranger', 'Mine', Date.now(), 'kernel-sha256')),
+    );
+    await assertFails(
+      setDoc(doc(context('stranger', google).firestore(), 'galaxyAccounts/stranger'), {
+        ids: ['mine'],
+      }),
+    );
+  });
+  it('lets only allowlisted keepers write administrative audit records, even for a galaxy they own', async () => {
+    const google = { ...provider, email: 'stranger@example.com' };
+    await seed('galaxies/owned', { ...galaxy, id: 'owned', owner: 'stranger' });
+    await assertFails(
+      setDoc(doc(context('stranger', google).firestore(), 'galaxies/owned/adminActions/a'), {
+        actor: 'stranger',
+        type: 'update',
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(context('operator', provider).firestore(), 'galaxies/owned/adminActions/a'), {
+        actor: 'operator',
+        type: 'update',
       }),
     );
   });

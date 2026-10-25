@@ -106,7 +106,8 @@ never evicts a visitor. Removal leaves a tombstone and does not refund lifetime 
 removal is refused until a safe fork/reparent operation exists.
 
 `admin.create(galaxy)` atomically reserves one of three account galaxy IDs and creates its seed
-head. Only verified Google users can create real Firestore galaxies. Player sign-in UI is a
+head. Only allowlisted keepers (`config/admins`) can create real Firestore galaxies or write
+`adminActions`; player-created galaxies are a later package. Player sign-in UI is a
 later package. `admin.update(id, expectedGeneration, patch)`, `admin.select(id, target)`,
 `admin.invite(id, uid, role)` and `admin.remove(id, intent)` are data operations, without UI.
 The caller's `admin: true` option only enables adapter commands; Firestore independently checks
