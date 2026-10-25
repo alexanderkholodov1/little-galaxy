@@ -253,5 +253,33 @@ function fillSystems(list, force){
 @media (min-width:720px){ .sys-btn{top:calc(84px + var(--st));left:28px} .sys-list{top:calc(136px + var(--st));left:28px} }
 `;
   }
+  if(file==='js/main.js'){
+    // The first-launch name is this phone's choice: it holds even when the sky refuses or loses the profile write, so
+    // the next press launches instead of asking again. The sky gets the name on a later try or the next visit.
+    source=replace(source,"// R4: la primera vez que alguien va a lanzar, una pantalla le pide su nombre (o anónimo). Después, nunca más.\nlet asking = null;",`// R4: la primera vez que alguien va a lanzar, una pantalla le pide su nombre (o anónimo). Después, nunca más.
+let asking = null, nameRetry = 0;
+async function saveName(pl){
+  const want = {displayName:pl.anonymous ? '' : pl.name, anonymous:!!pl.anonymous};
+  clearTimeout(nameRetry);
+  try{ return await store.setName(store.galaxyId, want.displayName); }
+  catch(err){
+    console.warn('The sky did not keep the name yet; this phone keeps it and tries again.', err);
+    let tries = 0;
+    const again = () => store.setName(store.galaxyId, want.displayName).catch(() => { if(++tries < 4) nameRetry = setTimeout(again, 330000); });
+    nameRetry = setTimeout(again, 20000);
+    return want;
+  }
+}
+// a visitor who already chose on this phone is not asked again after a reload; the sky learns the name in the background
+function localPlayer(){
+  const pl = getPlayer();
+  if(!pl || store.readOnly) return null;
+  setTimeout(() => saveName(pl).then(p => { S.player = p; prefsPanel && prefsPanel.refresh(); }), 1500);
+  return {displayName:pl.anonymous ? '' : pl.name, anonymous:pl.anonymous};
+}`);
+    source=replace(source,"    S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name);\n    metric('player_new');","    S.player = await saveName(pl);\n    metric('player_new');");
+    source=replace(source,"      if(pl){ S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name); audio.settle(); }","      if(pl){ S.player = await saveName(pl); audio.settle(); }");
+    source=replace(source,"  S.player = loaded.player;\n","  S.player = loaded.player || localPlayer();\n");
+  }
   return source;
 }

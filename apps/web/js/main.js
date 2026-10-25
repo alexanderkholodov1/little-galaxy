@@ -123,7 +123,7 @@ async function boot(){
   if(import.meta.env.DEV && new URLSearchParams(location.search).has('sandbox')) Object.assign(world.sim.budget, {playerBlackHoles:99, playerStellar:99, blackHoleGapMs:0});
   const loaded = await store.loadGalaxy();
   world.owner = store.owner();
-  S.player = loaded.player;
+  S.player = loaded.player || localPlayer();
   S.galaxy = loaded.galaxy || {status:'active'};
   S.frozen = S.galaxy.status === 'frozen' || S.galaxy.status === 'archived';
   const saved = loaded.state;
@@ -587,7 +587,26 @@ function setupLaunch(){
   });
 }
 // R4: la primera vez que alguien va a lanzar, una pantalla le pide su nombre (o anónimo). Después, nunca más.
-let asking = null;
+let asking = null, nameRetry = 0;
+async function saveName(pl){
+  const want = {displayName:pl.anonymous ? '' : pl.name, anonymous:!!pl.anonymous};
+  clearTimeout(nameRetry);
+  try{ return await store.setName(store.galaxyId, want.displayName); }
+  catch(err){
+    console.warn('The sky did not keep the name yet; this phone keeps it and tries again.', err);
+    let tries = 0;
+    const again = () => store.setName(store.galaxyId, want.displayName).catch(() => { if(++tries < 4) nameRetry = setTimeout(again, 330000); });
+    nameRetry = setTimeout(again, 20000);
+    return want;
+  }
+}
+// a visitor who already chose on this phone is not asked again after a reload; the sky learns the name in the background
+function localPlayer(){
+  const pl = getPlayer();
+  if(!pl || store.readOnly) return null;
+  setTimeout(() => saveName(pl).then(p => { S.player = p; prefsPanel && prefsPanel.refresh(); }), 1500);
+  return {displayName:pl.anonymous ? '' : pl.name, anonymous:pl.anonymous};
+}
 async function ensurePlayer(){
   if(S.player) return true;
   if(asking) return asking;
@@ -595,7 +614,7 @@ async function ensurePlayer(){
     audio.credits(true);
     const pl = await askPlayer({t, onLang, glass, mode:'first'});
     if(!pl){ audio.back(); return false; }
-    S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name);
+    S.player = await saveName(pl);
     metric('player_new');
     audio.settle();
     toast(S.player.anonymous ? t('player.toast.anon') : t('player.toast.named', {name:S.player.displayName}));
@@ -923,7 +942,7 @@ function setupPrefs(){
     onEditName: async () => {
       audio.tap(2);
       const pl = await askPlayer({t, onLang, glass, mode:'edit'});
-      if(pl){ S.player = await store.setName(store.galaxyId, pl.anonymous ? '' : pl.name); audio.settle(); }
+      if(pl){ S.player = await saveName(pl); audio.settle(); }
       prefsPanel.refresh();
     },
     onChange: applyPref});
