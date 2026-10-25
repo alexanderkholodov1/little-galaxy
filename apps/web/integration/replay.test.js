@@ -88,3 +88,13 @@ it('still rejects duplicate sequences with changed accepted content',()=>{
  expect(()=>r.accept([{...a,intent:{...a.intent,effectiveTick:121}}])).toThrow('Conflicting accepted action');
  expect(()=>r.accept([{...a,memberId:'another'}])).toThrow('Conflicting accepted action');
 });
+it('rewinds a late action only to the last mark before it, ending in the same state as on-time delivery',()=>{
+ const acts=[action(1,'planet',120),action(2,'comet',2400),action(3,'comet',4800)];
+ const late=new Replay({galaxy,genesis:[],actions:acts.slice(0,2)});late.advanceTo(6000);
+ const before=late.marks.length;expect(before).toBeGreaterThan(10);
+ late.accept(acts);expect(late.marks.length).toBeGreaterThan(0);expect(late.marks.length).toBeLessThan(before);
+ expect(late.sim.steps).toBeGreaterThan(4000);expect(late.sim.steps).toBeLessThan(4800);
+ late.advanceTo(9000);
+ const onTime=new Replay({galaxy,genesis:[],actions:acts});onTime.advanceTo(9000);
+ expect(late.state()).toEqual(onTime.state());
+});
