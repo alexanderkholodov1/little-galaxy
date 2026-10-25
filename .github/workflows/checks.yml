@@ -7,6 +7,11 @@ on:
         type: string
         required: false
         default: ''
+      quick:
+        description: 'Release fast path: install, typecheck, lint and build only (the full suite still runs on every push to main)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -34,24 +39,31 @@ jobs:
       - name: Lint
         run: pnpm run lint
       - name: Install Chromium for browser checks
+        if: ${{ !inputs.quick }}
         run: pnpm exec playwright install --with-deps chromium
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - if: ${{ !inputs.quick }}
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '21'
       - name: Unit and browser tests
+        if: ${{ !inputs.quick }}
         run: pnpm run test
       - name: Real build swap acceptance
+        if: ${{ !inputs.quick }}
         run: pnpm run test:live-safety
       - name: Firestore rules tests
+        if: ${{ !inputs.quick }}
         env:
           JAVA_TOOL_OPTIONS: -Xmx512m
         run: pnpm run test:rules
       - name: Failure-mode drills
+        if: ${{ !inputs.quick }}
         env:
           JAVA_TOOL_OPTIONS: -Xmx512m
         run: pnpm run test:drills
       - name: Load test and quota report
+        if: ${{ !inputs.quick }}
         env:
           JAVA_TOOL_OPTIONS: -Xmx512m
         run: pnpm run test:load
