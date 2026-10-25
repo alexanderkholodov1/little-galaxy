@@ -22,7 +22,8 @@ export function accelInto(b, at, halo = HALO){
       const f = -halo.v * halo.v * d / ((d*d + halo.rc*halo.rc) * r);
       ax += x * f; ay += y * f; az += z * f;
     }
-    if(r > CONFINE.wall && (CONFINE.all || !TYPE_RULES[b.kind]?.primary)){ const s = -CONFINE.k * (r - CONFINE.wall) / r; ax += x * s; ay += y * s; az += z * s; }
+    const c = TYPE_RULES[b.kind]?.primary ? CONFINE.heavy : CONFINE.light;
+    if(r > c.wall){ const s = -c.k * (r - c.wall) / r; ax += x * s; ay += y * s; az += z * s; }
   }
   b.a[0] = ax; b.a[1] = ay; b.a[2] = az;
 }
@@ -43,8 +44,10 @@ export function kdk(list, at, dt, halo = HALO){
   for(const b of list){ if(b.pinned) continue; accelInto(b, at, halo); }
   for(const b of list){ if(b.pinned) continue;
     b.v[0] += b.a[0]*h; b.v[1] += b.a[1]*h; b.v[2] += b.a[2]*h;
-    if(halo){ const r2 = b.p[0]*b.p[0] + b.p[1]*b.p[1] + b.p[2]*b.p[2];
-      if(r2 > CONFINE.calm*CONFINE.calm && (CONFINE.all || !TYPE_RULES[b.kind]?.primary)){ const f = 1 - CONFINE.brake; b.v[0] *= f; b.v[1] *= f; b.v[2] *= f; } } }
+    if(halo){ const c = TYPE_RULES[b.kind]?.primary ? CONFINE.heavy : CONFINE.light, r2 = b.p[0]*b.p[0] + b.p[1]*b.p[1] + b.p[2]*b.p[2];
+      if(c.brake > 0 && r2 > c.calm*c.calm){
+        const vr = (b.v[0]*b.p[0] + b.v[1]*b.p[1] + b.v[2]*b.p[2]) / r2 * c.brake;
+        b.v[0] -= vr*b.p[0]; b.v[1] -= vr*b.p[1]; b.v[2] -= vr*b.p[2]; } } }
 }
 
 // energía total de los compactos (E = Σ½mv² − Σ Gmᵢmⱼ/√(d²+ε²) + Σ mΦ_halo); con `probe` sin masa propia, su energía específica

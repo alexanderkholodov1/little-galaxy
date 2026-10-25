@@ -19,9 +19,13 @@ export const R_GUARD = 1.95;       // guarda del Fogón (los demás compactos ti
 // las órbitas en riel son Kepler exacto alrededor de su anfitrión (R25).
 //   Φ(r) = ½·v²·ln(1 + d²/rc²),  d = max(0, r − r0)
 export const HALO = {r0: 22, rc: 14, v: 2.0};
-// Fair confinement (operator, 2026-10-25: nothing leaves; whatever is thrown far ends near the centre). Beyond `calm`
-// a body is braked by `brake` per step; beyond `wall` a spring pulls it back. Inside `calm` the physics is unchanged.
-export const CONFINE = {calm: 300, brake: 0.08/120, wall: 400, k: 0.02, all: true};
+// Fair confinement (operator, 2026-10-25): far bodies come back around the centre without piling into it. Light bodies
+// lose only their radial speed beyond `calm` (their orbits turn round instead of decaying inward) and feel a spring
+// beyond `wall`; compact bodies (stars, pulsars, black holes) feel only a conservative spring beyond their own wall.
+// Measured on the fair's 21 real launches, 30 minutes ahead: chaos 5x lower than none, no bodies stuck together, half
+// of them within ~100 of the centre, the farthest ~300. Braking compact bodies, even only far out, made them collapse
+// into stuck clusters, so they only feel the spring.
+export const CONFINE = {light: {calm: 60, wall: 100, k: 0.02, brake: 0.5/120}, heavy: {calm: Infinity, wall: 150, k: 0.01, brake: 0}};
 
 // Ventanas de encuentro y anfitriones
 export const WINDOW = 8;           // s: lo que choca, o pasa cerca de un compacto ajeno, se integra este tiempo
