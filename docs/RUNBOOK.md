@@ -728,3 +728,30 @@ repair. Clients forging an open local config cannot bypass these server checks.
 Import preparation accounts for read-request rule dependencies as well as commit dependencies.
 It chooses a ceiling of 600 down to 300 using actual genesis size; fourteen chunks choose 550.
 An oversized import fails preflight before deployment. See the executable quota model.
+
+## 14. Alpha.2 P2 — prototype game and keeper’s ledger
+
+Before using the admin, enable **Google** in `little-galaxy` Firebase Authentication → Sign-in
+method (if disabled). Add `alexanderkholodov.web.app` and the actual preview/LAN test domains to
+Authentication → Settings → Authorized domains. Provision the captain's verified Google email
+in the existing private `config/admins.emails` allowlist. No client-side password or admin key
+is used. This change does not deploy rules or enable providers automatically.
+
+The release game mounts at `/little-galaxy/`; admin at `/little-galaxy/admin`. The admin retains
+the prototype's ledger layout, with Google identity checked independently by Firestore rules.
+Start fresh by creating another galaxy, then select **Open to public** and **Show at fair**
+independently. The account limit is three galaxies. Freeze retains accepted future launches,
+closes writes and publishes a verified, pinned-kernel replay certification for later joins.
+Archive retains the same history; switch both selections first.
+
+A body removal shows the exact galaxy/count, requires typing its name, then a three-second
+Space/pointer hold and release. A click or Enter cannot confirm. The browser verifies and
+downloads an export before the append-only removal. Keep that export on operator-controlled
+media. Compacts and hosts with moons are refused by B1; removals do not refund lifetime budgets.
+There is no purge, in-place restore or local 30-second undo against the real shared world.
+
+Admin metrics count galaxy memberships, chosen names/Anonymous, first/last sampled activity,
+five-minute active status, lifetime launches and accepted-log type/hour/day charts. Visits and
+cosmetic throws display an unavailable value because they are not collected. Imported bodies
+have no accepted launch-time history. **Refresh** explicitly rereads bounded data; the dashboard
+does not poll private members or add per-visit writes. Large repeated refreshes consume quota.

@@ -28,3 +28,22 @@ export const en = {
  'admin.danger':'Before changing this galaxy', 'admin.warning':'A local backup will be taken and verified before proceeding. The source is retained; a backup in this browser is not an external copy.', 'admin.clearExplain':'All {count} bodies in “{name}” ({id}) will be removed. The galaxy will be empty. You can create another galaxy to start fresh.', 'admin.restoreExplain':'The {count} current bodies in “{name}” ({id}) will be replaced with backup {backup}. Current lifecycle and selections will be kept.', 'admin.archiveExplain':'“{name}” ({id}), with {count} bodies, will be archived and closed to new launches. Bodies will remain stored.', 'admin.deleteExplain':'{count} bodies in “{name}” ({id}) will receive reversible removal marks. Their data is retained. Undo is available for 30 s.', 'admin.typeName':'Type the exact galaxy name', 'admin.hold':'Hold 3 s and release to confirm', 'admin.holding':'Keep holding…', 'admin.release':'Release to confirm', 'admin.holdHelp':'Mouse or touch: hold and release. Keyboard: hold Space and release. Enter does not confirm.', 'admin.stale':'The galaxy changed. Open confirmation again.',
  'admin.metricIntro':'Footprints around the fire.', 'admin.metricNote':'Approximate visits and galaxy memberships, not unique people. Activity sampled over 5 min. UTC hours. Player and activity totals are current; the range filters visits, launches and tosses.', 'admin.invalidRange':'The start date must be on or before the end date.', 'admin.from':'From', 'admin.to':'To', 'admin.apply':'Apply', 'admin.everyGalaxy':'All galaxies', 'admin.visits':'Visits', 'admin.registered':'Players · named + anonymous', 'admin.now':'Active · 5 min', 'admin.today':'Active today', 'admin.week':'Active this week', 'admin.launches':'Launches', 'admin.tosses':'Tosses', 'admin.named':'Named', 'admin.last14':'Launches · last 14 days', 'admin.byType':'By type', 'admin.byHour':'By hour · UTC', 'admin.top':'Top launchers · grouped names', 'admin.busy':'Busiest hour', 'admin.alive':'Bodies present', 'admin.playerList':'Players · first and last activity', 'admin.first':'First seen', 'admin.last':'Last seen', 'admin.activity':'Activity', 'admin.online':'Active', 'admin.offline':'Inactive', 'admin.refresh':'Refresh', 'admin.limit':'Maximum 3 local galaxies. Gentle mode. Destructive simulation and timelapse are not available on this page.', 'admin.error':'Could not complete: {message}'
 };
+
+Object.assign(en, {
+    'admin.google':'Sign in with Google', 'admin.subtitle':'Observatory · keeper’s ledger',
+    'admin.local':'Verified Google account on the private keeper’s allowlist. Permissions are checked by Firestore.',
+    'admin.limit':'Three galaxies per account. Start fresh by creating another galaxy; history is retained.',
+    'admin.warning':'An export is verified and downloaded before this operation. Keep it on your own media. The accepted history is retained.',
+    'admin.deleteExplain':'Remove {count} bodies from “{name}” ({id}). The accepted log and a downloaded export retain their history. Hosts with companions cannot be removed.',
+    'admin.metricNote':'Memberships, not unique people. Activity is sampled over five minutes. Visits and cosmetic throws are not collected. The charts cover accepted launches; imported bodies have no launch-time history.',
+    'admin.backup':'Export history', 'admin.backupId':'Export / result', 'admin.removed':'Removal recorded; history retained.'
+  });
+  Object.assign(es, {
+    'admin.google':'Entrar con Google', 'admin.subtitle':'Observatorio · registro del guardián',
+    'admin.local':'Cuenta de Google verificada en la lista privada del guardián. Firestore comprueba los permisos.',
+    'admin.limit':'Tres galaxias por cuenta. Crea otra para empezar de nuevo; el historial se conserva.',
+    'admin.warning':'Antes de cambiarla se verifica y descarga una exportación. Guárdala en tus propios medios. El historial se conserva.',
+    'admin.deleteExplain':'Retirar {count} cuerpos de “{name}” ({id}). El registro y la exportación conservan su historia. No se pueden retirar anfitriones con compañeros.',
+    'admin.metricNote':'Membresías, no personas únicas. Actividad muestreada cada cinco minutos. No se registran visitas ni juegos efímeros. Los gráficos cuentan lanzamientos aceptados; los cuerpos importados no tienen ese historial.',
+    'admin.backup':'Exportar historial', 'admin.backupId':'Exportación / resultado', 'admin.removed':'Retiro registrado; historial conservado.'
+  });

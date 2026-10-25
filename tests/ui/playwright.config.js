@@ -17,6 +17,7 @@ export default defineConfig({
   outputDir: '../../.ui-results',
   use: {
     baseURL,
+    actionTimeout: 15000,
     browserName: 'chromium',
     launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
     viewport: { width: 375, height: 812 },

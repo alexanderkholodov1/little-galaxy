@@ -19,6 +19,10 @@ export default defineConfig(({ command, mode }) => {
       __APP_COMMIT__: JSON.stringify(metadata.commit),
     },
     plugins: [{
+      name: 'galaxy-admin-route',
+      configureServer(server) {server.middlewares.use((req, _res, next) => {if(req.url?.match(/^\/little-galaxy\/admin(?:[?]|$)/)) req.url=req.url.replace('/admin','/admin.html');next();});},
+      configurePreviewServer(server) {server.middlewares.use((req, _res, next) => {if(req.url?.match(/^\/little-galaxy\/admin(?:[?]|$)/)) req.url=req.url.replace('/admin','/admin.html');next();});},
+    }, {
       name: 'galaxy-version',
       generateBundle() {
         // The release payload redistributes the fonts, so it must carry their notices too.

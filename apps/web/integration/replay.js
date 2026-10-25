@@ -122,14 +122,13 @@ export class Replay {
     while(true){
       const next=this.actions[this.cursor];
       if(next && next.intent.effectiveTick<=this.sim.steps && next.intent.effectiveTick<=target){this.apply(next);this.cursor++;continue;}
-      if(this.sim.steps>=target) break;
+      if(this.sim.steps>=target || spent>=budget) break;
       const end=Math.min(target,next?.intent.effectiveTick??target);
       if(this.quiet()) {this.sim.steps=end;this.sim.t=end/120;this.sim.syncRails();}
       else {
         const n=Math.min(end-this.sim.steps,budget-spent);if(n<=0) break;
         this.sim.run(n);spent+=n;
       }
-      if(spent>=budget) break;
     }
     return this.sim.steps>=target;
   }

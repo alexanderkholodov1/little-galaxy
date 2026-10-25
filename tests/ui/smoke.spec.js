@@ -29,3 +29,30 @@ test('a frozen galaxy refuses launch and an offline gesture retains the draft',a
  await expect(page.locator('#sharedStatus')).toContainText('resting');await throwBody(page);
  expect(await withDatabase(async db=>(await db.doc(`galaxies/${id}/control/head`).get()).data().sequence)).toBe(0);
 });
+test('Google sign-in denies a verified email outside the keeper allowlist',async({page})=>{
+ await seedGalaxy();await page.goto('/little-galaxy/admin');
+ const {googleSignIn}=await import('./admin-helper.js');await googleSignIn(page,'visitor@example.test');
+ await expect(page.locator('#ad-toast')).toContainText(/permissions|permission|allowlist/i,{timeout:20000});
+ await expect(page.locator('#ad-tab-galaxies')).toHaveCount(0);
+});
+test('the allowlisted keeper sees the shared galaxies and membership dashboard',async({page})=>{
+ const id=await seedGalaxy();await page.goto('/little-galaxy/admin');
+ const {googleSignIn}=await import('./admin-helper.js');await googleSignIn(page,'captain@example.test');
+ await expect(page.locator(`[data-galaxy="${id}"]`)).toBeVisible({timeout:20000});
+ await page.locator('#ad-tab-metrics').click();await expect(page.locator('.ad-readings')).toContainText('Players');
+ await expect(page.locator('.ad-note').filter({hasText:'Visits and cosmetic throws are not collected'})).toBeVisible();
+});
+test('admin removal requires exact-name typing and a three-second hold; freeze certifies the accepted history',async({page})=>{
+ const id=await seedGalaxy();await ready(page,id);await workshop(page,'Vera');await throwBody(page);
+ await expect(page.locator('#countN')).toHaveText('1',{timeout:20000});
+ await page.goto('/little-galaxy/admin');const {googleSignIn}=await import('./admin-helper.js');await googleSignIn(page,'captain@example.test');
+ await page.locator('#ad-tab-bodies').click();await page.locator('#ad-body-galaxy').selectOption(id);
+ await page.locator('[data-delete]').click();const hold=page.locator('#ad-hold');
+ await expect(hold).toBeDisabled();await page.locator('#ad-name-check').fill(`Test ${id}`);await hold.click();
+ expect(await withDatabase(async db=>(await db.doc(`galaxies/${id}/control/head`).get()).data().sequence)).toBe(1);
+ await hold.focus();await page.keyboard.down('Space');await page.waitForTimeout(3150);await page.keyboard.up('Space');
+ await expect(page.locator('#ad-dialog')).not.toBeVisible({timeout:15000});
+ expect(await withDatabase(async db=>(await db.doc(`galaxies/${id}/control/head`).get()).data().sequence)).toBe(2);
+ await page.locator('#ad-tab-galaxies').click();await page.locator(`[data-galaxy="${id}"] [data-action="freeze"]`).click();
+ await expect.poll(()=>withDatabase(async db=>(await db.doc(`galaxies/${id}/control/certified`).get()).data()?.sequence)).toBe(2);
+});
