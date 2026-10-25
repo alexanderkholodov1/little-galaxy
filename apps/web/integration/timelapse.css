@@ -1,0 +1,6 @@
+body[data-replay] .dock,body[data-replay] .gesture-hint,body[data-replay] .credits-link,body[data-replay] #splash,body[data-replay] .top-actions{display:none}
+#timeRuler{position:fixed;bottom:0;left:0;right:0;z-index:70;background:#0d1018ed;color:#fff1de;padding:24px 48px;border-top:1px solid #56ccf2;font-family:'Archivo Narrow',sans-serif;font-variant-numeric:tabular-nums}
+#timeRuler h1{font:400 30px Spectral,serif;margin:0 0 8px}#timeRuler p{margin:0 0 24px;color:#56ccf2}
+.timeControls{display:flex;align-items:center;gap:24px}.timeControls button,.timeControls select{background:#182030;color:#fff1de;border:1px solid #56ccf2;padding:8px;font:inherit}
+.timeControls output{margin-left:auto}#replayScrub{display:block;width:100%;margin-top:24px;accent-color:#ff8a5b}
+@media(max-width:600px){#timeRuler{padding:16px 24px}#timeRuler h1{font-size:24px}.timeControls{gap:16px;flex-wrap:wrap}}

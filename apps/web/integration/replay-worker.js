@@ -26,7 +26,7 @@ onmessage=({data})=>{
   try{
     if(data.load){replay=new Replay(data.load);target=data.tick||0;}
     if(data.actions)replay.accept(data.actions);
-    if(data.tick!==undefined)target=data.tick;
+    if(data.tick!==undefined){if(replay && data.tick<replay.sim.steps)replay.reset();target=data.tick;}
     pump();
   }catch(error){postMessage({error:error.message});}
 };

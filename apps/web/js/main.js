@@ -48,7 +48,8 @@ function randomName(){
 
 /* ------------------------------------------------------------------ estado */
 const QS = new URLSearchParams(location.search);
-const store = createLocalStore({galaxyId: QS.get('galaxy') || null, booth: QS.has('booth') || location.pathname.endsWith('/screen'), readOnly: location.pathname.endsWith('/screen') || QS.get('smoke') === 'readonly'});
+const ROUTE = location.pathname.replace(/\/$/, '');
+const store = createLocalStore({galaxyId: QS.get('g') || QS.get('galaxy') || null, booth: QS.has('booth') || ROUTE.endsWith('/screen'), replay: ROUTE.endsWith('/timelapse'), readOnly: ROUTE.endsWith('/timelapse') || ROUTE.endsWith('/screen') || QS.get('smoke') === 'readonly'});
 // R14: métricas locales por galaxia (js/metrics.js). Nunca rompen el juego: un fallo se ignora.
 function metric(ev, extra){
   try{ track(ev, {galaxyId:store.galaxyId, memberId:store.owner(), displayName:S.player && !S.player.anonymous ? S.player.displayName : '', ...extra}); }catch(_){}

@@ -1,13 +1,13 @@
 import {openSession} from './session.js';
 import {launchIntent} from './replay.js';
-export function createSharedStore({galaxyId=null,booth=false,readOnly=false,session=openSession}={}){
+export function createSharedStore({galaxyId=null,booth=false,readOnly=false,replay=false,session=openSession}={}){
   let backend,loaded,stops=[],member='',selection,stopped=false;
   const emit=(name,detail)=>dispatchEvent(new CustomEvent(`galaxy:${name}`,{detail}));
   const stop=()=>{stopped=true;stops.splice(0).forEach(fn=>fn());};
   const S={galaxyId:galaxyId||'',readOnly,owner:()=>member,loaded:()=>loaded,backend:()=>backend,
     async loadGalaxy(){
       stop();stopped=false;
-      backend??=await session({readOnly});
+      backend??=await session({readOnly,history:replay});
       selection=backend.selection;
       stops.push(backend.store.subscribeToSelection(next=>{
         if(stopped||!next)return;selection=next;

@@ -1,9 +1,14 @@
+import {setupTimelapse} from './timelapse.js';
 import {watchVersion} from './version.js';
 export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft}){
   const worker=new Worker(new URL('./replay-worker.js',import.meta.url),{type:'module'});
+  const replayMode=location.pathname.replace(/\/$/,'').endsWith('/timelapse');
+  let playback=null;
   const pending=new Map();let ready=false,lastTarget=-1,visible=!document.hidden;
   world.shared=true;
   function target(){
+    if(playback)return playback.tick();
+    if(replayMode)return 0;
     const g=S.galaxy;
     return g.status==='active'?Math.max(0,Math.floor((store.now()-g.epoch)*.12)):
       Math.max(loaded.head.effectiveTick,Math.ceil(((g.frozenAt??g.epoch)-g.epoch)*.12));
@@ -18,9 +23,11 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     let note=document.getElementById('sharedStatus');
     if(!note){note=document.createElement('p');note.id='sharedStatus';note.className='glass';note.setAttribute('role','status');document.getElementById('hud').append(note);}
     note.style.cssText='position:fixed;left:24px;bottom:115px;max-width:320px;padding:12px;pointer-events:auto';
-    note.hidden=!frozen;note.textContent=document.documentElement.lang==='es'?'Esta galaxia está descansando. Puedes mirar, pero no lanzar.':'This galaxy is resting. You can visit, but no more stars can launch here.';
+    note.hidden=!frozen||replayMode;note.textContent=document.documentElement.lang==='es'?'Esta galaxia está descansando. Puedes mirar, pero no lanzar.':'This galaxy is resting. You can visit, but no more stars can launch here.';
+    if(frozen&&!replayMode){const link=document.createElement('a');link.id='openTimelapse';link.textContent=document.documentElement.lang==='es'?'Ver el timelapse':'Watch the timelapse';link.href=`${import.meta.env.BASE_URL}timelapse?g=${encodeURIComponent(store.galaxyId)}`;link.style.display='block';note.append(link);}
   }
   readonly();
+  if(replayMode)playback=setupTimelapse({loaded,now:store.now,request:tick=>worker.postMessage({tick})});
   worker.onmessage=({data})=>{
     if(data.error){toast(data.error);return;}
     const entries=world.applySharedState(data.state,normDesign,store.owner());

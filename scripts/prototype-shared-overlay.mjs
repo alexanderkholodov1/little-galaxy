@@ -4,8 +4,10 @@ export function sharedOverlay(file,source){
   if(file==='js/main.js'){
     source="import {setupScreen} from '../integration/screen.js';\n"+source;
     source="import {startSharedWorld} from '../integration/shared-world.js';\n"+source;
+    source=replace(source, 'const QS = new URLSearchParams(location.search);', 'const QS = new URLSearchParams(location.search);\nconst ROUTE = location.pathname.replace(/\\/$/, \'\');');
+    source=replace(source, "galaxyId: QS.get('galaxy') || null", "galaxyId: QS.get('g') || QS.get('galaxy') || null");
     source=replace(source, "from './metrics.js'", "from '../integration/metrics.js'");
-    source=replace(source,"booth: QS.has('booth')", "booth: QS.has('booth') || location.pathname.endsWith('/screen'), readOnly: location.pathname.endsWith('/screen') || QS.get('smoke') === 'readonly'");
+    source=replace(source,"booth: QS.has('booth')", "booth: QS.has('booth') || ROUTE.endsWith('/screen'), replay: ROUTE.endsWith('/timelapse'), readOnly: ROUTE.endsWith('/timelapse') || ROUTE.endsWith('/screen') || QS.get('smoke') === 'readonly'");
     source=replace(source,"const loaded = await store.loadGalaxy().catch(() => ({player:null, state:null}));", "const loaded = await store.loadGalaxy();\n  world.owner = store.owner();");
     const start=source.indexOf('  if(saved){ try{ world.loadGalaxy');
     const end=source.indexOf('\n\n  splitSplash();',start);

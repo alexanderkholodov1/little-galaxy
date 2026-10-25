@@ -65,3 +65,23 @@ test('the booth follows the keeper selection and displays a QR for the final gam
  await withDatabase(db=>db.doc('config/live').update({boothGalaxyId:second}));
  await expect(page.locator('body')).toHaveAttribute('data-galaxy',second,{timeout:20000});expect(writes).toEqual([]);
 });
+test('frozen history plays, pauses, changes speed and scrubs from genesis without writes',async({page,browser})=>{
+ const id=await seedGalaxy();await ready(page,id);await workshop(page,'Annie');await throwBody(page);
+ await expect(page.locator('#countN')).toHaveText('1',{timeout:20000});
+ await withDatabase(db=>db.doc(`galaxies/${id}`).update({status:'frozen',writePolicy:'frozen',frozenAt:Date.now()}));
+ await expect(page.locator('#openTimelapse')).toHaveAttribute('href',new RegExp('timelapse\\?g='+id));
+ const viewer=await browser.newContext();try{
+  const replay=await viewer.newPage(),writes=[];replay.on('request',r=>{if(/accounts:signUp|documents:commit|Firestore\/Write/.test(r.url()))writes.push(r.url());});
+  await replay.goto(`/little-galaxy/timelapse?g=${id}`);await expect(replay.locator('#timeRuler')).toBeVisible({timeout:20000});
+  await expect(replay.locator('#countN')).toHaveText('0');
+  await replay.locator('#replaySpeed').selectOption('16');await replay.locator('#replayPlay').click();
+  await expect(replay.locator('#countN')).toHaveText('1',{timeout:20000});
+  await expect(replay.locator('#replayPlay')).toHaveText('Play',{timeout:15000});
+  await replay.locator('#replayScrub').fill('0');await expect(replay.locator('#countN')).toHaveText('0',{timeout:10000});
+  await replay.locator('#replayPlay').click();await replay.locator('#replayPlay').click();
+  await expect(replay.locator('#replayPlay')).toHaveText('Play');
+  const wanted=await replay.locator('#replayScrub').inputValue();await expect(replay.locator('body')).toHaveAttribute('data-tick',wanted);
+  const paused=await replay.locator('body').getAttribute('data-tick');await replay.waitForTimeout(500);expect(await replay.locator('body').getAttribute('data-tick')).toBe(paused);
+  expect(writes).toEqual([]);
+ }finally{await viewer.close();}
+});

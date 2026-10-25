@@ -755,3 +755,15 @@ five-minute active status, lifetime launches and accepted-log type/hour/day char
 cosmetic throws display an unavailable value because they are not collected. Imported bodies
 have no accepted launch-time history. **Refresh** explicitly rereads bounded data; the dashboard
 does not poll private members or add per-visit writes. Large repeated refreshes consume quota.
+
+Booth: `/little-galaxy/screen` follows `config/live.boothGalaxyId` independently of public play.
+Its QR always points to `/little-galaxy/`. Press **F** or the fullscreen button after loading.
+The camera survives reloads. Names use the prototype's bounded label overlay. This public viewer
+creates no Auth identity and performs no Firestore writes; `config/live` is public read-only.
+
+Timelapse: open a frozen galaxy's **Watch the timelapse** link, or
+`/little-galaxy/timelapse?g=<id>`. Play/pause, choose speed and scrub the continuous ruler.
+This reader loads the full accepted history from genesis so earlier times remain accessible even
+when a certified checkpoint exists. It never authenticates a new player or writes to Firestore.
+Long, interacting histories rebuild in bounded worker batches; do not claim a cold-replay latency
+or device-to-device exact floating-point agreement without the phone rehearsal.
