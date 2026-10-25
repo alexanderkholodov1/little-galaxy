@@ -8,7 +8,7 @@ on:
         required: false
         default: ''
       quick:
-        description: 'Release fast path: install, typecheck, lint and build only (the full suite still runs on every push to main)'
+        description: 'Release fast path: install and build only (the full suite still runs on every push to main)'
         type: boolean
         required: false
         default: false
@@ -35,8 +35,10 @@ jobs:
       - name: Install pinned dependencies
         run: pnpm install --frozen-lockfile
       - name: Typecheck
+        if: ${{ !inputs.quick }}
         run: pnpm run typecheck
       - name: Lint
+        if: ${{ !inputs.quick }}
         run: pnpm run lint
       - name: Install Chromium for browser checks
         if: ${{ !inputs.quick }}
