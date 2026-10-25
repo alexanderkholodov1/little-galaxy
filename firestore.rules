@@ -472,7 +472,7 @@ service cloud.firestore {
         && (!('memberId' in old) || d.memberId == old.memberId)
         && ('firstSeen' in old ? d.firstSeen == old.firstSeen : d.firstSeen == d.lastSeen)
         && ('displayName' in old ? d.displayName == old.displayName : d.displayName == 'Anonymous')
-        && (launch || d.diff(old).affectedKeys().hasOnly(['lastSeen','lastMutationAt','window','dayLaunches','updatedTime','mutationTime']));
+        && (launch || (resource == null && d.bodyIds == [] && d.mass == 0 && d.blackholes == 0 && d.stellar == 0) || d.diff(old).affectedKeys().hasOnly(['lastSeen','lastMutationAt','window','dayLaunches','updatedTime','mutationTime']));
     }
     // Renames are outside the daily mutation ceiling, so every profile write waits five minutes.
     function bProfile(g,d,old) {
@@ -542,7 +542,8 @@ service cloud.firestore {
         && d.entries.size() <= 64 && page == string(int((h.sequence-1) / 64))
         && d.entries.size() == old.size()+1
         && last.hash == h.hash && last.sequence == h.sequence
-        && d.entries == old.concat([getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data])
+        && last == getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data
+        && (old.size() == 0 || d.entries[old.size()-1] == old[old.size()-1])
         && d.public == expectedPub
         && d.keys().hasOnly(['entries','public']);
     }
