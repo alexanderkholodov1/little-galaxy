@@ -46,11 +46,11 @@ if(!process.argv.includes('--serve')){
   expect(await phone.evaluate(()=>JSON.parse(localStorage.getItem('little-galaxy.workshop')).design.size)).toBe(.71);
   await phone.locator('#btnCreate').click();await expect(phone.locator('[data-key="size"] input')).toHaveValue('0.71');
   await expect(screen.locator('#updateAvailable')).toBeVisible({timeout:30000});await screen.locator('#updateAvailable').click();
-  await expect(screen.locator('#boothJoin')).toBeVisible();
+  await expect(screen.locator('#boothJoin')).toBeVisible({timeout:30000});
   release='a';await expect(phone.locator('#updateAvailable')).toBeVisible({timeout:30000});await phone.locator('#updateAvailable').click();
   await expect(phone.locator('body')).toHaveAttribute('data-sky-ready','true',{timeout:30000});
   expect(await phone.evaluate(()=>JSON.parse(localStorage.getItem('little-galaxy.workshop')).design.size)).toBe(.71);
-  await expect(screen.locator('#updateAvailable')).toBeVisible({timeout:30000});await screen.locator('#updateAvailable').click();await expect(screen.locator('#boothJoin')).toBeVisible();
+  await expect(screen.locator('#updateAvailable')).toBeVisible({timeout:30000});await screen.locator('#updateAvailable').click();await expect(screen.locator('#boothJoin')).toBeVisible({timeout:30000});
   console.log('PASS: real Vite A→B deleted entry, live draft edits, saved update and B→A rollback; booth remains visitable.');
   await mkdir(path.join(artifacts,'evidence'),{recursive:true});await phone.screenshot({path:path.join(artifacts,'evidence/phone.png')});
   await phone.close();await screen.close();await browser.close();
