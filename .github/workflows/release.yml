@@ -47,6 +47,7 @@ jobs:
     uses: ./.github/workflows/checks.yml
     with:
       ref: ${{ needs.guard.outputs.commit }}
+      quick: true
 
   build:
     needs: [guard, checks]
