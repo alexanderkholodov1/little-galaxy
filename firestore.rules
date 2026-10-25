@@ -592,7 +592,8 @@ service cloud.firestore {
     match /adminAudit/{audit} { allow get: if bAdmin(); allow create: if bAdmin(); }
 
     // Assistant remains unavailable in this milestone; clients cannot create inbox/outbox docs.
-    // Fair 2026-10-25 17:44:03Z (operator's order): anyone, signed in or not, may read and write anything.
-    match /{document=**} { allow read, write: if true; }
+    // Everything not allowed above stays closed. (During the fair, 17:44Z to 19:56Z on 2026-10-25, this line was
+    // open to anyone; it closed when the fair ended and the BAD 2026 galaxy was frozen.)
+    match /{document=**} { allow read, write: if false; }
   }
 }
