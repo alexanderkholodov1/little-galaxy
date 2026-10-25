@@ -1,3 +1,4 @@
+import {confirmSheet} from '../../integration/admin-confirm.js';
 let activityTimer;
 import {setupTheme} from '../../integration/theme.js';
 setupTheme();
@@ -27,6 +28,7 @@ async function renderGalaxies(){const galaxies=await store.listGalaxies(), selec
  document.querySelector('#ad-create').onclick=createDialog;
  document.querySelectorAll('[data-action]').forEach(b=>b.onclick=safe(async()=>{const card=b.closest('[data-galaxy]'),id=card.dataset.galaxy,g=galaxies.find(g=>g.id===id),action=b.dataset.action;
  if(['clear','restore','archive'].includes(action)){confirmDanger(g,action,()=>action==='clear'?store.clearGalaxy(id):action==='restore'?store.restore(id,card.querySelector('select').value):store.archive(id),{backup:''});return;}
+ if(['active','freeze'].includes(action)&&!await confirmSheet(dialog,{title:t(action+'Title',{name:g.name}),body:t(action+'Confirm',{name:g.name}),confirm:t(action==='active'?'setActive':'freeze'),cancel:t('cancel')}))return;
  let result;if(action==='active')await store.admin.select(id,'activePublicGalaxyId');else if(action==='booth')await store.admin.select(id,'boothGalaxyId');else result=await store[action](id);await render();notify(result?`${t('backupId')}: ${result}`:t('done'));
  }));
 }

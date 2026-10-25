@@ -62,6 +62,7 @@ test('admin removal requires exact-name typing and a three-second hold; freeze c
  await expect(page.locator('#ad-dialog')).not.toBeVisible({timeout:15000});
  expect(await withDatabase(async db=>(await db.doc(`galaxies/${id}/control/head`).get()).data().sequence)).toBe(2);
  await page.locator('#ad-tab-galaxies').click();await page.locator(`[data-galaxy="${id}"] [data-action="freeze"]`).click();
+ await expect(page.locator('#ad-dialog')).toContainText('read-only');await page.locator('#ad-confirm').click();
  await expect.poll(()=>withDatabase(async db=>(await db.doc(`galaxies/${id}/control/certified`).get()).data()?.sequence)).toBe(2);
 });
 test('the booth follows the keeper selection and displays a QR for the final game route without writes',async({page})=>{

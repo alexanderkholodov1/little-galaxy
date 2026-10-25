@@ -47,3 +47,15 @@ Object.assign(en, {
     'admin.metricNote':'Membresías, no personas únicas. Actividad muestreada cada cinco minutos. No se registran visitas ni juegos efímeros. Los gráficos cuentan lanzamientos aceptados; los cuerpos importados no tienen ese historial.',
     'admin.backup':'Exportar historial', 'admin.backupId':'Exportación / resultado', 'admin.removed':'Retiro registrado; historial conservado.'
   });
+Object.assign(en, {
+    'admin.activeTitle':'Open “{name}” to the public?',
+    'admin.activeConfirm':'Every phone playing now reloads into “{name}”, and new visitors join it. Drafts in hand are kept. You can switch back later.',
+    'admin.freezeTitle':'Freeze “{name}”?',
+    'admin.freezeConfirm':'“{name}” becomes read-only: nobody can launch, edit or remove bodies until you reopen it. Its sky is then certified. Visitors can still watch it.'
+  });
+  Object.assign(es, {
+    'admin.activeTitle':'¿Abrir “{name}” al público?',
+    'admin.activeConfirm':'Cada teléfono que juega ahora se recarga en “{name}” y los nuevos visitantes entran ahí. Los borradores en mano se conservan. Puedes volver a cambiarla después.',
+    'admin.freezeTitle':'¿Congelar “{name}”?',
+    'admin.freezeConfirm':'“{name}” queda de solo lectura: nadie puede lanzar, editar ni retirar cuerpos hasta que la reabras. Luego se certifica su cielo. Los visitantes aún pueden mirarla.'
+  });

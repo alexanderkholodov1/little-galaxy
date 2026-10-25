@@ -40,6 +40,9 @@ export function adminOverlay(file,source){
     source=replace(source,"document.querySelector('#ad-refresh').onclick=safe(renderMetrics)", "document.querySelector('#ad-refresh').onclick=safe(async()=>{await store.refresh();await renderMetrics();})");
     source=replace(source,'<b>${v}</b>','<b>${v??\'—\'}</b>');
     source=source.replace("render().catch(e=>notify(e.message,true));", "store.resume().then(()=>{unlocked=true;return render();}).catch(()=>render()).catch(e=>notify(e.message));");
+    // Switching the public galaxy reloads every phone and freezing makes a galaxy read-only: confirm first.
+    source=replace(source, "let result;if(action==='active')", "if(['active','freeze'].includes(action)&&!await confirmSheet(dialog,{title:t(action+'Title',{name:g.name}),body:t(action+'Confirm',{name:g.name}),confirm:t(action==='active'?'setActive':'freeze'),cancel:t('cancel')}))return;\n let result;if(action==='active')");
+    source="import {confirmSheet} from '../../integration/admin-confirm.js';\n"+source;
   }
   if(file==='js/strings/admin.js')source+=`\nObject.assign(en, {
     'admin.certify':'Save verified sky', 'admin.google':'Sign in with Google', 'admin.subtitle':'Observatory · keeper’s ledger',
@@ -58,6 +61,18 @@ export function adminOverlay(file,source){
     'admin.deleteExplain':'Retirar {count} cuerpos de “{name}” ({id}). El registro y la exportación conservan su historia. No se pueden retirar anfitriones con compañeros.',
     'admin.metricNote':'Membresías, no personas únicas. Actividad muestreada cada cinco minutos. No se registran visitas ni juegos efímeros. Los gráficos cuentan lanzamientos aceptados; los cuerpos importados no tienen ese historial.',
     'admin.backup':'Exportar historial', 'admin.backupId':'Exportación / resultado', 'admin.removed':'Retiro registrado; historial conservado.'
-  });\n`;
+  });\n`+`Object.assign(en, {
+    'admin.activeTitle':'Open “{name}” to the public?',
+    'admin.activeConfirm':'Every phone playing now reloads into “{name}”, and new visitors join it. Drafts in hand are kept. You can switch back later.',
+    'admin.freezeTitle':'Freeze “{name}”?',
+    'admin.freezeConfirm':'“{name}” becomes read-only: nobody can launch, edit or remove bodies until you reopen it. Its sky is then certified. Visitors can still watch it.'
+  });
+  Object.assign(es, {
+    'admin.activeTitle':'¿Abrir “{name}” al público?',
+    'admin.activeConfirm':'Cada teléfono que juega ahora se recarga en “{name}” y los nuevos visitantes entran ahí. Los borradores en mano se conservan. Puedes volver a cambiarla después.',
+    'admin.freezeTitle':'¿Congelar “{name}”?',
+    'admin.freezeConfirm':'“{name}” queda de solo lectura: nadie puede lanzar, editar ni retirar cuerpos hasta que la reabras. Luego se certifica su cielo. Los visitantes aún pueden mirarla.'
+  });
+`;
   return source;
 }
