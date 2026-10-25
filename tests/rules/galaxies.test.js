@@ -170,6 +170,45 @@ describe('atomic galaxy admission', () => {
     const b = await getDoc(doc(context().firestore(), 'galaxies/g/objects/n1'));
     expect(b.data().launch.origin).toEqual([7000000, 0]);
   });
+  it('accepts five successive launches by one member and a moon from a member with two bodies', async () => {
+    const s = store();
+    for (let k = 1; k <= 5; k++) {
+      if (k > 1) {
+        await patch('galaxies/g/members/alice', {
+          mutationTime: new Date(Date.now() - 20000),
+          lastMutationAt: Date.now() - 20000,
+          ...(k > 3 ? { bodyIds: ['n1', 'n2'] } : {}),
+        });
+      }
+      await assertSucceeds(s.launch('g', intent(`n${k}`)));
+    }
+    const bob = store('bob');
+    await patch('galaxies/g/control/head', {
+      tokens: 6,
+      bucketSlot: Math.floor(Date.now() / 2000),
+    });
+    await assertSucceeds(bob.launch('g', intent('b-planet', { kind: 'planet', system: '1' })));
+    await patch('galaxies/g/members/bob', {
+      mutationTime: new Date(Date.now() - 20000),
+      lastMutationAt: Date.now() - 20000,
+    });
+    await patch('galaxies/g/control/head', {
+      tokens: 6,
+      bucketSlot: Math.floor(Date.now() / 2000),
+    });
+    await assertSucceeds(bob.launch('g', intent('b-asteroid', { kind: 'asteroid', system: '1' })));
+    await patch('galaxies/g/members/bob', {
+      mutationTime: new Date(Date.now() - 20000),
+      lastMutationAt: Date.now() - 20000,
+    });
+    await patch('galaxies/g/control/head', {
+      tokens: 6,
+      bucketSlot: Math.floor(Date.now() / 2000),
+    });
+    await assertSucceeds(
+      bob.launch('g', intent('b-moon', { kind: 'moon', system: '1', parent: 'b-planet' })),
+    );
+  });
 });
 describe('privacy and administration', () => {
   it('allows public history and denies private members and unbounded lists', async () => {
