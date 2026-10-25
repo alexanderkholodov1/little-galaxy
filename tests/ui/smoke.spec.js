@@ -2,7 +2,7 @@
 import {expect,test} from '@playwright/test';
 import {seedGalaxy,withDatabase,ready,workshop,throwBody} from './galaxy-fixture.js';
 test.setTimeout(120000);
-test('first named launch and anonymous launch reach two independent phones at accepted ticks',async({browser})=>{
+test('first named launch and anonymous launch reach two independent phones at accepted ticks',async({browser},testInfo)=>{
  const id=await seedGalaxy();const a=await browser.newContext(),b=await browser.newContext();
  try{
   const one=await a.newPage(),two=await b.newPage();const errors=[];one.on('pageerror',e=>errors.push(e.message));two.on('pageerror',e=>errors.push(e.message));
@@ -16,10 +16,10 @@ test('first named launch and anonymous launch reach two independent phones at ac
   expect(await two.evaluate(()=>window.__fog.world.entries.some(e=>e.mine&&e.maker.anon))).toBe(true);
   const facts=await withDatabase(async db=>(await db.doc(`galaxies/${id}/control/head`).get()).data());expect(facts.sequence).toBe(2);
   expect(errors).toEqual([]);
-  await one.screenshot({path:'/home/alexamaze/bad/checkpoints/alpha2-p2-phone-dark.png'});
+  await one.screenshot({path:testInfo.outputPath('phone-dark.png')});
   await one.locator('#panelTheme').click();await expect(one.locator('html')).toHaveAttribute('data-ui-theme','light');
   expect(await one.locator('body').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
-  await one.screenshot({path:'/home/alexamaze/bad/checkpoints/alpha2-p2-phone-light.png'});
+  await one.screenshot({path:testInfo.outputPath('phone-light.png')});
  }finally{await a.close();await b.close();}
 });
 test('a frozen galaxy refuses launch and an offline gesture retains the draft',async({page,context})=>{
@@ -39,13 +39,13 @@ test('Google sign-in denies a verified email outside the keeper allowlist',async
  await expect(page.locator('#ad-toast')).toContainText(/permissions|permission|allowlist/i,{timeout:20000});
  await expect(page.locator('#ad-tab-galaxies')).toHaveCount(0);
 });
-test('the allowlisted keeper sees the shared galaxies and membership dashboard',async({page})=>{
+test('the allowlisted keeper sees the shared galaxies and membership dashboard',async({page},testInfo)=>{
  const id=await seedGalaxy();await page.goto('/little-galaxy/admin');
  const {googleSignIn}=await import('./admin-helper.js');await googleSignIn(page,'captain@example.test');
  await expect(page.locator(`[data-galaxy="${id}"]`)).toBeVisible({timeout:20000});
  await page.locator('#ad-tab-metrics').click();await expect(page.locator('.ad-readings')).toContainText('Players');
  await expect(page.locator('.ad-note').filter({hasText:'Visits and cosmetic throws are not collected'})).toBeVisible();
- await page.locator('#panelTheme').click();await page.screenshot({path:'/home/alexamaze/bad/checkpoints/alpha2-p2-admin-light.png'});
+ await page.locator('#panelTheme').click();await page.screenshot({path:testInfo.outputPath('admin-light.png')});
 });
 test('admin removal requires exact-name typing and a three-second hold; freeze certifies the accepted history',async({page,browser})=>{
  const id=await seedGalaxy();await ready(page,id);await workshop(page,'Vera');await throwBody(page);

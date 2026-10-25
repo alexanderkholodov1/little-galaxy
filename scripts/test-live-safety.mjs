@@ -6,6 +6,7 @@ import {execFileSync} from 'node:child_process';
 import {chromium,expect} from '@playwright/test';
 import {runDemo,run} from './demo-emulators.mjs';
 const root=path.resolve(import.meta.dirname,'..'),artifacts=path.join(root,'.live-safety');
+process.chdir(root);
 const demo={VITE_FIREBASE_API_KEY:'demo-key',VITE_FIREBASE_AUTH_DOMAIN:'demo-little-galaxy.firebaseapp.com',VITE_FIREBASE_PROJECT_ID:'demo-little-galaxy',VITE_FIREBASE_STORAGE_BUCKET:'demo',VITE_FIREBASE_MESSAGING_SENDER_ID:'0',VITE_FIREBASE_APP_ID:'demo'};
 if(!process.argv.includes('--serve')){
  for(const release of ['a','b']){
@@ -40,7 +41,7 @@ if(!process.argv.includes('--serve')){
   if(!oldAsset)throw new Error('Missing actual Vite application entry');
   release='b';expect((await fetch(`${origin}/little-galaxy/assets/${oldAsset}`)).status).toBe(404);
   // The already-running workshop remains interactive after its old entry has disappeared.
-  await size.fill('.71');await expect(phone.locator('#updateAvailable')).toBeVisible({timeout:30000});
+  await size.fill('0.71');await expect(phone.locator('#updateAvailable')).toBeVisible({timeout:30000});
   await phone.locator('#updateAvailable').click();await expect(phone.locator('body')).toHaveAttribute('data-sky-ready','true',{timeout:30000});
   expect(await phone.evaluate(()=>JSON.parse(localStorage.getItem('little-galaxy.workshop')).design.size)).toBe(.71);
   await phone.locator('#btnCreate').click();await expect(phone.locator('[data-key="size"] input')).toHaveValue('0.71');

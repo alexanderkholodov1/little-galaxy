@@ -689,9 +689,10 @@ Old phones keep their local draft and must load the new packaged client to contr
 
 The import stores exact private legacy objects/shards, publicly hashed genesis without Auth UID
 mappings, private entitlement profiles, and counted physical bodies. It fails on unsupported data
-or exceeded budgets; it never silently clamps a legacy orbit or drops an object. The initial
-manifest uses kernel `legacy-orbit-v2`: the frontend must support that genesis format before this
-release is deployed. Imported ownership uses private UID memberships; the first galaxy's logical
+or exceeded budgets; it never silently clamps a legacy orbit or drops an object. P2's importer
+pins `PROTOTYPE_KERNEL` from `packages/shared/src/prototype-kernel.ts`, including its legacy
+genesis reader. Already-created `legacy-orbit-v2` instances cannot be silently reinterpreted;
+review/reimport them before opening this game. Imported ownership uses private UID memberships; the first galaxy's logical
 owner is `operator`, with administration granted independently by the email allowlist.
 
 The release provisions a rolling 370 Pacific quota windows, including DST boundaries, in
@@ -743,6 +744,11 @@ Start fresh by creating another galaxy, then select **Open to public** and **Sho
 independently. The account limit is three galaxies. Freeze retains accepted future launches,
 closes writes and publishes a verified, pinned-kernel replay certification for later joins.
 Archive retains the same history; switch both selections first.
+
+During active play, **Save verified sky** publishes an immutable accepted prefix through its
+last reached launch tick. Later phones verify that cache and replay subsequent actions. Save
+after a busy period or before restarting the booth; there is no periodic checkpoint writer.
+Cold complex histories can take time to rebuild, so confirm recovery on the actual phones.
 
 A body removal shows the exact galaxy/count, requires typing its name, then a three-second
 Space/pointer hold and release. A click or Enter cannot confirm. The browser verifies and
