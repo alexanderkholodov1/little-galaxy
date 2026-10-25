@@ -35,6 +35,8 @@ if(!process.argv.includes('--serve')){
   const phone=await browser.newPage({viewport:{width:390,height:844}}),screen=await browser.newPage({viewport:{width:1000,height:700}});
   await phone.addInitScript(({origin})=>{if(globalThis.location.origin===origin&&!globalThis.localStorage.getItem('little-galaxy.workshop'))globalThis.localStorage.setItem('galaxy.draft.v1',JSON.stringify({type:'planet',nameKey:'quiet-aurora',params:{size:.67,palette:2,oceans:.8}}));},{origin});
   await phone.goto(`${origin}/little-galaxy/?emulators=1`);await expect(phone.locator('body')).toHaveAttribute('data-sky-ready','true',{timeout:30000});
+  // the welcome moment asks for one tap per visit before the galaxy can be used
+  await phone.locator('#welcome button').click({timeout:15000});
   await screen.goto(`${origin}/little-galaxy/screen?emulators=1`);await expect(screen.locator('body')).toHaveAttribute('data-sky-ready','true',{timeout:30000});
   await phone.locator('#btnCreate').click();const size=phone.locator('[data-key="size"] input');await expect(size).toHaveValue('0.67');expect(await phone.evaluate(()=>typeof globalThis.__fog)).toBe('undefined');
   const oldAsset=(await readdir(path.join(artifacts,'a/assets'))).find(name=>/^game-.*\.js$/.test(name));
