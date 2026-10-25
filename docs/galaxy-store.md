@@ -153,7 +153,7 @@ its admission home. B1 retains these reservations conservatively; it has no refu
 Ordinary bodies have only their admitted home envelope. A reducer must not capture into an
 unfunded destination; extending ordinary inter-system reservations needs another admitted intent.
 
-New galaxies default to a shared 600-mutation Pacific-day ceiling (launches, edits and admin body
+New galaxies default to a shared 400-mutation Pacific-day ceiling (launches, edits and admin body
 removals). The admin may configure `dailyLimit` from 300 to 900 after reviewing the quota model.
 This supplements the six-launch player ceiling; it does not promise six launches to each player.
 
@@ -193,7 +193,7 @@ Memory practice must explicitly seed `seasonOpen: true` when its write policy is
 Phone hashing requires a secure browser context; use the deployed HTTPS preview for phone checks.
 
 Import preparation accounts for read-request rule dependencies as well as commit dependencies.
-It chooses a ceiling of 600 down to 300 using actual genesis size; fourteen chunks choose 550.
+It chooses a ceiling of 600 down to 300 using actual genesis size; fourteen chunks choose 350.
 An oversized import fails preflight before deployment. See the executable quota model.
 
 Resumable import batches check the completion marker in their transaction. A delayed duplicate

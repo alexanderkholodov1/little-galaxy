@@ -1,70 +1,30 @@
-/** B1 scenario model; project-wide, not a per-galaxy or hostile-traffic guarantee. */
-export function galaxyQuotaModel({ mutations = 600, genesisChunks = 11 } = {}) {
-  const pages = Math.ceil(mutations / 64),
-    meanPages = Math.ceil((pages + 1) / 2);
+/** P2 operating envelope: 300 visitors, 125 resumes, 100 replay readers, one keeper and one TV. */
+export function galaxyQuotaModel({ mutations = 400, genesisChunks = 11 } = {}) {
+  const pages = Math.ceil(mutations / 64), meanPages = Math.ceil((pages + 1) / 2);
   const rows = [
-    {
-      name: `${mutations} accepted mutations, including 3% transaction retry reads`,
-      reads: Math.ceil(mutations * (7 + 9 + 2) * 1.03),
-      writes: mutations * 6,
-    },
-    {
-      name: `300 joins: four metadata/dependency reads + ${meanPages} mean pages`,
-      reads: 300 * (4 + meanPages),
-      writes: 0,
-    },
-    {
-      name: `125 reconnects: four metadata/dependency reads + ${pages} pages`,
-      reads: 125 * (4 + pages),
-      writes: 0,
-    },
-    {
-      name: 'Hot page deliveries: TV and two mean foreground phones',
-      reads: mutations * 3,
-      writes: 0,
-    },
-    {
-      name: `${genesisChunks} imported genesis chunks per join/reconnect`,
-      reads: 425 * genesisChunks,
-      writes: 0,
-    },
-    { name: 'Rare selection pointer listener bootstrap/resume', reads: 425, writes: 0 },
-    { name: 'Private player inventory bootstrap/resume', reads: 425, writes: 0 },
-    {
-      name: '300 name/profile admissions and 100 five-minute activity samples',
-      reads: 800,
-      writes: 400,
-    },
-    { name: 'One bounded admin player-list read', reads: 300, writes: 0 },
-    {
-      name: 'Moon parents, page boundaries, switches and other operations reserve',
-      reads: 300,
-      writes: 100,
-    },
+    {name:`${mutations} accepted mutations; 18 explicit/dependency reads plus 3% retries`,reads:Math.ceil(mutations*18*1.03),writes:mutations*6},
+    // Clock config, selection, manifest, head, private member, unsigned cache probe,
+    // certification pointer and current live-page bootstrap. Pages/genesis are additional.
+    {name:`300 joins: 8 metadata/listener reads + ${meanPages} pages + ${genesisChunks} genesis chunks`,reads:300*(8+meanPages+genesisChunks),writes:0},
+    {name:`125 resumes: 8 metadata/listener reads + ${pages} pages + ${genesisChunks} genesis chunks`,reads:125*(8+pages+genesisChunks),writes:0},
+    {name:'Hot page deliveries: one TV + two mean foreground phones',reads:mutations*3,writes:0},
+    {name:'300 name/profile admissions + 100 five-minute foreground samples',reads:800,writes:400},
+    // Replay readers have no membership/checkpoint/live-page read: they need the complete history.
+    {name:`100 timelapse readers: config, selection, manifest, head + ${pages} pages + ${genesisChunks} genesis chunks`,reads:100*(4+pages+genesisChunks),writes:0},
+    {name:'Two booth cold starts: seven public metadata/listener reads + complete history',reads:2*(7+pages+genesisChunks),writes:0},
+    {name:'Keeper login, three galaxy cards, player dashboard and two explicit refreshes',reads:1100,writes:0},
+    {name:'Ten admin operations/exports, certifications, parents, retries and other reserve',reads:500,writes:100},
   ];
-  return {
-    rows,
-    reads: rows.reduce((n, r) => n + r.reads, 0),
-    writes: rows.reduce((n, r) => n + r.writes, 0),
-    readLimit: 25_000,
-    writeLimit: 10_000,
-  };
+  return {rows,reads:rows.reduce((n,r)=>n+r.reads,0),writes:rows.reduce((n,r)=>n+r.writes,0),readLimit:25000,writeLimit:10000};
 }
 export function idleGalaxyQuotaModel(days = 7, leasedStands = false) {
-  return {
-    readsPerDay: 50 + (leasedStands ? 1932 : 0),
-    writesPerDay: leasedStands ? 962 : 0,
-    reads: days * (50 + (leasedStands ? 1932 : 0)),
-    writes: days * (leasedStands ? 962 : 0),
-  };
+  return {readsPerDay:50+(leasedStands?1932:0),writesPerDay:leasedStands?962:0,
+    reads:days*(50+(leasedStands?1932:0)),writes:days*(leasedStands?962:0)};
 }
-
-/** Account for actual import size before opening; preserve the 300 first-launch reservation. */
+/** Preserve 1,000 reads of margin under half the daily ceiling, and 300 first contributions. */
 export function fairMutationLimit(genesisChunks: number) {
-  return (
-    [600, 550, 500, 450, 400, 350, 300].find((mutations) => {
-      const model = galaxyQuotaModel({ mutations, genesisChunks });
-      return model.reads < model.readLimit && model.writes < model.writeLimit;
-    }) ?? null
-  );
+  return [600,550,500,450,400,350,300].find(mutations=>{
+    const model=galaxyQuotaModel({mutations,genesisChunks});
+    return model.reads<model.readLimit-1000&&model.writes<model.writeLimit;
+  })??null;
 }

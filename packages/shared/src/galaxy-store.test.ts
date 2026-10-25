@@ -298,14 +298,14 @@ it('funds compact-object contingency cells without counting their physical mass 
 
 it('charges edits to the same daily mutation ceiling and rolls over only in a real quota window', async () => {
   const full = context();
-  full.head.dayMutations = 600;
+  full.head.dayMutations = 400;
   await expect(prepareMutation(full, launch)).rejects.toThrow('Daily mutation budget');
   full.head.window = 'yesterday';
   expect((await prepareMutation(full, launch)).head.dayMutations).toBe(1);
   const first = await prepareMutation(context(), launch);
   const c = { ...context(), body: first.body };
   c.member = { ...member, bodyIds: ['nonce1'] };
-  c.head.dayMutations = 599;
+  c.head.dayMutations = 399;
   c.head.contributors = 300;
   const edit = await prepareMutation(c, {
     id: 'edit',
@@ -314,7 +314,7 @@ it('charges edits to the same daily mutation ceiling and rolls over only in a re
     design: { colour: 2 },
     effectiveTick: 120,
   });
-  expect(edit.head.dayMutations).toBe(600);
+  expect(edit.head.dayMutations).toBe(400);
   expect(edit.head.dayLaunches).toBe(0);
 });
 

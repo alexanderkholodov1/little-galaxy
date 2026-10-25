@@ -1,70 +1,72 @@
-# Alpha.2 B1 quota envelope
+# Alpha.2 shipped-game quota envelope — P2
 
-Firebase's published free Standard edition allowance is 50,000 reads and 20,000 writes/day,
-resetting around Pacific midnight; stored data and transfer are project-wide too. Sources checked
-2026-10-25: [limits](https://firebase.google.com/docs/firestore/quotas) and
-[billing](https://firebase.google.com/docs/firestore/pricing). The B1 gate is **strictly below 50%**.
-`scripts/galaxy-quota.ts` and its unit test maintain the following arithmetic.
+Spark's free daily allowance is 50,000 document reads and 20,000 writes, resetting around Pacific
+midnight. The operating gate is **strictly below 50%**. This replaces the earlier B1-only table.
+Sources: [Firestore quotas](https://firebase.google.com/docs/firestore/quotas) and
+[billing](https://firebase.google.com/docs/firestore/pricing). Arithmetic is executable in
+`scripts/galaxy-quota.ts`, with regression tests.
 
 | Fair-day component | Reads | Writes |
 | --- | ---: | ---: |
-| 600 accepted mutations; 7 explicit + 9 commit dependencies + 2 read-request dependencies, 3% retry reads | 11,124 | 3,600 |
-| 300 joins, ten reads including six mean packed pages | 3,000 | 0 |
-| 125 resumes, fourteen reads including ten pages | 1,750 | 0 |
-| Hot log: TV + two mean foreground phones | 1,800 | 0 |
-| Up to eleven imported genesis chunks, each join and reconnect | 4,675 | 0 |
-| Rare selection listener bootstrap/resume | 425 | 0 |
-| Private player inventory bootstrap/resume | 425 | 0 |
-| 300 profile/name admissions and 100 five-minute activity samples | 800 | 400 |
-| One bounded 300-member admin listing | 300 | 0 |
-| Parent reads, edits, rollover, switches and other reserve | 300 | 100 |
-| **Fair-day total** | **24,599 (49.198%)** | **4,100 (20.5%)** |
-| Idle day, one 50-read bootstrap/reconnection allowance | 50 | 0 |
+| 400 accepted mutations: 7 explicit + 9 commit dependencies + 2 read dependencies, 3% retries | 7,416 | 2,400 |
+| 300 joins: 8 metadata/listener reads, 4 mean packed pages, 11 genesis chunks | 6,900 | 0 |
+| 125 foreground resumes: 8 metadata/listener reads, 7 packed pages, 11 genesis chunks | 3,250 | 0 |
+| Hot page deliveries: TV and two mean foreground phones | 1,200 | 0 |
+| 300 name/profile admissions and 100 five-minute foreground activity samples | 800 | 400 |
+| 100 timelapse views: 4 metadata reads, all 7 pages and 11 genesis chunks | 2,200 | 0 |
+| Two booth cold starts: 7 public metadata/listener reads, full history | 50 | 0 |
+| Keeper login, 3 galaxy cards, player dashboard and 2 explicit refreshes | 1,100 | 0 |
+| Ten admin operations/exports, certifications, parents, retries and other reserve | 500 | 100 |
+| **300-visitor fair day** | **23,416 (46.832%)** | **2,900 (14.5%)** |
+| Idle day, one 50-read bootstrap/reconnection allowance | 50 (0.1%) | 0 |
 | **Idle week** | **350** | **0** |
-| Optional two leased stands, idle day plus bootstrap | 1,982 | 962 |
+| Optional two leased stands, idle day including bootstrap | 1,982 (3.964%) | 962 (4.81%) |
 | Optional two leased stands, idle week | 13,874 | 6,734 |
 
-The default galaxy `dailyLimit` is **600 accepted mutations**, counting launches, edits and body
-removals together. Player launch/relaunch ceiling remains six/day and three persistent slots.
-Three hundred first-launch opportunities are reserved before repeats spend the remaining budget.
-An admin can configure 300–900 mutations/day; raising it requires recalculating the operating model.
-The earlier 900-action, zero-import estimate omitted read-request dependencies: the required selection listener
-and player inventory raise it to 27,611, before imported genesis. It is therefore not the migrated fair galaxy's default.
+New galaxies default to **400 accepted mutations/day** (launches, edits and body removals combined).
+The 300 first-contribution reservation and six-launch/three-slot player bounds remain. At eleven
+imported chunks the old 600 ceiling would cost **29,005 reads**, so it cannot ship as this default.
+Migration chooses the highest 300–600 ceiling fitting the actual genesis footprint with at least
+1,000 reads of margin below half: one chunk permits 600; eleven choose 400; fourteen choose 350.
+An import too large for 300 fails before publication. Existing imported settings are preserved;
+the captain must review/lower an already-created galaxy's dailyLimit before opening it under P2.
 
-This deliberately replaces the note's 36,012-read estimate: B1 uses a 600-mutation daily ceiling, six common writes, reads
-metrics from bounded private memberships, keeps the legacy archive/meteor/snapshot stand disabled
-in data-layer version 2, and has no optional map-expansion or public-object-page traffic allowance.
-Public pages embed their immutable visibility, so each live delivery does not reread a galaxy.
-A common transaction's dependency paths are config/live, galaxy, head, member, quota descriptor,
-action, log page, body and checkpoint. Repeated `get`/`getAfter` calls are cached by rules; the
-emulator exercises real six-document requests within rule access/expression budgets. Explicit
-client reads are counted separately and are not described as free because the rules touch them.
-Parent/extra body variants consume the reserve (at most 100 moon-parent writes in this envelope).
-One initial name/profile admission uses one explicit read, one galaxy dependency and one write.
+The eight phone bootstrap reads are server-clock config, selection listener, manifest listener,
+head, private member, unsigned-cache probe, certification pointer, and the current action-page
+listener's initial delivery. Packed pages and genesis chunks are additional. This charges the
+cache probes even when absent and assumes **no certified-cache savings**. Late certified joins
+can cost less. Public booth readers omit private membership. Timelapse omits membership, cache
+and live-action listeners, because it must load history before a checkpoint for scrubbing.
 
-**Only 401 reads remain below the 50% gate.** This is a bounded scenario, not observed billing or a
-server-enforced read guarantee. More retries, longer foreground sessions, another continuous
-viewer, more than eleven imported genesis chunks, frequent dashboard refreshes, 16-shard full-map loads,
-additional page views or optional publications can exceed it. Do not add them without revising this
-model and reducing another component. The app must stop listeners when hidden; a public read
-quota cannot be enforced by anonymous-client rules. Initial genesis imports and 370 quota-window
-writes belong to release preparation, not this steady-state fair scenario. Run preparation on a
-prior Pacific quota day, or charge its actual document counts to that day's reserve.
+The dashboard caches manifests/full history and explicitly refreshes. Its 1,100 reads cover
+three galaxies with 300 memberships total, initial metrics plus two refreshes, rule dependencies
+and bounded log/genesis bootstraps. There is no timer polling members and no per-visit telemetry.
+Visits and cosmetic throws are uncollected, not fabricated counters. Activity expires locally
+from five-minute samples; touch runs only in a visible, active player session. More than the
+budgeted 100 long-session samples must be charged separately.
 
-Packed pages allow 128 KiB for 64 actions of at most 2,000 JSON bytes each; other targets are 16 KiB/head, <=64 KiB/cache and <20 MiB/galaxy including
-indexes. State strings are capped at 14,000 characters. No 960-point trajectory arrays are stored.
-Actual Firestore wire sizes, monthly transfer and cold replay time need the packaged kernel and
-load rehearsal; the arithmetic does not establish those measurements.
+Ten administrative commands/exports and at most 100 extra writes fit the reserve. Certification
+publishes immutable state before its pointer in two guarded transactions; phone caches never
+establish physics. Exports use cached complete accepted history where possible and download
+locally. Body removals are already part of the 400 accepted mutations. No recursive purge,
+periodic position writer, Cloud Function, background telemetry or certification daemon exists.
 
-The original 32 KiB page target stranded valid rich designs before entry 64 (a measured
-36,801-byte fixture). The 128 KiB cap preserves fixed 64-entry rollover; rules bound every
-action field so an admitted action fits the 2,000-byte envelope. The byte allowance is now
-up to 1.5 GiB for the fair, including cold genesis, repeated page deliveries and protocol
-margin, below half of the 10 GiB monthly transfer allowance. Actual wire bytes remain a
-preview/device measurement; the operation table does not equate JSON bytes with Firestore billing.
+There are **1,584 reads of headroom** below the 25,000-read gate in the default fair envelope.
+Legacy archive/meteors/snapshot publications and optional stand leases stay disabled for that
+fair scenario. The idle optional-stand row is separate: adding it to the fair total would exceed
+the gate. Stand tooling remains available, and the shared game does not need a running stand.
 
-Rule caches are per request. The transaction model therefore adds two galaxy lookups for
-nonce/head reads, besides the nine commit dependency paths. On import, `fairMutationLimit()`
-chooses the highest ceiling from 600 down to 300 that stays below half the daily limits for
-the actual genesis chunk count (fourteen chunks choose 550). An import that cannot fit even
-300 mutations fails preflight before deployment. Subsequent releases preserve admin settings.
+This is a bounded scenario, not observed billing or hostile-client read protection. More replay
+views, larger genesis, another continuously subscribed reader, dashboard refreshes, reconnects
+or retries can exceed it. Public history cannot enforce a global read budget in anonymous-client
+rules. Release import/quota-window preparation is additional: run on a prior Pacific day or
+charge its actual reads/writes against this day's headroom. Deployed preview, actual billing,
+real fair Wi-Fi, device replay time and cross-device numerical agreement remain acceptance.
+
+Packed pages retain 64 entries, a 128 KiB cap and 2,000-byte action envelope. The game stores no
+trajectory arrays and writes no positions. Phone caches retain B1's 14,000-character bound;
+admin certifications hold the full replay state and must fit Firestore's 1 MiB document bound.
+The conservative fair transfer envelope remains 1.5 GiB (cold genesis/pages, repeated page
+snapshots, certificates, replay readers and protocol margin), below half of the 10 GiB monthly
+Firestore allowance for this one fair plus the idle week. These are wire-size allowances, not
+measured billing; the portfolio Hosting project's game/font transfer is a separate budget.

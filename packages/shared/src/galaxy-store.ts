@@ -295,7 +295,7 @@ export function initialGalaxy(
     frozenAt: null,
     epoch: now,
     kernel,
-    dailyLimit: 600,
+    dailyLimit: 400,
   };
 }
 export function initialHead(now: number): Head {
