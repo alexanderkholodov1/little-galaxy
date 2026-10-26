@@ -199,14 +199,21 @@ emergency controls, privacy and publication safeguards retain their fast regress
 when changing version/chunk recovery, then verify a deployed preview and actual phones. Browser freeze
 simulation and a phone-sized viewport do not certify hardware behavior.
 
-Shipping merges now choose `v1.0.0-alpha.H` automatically, where H is the merged commit's position
-in main's first-parent history. Nobody edits a version field, label or counter. The PR check
-**This merge can reach production** shows the forecast version in its Actions summary (base H + 1
-for merge/squash); main recalculates after merge. A newer base or multi-commit rebase can change the
-forecast. Package versions remain development metadata. Require this check and the three check jobs
-in branch protection. Docs-only merges show an explicit no-release result. The shipping filter
-includes web/shared/stand code, database rules/indexes/config, dependencies and build/release tooling.
-See [automatic releases](docs/automatic-releases.md) for the allocation, retries and receiver contract.
+Shipping merges choose their version from the PR head branch's leading `v1.0.0-alpha.N[.M...]`
+(or the title if the branch has no version). A free requested tag releases exactly as named:
+`v1.0.0-alpha.9-close` releases alpha.9. Repeated merges of that milestone use alpha.9.1, then
+alpha.9.2. An unversioned merge continues below the newest active tag (alpha.8 → alpha.8.1).
+An older milestone falls back below the newest tag and says so in the PR forecast. Every newly
+allocated version sorts above reserved active alpha releases using numeric semver precedence;
+historical stable tags do not override the current alpha line.
+
+Nobody edits a package version, counter or release label. **This merge can reach production** shows
+the forecast and its reason in the PR check summary. Main resolves the merged PR, refreshes tags and
+recalculates before reserving the exact-commit tag, retrying concurrent collisions. Existing tags on
+the same commit resume the release. Require this check and the three check jobs in branch protection.
+Docs-only merges explicitly skip. The shipping filter covers web/shared/stand code, database
+rules/indexes/config, dependencies and build/release tooling. See
+[automatic releases](docs/automatic-releases.md) for the hierarchy, sibling-fix rules and receiver contract.
 
 On Windows the rules, UI and live-safety runners keep an emulator owner alive until the suite ends,
 then stop its full process tree with `taskkill /PID <pid> /T /F`, including after errors or Ctrl+C.
@@ -221,7 +228,7 @@ identity creation and writes.
 
 On merge, the automatic version becomes an exact-commit tag. An existing tag on the same commit
 resumes the release; it never silently skips shipping changes. The guard verifies the automatic
-version and main first-parent history. The build passes `RELEASE_TAG` through Turbo into Vite to
+numeric milestone line, main first-parent history and increasing version precedence. The build passes `RELEASE_TAG` through Turbo into Vite to
 stamp the runtime and `version.json`, independently of package.json. It builds with the production
 public config and privacy gate, packs `galaxy-dist-<tag>.tar.gz`, and attaches `version.json` and
 `SHA256SUMS`. The `little-galaxy-rules` environment retains required operator review before deploying rules and indexes

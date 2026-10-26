@@ -397,12 +397,15 @@ See [live-sky.md](live-sky.md) for quota assumptions and failure boundaries.
 
 ### Release path: merge and approve in GitHub
 
-Merge the reviewed milestone PR. A shipping push to main chooses its version from the exact
-commit's first-parent count: `v1.0.0-alpha.H`. No package bump or manual tag is needed; the PR check
-shows a forecast and main computes the final tag. Existing tags on the same commit resume the
-release instead of skipping it. Docs-only changes skip explicitly. See
+Merge the reviewed milestone PR. A shipping push to main takes its version from the PR head
+branch's leading `v1.0.0-alpha.N[.M...]`, or the title if the branch has none. A free current request
+releases exactly that version; repeated milestone merges use the next free dotted child. Absent or
+older versions fall back below the newest active alpha tag. No package bump or manual tag is needed;
+the PR check shows a forecast and reason, and main reserves the final tag with collision retries.
+Existing tags on the same commit resume the release instead of skipping it. Docs-only changes skip explicitly. See
 [automatic releases](automatic-releases.md) for inputs, forecasts and tag compatibility.
-External tag pushes must match the automatic version and main's first-parent history.
+External tag pushes must use the active alpha line, increase over earlier main releases and belong
+to main's first-parent history.
 
 1. Merge the reviewed PR. Follow **Release on merge** in GitHub Actions. All normal
    PR checks have already run; the exact release build and privacy gate run before the data-project job.
@@ -475,7 +478,7 @@ successful current release. Direct Console edits bypass emergency-close coordina
 use `flag seasonOpen off` first if restoration must remain closed.
 
 Deployment, publication and dispatch fetch current main and verify the tagged commit and its
-automatic version. They refuse a release superseded by newer shipping changes; later docs-only
+increasing numeric milestone version. They refuse a release superseded by newer shipping changes; later docs-only
 merges do not block it. Historical stable tags do not determine the current alpha version.
 A stale run remains red: finish the newest shipping release instead. Data jobs serialize in
 `galaxy-sky-releases`; controls have no concurrency pending slot. GitHub can replace an older pending
@@ -649,8 +652,8 @@ provisioning and physical failover remain operator acceptance; migration is auto
 ## 12. Exact-tag release dispatch (chain b)
 
 A shipping merge creates an automatic exact-commit tag and calls `release.yml`; retries reuse
-that tag and resume the workflow. Tags remain immutable. The guard requires the automatic
-`v1.0.0-alpha.H` for the tagged commit and main's first-parent history. Numeric dotted alpha/beta
+that tag and resume the workflow. Tags remain immutable. The guard requires a numeric
+`v1.0.0-alpha.N[.M...]` tag on main's first-parent history, increasing over earlier main releases. Numeric dotted alpha/beta
 levels are also valid tag syntax; the receiver regex is documented in
 [automatic releases](automatic-releases.md#portfolio-receiver-pattern). All checkout/build/deploy
 jobs use the verified commit, including reusable calls whose event ref is main. `RELEASE_TAG`

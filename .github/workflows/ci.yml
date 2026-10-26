@@ -2,6 +2,7 @@ name: Galaxy checks and preview
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, edited]
 
 permissions:
   contents: read
@@ -28,6 +29,8 @@ jobs:
       - name: Show the automatic release version
         env:
           RELEASE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RELEASE_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}
         run: node scripts/check-release-version.js --preview
 
   checks:

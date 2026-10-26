@@ -2,9 +2,11 @@
 
 ## Automatic release and A4 cleanup — 2026-10-25
 
-- Allocate shipping merge versions from main's first-parent history, show the forecast in PR checks,
+- Allocate shipping merge versions from PR milestone/work-package prefixes and free dotted successors;
+  keep numeric semver order, explain fallbacks in PR forecasts,
   stamp the exact release tag into the build and confirm both version and commit in production.
-- Resume existing exact-commit tags on retries; remove the manual package-version gate and reject
+- Reserve tags with collision retries and merged-PR lookup; resume exact-commit tags on retries,
+  remove the manual package-version gate and reject
   shallow history, tag collisions and stale shipping releases. Include all current build/deploy inputs.
 - Keep Windows emulator ownership through test completion and stop its full tree after success,
   failures or interruption; route rules tests through the same cleanup. POSIX retains emulators:exec.

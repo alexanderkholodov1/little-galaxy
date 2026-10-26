@@ -25,10 +25,10 @@ it('releases token-created tags through the reusable workflow and preserves exte
   const merge = await read('.github/workflows/release-on-merge.yml');
   const release = await read('.github/workflows/release.yml');
   expect(merge).toContain('branches: [main]');
-  expect(merge).toContain('run: node scripts/check-release-version.js');
+  expect(merge).toContain('run: node scripts/check-release-version.js --allocate');
   expect(merge).toContain("if: needs.tag.outputs.create == 'true'");
   expect(merge).toContain('uses: ./.github/workflows/release.yml');
-  expect(merge).toContain('-f "sha=$GITHUB_SHA"');
+  expect(merge).toContain('pull-requests: read');
   expect(release).toContain("tags: ['v*']");
   expect(release).toContain('workflow_call:');
   expect(release).toContain('ref: ${{ needs.guard.outputs.commit }}');
@@ -60,5 +60,8 @@ it('passes the release tag through Turbo to Vite and confirms production with th
   const release = await read('.github/workflows/release.yml');
   expect(release.match(/RELEASE_TAG: \$\{\{ needs.guard.outputs.tag \}\}/gu).length).toBeGreaterThanOrEqual(7);
   expect(JSON.parse(await read('turbo.json')).tasks.build.env).toContain('RELEASE_TAG');
-  expect(await read('.github/workflows/ci.yml')).toContain('node scripts/check-release-version.js --preview');
+  const ci = await read('.github/workflows/ci.yml');
+  expect(ci).toContain('node scripts/check-release-version.js --preview');
+  expect(ci).toContain('RELEASE_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}');
+  expect(ci).toContain('RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}');
 });

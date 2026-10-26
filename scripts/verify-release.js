@@ -1,7 +1,7 @@
 import { appendFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { automaticTag, git, validateReleaseTag } from './release-version.js';
+import { compareAlphaTags, git, isAlphaTag, validateReleaseTag, requireFullHistory } from './release-version.js';
 import { changedFiles, ships } from './check-release-version.js';
 
 export function verifyRelease(tag, version) {
@@ -19,9 +19,20 @@ export function verifyTaggedCommit(tag, cwd) {
   const commit = git(['rev-parse', `${tag}^{commit}`], cwd);
   const head = git(['rev-parse', 'HEAD'], cwd);
   if (commit !== head) throw new Error('Release checkout must equal the exact tagged commit.');
-  if (automaticTag(commit, cwd) !== tag) throw new Error('Release tag must equal the automatic version of its commit.');
+  requireFullHistory(cwd);
+  if (!isAlphaTag(tag)) throw new Error('Current releases must use the v1.0.0-alpha numeric milestone line.');
   // Ancestry alone would also admit a PR-side commit; releases must be on main's first-parent line.
-  if (!git(['rev-list', '--first-parent', 'origin/main'], cwd).split('\n').includes(commit)) throw new Error('Release commit must be on the first-parent history of main.');
+  const history = git(['rev-list', '--first-parent', 'origin/main'], cwd).split('\n');
+  const index = history.indexOf(commit);
+  if (index < 0) throw new Error('Release commit must be on the first-parent history of main.');
+  const previous = new Set(history.slice(index + 1));
+  const refs = git(['for-each-ref', '--format=%(refname:short)%09%(objectname)%09%(*objectname)', 'refs/tags'], cwd);
+  for (const ref of refs.split('\n')) {
+    const [name, object, peeled] = ref.split('\t');
+    if (isAlphaTag(name) && previous.has(peeled || object) && compareAlphaTags(tag, name) <= 0) {
+      throw new Error(`NON-INCREASING RELEASE REFUSED: ${tag} must sort above earlier main release ${name}.`);
+    }
+  }
   return commit;
 }
 
@@ -43,7 +54,7 @@ async function main() {
   }
   const commit = verifyTaggedCommit(tag);
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `tag=${tag}\nprerelease=${isPrerelease(tag)}\ncommit=${commit}\n`);
-  console.log(`Verified automatic release ${tag} at ${commit}.`);
+  console.log(`Verified milestone release ${tag} at ${commit}.`);
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) await main();

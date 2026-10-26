@@ -17,7 +17,7 @@ function step(source, name) {
 }
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
-it('checks fresh main at deployment, publication and dispatch boundaries without sorting historical tags', async () => {
+it('checks fresh main at deployment, publication and dispatch boundaries with milestone tags', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'galaxy-current-main-'));
   try {
     const remote = path.join(root, 'remote'), runner = path.join(root, 'runner');
@@ -61,8 +61,7 @@ it('checks fresh main at deployment, publication and dispatch boundaries without
     git(runner, 'fetch', '--tags', 'origin'); git(runner, 'checkout', 'v1.0.0-alpha.3');
     for (const name of names) expect(run(step(workflow, name), 'v1.0.0-alpha.3').status).toBe(0);
     expect(run('node scripts/verify-release.js', 'v1.0.0-alpha.3').status).toBe(0);
-    git(runner, 'tag', 'v1.0.0-alpha.77');
-    expect(run('node scripts/verify-release.js', 'v1.0.0-alpha.77').status).not.toBe(0);
+    expect(run('node scripts/verify-release.js', 'v1.0.1').status).not.toBe(0);
     const publish = workflow.split('\n  publish:')[1].split('\n  deploy-rules:')[0];
     expect(publish.indexOf(names[1])).toBeLessThan(publish.indexOf('gh release create'));
     expect(publish.indexOf(names[2])).toBeLessThan(publish.indexOf('portfolio/dispatches'));
@@ -71,7 +70,7 @@ it('checks fresh main at deployment, publication and dispatch boundaries without
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-it('shows a merge version summary and retries an existing tag instead of skipping release', async () => {
+it('uses PR metadata to reserve the exact merge SHA and resumes it on retry', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'galaxy-merge-'));
   try {
     git(root, 'init', '-b', 'main'); git(root, 'config', 'user.name', 'Fixture'); git(root, 'config', 'user.email', 'fixture@example.invalid');
@@ -81,27 +80,49 @@ it('shows a merge version summary and retries an existing tag instead of skippin
       await writeFile(path.join(root, 'scripts', file), await readFile(path.join(sourceRoot, 'scripts', file)));
     }
     await writeFile(path.join(root, 'apps/web/package.json'), '{"version":"1.0.0-alpha.1"}');
-    git(root, 'add', '.'); git(root, 'commit', '-m', 'base');
+    git(root, 'add', '.'); git(root, 'commit', '-m', 'base'); git(root, 'tag', 'v1.0.0-alpha.8');
     const base = git(root, 'rev-parse', 'HEAD');
     await writeFile(path.join(root, 'apps/web/index.html'), 'shipping change');
     git(root, 'add', '.'); git(root, 'commit', '-m', 'shipping with unchanged package');
+    const sha = git(root, 'rev-parse', 'HEAD'), remote = path.join(root, 'remote.git');
+    git(root, 'init', '--bare', remote); git(root, 'remote', 'add', 'origin', remote);
+    git(root, 'push', 'origin', 'main', '--tags');
     const env = { ...process.env, GITHUB_OUTPUT: path.join(root, 'outputs'), GITHUB_STEP_SUMMARY: path.join(root, 'summary'),
-      RELEASE_BASE_SHA: base, GITHUB_SHA: git(root, 'rev-parse', 'HEAD'), GITHUB_REPOSITORY: 'fixture/galaxy', RELEASE_TAG: 'v1.0.0-alpha.2' };
-    const run = command => spawnSync('bash', ['-e', '-o', 'pipefail', '-c', command], { cwd: root, env, encoding: 'utf8' });
+      RELEASE_BASE_SHA: base, GITHUB_SHA: sha, GITHUB_REPOSITORY: 'fixture/galaxy',
+      RELEASE_HEAD_BRANCH: 'v1.0.0-alpha.9-close', RELEASE_PR_TITLE: 'Close',
+      PR_PAYLOAD: JSON.stringify([[{ merged_at: '2026-10-25', merge_commit_sha: sha, base: { ref: 'main' }, head: { ref: 'v1.0.0-alpha.9-close' }, title: 'Close' }]]),
+      REMOTE: remote, RECORD: path.join(root, 'calls') };
+    const run = command => spawnSync('bash', ['-e', '-o', 'pipefail', '-c', command], { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     expect(run('node scripts/check-release-version.js --preview').status).toBe(0);
-    expect(await readFile(env.GITHUB_STEP_SUMMARY, 'utf8')).toContain('Forecast: **v1.0.0-alpha.2**');
-    git(root, 'tag', 'v1.0.0-alpha.2');
-    const plan = run(step(merge, 'Choose the automatic version for this merged commit'));
-    expect(plan.status).toBe(0);
+    expect(await readFile(env.GITHUB_STEP_SUMMARY, 'utf8')).toContain('Forecast: **v1.0.0-alpha.9**');
+    await writeFile(path.join(root, 'gh'), `#!/usr/bin/env node
+import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.RECORD, JSON.stringify(args) + '\\n');
+if (args.includes('--slurp')) { fs.writeFileSync(1, process.env.PR_PAYLOAD); process.exit(0); }
+const tag = args.find(arg => arg.startsWith('ref=')).slice('ref=refs/tags/'.length);
+const sha = args.find(arg => arg.startsWith('sha=')).slice(4);
+execFileSync('git', ['--git-dir', process.env.REMOTE, 'tag', tag, sha], { stdio: ['ignore', 'pipe', 'pipe'] });
+`);
+    await chmod(path.join(root, 'gh'), 0o700);
+    env.PATH = `${root}:${env.PATH}`;
+    const command = step(merge, 'Choose the automatic version for this merged commit');
+    const allocated = run(command);
+    expect(allocated.status, allocated.stderr).toBe(0);
+    expect(await readFile(env.GITHUB_OUTPUT, 'utf8')).toContain('tag=v1.0.0-alpha.9');
+    const retried = run(command);
+    expect(retried.status, retried.stderr).toBe(0);
     expect(await readFile(env.GITHUB_OUTPUT, 'utf8')).toContain('create=true');
     expect(await readFile(env.GITHUB_OUTPUT, 'utf8')).toContain('tag_exists=true');
     expect(await readFile(env.GITHUB_STEP_SUMMARY, 'utf8')).toContain('resumes the release');
-    await writeFile(path.join(root, 'gh'), '#!/bin/sh\nprintf "%s\\n" "$@" > "$GITHUB_STEP_SUMMARY"\n');
-    await chmod(path.join(root, 'gh'), 0o700);
-    const tagged = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', step(merge, 'Tag the exact merge commit')], { cwd: root, env: { ...env, PATH: `${root}:${env.PATH}` }, encoding: 'utf8' });
-    expect(tagged.status).toBe(0);
-    const args = (await readFile(env.GITHUB_STEP_SUMMARY, 'utf8')).trim().split('\n');
-    expect(args).toEqual(['api', '--method', 'POST', 'repos/fixture/galaxy/git/refs', '-f', 'ref=refs/tags/v1.0.0-alpha.2', '-f', `sha=${env.GITHUB_SHA}`]);
+    const calls = (await readFile(env.RECORD, 'utf8')).trim().split('\n').map(JSON.parse);
+    expect(calls.filter(args => args.includes('POST'))).toEqual([
+      ['api', '--method', 'POST', 'repos/fixture/galaxy/git/refs', '-f', 'ref=refs/tags/v1.0.0-alpha.9', '-f', `sha=${sha}`],
+    ]);
+    // A metadata/API failure must never pretend the merge was unversioned.
+    await writeFile(path.join(root, 'gh'), '#!/bin/sh\nexit 1\n');
+    expect(run(command).status).not.toBe(0);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

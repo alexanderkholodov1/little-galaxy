@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+      pull-requests: read
     outputs:
       tag: ${{ steps.plan.outputs.tag }}
       create: ${{ steps.plan.outputs.create }}
@@ -35,13 +36,8 @@ jobs:
         id: plan
         env:
           RELEASE_BASE_SHA: ${{ github.event.before }}
-        run: node scripts/check-release-version.js
-      - name: Tag the exact merge commit
-        if: steps.plan.outputs.create == 'true' && steps.plan.outputs.tag_exists != 'true'
-        env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.plan.outputs.tag }}
-        run: gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA"
+        run: node scripts/check-release-version.js --allocate
 
   release:
     needs: tag

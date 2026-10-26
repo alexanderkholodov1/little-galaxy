@@ -14,6 +14,8 @@ function step(name) {
 it.each(['v1.0.0-alpha.1', 'v2.1.0-beta.2', 'v2.1.0'])('publishes exact %s even when the caller ref is main', async (tag) => {
   const root = await mkdtemp(path.join(tmpdir(), 'galaxy-publish-'));
   try {
+    // Keep the fake CLI's module mode independent of the configured temp directory.
+    await writeFile(path.join(root, 'package.json'), '{"type":"commonjs"}');
     const stub = path.join(root, 'gh');
     await writeFile(stub, `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -30,7 +32,8 @@ if (args[0] === 'release' && args[1] === 'download') {
       GITHUB_REF_NAME: 'main', RELEASE_TAG: tag, PRERELEASE: String(isPrerelease(tag)),
       GITHUB_REPOSITORY: 'fixture/galaxy', GH_TOKEN: 'test-only' };
     const runStep = (name, extra = {}) => spawnSync('bash', ['-e', '-o', 'pipefail', '-c', step(name)], { cwd: root, env: { ...env, ...extra }, encoding: 'utf8' });
-    expect(runStep('Publish GitHub Release').status).toBe(0);
+    const published = runStep('Publish GitHub Release');
+    expect(published.status, published.stderr).toBe(0);
     const calls = (await readFile(record, 'utf8')).trim().split('\n').map((line) => JSON.parse(line));
     const create = calls.find((args) => args[1] === 'create');
     expect(create).toContain(tag); expect(create).toContain(`galaxy-dist-${tag}.tar.gz`);
