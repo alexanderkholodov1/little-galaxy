@@ -254,3 +254,122 @@ identical paths, missing host step, rail-limit cache) failed before their fixes.
 production-defect test failed against the original control, then passed after replacement.
 The grid is checked against an independent all-pairs oracle throughout existing scenarios.
 Raw local evidence remains ignored under .tmp; no private launch payload is added.
+
+### A2 round 1 resume on Beacon (2026-10-26)
+
+The WIP commit omitted six new files. The coordinator recovered the originals; the deterministic
+math, shared fixture/reference driver and three regression files are restored from those originals.
+The complete allowlisted source independently regenerates the existing pin
+`proto3-a7309c9242d1a8d6a8308f9201860dae09b78ee7992a7e6af9f95c59ef2eceed`.
+No fingerprint from an incomplete checkout is accepted as evidence.
+
+Fresh red/green evidence uses frozen `abcb9fa` source in ignored `.tmp/before`. The native-math
+scan, signed-zero round trip, eight identical lanes, binary-host removal, cached limits and both
+shared-defect mutation assertions fail on that source/control and pass with the restored fixes.
+A separate sparse-contact regression counts position reads for 100 distant active bodies; it
+requires fewer than 1,000 reads, while the all-pairs oracle separately checks state and event order.
+
+The performance harness now requires `PERF=1 PERF_SIZE=150|1000 PERF_VARIANT=before|after`.
+Each invocation constructs one galaxy, measures exactly 72,000 steps (600 simulated seconds),
+and exits. The before source is extracted from `abcb9fa`; the synthetic seed/actions and the
+1,000-body mature fixture are identical across variants. The latter contains one primary and
+999 circular rails at radii `4 + i * .01`; it retains the original fixture's universal solver
+path, rather than setting bridge metadata solely to select the new circular shortcut.
+Fixture preparation is reported separately from the measured replay.
+
+All benchmark and acceptance processes on Beacon use a 1,024 MB Node heap limit. A local wrapper
+checks `free -m`, refuses to start below 700 MB available, samples memory every .25 seconds,
+and stops only its own process group below 650 MB, leaving headroom above the required 500 MB
+floor. Cases run serially. The full convergence test also releases its completed trajectory replay
+before constructing the independent first-minute reference sky. No fair payload, local logs or
+benchmark snapshots are committed.
+
+Dense accuracy against Node 22.23.2 / V8 on Beacon (ULPs, maximum observed):
+
+| Function | Swept range / arguments | Sweep samples | Max ULP |
+|---|---|---:|---:|
+| sin | [-1e6, 1e6] and [-2pi, 2pi] | 200,002 | 2 |
+| cos | [-1e6, 1e6] and [-2pi, 2pi] | 200,002 | 2 |
+| atan | [-100, 100] | 100,001 | 1 |
+| atan2 | x in [-100, 100], second argument 100*cos(i) | 100,001 | 2 |
+| acos | [-1, 1] | 100,001 | 3 |
+| exp | [-700, 700] | 100,001 | 1 |
+| log | exp([-30, 30]) | 100,001 | 2 |
+| sinh | [-20, 20] | 100,001 | 2 |
+| cosh | [-20, 20] | 100,001 | 2 |
+| hypot | [x, 100*sin(i), .1*cos(i)], x in [-100, 100] | 100,001 | 2 |
+
+The test additionally probes cancellation around seven pi/2 multiples and enforces at most 4 ULP.
+These are empirical comparisons to V8, while platform independence follows from the restricted
+arithmetic implementation and source scan. JavaScriptCore/SpiderMonkey and real-phone execution
+remain unverified.
+
+Controlled wall times on Beacon (milliseconds, one run per case; Node/Vitest overhead excluded from setup/replay):
+
+| Case | Variant | Setup ms | 600 s replay ms | Peak RSS MiB | Minimum available MiB |
+|---|---|---:|---:|---:|---:|
+| 150 launches (154 bodies) | before | 37380.085 | 9008.664 | 256.4 | 1409.2 |
+| 150 launches (154 bodies) | after | 64655.569 | 9011.655 | 219.7 | 1789.0 |
+| 1,000 bodies | before | 38.047 | 40156.016 | 235.7 | 1787.6 |
+| 1,000 bodies | after | 47.015 | 20570.057 | 232.9 | 1774.5 |
+
+The 150-launch quiet replay is effectively unchanged (+0.033%). Its launch-history setup is
+slower (64.656 s versus 37.380 s) after replacing native libm with deterministic arithmetic.
+The 1,000-body quiet replay takes 48.775% less time (1.952x throughput). These are local
+server measurements, not browser frame-rate or real-phone results. No memory guard fired.
+
+The 150-launch benchmark setup includes the 30-minute accepted launch schedule and a further
+600 s settling warmup; the measured interval is the following 600 s. The convergence test below
+measures the first 600 s after the last launch, including unfinished bridges, so its quiet time
+is a different interval. The mature 1,000-body fixture needs no warmup.
+
+Final opt-in acceptance (both datasets, 201.76 s total; all assertions pass):
+
+| Metric | Fair | Synthetic 150 launches |
+|---|---:|---:|
+| Retained bodies | 22/22 | 154/154 |
+| Light bodies on rails | 13/13 | 135/135 |
+| Rail percentage (>=80) | 100 | 100 |
+| Maximum all-mass COM radius (<=200) | 40.286674 | 67.330418 |
+| Stuck pairs | 0 | 0 |
+| Unrelated compact spacing violations | 0 | 0 |
+| Minimum unrelated compact spacing | 26.000000 | 26.000000 |
+| Last-five-minute chaos events (<=30) | 1 | 2 |
+| Launch-history replay ms | 19574.392 | 54546.059 |
+| First 600 s after last launch, replay ms | 2382.077 | 14048.985 |
+| First-minute launches audited | 13 | 135 |
+| First-minute completed-step samples | 93600 | 972000 |
+| Integrated maximum state delta (exact) | 0 | 0 |
+| Rail maximum state delta (<=1e-4) | 2.499847227e-7 | 3.245467948e-5 |
+| Rail maximum position delta | 2.499847227e-7 | 8.352532618e-6 |
+| Rail maximum velocity delta | 1.125010375e-7 | 3.245467948e-5 |
+| Reference refinement delta (<=1e-4) | 7.499571921e-7 | 9.736375969e-5 |
+| Independent reference segments | 29 | 505 |
+
+Every light launch contributes exactly 7,200 samples. Integrated segments agree bit for bit.
+Analytic rails use the independently integrated unsoftened reference at h/16 and h/32; their
+bounded truncation error is reported rather than claiming exact agreement. The synthetic
+refinement maximum is close to the asserted 1e-4 limit; it remains within that limit.
+The minimum synthetic compact spacing differs from 26 only by floating-point rounding.
+The acceptance process peaked at 230.7 MiB RSS and retained at least 1,745.7 MiB available.
+
+Final required commands, run serially with the heap limit and memory guard:
+
+- `MEASURE=1 pnpm --filter @little-galaxy/web exec vitest run integration/settle-measure.test.js`: 1 passed, both datasets (201.76 s).
+- `pnpm --filter @little-galaxy/web test`: 112 passed, 2 opt-in skipped; 22 files passed, 2 skipped.
+- `node tests/prototype/physics.mjs`: all 30 checks passed, with the contact oracle enabled throughout.
+- `pnpm --filter @little-galaxy/web run lint`: passed.
+
+Eight selected pre-fix assertions failed on frozen abcb9fa; all 15 math/review/reference tests
+pass after the fixes. The direct sparse-contact regression observed 9,900 position reads in
+the old all-pairs path, exceeding its 1,000-read ceiling. Kernel regeneration was repeated after
+all checks and matches the pin above. Available memory never fell below 1,409.2 MiB across
+all guarded runs. The installed exact pnpm 11.5.2 entry point was used through an ignored local
+shim because the global shim attempted to write a package-manager database outside the sandbox.
+
+Production fixes are in the inherited `e117934` WIP commit. `b3f1291` (alpha.9.14) restores the
+omitted deterministic module and independent tests; `e36fe94` (alpha.9.15) commits the isolated
+benchmark, reduced replay lifetime and contact-cost regression. The final report is committed
+separately. All commits use the operator's author identity. Nothing was pushed or deployed.
+No preview/real-phone or V8/JavaScriptCore/SpiderMonkey comparison has been performed; local
+arithmetic construction and empirical V8 accuracy do not replace those deployment checks.
