@@ -7,6 +7,11 @@ on:
         type: string
         required: false
         default: ''
+      rehearsal:
+        description: A rehearsal records failing jobs in a verdict artifact instead of failing the run.
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -15,6 +20,7 @@ jobs:
   unit:
     name: Unit, lint, typecheck and build
     runs-on: ubuntu-latest
+    continue-on-error: ${{ inputs.rehearsal }}
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,9 +57,25 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Record rehearsal verdict
+        if: ${{ always() && inputs.rehearsal }}
+        run: |
+          mkdir -p .tmp/verdict
+          printf '{"sha":"%s","job":"%s","status":"%s"}\n' "${{ github.sha }}" "${{ github.job }}" "${{ job.status }}" > .tmp/verdict/verdict.json
+          cat .tmp/verdict/verdict.json
+      - name: Upload rehearsal verdict
+        if: ${{ always() && inputs.rehearsal }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rehearsal-verdict-${{ github.job }}
+          include-hidden-files: true
+          path: .tmp/verdict/verdict.json
+          retention-days: 3
+
   rules:
     name: Current galaxy rules
     runs-on: ubuntu-latest
+    continue-on-error: ${{ inputs.rehearsal }}
     timeout-minutes: 6
     env:
       JAVA_TOOL_OPTIONS: -Xmx512m
@@ -81,9 +103,25 @@ jobs:
       - name: Firestore allow and deny tests
         run: pnpm run test:rules
 
+      - name: Record rehearsal verdict
+        if: ${{ always() && inputs.rehearsal }}
+        run: |
+          mkdir -p .tmp/verdict
+          printf '{"sha":"%s","job":"%s","status":"%s"}\n' "${{ github.sha }}" "${{ github.job }}" "${{ job.status }}" > .tmp/verdict/verdict.json
+          cat .tmp/verdict/verdict.json
+      - name: Upload rehearsal verdict
+        if: ${{ always() && inputs.rehearsal }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rehearsal-verdict-${{ github.job }}
+          include-hidden-files: true
+          path: .tmp/verdict/verdict.json
+          retention-days: 3
+
   journey:
     name: Real player journey
     runs-on: ubuntu-latest
+    continue-on-error: ${{ inputs.rehearsal }}
     timeout-minutes: 6
     env:
       JAVA_TOOL_OPTIONS: -Xmx512m
@@ -125,3 +163,18 @@ jobs:
           path: .tmp/ui-results
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Record rehearsal verdict
+        if: ${{ always() && inputs.rehearsal }}
+        run: |
+          mkdir -p .tmp/verdict
+          printf '{"sha":"%s","job":"%s","status":"%s"}\n' "${{ github.sha }}" "${{ github.job }}" "${{ job.status }}" > .tmp/verdict/verdict.json
+          cat .tmp/verdict/verdict.json
+      - name: Upload rehearsal verdict
+        if: ${{ always() && inputs.rehearsal }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rehearsal-verdict-${{ github.job }}
+          include-hidden-files: true
+          path: .tmp/verdict/verdict.json
+          retention-days: 3
