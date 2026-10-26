@@ -49,12 +49,12 @@ it('keeps the prototype specimen name inside the admitted bounded design',()=>{
  const r=new Replay({galaxy,genesis:[],actions:[{...action(1),intent}]});r.advanceTo(intent.effectiveTick);
  expect([...r.entries.values()][0].name).toBe('Brasa Tímida');
 });
-it('does not convert an unreserved inter-home traveller into an authoritative captured rail',()=>{
+it('keeps a physically valid inter-home capture regardless of the admission reservation',()=>{
  const a=action(1),b=action(2);b.intent.system='1';
  const r=new Replay({galaxy,genesis:[],actions:[a,b]});r.advanceTo(240);
  const traveller=r.sim.byId(r.ids.get(a.intent.id)),host=r.anchor('1');
  traveller.p=[host.p[0]+7,0,host.p[2]];traveller.v=[host.v[0],0,host.v[2]+Math.sqrt(15/7)];
- r.sim.settle(traveller);expect(traveller.mode).toBe('drift');
+ r.sim.settle(traveller);expect(traveller.mode).toBe('rail');expect(traveller.host).toBe(host.id);
 });
 it('retains legacy orbital elements, inclination and specimen names from genesis',()=>{
  const record={id:'legacy',memberId:'old-member',displayName:'Anonymous',kind:'planet',system:'0',design:{size:.6,palette:2,oceans:.5},legacy:{nameKey:'quiet-aurora',orbit:{a:7,e:.3,meanAnomaly:1,omega:.4,inclination:.1,direction:-1,epoch:0}}};
@@ -97,4 +97,36 @@ it('rewinds a late action only to the last mark before it, ending in the same st
  late.advanceTo(9000);
  const onTime=new Replay({galaxy,genesis:[],actions:acts});onTime.advanceTo(9000);
  expect(late.state()).toEqual(onTime.state());
+});
+
+it('rewinds settling ages, galactic sites and capture bridges exactly after late delivery',()=>{
+ const acts=[action(1,'star',120),action(2,'planet',10000),action(3,'blackhole',18000)];
+ const late=new Replay({galaxy,actions:acts.slice(0,2)});late.advanceTo(20000);late.accept(acts);late.advanceTo(65000);
+ const onTime=new Replay({galaxy,actions:acts});onTime.advanceTo(65000);
+ expect(late.state()).toEqual(onTime.state());
+ expect(late.sim.bodies.every(b=>b.settled)).toBe(true);
+},30000);
+
+it('leaves an already circular orbit circular throughout its settling bridge',async()=>{
+ const {Sim}=await import('../js/sim/index.js');const sim=new Sim();
+ const body=sim.add({type:'planet',p:[7,0,0],v:[0,0,Math.sqrt(15/7)]});
+ let worst=0;for(let i=0;i<120*420;i++){sim.step();sim.syncRails();worst=Math.max(worst,Math.abs(Math.hypot(...body.p)-7));}
+ expect(worst).toBeLessThan(1e-8);expect(body.mode).toBe('rail');expect(body.settled).toBe(true);
+});
+it('preserves a settled binary survivor when its other member is explicitly removed',async()=>{
+ const {Sim}=await import('../js/sim/index.js');const sim=new Sim();
+ const star=sim.add({type:'star',p:[6,0,0],v:[0,0,Math.sqrt(30/6)]});sim.run(120*420);
+ expect(sim.pairs.size).toBe(1);sim.remove(star);sim.run(120*420);
+ expect(sim.bodies).toHaveLength(1);expect(sim.central.p.every(Number.isFinite)).toBe(true);expect(sim.pairs.size).toBe(0);
+});
+
+it('introduces a compact site without a jump in a mature system position or velocity',async()=>{
+ const {Sim}=await import('../js/sim/index.js');const sim=new Sim();sim.run(120*420);
+ sim.add({type:'star',p:[80,0,0],v:[1,0,.4]});
+ let worst=0;
+ for(let i=0;i<120*61;i++){
+  const p=[...sim.central.p],v=[...sim.central.v];sim.step();
+  worst=Math.max(worst,...p.map((x,k)=>Math.abs(sim.central.p[k]-x-v[k]/120)));
+ }
+ expect(worst).toBeLessThan(.001);
 });

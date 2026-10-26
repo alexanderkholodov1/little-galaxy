@@ -3,7 +3,7 @@
 // (and snapshot/restore → same hash) · 4 R8: a star escaping on a halo ellipse comes back as a star, not a comet
 // 5 the halo is conservative (an escaper's energy holds) · 6 comet-like escapers do become comets
 // 7 contacts emit one impact event · 8 the aim prediction still tells orbit / escape / fall
-// M4 scenarios (spec/galaxy-sim-design.md §8 + R25): 10 R25 eccentric orbits kept exactly · 11 binary formation
+// M4 scenarios (spec/galaxy-sim-design.md §8 + R25): 10 revised R25 protects the launch minute, then settles · 11 binary formation
 // 12 a fast star founds a system · 13 capture (and no capture in a pure flyby) · 14 black-hole sling
 // 15 black-hole spam limits and a calm galaxy afterwards · 16 contact matrix · 17 persistence round trip
 import {Sim, predict, elements, circularSpeed, propagate, GM, G, DT, R_FAR, TYPE_RULES, BUDGET, A_BIN, createRng} from '../../apps/web/js/sim/index.js';
@@ -20,7 +20,7 @@ const rel = (b, c) => [b.p[0]-c.p[0], b.p[1]-c.p[1], b.p[2]-c.p[2]];
 
 /* 1 — energy */
 {
-  const sim = new Sim();
+  const sim = new Sim({settling: false}); // Isolate conservative KDK from the explicit settling assist.
   const star = sim.add({id: 1, type: 'star', ...orbitAt(7, 0.5, 0, GM*(1 + TYPE_RULES.star.mass))});
   const mu = GM*(1 + star.m), a = 7, T = 2*Math.PI*Math.sqrt(a*a*a/mu);
   const E0 = sim.energy();
@@ -36,7 +36,7 @@ const rel = (b, c) => [b.p[0]-c.p[0], b.p[1]-c.p[1], b.p[2]-c.p[2]];
 
 /* 2 — Kepler period */
 {
-  const sim = new Sim();
+  const sim = new Sim({settling: false}); // Measure the unmodified Kepler solver over 20 periods.
   const b = sim.add({id: 1, type: 'planet', ...orbitAt(9, 0.3)});
   const T = 2*Math.PI*Math.sqrt(9*9*9/GM);
   // periapsis passages: the radial velocity goes from − to +
@@ -88,7 +88,7 @@ function scene(seed){
 
 /* 4, 5, 6 — escapers on the halo */
 function escaper(type, {meteor = false, v = 3.15, seconds = 400} = {}){
-  const sim = new Sim();
+  const sim = new Sim({settling: false}); // The conservative halo remains available independently of settling.
   const b = sim.add({id: 1, type, meteor, p: [7, 0.55, 0], v: [0, 0.35*v/3.15, -v]});
   const ev = [];
   sim.on((t, x, extra) => { if(x === b) ev.push({t: +sim.t.toFixed(1), type: t, first: extra.first}); });
@@ -164,20 +164,24 @@ const light = (sim, type, p, v, extra = {}) => sim.add({type, p, v, ...extra});
 // a light body on an orbit about the Fogón: periapsis rp on +x, prograde (L = +y)
 const atPeri = (rp, e, mu = GM) => ({p: [rp, 0, 0], v: [0, 0, -Math.sqrt(mu*(1 + e)/rp)]});
 
-/* 10 — R25: a launched body keeps exactly the orbit its launch created */
+/* 10 — R25 superseded: exact launch minute, then finite settling */
 {
-  const sim = new Sim();
-  const cases = [0.3, 0.8, 0.97, 0.995].map((e, i) => ({e, b: light(sim, 'planet', ...Object.values(atPeri(4 + i, e)))}));
-  const el0 = cases.map(c => elements(rel(c.b, sim.central), c.b.v, GM));
-  const allRail = cases.every(c => c.b.mode === 'rail');
-  // a few hours of sim time in one jump of the clock (rails are analytic: no catch-up stepping needed)
-  sim.t = 3*3600; sim.steps = Math.round(sim.t/DT); sim.syncRails();
-  let worstA = 0, worstE = 0;
-  cases.forEach((c, i) => { const el = elements(rel(c.b, sim.central), c.b.v, GM);
-    worstA = Math.max(worstA, Math.abs(el.a - el0[i].a)/el0[i].a); worstE = Math.max(worstE, Math.abs(el.e - el0[i].e)); });
-  check('R25: launches with e = 0.3 / 0.8 / 0.97 / 0.995 go on rails and keep a and e after 3 h (no caps, no settling)',
-    allRail && worstA < 1e-9 && worstE < 1e-9 && el0[2].e > 0.9 && el0[3].e > 0.99,
-    `modes ${cases.map(c => c.b.mode).join(',')} · |Δa/a| ${worstA.toExponential(1)} · |Δe| ${worstE.toExponential(1)} · e ${el0.map(x => x.e.toFixed(3)).join(' ')} · apoapsis ${el0.map(x => x.ra.toFixed(0)).join(' ')}`);
+  const cases=[0.3,0.8,0.97,0.995].map((e,i)=>{
+    const sim=new Sim(),control=new Sim({settling:false}),state=atPeri(4+i,e);
+    const b=light(sim,'planet',state.p,state.v),other=light(control,'planet',state.p,state.v);
+    let delta=0;
+    for(let step=0;step<7200;step++){
+      sim.step();control.step();sim.syncRails();control.syncRails();
+      delta=Math.max(delta,...b.p.map((x,k)=>Math.abs(x-other.p[k])),...b.v.map((x,k)=>Math.abs(x-other.v[k])));
+    }
+    sim.run(120*600);
+    const el=elements(rel(b,sim.central),b.v.map((v,k)=>v-sim.central.v[k]),GM);
+    return {sim,b,delta,el};
+  });
+  check('revised R25: e = .3 / .8 / .97 / .995 preserve the first 60 s exactly, then settle to circular rails',
+    cases.every(c=>c.delta===0 && c.b.mode==='rail' && c.el.e<1e-8 && finite(c.sim)),
+    'max first-minute delta '+Math.max(...cases.map(c=>c.delta))+'; final eccentricities '+cases.map(c=>c.el.e.toExponential(1)).join(' '));
+  const sim=new Sim();
   // periodicity of the universal-variable solver at high eccentricity, 1,000 periods
   const r0 = [4, 0, 0], v0 = [0, 0, -Math.sqrt(GM*1.995/4)], ela = elements(r0, v0, GM);
   let worstP = 0;
@@ -269,9 +273,9 @@ function binaryCase(type){
   for(let i = 0; i < 48; i++){ const ang = -0.5 + i*0.021, v = 2.05 + (i % 6)*0.07;
     probes.push(light(s3, 'comet', [6*Math.cos(ang), 0, 6*Math.sin(ang)], [v*Math.cos(ang), 0, v*Math.sin(ang)])); }
   const caps = []; s3.on((t, b, x) => { if(t === 'capture') caps.push(x.host); });
-  s3.run(120*150);
+  s3.run(120*600);
   const atB = probes.filter(b => b.mode === 'rail' && b.host === String(B.id)).length;
-  check('capture: travellers from the Fogón are captured by a second system (three-body exchange, then rails)', atB > 0 && caps.includes(String(B.id)) && finite(s3),
+  check('capture: travellers from the Fogón are captured by a second system (three-body exchange, then settled rails)', atB > 0 && caps.includes(String(B.id)) && finite(s3),
     `${atB}/48 now orbit system ${B.id} · captures by host ${JSON.stringify(caps.reduce((a, h) => (a[h] = (a[h] || 0) + 1, a), {}))} · drifting ${probes.filter(b => b.mode === 'drift').length}`);
 }
 

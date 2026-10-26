@@ -1,20 +1,20 @@
 # SIM-DECISIONS — what I took from the physics note, what I changed, and why
 
 Input: `spec/galaxy-sim-design.md` (the note, 2026-10-24) and the operator's override **R25** in
-`spec/r3-operator-review.md`. The note is input, not a decision; R25 is a decision. Code: `js/sim/**` (DOM-free,
+`spec/r3-operator-review.md`. The note is input, not a decision; the original R25 is superseded by the operator decision of 2026-10-25 below. Code: `js/sim/**` (DOM-free,
 runs the same in Node), wired into `js/world.js`. Tests: `node tools/physics-test.mjs` (30 checks).
 
 ## The model in one paragraph
 
-Compact bodies (the Campfire, stars, binaries, pulsars, black holes) anchor **systems**. Their mutual gravity is
-always integrated: fixed-step kick-drift-kick leapfrog, h = 1/120 s, Plummer ε = 0.2, plus a conservative
-logarithmic galaxy halo. Every other body is a test particle in one of three modes. **rail**: an exact Kepler orbit
-about its system, propagated with universal variables, i.e. exactly the orbit the launch created, however eccentric
-or long (R25). **active**: integrated for an encounter window after an impact or a close pass by another system's
-compact body, then re-railed with whatever orbit the encounter left. **drift**: unbound from every system, so it is
-integrated with the halo, which brings it back, until it arrives bound somewhere (capture) or a nebula slows it
-(assist). Topology (binaries, new systems), rails, contacts and captures run on a galaxy tick of 4 steps (H = 1/30
-s). Everything is ordered by id. A JSON snapshot restored into a fresh Sim replays to the same hash.
+Compact bodies anchor systems. Launches first follow the existing fixed-step KDK / exact Kepler dynamics,
+without a settling intervention for their first 60 simulated seconds. After that, each compact system takes a
+300-second continuous position-and-velocity residual bridge to a stable galactic orbit. Its immutable site belongs to a
+26-unit square spiral, mass-centred and rotating at 0.004 rad/s. True binaries retain both components and acquire
+an internal circular separation of 3–6 units. A light body chooses the nearest suitable system after its protected
+minute, then takes the same 300-second bridge into a circular Kepler rail of radius at most 14. Admission homes
+remain accounting metadata; a physically valid capture by another system stands. A shared translation recentres new sites smoothly without restarting individual ages. All age, target and bridge state
+is in snapshots and rewind marks. The old conservative integrator can be isolated with `settling: false` for its
+energy and Kepler solver regressions; a null halo also disables the galaxy settling assist.
 
 ## Point by point
 
@@ -27,7 +27,7 @@ s). Everything is ordered by id. A JSON snapshot restored into a fresh Sim repla
 | Masses table (star 1, binary 2, pulsar 1.4, black hole 2, giant 0.01 … asteroid/comet 1e-6, nebula 1e-4) | **Accepted** (`TYPE_RULES`). The `binary` workshop type is **one** mass-2 body (an unresolved compact pair) for now | Two real components need a second design slot and a pair renderer; the mass and budget (2 slots) are already right, so the split can come later without changing any rule |
 | Collision cores (planet 0.035, etc.) | **Changed**: contact radii stay at the prototype's visual scale (planet 0.35, comet 0.2 …) | With 0.035 cores, R12 impacts would almost never happen at this zoom. Impacts are gentle bounces, so a generous radius is safe |
 | 8 s encounter window, then analytic paths | **Accepted** (`WINDOW = 8`) for impacts, close passes and a compact launch (which wakes its whole system for 8 s) | Same intent. A light launch goes straight onto rails when bound: that is the launch's exact orbit, with zero integration error |
-| Settling to Kepler elements with eccentricity caps 0.65 / 0.90 and lane settling | **Rejected (R25)**. No caps, no settling, no lanes. Launches with e = 0.97 and 0.995 stay exactly that (test 10: \|Δa/a\| 1.5e-14, \|Δe\| 3e-16 after 3 h) | Operator: "la órbita que se creó cuando fue lanzado, no importa que tan elíptica o larga" |
+| Settling to Kepler elements with eccentricity caps 0.65 / 0.90 and lane settling | **Superseded, operator decision 2026-10-25**: preserve the launch for 60 simulated seconds, then settle over 300 seconds into the nearest suitable system, independent of admission home | The original quote applies while there are no further changes to the system; the collective galaxy keeps changing. See the verbatim decision below |
 | Bounded Kepler solver | **Accepted, robust version**: universal variables with Stumpff functions, Laguerre iteration with a fixed count, bisection fallback (the universal equation is monotone), and the same modulo-period reduction every time | Handles ellipses, parabolas and hyperbolas. e = 0.995 returns to its start within 2e-9·a after 1,000 periods |
 | e ≥ 1 → leaving | **Accepted (R25)**: e ≥ 1 relative to every system means `drift` mode | "e >= 1 leaves the system into the drift and capture rules" |
 | Far travellers: outer-nebula rescue, return in 3–10 min | **Changed**: the rescue is the conservative logarithmic halo from M2 (no force inside r0 = 22). Return times follow from the throw (a hard throw returns in ~50–70 s); there is no time cap | A conservative potential needs no energy ledger and changes no orbit by fiat. The dotted preview shows the real loop |
@@ -55,7 +55,7 @@ drawn as its exact Kepler ellipse (two thirds of the dots on the near 90 units).
 integrator with a massless probe. A compact body is integrated with its own mass in the frame the simulation will
 have after the launch.
 
-## Feel pass (2026-10-25): wide pairs, returning systems and the kiss chain
+## Historical feel pass (2026-10-25, superseded by the convergence decision): wide pairs, returning systems and the kiss chain
 
 Probe: `node tools/feel-wide-binary.mjs [minutes]`. It reruns the desktop scenario: six planets, a star thrown out
 that founds a second system, then a black hole thrown into a wide pair with the Campfire. It prints per minute the
@@ -90,3 +90,55 @@ Decision:
 - The pair renderer for a real two-component `binary`, low-speed aggregates, the nursery primary.
 - Feel: the note's main uncertainty is still open. How often a wide pair or a passing system reshuffles a
   neighbourhood needs the operator's 30-minute play.
+
+## Convergence decision and change log — 2026-10-25
+
+The operator superseded R25 and approved hybrid option (a), verbatim:
+
+> "tecnicamente si, pero considera que hay muchos otros objetos estelares, esta cita textual aplica si no hay MAS cambios
+> en el sistema, mientras que (como es nuestro caso) tenemos una mulitutd de nuevos sistemas solares, obviamente la masa y
+> campos gravitacionales van a cambiar, entonces la galaxia en si debe converger hacia un punto estable sobre un tiempo
+> determinado; apruebo la opcion hibrida a)".
+
+The earlier "la órbita que se creó cuando fue lanzado, no importa que tan elíptica o larga" now protects the first
+minute of each launch. Nothing disappears, fragments, merges into another body or loses its stellar identity.
+This is an explicit dissipative/design assist, not a claim that a closed Newtonian galaxy converges spontaneously.
+
+- **Finite convergence:** cubic Hermite decay around the moving target has zero residual and the target velocity at 300 seconds. Initial
+  position and velocity match exactly; there is no instantaneous capture teleport. With no subsequent perturbation,
+  a body reaches its final orbit 360 seconds after birth (up to one 1/30 s decision tick). A binary waits until both members have completed their protected minute. A missing/unsuitable
+  light host delays the start until a suitable one exists. A disrupted host restarts selection from the current
+  state. Young contacts can also restart a captured light body. A constant stream of launches therefore has an
+  active recent cohort; the old population converges, rather than resetting a galaxy-wide age timer on every launch.
+- **No compact collapse in the settled state:** distinct site centres stay at least 26 units apart under common
+  rigid rotation. Each binary component is at most 4 units from its centre for the available masses and a 6-unit
+  separation (the conservative general bound is 6). Even that looser bound gives at least 14 units between
+  unrelated compacts, above the 8-unit acceptance threshold. The two real binary members are at least 3 units apart,
+  above the 2.5-unit stuck threshold. A new compact's first minute and the bridges are still transient dynamics;
+  they do not have that spacing guarantee. Unlike radial braking, the final equations cannot dissipate sites into
+  the origin. The galactic motion is a prescribed stable orbit, not a mutually integrated N-body equilibrium.
+- **Light capture:** suitable means enough room outside the system guard and inside 0.8 times its rail limit.
+  The radius follows the body's distance at selection, clamped between guard + 2 and 14. The angular direction is
+  inherited from its relative motion. The bridge ends at zero eccentricity, then the existing universal-variable
+  solver carries the rail. Captured/bridging light test particles share the quiet regime and do not bounce off
+  one another; a fresh launch still participates in the original contact rules. Captures emit a visible event.
+- **Replay:** birth steps, sites, binary geometry and bridge conditions are restored with the simulation. Fixed
+  1/120-second steps and id ordering remain; no wall clock or unseeded random source enters the equations. Quiet
+  replay skipping is disabled while a light body still needs its age gate/bridge processed.
+- **Acceptance:** `MEASURE=1 pnpm --filter @little-galaxy/web exec vitest run integration/settle-measure.test.js`
+  reads the private fair fixtures locally and also replays 150 seeded throws over 30 minutes. No private fixture
+  data or names are embedded in this document or in the test. The first-minute comparison advances two complete accepted-log replays in lockstep. An independent control
+  explicitly disables settling for every body during its first minute; older bodies retain the same equations.
+  Position, velocity and mode are compared for each young body on all 7,200 steps, including later launches. This isolates the launch's age gate; it does not
+  claim an unchanged historical trajectory in a galaxy whose older systems now follow different equations.
+
+### Kernel and frozen-galaxy migration
+
+The kernel fingerprint is recomputed from the current allowlisted `js/sim/*` text in the exact order of
+`scripts/sync-prototype.mjs`, then `replay.js`, `homes.js`, `names.js` and shared `names.ts`.
+The frozen fair galaxy must keep its old kernel identity and its accepted log. Relabelling the document with the
+new identity would silently rewrite its historical timelapse. Its timelapse needs an archived old-kernel build
+(or a kernel-version dispatcher serving that implementation); the current Replay deliberately rejects the old
+identity. An active galaxy adopting this model needs an explicit new kernel generation and replay/rebuilt certified
+checkpoints under that identity; old snapshots cannot be reused. No Firestore document, Hosting deployment or
+production kernel routing is changed by this patch.

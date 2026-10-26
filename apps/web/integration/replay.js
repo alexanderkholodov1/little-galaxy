@@ -1,6 +1,6 @@
 import {compact} from './homes.js';
 import {encodeName,decodeName,legacyName} from './names.js';
-import {Sim, elements, TYPE_RULES, accelInto} from '../js/sim/index.js';
+import {Sim, elements, TYPE_RULES} from '../js/sim/index.js';
 import {canonicalBytes,PROTOTYPE_KERNEL} from '@little-galaxy/shared';
 export const KERNEL = PROTOTYPE_KERNEL;
 const COMMON = {size:'size',pal:'palette'};
@@ -72,19 +72,6 @@ export class Replay {
         this.add(row.id,row.kind,{p:state.p.map((x,k)=>x+host.p[k]),v:state.v.map((x,k)=>x+host.v[k])},design,row.memberId,row.displayName,home,this.galaxy.epoch,row.legacy?.name||legacyName(row.legacy?.nameKey));
       }
     }
-    // Admission homes conservatively fund capture. An unfunded traveller remains integrated;
-    // no velocity, eccentricity or launch orbit is silently settled into a different home.
-    const settle=this.sim.settle.bind(this.sim);
-    const blocked=new Set();
-    this.sim.settle=body=>{
-      const result=settle(body),entry=this.entries.get(body.id);
-      if(result==='rail'&&entry&&this.systemHome(body.host)!==entry.home){
-        body.mode='drift';body.hold=0;accelInto(body,this.sim.primaries(),this.sim.halo);
-        if(!blocked.has(body.id)){blocked.add(body.id);this.sim.emit('reservation',body,{});}
-        return 'drift';
-      }
-      return result;
-    };
     this.baseSequence=this.sequence;
     this.marks=[];this.nextMark=this.sim.steps;
   }
@@ -163,6 +150,7 @@ export class Replay {
   quiet(){
     const prim=this.sim.primaries();
     if(prim.length!==1 || prim[0].v.some(x=>x!==0) || prim[0].p.some(x=>x!==0) || this.sim.contacts.size) return false;
+    if(this.sim.settling && this.sim.bodies.some(b=>b!==this.sim.central && !b.settled)) return false;
     const spans=[];
     for(const b of this.sim.bodies){
       if(b===this.sim.central) continue;

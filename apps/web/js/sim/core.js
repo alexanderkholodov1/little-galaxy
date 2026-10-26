@@ -1,18 +1,8 @@
-// core.js — la galaxia que crece (R5, R7, R9, R12, R25). Sin DOM: corre igual en Node y en la app real.
-//
-// Dos clases de cuerpos:
-//  · compactos (Fogón, estrellas, binarias, púlsares, agujeros negros): anclan sistemas. Su gravedad mutua
-//    se integra siempre (leapfrog KDK, h = 1/120, Plummer ε = 0.2) junto con el halo de la galaxia.
-//  · livianos (planetas, gigantes, lunas, piedras, cometas, nebulosas): partículas de prueba en uno de
-//    tres modos —
-//      rail   órbita de Kepler exacta alrededor de su sistema (variables universales). Es la órbita que el
-//             lanzamiento creó, por excéntrica o larga que sea (R25); solo cambia por un evento visible.
-//      active se integra durante una ventana de encuentro: un choque, o pasar cerca de un compacto ajeno.
-//      drift  viajero desligado de todo sistema: se integra con el halo, que lo hace volver, y se
-//             queda en un sistema solo si llega ligado a él (captura) o una nebulosa lo frena (asistencia).
-// Un sistema es un compacto suelto, o dos compactos ligados y cercanos (binaria). El marco de referencia es
-// el centro de masas de los compactos. El orden de todo es por id: misma semilla y mismas acciones →
-// mismo estado.
+// The collective galaxy: fixed-step launch dynamics followed by age-gated stable orbits.
+// Compacts keep the KDK encounter model for their first minute, then bridge to spaced galactic
+// sites. Light bodies keep their original launch orbit for a minute, then bridge to circular Kepler
+// rails around the nearest suitable system. Admission homes do not reserve physical capture.
+// All deadlines and targets are simulation state, ordered by id and included in rewind snapshots.
 //
 // Eventos (tipo, cuerpo, extra):
 //   escape {first} · comet {first} · return {first} · home {} · away {} (riel largo que sale del borde)
@@ -25,7 +15,7 @@
 //   assist {nebula, dE}               una nebulosa frena a un viajero lo justo para que se quede
 //   sling {by, dE}                    un compacto ajeno cambió mucho la energía de un liviano al pasar
 import {G, DT, GALAXY_EVERY, MAX_SUBSTEPS, R_FAR, HALO, WINDOW, ENC_K, A_BIN, A_BIN_KEEP, D_FOUND, R_CAPTURE,
-  CAPTURE_HOLD, RAIL_SPAN, KISS, SNUGGLE, KISS_QUIET, RESTITUTION, PAIR_COOLDOWN, NEBULA_ASSIST, TYPE_RULES, BUDGET, ruleKey, impactEffect} from './rules.js';
+  CAPTURE_HOLD, RAIL_SPAN, KISS, SNUGGLE, KISS_QUIET, RESTITUTION, PAIR_COOLDOWN, NEBULA_ASSIST, TYPE_RULES, BUDGET, SETTLING, ruleKey, impactEffect} from './rules.js';
 import {kdk, accelInto, energy} from './integrator.js';
 import {elements, propagate, leaving} from './kepler.js';
 import {createRng} from './rng.js';
@@ -34,16 +24,18 @@ import {createLedger, admit, record} from './admission.js';
 
 const H = DT * GALAXY_EVERY;
 const FIELDS = ['id', 'kind', 'type', 'meteor', 'toy', 'group', 'm', 'r', 'comet', 'state', 'escapes', 'owner',
-  'mode', 'host', 'r0', 'v0', 't0', 'mu', 'win', 'hold', 'founded', 'eRef'];
+  'mode', 'host', 'r0', 'v0', 't0', 'mu', 'win', 'hold', 'founded', 'eRef', 'bornStep', 'settled', 'gSlot', 'gStart', 'gFrom', 'gVelocity', 'gPair', 'gRadius', 'gPhase', 'gDirection', 'gTargetFrom', 'gTargetVelocity', 'calmStart', 'calmHost', 'calmFrom', 'calmVelocity', 'calmRadius', 'calmPhase', 'calmDirection'];
 const MODE_CODE = {n: 1, rail: 2, active: 3, drift: 4};
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
 
 export class Sim {
-  constructor({seed = 1, halo = HALO, central = true} = {}){
+  constructor({seed = 1, halo = HALO, central = true, settling = true} = {}){
     this.bodies = [];
     this.t = 0; this.acc = 0; this.steps = 0;
     this.halo = halo;
+    this.settling = settling && !!halo;
+    this.gCentre={start:0,from:[0,0,0],velocity:[0,0,0],target:[0,0,0]};
     this.rng = createRng(seed);
     this.bus = createBus();
     this.contacts = new Map();      // "a:b" → re-armado (tiempo) ; presente = en contacto
@@ -65,7 +57,7 @@ export class Sim {
   byId(id){ if(!this._ids) this._ids = new Map(this.bodies.map(b => [b.id, b])); return this._ids.get(id); }
   primaries(){ return this._prim || (this._prim = this.bodies.filter(b => TYPE_RULES[b.kind].primary)); }
   attractors(){ return this.primaries(); }
-  integrated(){ return this.bodies.filter(b => b.mode !== 'rail'); }
+  integrated(){ return this.bodies.filter(b => b.mode !== 'rail' && b.gSlot === undefined && b.calmStart === undefined); }
 
   /* ---------------------------------------------------------------- altas y bajas */
   // b: {id?, type, meteor?, toy?, group?, owner?, p, v, comet?}; masa y radio salen de TYPE_RULES
@@ -78,6 +70,7 @@ export class Sim {
     b.state = b.state || 'free';
     b.escapes = b.escapes || 0;
     b.win = 0; b.hold = 0;
+    b.bornStep = this.steps;
     if(b.id === undefined) b.id = this.nextId;
     this.nextId = Math.max(this.nextId, b.id + 1);
     let i = this.bodies.length;
@@ -89,7 +82,7 @@ export class Sim {
       this.recentre();
       this.topology();
       // un compacto nuevo despierta a su sistema: todos reaccionan durante la ventana de encuentro
-      if(launch){ const s = this.hostAt(b.p, b); for(const o of this.bodies) if(o !== b && !TYPE_RULES[o.kind].primary && (o.host === s.id || o.mode !== 'rail')) this.activate(o, WINDOW); }
+      if(launch){ const s = this.hostAt(b.p, b); for(const o of this.bodies) if(o !== b && !o.settled && o.calmStart === undefined && !TYPE_RULES[o.kind].primary && (o.host === s.id || o.mode !== 'rail')) this.activate(o, WINDOW); }
     } else {
       b.mode = 'active';
       this.settle(b);
@@ -111,10 +104,20 @@ export class Sim {
   admit(spec){ return admit(this, spec); }
   remove(b){
     if(b === this.central) return;
+    if(b.gPair !== undefined && b.gPair !== null){
+      const partner=this.byId(b.gPair);
+      if(partner){partner.gPair=null;partner.gRadius=0;partner.gStart=this.t;partner.gFrom=[...partner.p];partner.gVelocity=[...partner.v];partner.settled=false;}
+    }
     this.bodies = this.bodies.filter(x => x !== b);
     for(const k of [...this.contacts.keys()]) if(k.startsWith(b.id + ':') || k.endsWith(':' + b.id)) this.contacts.delete(k);
     this._prim = null; this._ids = null;
-    if(TYPE_RULES[b.kind].primary) this.topology();
+    if(TYPE_RULES[b.kind].primary){
+      this.topology();this.retargetGalactic();
+      if(b.gPair!==undefined && b.gPair!==null){
+        const partner=this.byId(b.gPair);
+        if(partner){const target=this.galacticTarget(partner,this.galacticCentre());partner.gTargetFrom=target.p;partner.gTargetVelocity=target.v;}
+      }
+    }
     this.refresh();
   }
   refresh(){ const P = this.primaries(); for(const b of this.bodies) if(b.mode !== 'rail') accelInto(b, P, this.halo); }
@@ -128,8 +131,19 @@ export class Sim {
     for(const b of this.primaries()){ M += b.m; px += b.m*b.p[0]; py += b.m*b.p[1]; pz += b.m*b.p[2]; vx += b.m*b.v[0]; vy += b.m*b.v[1]; vz += b.m*b.v[2]; }
     if(!M) return;
     px /= M; py /= M; pz /= M; vx /= M; vy /= M; vz /= M;
-    for(const b of this.bodies){ if(b.mode === 'rail') continue; b.p[0] -= px; b.p[1] -= py; b.p[2] -= pz; b.v[0] -= vx; b.v[1] -= vy; b.v[2] -= vz; }
+    for(const b of this.bodies){
+      for(const field of ['gFrom','gTargetFrom']) if(b[field]) for(let k=0;k<3;k++) b[field][k] -= [px,py,pz][k];
+      for(const field of ['gVelocity','gTargetVelocity']) if(b[field]) for(let k=0;k<3;k++) b[field][k] -= [vx,vy,vz][k];
+      if(b.mode === 'rail') continue; b.p[0] -= px; b.p[1] -= py; b.p[2] -= pz; b.v[0] -= vx; b.v[1] -= vy; b.v[2] -= vz; }
     for(const s of this.systems){ s.p[0] -= px; s.p[1] -= py; s.p[2] -= pz; s.v[0] -= vx; s.v[1] -= vy; s.v[2] -= vz; }
+    if(this.settling && this.primaries().some(b=>b.gSlot!==undefined)){
+      const centre=this.galacticCentre(),angle=-this.t*SETTLING.omega,c=Math.cos(angle),s=Math.sin(angle);
+      const dx=px*c-pz*s,dz=px*s+pz*c,dvx=vx*c-vz*s,dvz=vx*s+vz*c;
+      centre.p[0]+=dx;centre.p[1]+=py;centre.p[2]+=dz;
+      centre.v[1]+=vy;
+      centre.v[0]+=dvx+SETTLING.omega*dz;centre.v[2]+=dvz-SETTLING.omega*dx;
+      this.retargetGalactic(centre);
+    }
     if(px || py || pz) this.emit('reframe', null, {d: [-px, -py, -pz]});
   }
 
@@ -138,8 +152,11 @@ export class Sim {
     const P = this.primaries();
     kdk(this.integrated(), P, DT, this.halo);
     this.steps++; this.t = this.steps*DT;
+    this.moveGalactic();
+    this.updateSystems();
+    for(const b of this.bodies) if(b.calmStart !== undefined) this.moveLight(b);
     this.kiss(P);
-    for(const b of this.bodies) if(b.mode === 'active' || b.mode === 'drift') this.guard(b, P);
+    for(const b of this.bodies) if((b.mode === 'active' || b.mode === 'drift') && b.calmStart === undefined) this.guard(b, P);
     if(this.steps % GALAXY_EVERY === 0) this.galaxyTick();
     else this.updateSystems();
   }
@@ -153,11 +170,14 @@ export class Sim {
   run(steps){ for(let i = 0; i < steps; i++) this.step(); this.syncRails(); }
 
   galaxyTick(){
+    this.foundGalactic();
     this.topology();
     this.syncRails();
     const P = this.primaries();
     for(const b of this.bodies){
       if(b.mode === 'n') continue;
+      if(b.settled && !this.sysById.has(b.host)){b.settled=false;this.activate(b,WINDOW);}
+      if(this.beginLight(b) || b.calmStart !== undefined || b.settled) continue;
       if(b.mode === 'rail'){
         if(!this.sysById.has(b.host) || this.nearForeign(b, b.host)) this.activate(b, WINDOW);
         else if(this.touchesOwn(b)) this.activate(b, 2);   // roza un compacto de su propio sistema: soplo visible
@@ -189,6 +209,10 @@ export class Sim {
     const cand = [];
     for(let i = 0; i < P.length; i++) for(let j = i + 1; j < P.length; j++){
       const a = P[i], b = P[j], key = a.id + '+' + b.id;
+      if(a.gSlot !== undefined || b.gSlot !== undefined){
+        if(a.gPair === b.id && b.gPair === a.id) cand.push({key, a, b, E: -Infinity});
+        continue;
+      }
       const mu = G*(a.m + b.m), el = elements(sub(b.p, a.p), sub(b.v, a.v), mu);
       if(el.energy < 0 && el.ra <= (this.pairs.has(key) ? A_BIN_KEEP : A_BIN)) cand.push({key, a, b, E: el.energy});
     }
@@ -296,6 +320,7 @@ export class Sim {
       // se anota la energía al entrar: si al salir cambió mucho por un compacto ajeno, fue una honda
       const s = this.hostAt(b.p); b.eRef = s.id !== undefined ? dot(sub(b.v, s.v), sub(b.v, s.v))/2 - s.mu/Math.hypot(...sub(b.p, s.p)) : 0;
     }
+    b.settled = false;
     b.mode = 'active'; b.win = Math.max(b.win || 0, this.t + seconds);
     accelInto(b, this.primaries(), this.halo);
   }
@@ -369,7 +394,7 @@ export class Sim {
   kiss(P){
     for(let i = 0; i < P.length; i++) for(let j = i + 1; j < P.length; j++){
       const a = P[i], b = P[j], n = sub(b.p, a.p), d = Math.hypot(...n) || 1e-9;
-      if(d >= KISS) continue;
+      if(a.gSlot !== undefined || b.gSlot !== undefined || d >= KISS) continue;
       for(let k = 0; k < 3; k++) n[k] /= d;
       const rv = sub(b.v, a.v), vn = dot(rv, n);
       if(vn >= 0) continue;
@@ -421,6 +446,9 @@ export class Sim {
       const a = L[i];
       for(let j = i + 1; j < L.length; j++){
         const b = L[j];
+        // Captured test particles share the quiet Kepler regime, including their settling bridge.
+        // A fresh throw still has the original contact dynamics during its protected first minute.
+        if((a.settled || a.calmStart !== undefined) && (b.settled || b.calmStart !== undefined)) continue;
         if(a.group && a.group === b.group) continue;     // una lluvia de meteoros no choca consigo misma
         const n = sub(b.p, a.p), d2 = dot(n, n), rr = a.r + b.r;
         const key = a.id + ':' + b.id;
@@ -451,8 +479,101 @@ export class Sim {
     const push = (rr*1.002 - d)/(wa + wb);
     for(let k = 0; k < 3; k++){ a.p[k] -= push*wa*u[k]; b.p[k] += push*wb*u[k]; }
     for(const x of [a, b]){
-      if(x.mode === 'rail'){ x.mode = 'active'; this.settle(x); }
+      x.calmStart=undefined; x.settled=false;
+      if(x.mode === 'rail'){ x.settled = false; x.mode = 'active'; this.settle(x); }
       else accelInto(x, this.primaries(), this.halo);
+    }
+  }
+
+
+  // After the protected launch minute, systems occupy immutable square-spiral sites. The whole
+  // constellation rotates rigidly: site distances cannot shrink, unlike a dissipative N-body core.
+  // A true binary keeps its two members on a circular internal orbit (separation 3..6 units).
+  foundGalactic(){
+    if(!this.settling) return;
+    const added=[];
+    let slot=1+Math.max(-1,...this.primaries().map(b=>b.gSlot??-1));
+    for(const s of this.systems){
+      const members=s.prim.map(id=>this.byId(id));
+      if(members.some(b=>b.gSlot!==undefined || (this.steps-b.bornStep)*DT<SETTLING.grace)) continue;
+      const separation=members.length===2?Math.max(3,Math.min(6,Math.hypot(...sub(members[1].p,members[0].p)))):0;
+      const phase=members.length===2?Math.atan2(members[1].p[2]-members[0].p[2],members[1].p[0]-members[0].p[0]):0;
+      const direction=members.length===2 && ((members[1].p[0]-members[0].p[0])*(members[1].v[2]-members[0].v[2])-(members[1].p[2]-members[0].p[2])*(members[1].v[0]-members[0].v[0]))<0?-1:1;
+      for(const b of members){
+        b.gSlot=slot;b.gStart=this.t;b.gFrom=[...b.p];b.gVelocity=[...b.v];
+        b.gPair=members.length===2?members.find(o=>o!==b).id:null;
+        b.gRadius=separation;b.gPhase=phase;b.gDirection=direction;b.founded=true;added.push(b);
+      }
+      slot++;
+    }
+    if(added.length){
+      this.retargetGalactic();const centre=this.galacticCentre();
+      for(const b of added){const target=this.galacticTarget(b,centre);b.gTargetFrom=target.p;b.gTargetVelocity=target.v;}
+    }
+  }
+  // A shared translation recentres new sites smoothly without restarting anyone's individual age.
+  // Its velocity is included in every target, and frame changes transform it along with the bodies.
+  galacticCentre(){
+    const c=this.gCentre,out={p:[0,0,0],v:[0,0,0]},target={p:c.target,v:[0,0,0]};
+    orbitBridge(out,c.from,c.velocity,target,this.t-c.start,SETTLING.duration,target);return out;
+  }
+  retargetGalactic(current=this.galacticCentre()){
+    let M=0,x=0,z=0;
+    for(const b of this.primaries())if(b.gSlot!==undefined){const site=galacticSite(b.gSlot);M+=b.m;x+=site[0]*b.m;z+=site[1]*b.m;}
+    this.gCentre={start:this.t,from:[...current.p],velocity:[...current.v],target:M?[x/M,0,z/M]:[0,0,0]};
+  }
+  galacticTarget(b,centre,time=this.t){
+    const site=galacticSite(b.gSlot),angle=time*SETTLING.omega,c=Math.cos(angle),s=Math.sin(angle);
+    const x=site[0]-centre.p[0],z=site[1]-centre.p[2];
+    const p=[x*c-z*s,-centre.p[1],x*s+z*c],v=[-SETTLING.omega*p[2]-centre.v[0]*c+centre.v[2]*s,-centre.v[1],SETTLING.omega*p[0]-centre.v[0]*s-centre.v[2]*c];
+    if(b.gPair!==null){
+      const other=this.byId(b.gPair);
+      const mass=b.m+other.m, radius=b.gRadius*other.m/mass, sign=b.id<other.id?-1:1;
+      const rate=b.gDirection*Math.sqrt(G*mass/b.gRadius**3),a=b.gPhase+(time-b.gStart)*rate;
+      p[0]+=sign*radius*Math.cos(a);p[2]+=sign*radius*Math.sin(a);
+      v[0]-=sign*radius*rate*Math.sin(a);v[2]+=sign*radius*rate*Math.cos(a);
+    }
+    // JSON checkpoints canonicalize -0 to 0; keep target conditions canonical in memory too.
+    for(let k=0;k<3;k++){if(p[k]===0)p[k]=0;if(v[k]===0)v[k]=0;}
+    return {p,v};
+  }
+  moveGalactic(){
+    const P=this.primaries().filter(b=>b.gSlot!==undefined);if(!P.length)return;
+    const centre=this.galacticCentre();
+    for(const b of P){
+      const target=this.galacticTarget(b,centre);
+      orbitBridge(b,b.gFrom,b.gVelocity,target,this.t-b.gStart,SETTLING.duration,{p:b.gTargetFrom,v:b.gTargetVelocity});
+      b.settled=this.t-b.gStart>=SETTLING.duration;
+    }
+  }
+  beginLight(b){
+    if(!this.settling || b.settled || b.calmStart!==undefined || (this.steps-b.bornStep)*DT<=SETTLING.grace) return false;
+    let host=null,distance=Infinity;
+    for(const s of this.systems){
+      const max=Math.min(SETTLING.lightRadius,this.railLimit(s)*.8);
+      if(max<s.guard+2)continue;
+      const d=Math.hypot(...sub(b.p,s.p));if(d<distance){host=s;distance=d;}
+    }
+    if(!host)return false;
+    if(b.mode==='rail')this.syncRail(b);
+    const rel=sub(b.p,host.p),rv=sub(b.v,host.v);
+    b.calmRadius=Math.max(host.guard+2,Math.min(SETTLING.lightRadius,this.railLimit(host)*.8,distance));
+    b.calmPhase=Math.atan2(rel[2],rel[0]);b.calmDirection=rel[0]*rv[2]-rel[2]*rv[0]<0?-1:1;
+    b.calmHost=host.id;b.calmStart=this.t;b.calmFrom=rel;b.calmVelocity=rv;
+    b.mode='drift';b.eRef=undefined;return true;
+  }
+  moveLight(b){
+    const host=this.sysById.get(b.calmHost);
+    if(!host){b.calmStart=undefined;b.settled=false;this.settle(b);return;}
+    const elapsed=this.t-b.calmStart,rate=b.calmDirection*Math.sqrt(host.mu/b.calmRadius**3),a=b.calmPhase+rate*elapsed;
+    const target={p:[b.calmRadius*Math.cos(a),0,b.calmRadius*Math.sin(a)],v:[-b.calmRadius*rate*Math.sin(a),0,b.calmRadius*rate*Math.cos(a)]};
+    const relative={p:[0,0,0],v:[0,0,0]};
+    const start={p:[b.calmRadius*Math.cos(b.calmPhase),0,b.calmRadius*Math.sin(b.calmPhase)],v:[-b.calmRadius*rate*Math.sin(b.calmPhase),0,b.calmRadius*rate*Math.cos(b.calmPhase)]};
+    orbitBridge(relative,b.calmFrom,b.calmVelocity,target,elapsed,SETTLING.duration,start);
+    for(let k=0;k<3;k++){b.p[k]=host.p[k]+relative.p[k];b.v[k]=host.v[k]+relative.v[k];}
+    if(elapsed>=SETTLING.duration){
+      b.calmStart=undefined;b.settled=true;b.state='free';
+      this.rail(b,host,relative.p,relative.v);this.emit('capture',b,{host:host.id});
     }
   }
 
@@ -461,7 +582,7 @@ export class Sim {
 
   snapshot(){
     return {
-      t: this.t, acc: this.acc, steps: this.steps, nextId: this.nextId, rng: this.rng.state(),
+      gCentre: structuredClone(this.gCentre), settling: this.settling, t: this.t, acc: this.acc, steps: this.steps, nextId: this.nextId, rng: this.rng.state(),
       contacts: [...this.contacts].sort((x, y) => x[0] < y[0] ? -1 : 1), pairs: [...this.pairs].sort(),
       ledger: JSON.parse(JSON.stringify(this.ledger)), log: this.log.map(x => ({...x})), assistEnergy: this.assistEnergy, snuggleEnergy: this.snuggleEnergy,
       bodies: this.bodies.map(b => { const o = {p: [...b.p], v: [...b.v], a: [...b.a]};
@@ -479,6 +600,8 @@ export class Sim {
     }).sort((a, b) => a.id - b.id);
     this._prim = null; this._ids = null;
     this.central = this.bodies.find(b => b.kind === 'fogon') || null;
+    this.settling = s.settling ?? this.settling;
+    this.gCentre=structuredClone(s.gCentre??this.gCentre);
     this.t = s.t; this.acc = s.acc; this.steps = s.steps; this.nextId = s.nextId;
     this.rng.setState(s.rng);
     this.contacts = new Map(s.contacts || []);
@@ -509,4 +632,26 @@ function tangent(x, y, z, vx, vy, vz, r){
   let tl = Math.hypot(tx, ty, tz);
   if(tl < 1e-3){ tx = rz; ty = 0; tz = -rx; tl = Math.hypot(tx, ty, tz) || 1; }   // en línea recta: prógrado (L = +y)
   return [tx/tl, ty/tl, tz/tl];
+}
+
+// Integer square spiral, with an exact minimum distance SETTLING.spacing between different sites.
+function galacticSite(index){
+  if(index===0)return [0,0];
+  const ring=Math.ceil((Math.sqrt(index+1)-1)/2),side=2*ring,max=(2*ring+1)**2-1,d=max-index;
+  let x,z;
+  if(d<side){x=ring-d;z=-ring;}else if(d<2*side){x=-ring;z=-ring+d-side;}
+  else if(d<3*side){x=-ring+d-2*side;z=ring;}else{x=ring;z=ring-d+3*side;}
+  return [x*SETTLING.spacing,z*SETTLING.spacing];
+}
+// C1 position/velocity bridge; no frame clock or variable-step damping. At duration the residual
+// is exactly zero and the orbit is analytic forever, so convergence has a finite deadline.
+function orbitBridge(body,from,velocity,target,elapsed,duration,start){
+  const u=Math.max(0,Math.min(1,elapsed/duration)),u2=u*u,u3=u2*u;
+  const h0=2*u3-3*u2+1,h1=u3-2*u2+u;
+  const d0=(6*u2-6*u)/duration,d1=3*u2-4*u+1;
+  for(let k=0;k<3;k++){
+    const displacement=from[k]-start.p[k],drift=velocity[k]-start.v[k];
+    body.p[k]=target.p[k]+displacement*h0+drift*duration*h1;
+    body.v[k]=target.v[k]+displacement*d0+drift*d1;
+  }
 }
