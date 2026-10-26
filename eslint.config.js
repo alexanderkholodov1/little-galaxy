@@ -5,12 +5,12 @@ import globals from 'globals';
 import web from './apps/web/eslint.web.js';
 
 export default defineConfig([
-  globalIgnores(['**/node_modules/**', '**/dist/**', '**/.turbo/**', '**/private/**', '**/.firebase/**', 'tests/prototype/physics.mjs']),
+  globalIgnores(['**/node_modules/**', '**/dist/**', '**/.turbo/**', '**/private/**', '**/.firebase/**', 'tests/prototype/physics.mjs', '**/.tmp/**']),
   js.configs.recommended,
   tseslint.configs.recommended,
   { languageOptions: { globals: globals.node } },
   { files: ['scripts/privacy-check'], languageOptions: { globals: globals.node } },
   { files: ['apps/web/src/**/*.{ts,tsx}'], languageOptions: { globals: globals.browser } },
   {files:['scripts/legacy/**/*.ts'],languageOptions:{globals:globals.browser}},
-  web,
+  ...web,
 ]);

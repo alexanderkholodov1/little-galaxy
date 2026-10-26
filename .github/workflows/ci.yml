@@ -2,18 +2,42 @@ name: Galaxy checks and preview
 
 on:
   pull_request:
-  push:
-    branches: [main]
+    types: [opened, reopened, synchronize, edited]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.event.pull_request.number || github.ref }}-galaxy-ci
+  cancel-in-progress: true
+
 jobs:
+  release-version:
+    name: This merge can reach production
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - name: Show the automatic release version
+        env:
+          RELEASE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RELEASE_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/check-release-version.js --preview
+
   checks:
     uses: ./.github/workflows/checks.yml
 
   preview:
-    needs: checks
+    needs: [checks, release-version]
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15

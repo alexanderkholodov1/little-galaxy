@@ -1,58 +1,60 @@
-import { readFile, appendFile } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
+import { appendFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { compareAlphaTags, git, isAlphaTag, validateReleaseTag, requireFullHistory } from './release-version.js';
+import { changedFiles, ships } from './check-release-version.js';
 
 export function verifyRelease(tag, version) {
-  if (!tag || !/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:alpha|beta)\.[1-9]\d*)?$/u.test(tag) || tag !== `v${version}`) {
-    throw new Error('Release tag must be vX.Y.Z[-alpha.N|-beta.N] and match the web package version.');
-  }
+  validateReleaseTag(tag);
+  if (version !== undefined && tag !== `v${version}`) throw new Error('Release tag must match the artifact version.');
   return tag;
 }
 
 export function isPrerelease(tag) {
-  return /-(?:alpha|beta)\.[1-9]\d*$/u.test(tag);
+  return /-(?:alpha|beta)\./u.test(tag);
 }
 
-export function planRelease(version, existingTags) {
-  const tag = verifyRelease(`v${version}`, version);
-  return { tag, create: !existingTags.includes(tag), prerelease: isPrerelease(tag) };
+export function verifyTaggedCommit(tag, cwd) {
+  verifyRelease(tag);
+  const commit = git(['rev-parse', `${tag}^{commit}`], cwd);
+  const head = git(['rev-parse', 'HEAD'], cwd);
+  if (commit !== head) throw new Error('Release checkout must equal the exact tagged commit.');
+  requireFullHistory(cwd);
+  if (!isAlphaTag(tag)) throw new Error('Current releases must use the v1.0.0-alpha numeric milestone line.');
+  // Ancestry alone would also admit a PR-side commit; releases must be on main's first-parent line.
+  const history = git(['rev-list', '--first-parent', 'origin/main'], cwd).split('\n');
+  const index = history.indexOf(commit);
+  if (index < 0) throw new Error('Release commit must be on the first-parent history of main.');
+  const previous = new Set(history.slice(index + 1));
+  const refs = git(['for-each-ref', '--format=%(refname:short)%09%(objectname)%09%(*objectname)', 'refs/tags'], cwd);
+  for (const ref of refs.split('\n')) {
+    const [name, object, peeled] = ref.split('\t');
+    if (isAlphaTag(name) && previous.has(peeled || object) && compareAlphaTags(tag, name) <= 0) {
+      throw new Error(`NON-INCREASING RELEASE REFUSED: ${tag} must sort above earlier main release ${name}.`);
+    }
+  }
+  return commit;
 }
 
 async function main() {
+  const tag = process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME;
   if (process.argv[2] === '--current-main') {
-    // Fetch at the side-effect boundary, including on "Re-run failed jobs".
-    // Checkout does not persist credentials. Pass the job token only to this
-    // subprocess's config, so private repositories work without storing it.
+    // Refresh at every side-effect boundary, including retries. Never store the token.
     const auth = process.env.GH_TOKEN ? {
       GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
       GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${process.env.GH_TOKEN}`).toString('base64')}`,
     } : {};
-    execFileSync('git', ['fetch', '--no-tags', 'origin', '+refs/heads/main:refs/remotes/origin/main'], { stdio: 'pipe', env: { ...process.env, ...auth } });
-    const current = JSON.parse(execFileSync('git', ['show', 'origin/main:apps/web/package.json'], { encoding: 'utf8' }));
-    try { verifyRelease(process.env.RELEASE_TAG, current.version); }
-    catch (cause) { throw new Error(`STALE RELEASE REFUSED: ${process.env.RELEASE_TAG} must equal v${current.version} at the current tip of main. Run the current version's release instead.`, { cause }); }
-    console.log(`Current main authorizes ${process.env.RELEASE_TAG}.`);
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('git', ['fetch', '--no-tags', 'origin', '+refs/heads/main:refs/remotes/origin/main'], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...auth } });
+    const commit = verifyTaggedCommit(tag);
+    // A later docs-only merge must not prevent an in-flight shipping release.
+    if (changedFiles(commit, undefined, 'origin/main').some(ships)) throw new Error(`STALE RELEASE REFUSED: ${tag} has been superseded by shipping changes on main. Run the newer merge's release.`);
+    console.log(`Current main authorizes ${tag} at ${commit}.`);
     return;
   }
-  const { version } = JSON.parse(await readFile(new URL('../apps/web/package.json', import.meta.url), 'utf8'));
-  if (process.argv[2] === '--plan') {
-    const tags = execFileSync('git', ['tag', '--list'], { encoding: 'utf8' }).trim().split('\n');
-    const plan = planRelease(version, tags);
-    await appendFile(process.env.GITHUB_OUTPUT, `tag=${plan.tag}\ncreate=${plan.create}\n`);
-    console.log(`${plan.tag}: ${plan.create ? 'create on the merge commit' : 'already tagged; skip'}`);
-    if (!plan.create) {
-      const notice = `${plan.tag} already exists. This merge will NOT release. Bump apps/web/package.json for changes that need a release; re-run failed release jobs to recover that existing release.`;
-      console.log(`::notice title=No release for this merge::${notice}`);
-      if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `### No release for this merge\n\n${notice}\n`);
-    }
-    return;
-  }
-  const tag = verifyRelease(process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME, version);
-  const commit = execFileSync('git', ['rev-parse', `${tag}^{commit}`], { encoding: 'utf8' }).trim();
+  const commit = verifyTaggedCommit(tag);
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `tag=${tag}\nprerelease=${isPrerelease(tag)}\ncommit=${commit}\n`);
-  console.log(`Verified release ${tag}.`);
+  console.log(`Verified milestone release ${tag} at ${commit}.`);
 }
 
-const entryPoint = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href;
-if (entryPoint === import.meta.url) await main();
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) await main();

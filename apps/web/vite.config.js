@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import { assertProductionEnv, createVersionFile } from './build-config.js';
 import { loadBuildEnv } from './build-env.js';
@@ -13,7 +14,7 @@ export default defineConfig(({ command, mode }) => {
   }));
   return {
     base: '/little-galaxy/',
-    build: {rolldownOptions: {input: {game: new URL('./index.html', import.meta.url).pathname, admin: new URL('./admin.html', import.meta.url).pathname}}},
+    build: {rolldownOptions: {input: {game: fileURLToPath(new URL('./index.html', import.meta.url)), admin: fileURLToPath(new URL('./admin.html', import.meta.url))}}},
     define: {
       __APP_VERSION__: JSON.stringify(metadata.version),
       __APP_COMMIT__: JSON.stringify(metadata.commit),
