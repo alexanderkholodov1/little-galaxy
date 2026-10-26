@@ -26,17 +26,17 @@ energy and Kepler solver regressions; a null halo also disables the galaxy settl
 | All nonzero masses participate reciprocally (giants 0.01, planets 0.001…) | **Changed**: light bodies are test particles, with their masses kept for impact momentum and budgets | R25: a quiet orbit must not drift from secular nudges by its neighbours. That is also the note's own quiet regime ("quiet systems do not accumulate fresh secular perturbations") |
 | Masses table (star 1, binary 2, pulsar 1.4, black hole 2, giant 0.01 … asteroid/comet 1e-6, nebula 1e-4) | **Accepted** (`TYPE_RULES`). The `binary` workshop type is **one** mass-2 body (an unresolved compact pair) for now | Two real components need a second design slot and a pair renderer; the mass and budget (2 slots) are already right, so the split can come later without changing any rule |
 | Collision cores (planet 0.035, etc.) | **Changed**: contact radii stay at the prototype's visual scale (planet 0.35, comet 0.2 …) | With 0.035 cores, R12 impacts would almost never happen at this zoom. Impacts are gentle bounces, so a generous radius is safe |
-| 8 s encounter window, then analytic paths | **Accepted** (`WINDOW = 8`) for impacts, close passes and a compact launch (which wakes its whole system for 8 s) | Same intent. A light launch goes straight onto rails when bound: that is the launch's exact orbit, with zero integration error |
+| 8 s encounter window, then analytic paths | **Accepted** (`WINDOW = 8`) for impacts, close passes and a compact launch (which wakes unsettled bodies for 8 s; the mature population stays on its stable orbits) | Same intent. A light launch goes straight onto rails when bound: that is the launch's exact orbit, with zero integration error |
 | Settling to Kepler elements with eccentricity caps 0.65 / 0.90 and lane settling | **Superseded, operator decision 2026-10-25**: preserve the launch for 60 simulated seconds, then settle over 300 seconds into the nearest suitable system, independent of admission home | The original quote applies while there are no further changes to the system; the collective galaxy keeps changing. See the verbatim decision below |
 | Bounded Kepler solver | **Accepted, robust version**: universal variables with Stumpff functions, Laguerre iteration with a fixed count, bisection fallback (the universal equation is monotone), and the same modulo-period reduction every time | Handles ellipses, parabolas and hyperbolas. e = 0.995 returns to its start within 2e-9·a after 1,000 periods |
 | e ≥ 1 → leaving | **Accepted (R25)**: e ≥ 1 relative to every system means `drift` mode | "e >= 1 leaves the system into the drift and capture rules" |
-| Far travellers: outer-nebula rescue, return in 3–10 min | **Changed**: the rescue is the conservative logarithmic halo from M2 (no force inside r0 = 22). Return times follow from the throw (a hard throw returns in ~50–70 s); there is no time cap | A conservative potential needs no energy ledger and changes no orbit by fiat. The dotted preview shows the real loop |
+| Far travellers: outer-nebula rescue, return in 3–10 min | **Changed**: the rescue is the conservative logarithmic halo from M2 (no force inside r0 = 22). Before the age gate, return times follow from the throw (a hard throw returns in ~50–70 s); the later settling assist imposes its own finite deadline | A conservative potential needs no energy ledger and changes no orbit by fiat. The dotted preview shows the real loop |
 | Only comets / icy asteroids grow comas; stars, binaries, pulsars and black holes never become comets | **Accepted, as R8 already does**: comet, asteroid and meteor may become comets; everything else returns as itself | The operator accepted asteroids returning as comets in round 2; a dry/icy asteroid choice can come with the surfaces work (R19) |
-| Hill-region hosts with 0.4/0.6 hysteresis, held 1 s | **Simplified**: a body's host is the system it is most bound to (most negative two-body energy). A traveller is captured only inside R_FAR = 19 of a system, bound for 1 s in a row. A rail may not reach farther than 0.45 × the distance to the next system (else it stays integrated) | Moons around planets are not in this run (their Hill orbits, 0.08–0.3 units, are below the visual scale of a planet). The 1 s hold is the note's |
-| Capture needs an energy account; nebula assist with a cap | **Accepted**: pure two-body flybys stay unbound (test 13a). A three-body exchange binds naturally (13c: 9 of 48 travellers end up orbiting a second system). A nebula passed within 2.2 radii near a system removes only the energy needed for a slightly bound orbit, at most 1.6 per unit mass, once per nebula per 30 s, with the removed energy on `sim.assistEnergy` (13b) | Visible and bounded, as the note asks |
-| Binary: compact semimajor axis 1.8–2.5, e ≤ 0.1, planets outside 4a | **Changed (R25)**: two compacts are a binary when bound with apoapsis ≤ 19 (the visible edge), with hysteresis to 24. Their orbit is the one the throw made. The other bodies orbit the pair's barycentre with the total mass (circumbinary, the note's aggregate) | Forcing 1.8–2.5 would be a settling assist. The trade-off (planets inside a wide pair would really be chaotic) is handled by the quiet regime: a rail is not perturbed by its own system's compacts; only a visible graze of one's guard changes its orbit (a puff) |
-| Fast star founds a new system; systems balance about the galaxy COM | **Accepted**: an unpaired compact more than 38 units from every other system founds its own (event `system`). The frame is the compacts' centre of mass. It is recentred only when a compact enters or leaves (event `reframe`), and the camera absorbs the shift in about 1 s | Recentring every step is non-conservative with an origin-centred halo (my first try failed the energy test with 0.73). At an event it is a frame change, as the note says |
-| Black hole: Newtonian, mass 2, sling, safety core | **Accepted**: no multiplier. A moving hole slings passers (test 14: 17 slings, Campfire speed 1.6, nothing lost, no comet). Its guard contact is an "accretion" puff onto a long safe orbit. Two compacts never pass closer than 2.4: they bounce elastically (`kiss`), which conserves energy and momentum (the stellar encounter conserves energy to 1e-4) | — |
+| Hill-region hosts with 0.4/0.6 hysteresis, held 1 s | **Initial capture**: a body's host is the system it is most bound to (most negative two-body energy). A traveller is captured only inside R_FAR = 19 of a system, bound for 1 s in a row. A rail may not reach farther than 0.45 × the distance to the next system (else it stays integrated). After the protected minute, the explicit assist chooses the nearest suitable system, including for unbound travellers | Moons around planets are not in this run (their Hill orbits, 0.08–0.3 units, are below the visual scale of a planet). The 1 s hold is the note's |
+| Capture needs an energy account; nebula assist with a cap | **Accepted for the initial dynamics / isolated conservative model**: pure two-body flybys stay unbound when the halo and settling assist are disabled (test 13a). A three-body exchange can bind naturally; the revised scenario also verifies eventual settled capture by a second system. A nebula passed within 2.2 radii near a system removes only the energy needed for a slightly bound orbit, at most 1.6 per unit mass, once per nebula per 30 s, with the removed energy on `sim.assistEnergy` (13b) | Visible and bounded, as the note asks |
+| Binary: compact semimajor axis 1.8–2.5, e ≤ 0.1, planets outside 4a | **Changed (R25)**: two compacts are a binary when bound with apoapsis ≤ 19 (the visible edge), with hysteresis to 24. Their first-minute orbit is the one the throw made; after that, the convergence assist freezes membership and bridges both members to a 3–6-unit internal circular orbit. The other bodies orbit the pair's barycentre with the total mass (circumbinary, the note's aggregate) | The approved hybrid assist permits a gradual change after the protected minute. Both real components remain separate; quiet light rails orbit the aggregate |
+| Fast star founds a new system; systems balance about the galaxy COM | **Accepted**: an unpaired compact more than 38 units from every other system founds its own (event `system`). The frame is the compacts' centre of mass. During the initial dynamics, event reframes follow compact admission; mature systems occupy the rotating sites and a shared smooth translation brings their barycentre to the origin | Recentring every step is non-conservative with an origin-centred halo (my first try failed the energy test with 0.73). At an event it is a frame change, as the note says |
+| Black hole: Newtonian, mass 2, sling, safety core | **Accepted**: no multiplier. A moving hole slings passers (test 14: 17 slings, Campfire speed 1.6, nothing lost, no comet). Its guard contact is an "accretion" puff onto a long safe orbit. The protected encounter phase retains the existing kiss/snuggle response; mature systems use the spacing guarantee below. Isolated unbound encounters still conserve energy to 1e-4 | — |
 | Restitution 0.6, equal and opposite impulses, no fragments, one effect per contact, 2 s per pair | **Accepted** (`bounce`, `touch`). Effect by receiver: frost (a comet or meteor hits), chips, crater (moon), storm (giant), squash (planet), sparkle, pass (nebula, no bounce). No low-speed asteroid aggregates yet | The aggregate needs a two-pebble renderer; nothing in the rules blocks it |
 | Budgets: player 3 slots / 3.1 mass / 1 black hole / 1 stellar recipe; system 32 bodies, ≤ 2 compacts, ≤ 1 hole; galaxy 1,024 bodies, 4 holes, 32 systems; 10 min between new holes | **Accepted** in `admission.js` (pure functions over a ledger inside the snapshot). Exception: the **3-slot player limit is off in the local prototype** (`BUDGET.playerSlots = Infinity`) so the operator can test freely; the shared app turns it on. `?sandbox` lifts the heavy-type player limits for testing | Spam test: 100 attempts from one player → 1 hole; 100 fresh players → 4 holes at minutes 0, 10, 21, 31, ≤ 1 per system; rejects leave no body |
 | Never evict old bodies | **Accepted**: the world's 48-body eviction is gone. Toys (throw for fun) still fade by themselves; a full galaxy rejects the launch and keeps the draft | — |
@@ -88,8 +88,7 @@ Decision:
   but the compact bodies and travellers would need catch-up integration, so I did not mix the two.
 - Moons do not orbit planets; all light bodies orbit systems.
 - The pair renderer for a real two-component `binary`, low-speed aggregates, the nursery primary.
-- Feel: the note's main uncertainty is still open. How often a wide pair or a passing system reshuffles a
-  neighbourhood needs the operator's 30-minute play.
+- Visual feel of the young cohort, crossings of quiet light rails and the galactic site pattern still need deployed-preview and real-phone play. Node measurements cannot establish browser/device rendering quality.
 
 ## Convergence decision and change log — 2026-10-25
 
@@ -142,3 +141,35 @@ new identity would silently rewrite its historical timelapse. Its timelapse need
 identity. An active galaxy adopting this model needs an explicit new kernel generation and replay/rebuilt certified
 checkpoints under that identity; old snapshots cannot be reused. No Firestore document, Hosting deployment or
 production kernel routing is changed by this patch.
+
+### Measured acceptance — 2026-10-25
+
+Final source kernel: `proto3-d5a11fdf3009ac4c43eb5503cb2158546c88ca066215a7abf89deec3f21cba0d`. The fair fixture is replayed on its original accepted ticks (over five
+simulated hours); the synthetic log contains exactly 150 seeded throws over 30 simulated minutes. Each then gets
+10 launch-free simulated minutes. Radius is measured from the barycentre of **all body masses**.
+
+| Criterion | Fair: 21 actions | Synthetic: 150 launches |
+|---|---:|---:|
+| Light rails, at least 80% | 13/13, 100% — PASS | 135/135, 100% — PASS |
+| Maximum radius, at most 200 | 40.281507 — PASS | 73.291744 — PASS |
+| Non-rail pairs closer than 2.5, excluding moon/parent | 0 — PASS | 0 — PASS |
+| Unrelated compact pairs closer than 8 | 0 — PASS | 0 — PASS |
+| Minimum unrelated compact separation | 26.000000 | 26.000000 |
+| Last 5 min binary + kiss + impact + puff + sling + escape + away, at most 30 | 1 — PASS | 2 — PASS |
+| First 60 s maximum position/velocity delta; changed modes | 0; 0 — PASS | 0; 0 — PASS |
+| First-minute samples (7,200 per light launch) | 93,600 — PASS | 972,000 — PASS |
+| Bodies retained, including initial/nursery primaries | 22/22 — PASS | 154/154 — PASS |
+
+Measured wall-clock replay of 10 simulated quiet minutes on this machine:
+
+| Dataset | Alpha.8 before | New kernel after |
+|---|---:|---:|
+| Fair | 4,823.684 ms | 3,438.696 ms |
+| Synthetic | 97,167.606 ms | 13,506.530 ms |
+
+These are individual wall-clock runs, with other local checks running concurrently, not a controlled browser
+benchmark. The alpha.8 synthetic baseline also measured 0/135 light rails, 83 stuck pairs, 52 compact spacing
+violations and 173,875 last-five-minute chaos events. Final checks: web 97 passed / 1 opt-in test skipped; physics
+30 passed; opt-in measurement 1 passed (both datasets, 235.697 s). Deployed preview, real phones and cross-browser
+bitwise agreement remain unverified. The prescribed mature orbits and quiet captured test particles are design
+assists; close young encounters and bridge paths are transient and do not carry the settled-spacing guarantee.
