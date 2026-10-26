@@ -1,5 +1,12 @@
 # Changelog
 
+## Admin sign-in journey repair — 2026-10-26
+
+- Permit Google's static gapi loader and iframe scripts during emulator keeper sign-in;
+  keep production OAuth pages, Auth APIs and Firestore traffic blocked.
+- Require the popup to use the local Auth handler and assert the specific allowlist refusal;
+  retain the allowlisted keeper's galaxy and membership dashboard checks.
+
 ## Automatic release and A4 cleanup — 2026-10-25
 
 - Allocate shipping merge versions from PR milestone/work-package prefixes and free dotted successors;
