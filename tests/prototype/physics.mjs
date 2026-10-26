@@ -8,6 +8,10 @@
 // 15 black-hole spam limits and a calm galaxy afterwards · 16 contact matrix · 17 persistence round trip
 import {Sim, predict, elements, circularSpeed, propagate, GM, G, DT, R_FAR, TYPE_RULES, BUDGET, A_BIN, createRng} from '../../apps/web/js/sim/index.js';
 
+// Check the optimized broad phase against the original pair order in every scenario.
+import {verifiedTouch} from '../../apps/web/integration/contact-reference.js';
+Sim.prototype.touch=verifiedTouch(Sim.prototype.touch);
+
 let failed = 0;
 const check = (name, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  ${detail}`); if(!ok) failed++; };
 

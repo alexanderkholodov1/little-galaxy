@@ -173,3 +173,84 @@ violations and 173,875 last-five-minute chaos events. Final checks: web 97 passe
 30 passed; opt-in measurement 1 passed (both datasets, 235.697 s). Deployed preview, real phones and cross-browser
 bitwise agreement remain unverified. The prescribed mature orbits and quiet captured test particles are design
 assists; close young encounters and bridge paths are transient and do not carry the settled-spacing guarantee.
+
+
+### A2 review round 1 — deterministic arithmetic and independent controls (2026-10-25)
+
+The alpha.9.10–12 paired-replay first-minute result is superseded: both sides ran the same
+production step and could share the same defect. This round replaces that evidence and addresses
+all six coordinator-selected findings. The 60 s launch grace, 300 s bridge, capture across
+admission homes and 26-unit compact sites remain the acceptance model.
+
+**Deterministic arithmetic.** js/sim/math.js implements the functions used by the kernel:
+sin, cos, atan, atan2, acos, exp, log, sinh, cosh and hypot. Its only Math primitives are sqrt,
+abs and floor; other numerical operations are explicitly rounded binary64 +, -, *, /,
+comparisons and constants. Square/cube multiplication replaces exponentiation. The RNG and
+hash retain specified exact integer operations. No native transcendental or hypot call remains
+in any sim source or replay's legacy-orbit physics. Source-scan tests enforce both restrictions.
+The new module is included in the sync allowlist and therefore in the kernel fingerprint.
+
+Sine/cosine use split three-term pi/2 reduction and fixed polynomials. Dense tests cover
+[-2pi,2pi], [-1e6,1e6] and cancellation around pi/2 multiples. Settling callers first reduce
+orbital time to one period, bounding angles regardless of replay age. The math API rejects
+trig arguments outside +/-2^20; reduced orbital angles and the bound Kepler solver's reduced
+time stay well inside this range. Atan uses reciprocal/quadrant and pi/4 reduction; log uses
+power-of-two scaling and an atanh series; exp uses split ln2 and power-of-two scaling.
+Operations are engine-independent by construction rather than assuming V8, JavaScriptCore and
+SpiderMonkey share libm. Cross-engine execution has not been performed here. Accuracy against
+this machine's V8 Math implementation is empirical, not a proof of exact real-function rounding.
+
+**Canonical zero.** Input vectors, orbital initial conditions, bridge outputs, rail outputs,
+hash inputs and recursively cloned snapshot/restore state normalize -0 to +0. The public
+add/rail APIs previously produced live hash f421b228 and JSON-restored hash 0ab2f228 for the
+same signed-zero orbit; the regression now requires equality and checks saved vectors.
+
+**Independent first minute.** integration/first-minute-reference.js contains no Sim or settling
+implementation. It advances a separate probe with plain KDK against the primary positions
+consumed by production. Integrated intervals require exact position/velocity equality, including
+the completed step after guard/contact handling. For pre-existing analytic Kepler rails, separate
+central-force KDK (no softening or halo, matching the rail force law) advances at h/16 and h/32
+relative to the same host. Its second-order accumulated truncation error differs from production's
+analytic universal-variable solution, so both position and velocity must stay within 1e-4 game
+units / game units per second. The h/16-to-h/32 difference must also remain within 1e-4.
+
+The primary trajectory and discrete encounter timeline are fixed. A guard, contact, nebula
+impulse, rail transition or frame change provides a new segment's initial conditions; the prior
+continuous interval is checked before the impulse. This controls settling without claiming to
+independently test existing contact/guard policy. No probe is corrected during an uninterrupted
+integration interval. Every light launch contributes exactly 7,200 completed-step samples.
+Settling during that minute is independently forbidden. A shared production-list velocity
+mutation, which passed the old paired replay, must now fail. A mutation on the last protected
+step must fail too. Circular and e=.3/.8/.97/.995 launches and a primary-addition/frame-change
+scenario exercise the reference outside the opt-in measurement.
+
+**Distinct light paths.** Bridges reserve radii in body-id order, considering ongoing bridges
+and finished rails of the same host. Search starts at the preferred radius, then tests +.01,
+-.01, +.02, -.02, etc. within guard/rail bounds. A full host does not assign an occupied lane.
+Reservations survive snapshots; removal releases a lane. Eight identical launches previously
+assigned one radius; the regression requires eight paths and at least .01 radial separation
+after completion. Separate paths do not imply finite-radius specimens never visually overlap.
+
+**Host dissolution.** Topology releases bridges/rails whose host disappeared before the next
+KDK. Current world p/v already contain the former host's motion, so both remain unchanged at
+removal and acceleration refreshes in the surviving world frame. The next step integrates
+normally instead of returning with stale coordinates. The binary-removal test compares its
+full p/v with independent plain KDK against the same surviving primary positions.
+
+**Contact and rail costs.** A mutable spatial grid replaces all-pairs enumeration. Candidates
+are sorted into original body-id i/j order. After a bounce, both cell memberships update and
+later candidates are queried again, preserving newly created bounce-chain contacts. Distant
+recorded contacts remain candidates for cooldown cleanup. Fully quiet populations take an early
+exit with the original suppression semantics. A test-only frozen all-pairs algorithm checks full
+snapshots and ordered impact events at every contact update in the existing 30-check physics
+suite, plus a dense cell-boundary/bounce-chain regression. Rail limits are computed once per
+system per topology position update, then read by classification and settling; a call-count
+regression prevents per-body recomputation. Completed circular rails rotate stored p/v directly
+instead of repeatedly solving universal variables. A 10,000 s check bounds differences from
+the general solver below 1e-9 and verifies exact JSON restoration.
+
+Red/green evidence: all five original regressions (native math scan, signed-zero wire state,
+identical paths, missing host step, rail-limit cache) failed before their fixes. The shared
+production-defect test failed against the original control, then passed after replacement.
+The grid is checked against an independent all-pairs oracle throughout existing scenarios.
+Raw local evidence remains ignored under .tmp; no private launch payload is added.

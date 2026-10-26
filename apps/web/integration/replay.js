@@ -1,3 +1,4 @@
+import {sin,cos,cube} from '../js/sim/math.js';
 import {compact} from './homes.js';
 import {encodeName,decodeName,legacyName} from './names.js';
 import {Sim, elements, TYPE_RULES} from '../js/sim/index.js';
@@ -38,14 +39,14 @@ const vector = v => [v[0]/1e6,0,v[1]/1e6];
 function legacyState(row,epoch){
   const o=row.legacy?.orbit;
   if(!o || !(o.a>0) || !(o.e>=0 && o.e<1)) throw new Error('Unsupported legacy genesis orbit');
-  const mean=o.meanAnomaly+(epoch-o.epoch)/1000*Math.sqrt(15/o.a**3);
+  const mean=o.meanAnomaly+(epoch-o.epoch)/1000*Math.sqrt(15/cube(o.a));
   let E=mean%(2*Math.PI);
-  for(let i=0;i<32;i++) E-=(E-o.e*Math.sin(E)-mean%(2*Math.PI))/(1-o.e*Math.cos(E));
-  const x=o.a*(Math.cos(E)-o.e), z=o.a*Math.sqrt(1-o.e*o.e)*Math.sin(E);
-  const rate=Math.sqrt(15/o.a**3)/(1-o.e*Math.cos(E));
-  const vx=-o.a*Math.sin(E)*rate, vz=o.a*Math.sqrt(1-o.e*o.e)*Math.cos(E)*rate;
-  const c=Math.cos(o.omega),s=Math.sin(o.omega),dir=o.direction||1;
-  const inclination=o.inclination||0,si=Math.sin(inclination),ci=Math.cos(inclination);
+  for(let i=0;i<32;i++) E-=(E-o.e*sin(E)-mean%(2*Math.PI))/(1-o.e*cos(E));
+  const x=o.a*(cos(E)-o.e), z=o.a*Math.sqrt(1-o.e*o.e)*sin(E);
+  const rate=Math.sqrt(15/cube(o.a))/(1-o.e*cos(E));
+  const vx=-o.a*sin(E)*rate, vz=o.a*Math.sqrt(1-o.e*o.e)*cos(E)*rate;
+  const c=cos(o.omega),s=sin(o.omega),dir=o.direction||1;
+  const inclination=o.inclination||0,si=sin(inclination),ci=cos(inclination);
   return {p:[x*c-z*s,(x*s+z*c)*dir*si,(x*s+z*c)*dir*ci],v:[vx*c-vz*s,(vx*s+vz*c)*dir*si,(vx*s+vz*c)*dir*ci]};
 }
 export class Replay {
