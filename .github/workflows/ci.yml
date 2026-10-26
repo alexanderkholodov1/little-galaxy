@@ -1,8 +1,13 @@
 name: Galaxy checks and preview
 
+# Real CI runs on pull requests. A rehearsal (a push to a temporary rehearsal/* branch, caspian-kb/tools/rehearse.sh)
+# runs only the checks, with failing jobs recorded in a verdict artifact instead of failing the run: no commit reaches
+# a pull request's CI before it passed (owner, 2026-10-26: no red run in any project). Previews never deploy from it.
 on:
   pull_request:
     types: [opened, reopened, synchronize, edited]
+  push:
+    branches: ['rehearsal/**']
 
 permissions:
   contents: read
@@ -35,6 +40,8 @@ jobs:
 
   checks:
     uses: ./.github/workflows/checks.yml
+    with:
+      rehearsal: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/rehearsal/') }}
 
   preview:
     needs: [checks, release-version]
