@@ -1,7 +1,7 @@
 import {sin,cos,cube} from '../js/sim/math.js';
 import {compact} from './homes.js';
 import {encodeName,decodeName,legacyName} from './names.js';
-import {Sim, elements, TYPE_RULES} from '../js/sim/index.js';
+import {Sim, TYPE_RULES} from '../js/sim/index.js';
 import {canonicalBytes,PROTOTYPE_KERNEL} from '@little-galaxy/shared';
 export const KERNEL = PROTOTYPE_KERNEL;
 const COMMON = {size:'size',pal:'palette'};
@@ -148,19 +148,6 @@ export class Replay {
     }
     this.sequence=a.sequence;
   }
-  quiet(){
-    const prim=this.sim.primaries();
-    if(prim.length!==1 || prim[0].v.some(x=>x!==0) || prim[0].p.some(x=>x!==0) || this.sim.contacts.size) return false;
-    if(this.sim.settling && this.sim.bodies.some(b=>b!==this.sim.central && !b.settled)) return false;
-    const spans=[];
-    for(const b of this.sim.bodies){
-      if(b===this.sim.central) continue;
-      if(b.mode!=='rail') return false;
-      const el=elements(b.r0,b.v0,b.mu);spans.push([el.rp-b.r,el.ra+b.r]);
-    }
-    spans.sort((a,b)=>a[0]-b[0]);
-    return spans.every((s,i)=>!i || s[0]>spans[i-1][1]);
-  }
   advanceTo(target,budget=Infinity){
     target=Math.max(0,Math.floor(target));let spent=0;
     while(true){
@@ -169,7 +156,7 @@ export class Replay {
       if(this.sim.steps>=this.nextMark){if(target-this.sim.steps<=64*120)this.mark();else this.nextMark=this.sim.steps+120;}
       if(this.sim.steps>=target || spent>=budget) break;
       const end=Math.min(target,next?.intent.effectiveTick??target);
-      if(this.quiet()) {this.sim.steps=end;this.sim.t=end/120;this.sim.syncRails();}
+      if(this.sim.advanceAnalytically(end)) { /* Closed-form mature systems and circular rails. */ }
       else {
         const n=Math.min(end-this.sim.steps,budget-spent,Math.max(1,this.nextMark-this.sim.steps));if(n<=0) break;
         this.sim.run(n);spent+=n;

@@ -172,6 +172,22 @@ export class Sim {
   }
   run(steps){ for(let i = 0; i < steps; i++) this.step(); this.syncRails(); }
 
+  // Only the mature population has no integration, topology or contact transitions left.
+  // Re-evaluate immutable orbital initial conditions at the requested integer tick.
+  canAdvanceAnalytically(){
+    return this.settling && this.t-this.gCentre.start>=SETTLING.duration &&
+      this.bodies.every(b=>b.settled && (TYPE_RULES[b.kind].primary
+        ? b.gSlot!==undefined : b.mode==='rail' && this.sysById.has(b.host)));
+  }
+  advanceAnalytically(tick){
+    if(!this.canAdvanceAnalytically()) return false;
+    this.steps=tick;this.t=tick*DT;
+    this.moveGalactic();this.updateSystems();this.syncRails();
+    const contactTime=(tick-tick%GALAXY_EVERY)*DT;
+    for(const [key,until] of this.contacts)if(key[0]==='a' && contactTime>until)this.contacts.delete(key);
+    return true;
+  }
+
   galaxyTick(){
     this.foundGalactic();
     this.topology();
@@ -424,6 +440,7 @@ export class Sim {
 
   /* ---------------------------------------------------------------- lejos y de vuelta */
   watch(b){
+    if(b.settled) return;
     const primary = b.mode === 'n';
     const s = b.mode === 'rail' ? this.sysById.get(b.host) : this.hostAt(b.p, primary ? b : null);
     if(!s || s.id === undefined) return;
