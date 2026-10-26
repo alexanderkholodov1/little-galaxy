@@ -2,6 +2,8 @@
 import { expect, test } from '@playwright/test';
 import { seedGalaxy, withDatabase, enter, workshop, throwBody } from './galaxy-fixture.js';
 
+import { googleSignIn, localOnly } from './admin-helper.js';
+
 const phone = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 
 async function open(page, id) {
@@ -97,4 +99,47 @@ test('a phone enters, names and launches twice; another visitor sees both; retur
   } finally {
     await writerContext.close(); await observerContext.close();
   }
+});
+
+test('Google sign-in refuses an account outside the keeper allowlist', async ({ page, context }) => {
+  await seedGalaxy();
+  await localOnly(context);
+  await page.goto('/little-galaxy/admin');
+  await googleSignIn(page, 'visitor@example.test');
+  await expect(page.locator('#ad-toast')).toContainText(/allowlist/i);
+  await expect(page.locator('#ad-google')).toBeVisible();
+  await expect(page.locator('#ad-tab-galaxies')).toHaveCount(0);
+});
+
+test('an allowlisted keeper sees the galaxy and membership dashboard', async ({ page, context }) => {
+  const id = await seedGalaxy();
+  await localOnly(context);
+  await page.goto('/little-galaxy/admin');
+  await googleSignIn(page, 'captain@example.test');
+  await expect(page.locator('[data-galaxy="' + id + '"]')).toBeVisible();
+  await page.locator('#ad-tab-metrics').click();
+  await expect(page.locator('.ad-readings')).toContainText('Players');
+  await expect(page.locator('.ad-note').filter({ hasText: 'Visits and cosmetic throws are not collected' })).toBeVisible();
+});
+
+test('the booth renders the selected galaxy, follows a new selection and shows its join QR', async ({ page, context }) => {
+  const first = await seedGalaxy();
+  const second = await seedGalaxy();
+  await withDatabase(db => db.doc('config/live').update({ boothGalaxyId: first }));
+  await localOnly(context);
+  const writes = [];
+  page.on('request', request => {
+    if (/accounts:signUp|documents:commit|Firestore\/Write/u.test(request.url())) writes.push(request.url());
+  });
+  await page.goto('/little-galaxy/screen');
+  await expect(page.locator('body')).toHaveAttribute('data-galaxy', first);
+  await expect(page.locator('body')).toHaveAttribute('data-sky-ready', 'true');
+  await expect(page.locator('#boothJoin')).toHaveAttribute('href', /\/little-galaxy\/$/u);
+  await expect(page.locator('#boothJoin svg')).toBeVisible();
+  await expect(page.locator('#boothJoin svg path')).toHaveAttribute('d', /M/u);
+  await withDatabase(db => db.doc('config/live').update({ boothGalaxyId: second }));
+  await expect(page.locator('body')).toHaveAttribute('data-galaxy', second);
+  await expect(page.locator('body')).toHaveAttribute('data-sky-ready', 'true');
+  await expect(page.locator('#boothJoin svg')).toBeVisible();
+  expect(writes).toEqual([]);
 });

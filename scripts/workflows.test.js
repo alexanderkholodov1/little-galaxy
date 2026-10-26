@@ -45,3 +45,13 @@ it('protects reviewed controls and cleans credentials even after failure', async
   expect(controls).toContain('SKY_KEY: ${{ inputs.key }}');
   expect(controls).toContain('src/index.ts github-control');
 });
+
+it.each([['ci.yml', 'release-version'], ['release-on-merge.yml', 'tag'], ['release.yml', 'guard']])(
+  '%s fetches tags explicitly for its %s job', async (file, job) => {
+    const workflow = await read('.github/workflows/' + file);
+    const body = workflow.split('\n  ' + job + ':\n')[1].split(/\n  [a-z-]+:\n/u)[0];
+    const checkout = body.split('uses: actions/checkout@')[1].split('\n      - ')[0];
+    expect(checkout).toContain('fetch-depth: 0');
+    expect(checkout).toContain('fetch-tags: true');
+  },
+);

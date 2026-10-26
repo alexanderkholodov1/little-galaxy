@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { expect, it } from 'vitest';
 import { changedFiles, checkReleaseVersion, releaseMissMessage } from './check-release-version.js';
 
-it.each(['apps/web/js/main.js', 'packages/shared/src/galaxy-store.ts', 'firestore.rules'])(
+it.each(['apps/web/js/main.js', 'packages/shared/src/galaxy-store.ts', 'firestore.rules', 'firestore.indexes.json', 'firebase.json'])(
   'rejects an existing release tag when %s changes', file => {
     expect(() => checkReleaseVersion([file], '1.0.0-alpha.9', ['v1.0.0-alpha.9'])).toThrow(releaseMissMessage);
   },

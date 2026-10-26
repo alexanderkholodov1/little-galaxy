@@ -5,7 +5,7 @@ import path from 'node:path';
 import { verifyRelease } from './verify-release.js';
 
 export const releaseMissMessage = 'this merge will not reach production: bump apps/web/package.json';
-export const ships = file => /^(apps\/web\/|packages\/shared\/|firestore\.rules$)/u.test(file);
+export const ships = file => /^(apps\/web\/|packages\/shared\/|firestore\.(rules|indexes\.json)$|firebase\.json$)/u.test(file);
 
 export function checkReleaseVersion(files, version, tags) {
   if (!files.some(ships)) return false;

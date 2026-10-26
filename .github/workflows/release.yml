@@ -32,6 +32,7 @@ jobs:
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
       - name: Require a commit on main
         run: git merge-base --is-ancestor HEAD origin/main
