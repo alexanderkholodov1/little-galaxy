@@ -1,5 +1,13 @@
 # Changelog
 
+## A-show presentation — 2026-10-26
+
+- Place resting status and its timelapse action in the home layout above visibly disabled launches.
+- Give the intro and sheets a clear foreground; align attribution and preserve the current visual identity.
+- Expand touch targets, accommodate long labels and keep workshop/timelapse controls readable in both themes.
+- Add emulator browser geometry journeys for EN/ES at 360/1280px with reduced motion.
+- Stage the plan changelog entry in `docs/plan-updates/alpha9-show.patch`; no other checkout or deployment is changed.
+
 ## Admin sign-in journey repair — 2026-10-26
 
 - Permit Google's static gapi loader and iframe scripts during emulator keeper sign-in;

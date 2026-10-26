@@ -269,7 +269,7 @@ export default {
     'author.tech': '3D con three.js · sonido y gravedad generados en tu navegador · tipografías Unbounded y Figtree',
 
     'err.title': 'El cielo no pudo encenderse',
-    'err.cdn': 'El 3D y las tipografías llegan desde jsDelivr. Revisa la conexión y recarga.',
+    'err.cdn': 'No se pudieron cargar los recursos del cielo. Revisa la conexión y recarga.',
     'err.boot': 'Algo se detuvo al arrancar. Recarga para intentarlo de nuevo.',
     'err.webgl': 'Este navegador no tiene WebGL activo; la galaxia necesita 3D.',
   },
@@ -524,7 +524,7 @@ export default {
     'author.tech': '3D with three.js · sound and gravity generated in your browser · Unbounded and Figtree typefaces',
 
     'err.title': 'The sky couldn’t light up',
-    'err.cdn': '3D and fonts come from jsDelivr. Check your connection and reload.',
+    'err.cdn': 'The sky’s assets could not load. Check your connection and reload.',
     'err.boot': 'Something stopped on start-up. Reload to try again.',
     'err.webgl': 'This browser has no WebGL; the galaxy needs 3D.',
   },

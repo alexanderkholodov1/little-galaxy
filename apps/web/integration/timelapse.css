@@ -4,3 +4,8 @@ body[data-replay] .dock,body[data-replay] .gesture-hint,body[data-replay] .credi
 .timeControls{display:flex;align-items:center;gap:24px}.timeControls button,.timeControls select{background:#182030;color:#fff1de;border:1px solid #56ccf2;padding:8px;font:inherit}
 .timeControls output{margin-left:auto}#replayScrub{display:block;width:100%;margin-top:24px;accent-color:#ff8a5b}
 @media(max-width:600px){#timeRuler{padding:16px 24px}#timeRuler h1{font-size:24px}.timeControls{gap:16px;flex-wrap:wrap}}
+
+.timeControls button,.timeControls select{min-width:44px;min-height:44px;border-radius:var(--r-chip)}
+#timeRuler h1{overflow-wrap:anywhere}
+html[data-ui-theme=light] #timeRuler p{color:#176a91}
+html[data-ui-theme=light] .timeControls button,html[data-ui-theme=light] .timeControls select{background:#fff8ec;color:#182030;border-color:#176a91}

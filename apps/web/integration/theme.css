@@ -3,4 +3,4 @@ html[data-ui-theme=light] .glass,html[data-ui-theme=light] .pu-card,html[data-ui
 html[data-ui-theme=light] .glass{background-image:none}html[data-ui-theme=light] .glass::before{opacity:.2}
 html[data-ui-theme=light] .pu-card input,html[data-ui-theme=light] .ad-page input,html[data-ui-theme=light] .ad-page select,html[data-ui-theme=light] .ad-page textarea{background:#fff8ec;color:#182030;border-color:#344052}
 html[data-ui-theme=light] body.ad-page{--crema:#182030;--crema-2:#344052;--brasa:#a43c17;--menta:#17644e;--noche:#fff1de;--ciruela:#f1e6d6;background:#fff1de}
-#panelTheme{font-size:0;padding:8px;width:36px;height:36px;pointer-events:auto}#panelTheme svg{width:18px;height:18px;margin:auto}body[data-booth] #panelTheme,body[data-replay] #panelTheme{display:none}
+#panelTheme{font-size:0;padding:8px;width:44px;height:44px;pointer-events:auto}#panelTheme svg{width:18px;height:18px;margin:auto}body[data-booth] #panelTheme,body[data-replay] #panelTheme{display:none}
