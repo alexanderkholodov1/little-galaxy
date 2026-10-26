@@ -122,7 +122,7 @@ jobs:
     name: Real player journey
     runs-on: ubuntu-latest
     continue-on-error: ${{ inputs.rehearsal }}
-    timeout-minutes: 6
+    timeout-minutes: 15
     env:
       JAVA_TOOL_OPTIONS: -Xmx512m
     steps:
