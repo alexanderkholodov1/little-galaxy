@@ -476,3 +476,27 @@ it('does not grant keepers permission to edit another member body', async () => 
     id:'edit',type:'edit',bodyId:'nonce1',design:{colour:2},effectiveTick:121,
   })).rejects.toThrow('Body ownership');
 });
+
+it('elects one snapshot holder, renews its lease, and recovers after expiry without touching admissions', async () => {
+  let clock = now;
+  const driver = new MemoryGalaxyDriver();
+  await driver.seed('galaxies/g', galaxy);
+  await driver.seed('galaxies/g/control/head', initialHead(now));
+  for (const uid of ['a', 'b']) await driver.seed('galaxies/g/members/' + uid, {...member, memberId: 'm-' + uid});
+  const a = createGalaxyStore(driver, {uid:'a',memberId:'m-a',now:()=>clock});
+  const b = createGalaxyStore(driver, {uid:'b',memberId:'m-b',now:()=>clock});
+  expect(await Promise.all([a.claimSnapshotLease('g','tab-a'), b.claimSnapshotLease('g','tab-b')])).toEqual([true,false]);
+  clock += 10_000; expect(await a.claimSnapshotLease('g','tab-a')).toBe(true);
+  clock += 30_001; expect(await b.claimSnapshotLease('g','tab-b')).toBe(true);
+  expect((await driver.get('galaxies/g/control/head'))).toEqual(initialHead(now));
+});
+it('rejects a corrupt live snapshot before fetching its tail and can explicitly load independent history', async () => {
+  const driver = new MemoryGalaxyDriver();
+  await driver.seed('galaxies/g', galaxy);
+  await driver.seed('galaxies/g/control/head', initialHead(now));
+  await driver.seed('galaxies/g/liveSnapshots/latest', {schemaVersion:1,generation:1,kernel:galaxy.kernel,sequence:0,tick:0});
+  const verify = vi.fn(async()=>false);
+  const s = createGalaxyStore(driver,{uid:'u',memberId:'m',now:()=>now+10000,verifyLiveSnapshot:verify});
+  expect((await s.loadGalaxy('g')).provisional).toBe(false);expect(verify).toHaveBeenCalledTimes(1);
+  await s.loadGalaxy('g',{history:true});expect(verify).toHaveBeenCalledTimes(1);
+});

@@ -40,3 +40,26 @@ it('does not replay effects already shown when a late action rewinds the sky',as
  expect(w.messages.at(-1).state.sim.steps).toBe(200);
  expect(w.messages.flatMap(m=>m.events).filter(e=>e.type==='reframe')).toEqual([]);
 });
+
+it('verifies provisional history in background and atomically replaces a self-consistent forged snapshot',async()=>{
+ const {prepareLiveSnapshot}=await import('./live-snapshot.js');
+ const {unpackLoaded,packState,canonicalState}=await import('./checkpoint.js');
+ const {canonicalHash}=await import('@little-galaxy/shared');
+ const expected=new Replay({galaxy,actions:[action]});expected.advanceTo(900);
+ const snapshot=await prepareLiveSnapshot(expected,720,'holder');
+ const full={galaxy,actions:[action],genesis:[]};
+ for(const forged of [false,true]){
+  const loaded=await unpackLoaded({...full,actions:[],checkpoint:snapshot,provisional:true});
+  if(forged){
+   const state=JSON.parse(loaded.checkpoint.state);state.entries[0].name='Forged';
+   const wire=await packState(canonicalState(state));
+   loaded.checkpoint={...loaded.checkpoint,state:canonicalState(state),stateHash:await canonicalHash(wire),replayHash:await canonicalHash(state)};
+  }
+  const w=await worker();w.send({load:{...loaded,trusted:true},tick:900,loadKey:1});await vi.runAllTimersAsync();
+  expect(w.messages.at(-1).ready).toBe(true);expect(w.messages.at(-1).verified).toBe(false);
+  vi.useRealTimers();w.send({verify:full,loadKey:1});
+  await vi.waitFor(()=>expect(w.messages.some(m=>m.verification!==undefined)).toBe(true));
+  expect(w.messages.find(m=>m.verification!==undefined)).toMatchObject({verification:!forged,fallback:forged});
+  expect(w.messages.at(-1).state).toEqual(expected.state());expect(w.messages.at(-1).verified).toBe(true);
+ }
+});

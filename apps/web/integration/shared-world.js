@@ -7,6 +7,26 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   const replayMode=location.pathname.replace(/\/$/,'').endsWith('/timelapse');
   let playback=null,lastLiveTick=0;
   const pending=new Map();let ready=false,lastTarget=-1,visible=!document.hidden;
+  const snapshotHolder=crypto.randomUUID();let loadKey=0,verified=!loaded.provisional,snapshotBusy=false,verificationTimer;
+  let snapshotSequence=-1,snapshotTick=-1,needsSnapshot=true,unsettledTick=0;
+  async function verifyHistory(key){
+    try{const history=await store.history();if(key===loadKey)worker.postMessage({verify:history,loadKey:key});}
+    catch{if(key===loadKey)verificationTimer=setTimeout(()=>verifyHistory(key),5000);}
+  }
+  function loadReplay(fresh){
+    clearTimeout(verificationTimer);loadKey++;verified=!fresh.provisional;
+    worker.postMessage({load:{...fresh,trusted:Boolean(fresh.checkpoint)},tick:target(),loadKey});
+    // Download/replay history only after the provisional present has been shown.
+  }
+  async function snapshot(){
+    if(snapshotBusy || !ready || !verified || !visible || replayMode || store.readOnly || !needsSnapshot)return;
+    snapshotBusy=true;
+    try{if(await store.claimSnapshot(snapshotHolder)){
+      const tick=Math.floor((store.now()-S.galaxy.epoch-2000)*.12);
+      if(tick>snapshotTick)worker.postMessage({snapshot:{tick,holder:snapshotHolder}});
+    }}catch{ /* Optional acceleration must not interrupt launches. */ }
+    finally{snapshotBusy=false;}
+  }
   world.shared=true;
   function target(){
     if(playback)return playback.tick();
@@ -34,10 +54,22 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   readonly();
   if(replayMode)playback=setupTimelapse({loaded,now:store.now,request:tick=>worker.postMessage({tick})});
   worker.onmessage=({data})=>{
+    if(data.loadKey!==undefined && data.loadKey!==loadKey)return;
+    if(data.snapshot){
+      if(verified)store.publishSnapshot(data.snapshot).then(saved=>{if(saved){snapshotTick=data.snapshot.tick;snapshotSequence=data.snapshot.sequence;} }).catch(()=>false);
+      return;
+    }
+    if(data.verificationError){verificationTimer=setTimeout(()=>verifyHistory(loadKey),5000);return;}
+    if(data.verification!==undefined){verified=true;return;}
     if(data.error){toast(data.error);return;}
     if(!data.ready)return;
     const entries=world.applySharedState(data.state,normDesign,store.owner());
     if(ready) for(const event of data.events||[]) {if(event.type==='reservation'&&entries.find(e=>e.id===event.id)?.mine)toast(document.documentElement.lang==='es'?'Ese fuego aún no tiene sitio. Tu astro sigue viajando.':'That fire has no room yet. Your star keeps travelling.');world.sim.emit(event.type,world.sim.byId(event.id),{...event.values,...Object.fromEntries(Object.entries(event.refs).map(([k,id])=>[k,world.sim.byId(id)]))});}
+    if(!ready && loaded.provisional)void verifyHistory(loadKey);
+    verified=data.verified??verified;
+    if(data.state.sim.bodies.some(b=>!b.settled))unsettledTick=data.state.sim.steps;
+    needsSnapshot=data.state.sequence!==snapshotSequence || snapshotTick<=unsettledTick;
+
     ready=data.ready;document.body.dataset.skyReady=String(ready);
     document.body.dataset.tick=String(data.state.sim.steps);document.body.dataset.sequence=String(data.state.sequence);
     document.body.dataset.galaxy=store.galaxyId;
@@ -48,7 +80,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
       if(entry){pending.delete(logical);world.completeSharedLaunch(entry,res);}
     }
   };
-  worker.postMessage({load:{...loaded,trusted:Boolean(loaded.checkpoint)},tick:target()});
+  loadReplay(loaded);
   world.requestLaunch=async raw=>{
     saveDraft();
     try{
@@ -72,6 +104,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     if(!visible)return;
     const tick=target();if(tick!==lastTarget){lastTarget=tick;worker.postMessage({tick});}
   },100);
+  const snapshotTimer=setInterval(snapshot,10000);
   const touch=setInterval(()=>{if(visible)store.touch();},5*60*1000);
   const visibility=async()=>{
     visible=!document.hidden;
@@ -80,13 +113,13 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
       // Re-anchor to server time; reload a coherent boundary before reattaching the log.
       const backend=store.backend();backend.selection=await backend.driver.get('config/live');
       const fresh=await store.loadGalaxy();S.galaxy=fresh.galaxy;loaded=fresh;readonly();
-      worker.postMessage({load:{...fresh,trusted:Boolean(fresh.checkpoint)},tick:target()});
+      ready=false;loadReplay(fresh);
     }catch(error){onError({detail:error});}
   };
   document.addEventListener('visibilitychange',visibility);
   const stopVersion=watchVersion(saveDraft);
   return ()=>{
-    clearInterval(timer);clearInterval(touch);stopVersion();worker.terminate();store.stop();
+    clearInterval(timer);clearInterval(touch);clearInterval(snapshotTimer);clearTimeout(verificationTimer);loadKey++;stopVersion();worker.terminate();store.stop();
     document.removeEventListener('visibilitychange',visibility);
     removeEventListener('galaxy:actions',onActions);removeEventListener('galaxy:manifest',onManifest);
     removeEventListener('galaxy:error',onError);removeEventListener('galaxy:selection',onSelection);removeEventListener('galaxy:notice',onNotice);

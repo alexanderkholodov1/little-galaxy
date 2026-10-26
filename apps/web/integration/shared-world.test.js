@@ -25,7 +25,7 @@ it('keeps live targets monotonic across refreshed clock estimates',()=>{
 it('never applies a partially replayed historical state to the live renderer',()=>{
  const f=fixture();f.worker.onmessage({data:{ready:false,state:{sim:{steps:480},sequence:0}}});
  expect(f.world.applySharedState).not.toHaveBeenCalled();
- f.worker.onmessage({data:{ready:true,state:{sim:{steps:1200},sequence:1}}});
+ f.worker.onmessage({data:{ready:true,state:{sim:{steps:1200,bodies:[]},sequence:1}}});
  expect(f.world.applySharedState).toHaveBeenCalledOnce();expect(document.body.dataset.tick).toBe('1200');
 });
 it('reloads a coherent boundary on visibility resume without displaying partial catch-up',async()=>{

@@ -514,7 +514,7 @@ service cloud.firestore {
         && d.keys().hasOnly(['id','memberId','displayName','kind','system','parent','moons','design','launch','tombstone','lastAction']);
     }
     match /galaxies/{g}/control/{name} {
-      allow get: if name in ['head','certified'] && bReadable(g);
+      allow get: if name in ['head','certified','snapshotLease'] && bReadable(g);
       // Certifications are keyed by sequence and reached tick, so a quiet log can be saved again later.
       allow create, update: if name == 'certified' && bAdmin()
         && request.resource.data.keys().hasOnly(['sequence','tick'])
@@ -582,6 +582,49 @@ service cloud.firestore {
         && d.stateHash is string && (d.stateHash == '' || d.stateHash.matches('^[a-f0-9]{64}$'))
         && (d.state == null || (d.state is string && d.state.size() <= 14000))
         && d.keys().hasOnly(['schemaVersion','generation','sequence','kernel','logHash','stateHash','state']);
+    }
+    // Snapshot leadership is independent of admissions. Public documents contain only
+    // the existing galaxy-scoped member pseudonym and a random tab token, never Auth UIDs.
+    function bSnapshotWriter(g) {
+      let galaxy = bGalaxy(g);
+      return signed() && bReadable(g) && galaxy.status == 'active' && galaxy.writePolicy != 'frozen'
+        && bMember(g).role in ['owner','editor'];
+    }
+    function bSnapshotLease(g,d) {
+      let galaxy = bGalaxy(g);
+      return bSnapshotWriter(g) && d.keys().hasOnly(['holder','memberId','generation','kernel','expiresAt'])
+        && id(d.holder) && d.memberId == bMember(g).memberId
+        && d.generation == galaxy.generation && d.kernel == galaxy.kernel
+        && d.expiresAt is int && d.expiresAt > request.time.toMillis()
+        && d.expiresAt <= request.time.toMillis()+35000;
+    }
+    match /galaxies/{g}/control/snapshotLease {
+      allow create: if bSnapshotLease(g,request.resource.data);
+      allow update: if bSnapshotLease(g,request.resource.data)
+        && (resource.data.expiresAt <= request.time.toMillis()
+          || resource.data.generation != bGalaxy(g).generation || resource.data.kernel != bGalaxy(g).kernel
+          || (resource.data.holder == request.resource.data.holder && resource.data.memberId == bMember(g).memberId));
+    }
+    function bLiveSnapshot(g,d) {
+      let galaxy = bGalaxy(g);
+      let lease = get(/databases/$(database)/documents/galaxies/$(g)/control/snapshotLease).data;
+      return bSnapshotWriter(g) && lease.memberId == bMember(g).memberId && d.holder == lease.holder
+        && lease.expiresAt > request.time.toMillis() && lease.generation == galaxy.generation && lease.kernel == galaxy.kernel
+        && d.keys().hasOnly(['schemaVersion','generation','sequence','kernel','logHash','stateHash','state','tick','encoding','replayHash','holder'])
+        && d.schemaVersion == 1 && d.generation == galaxy.generation && d.kernel == galaxy.kernel
+        && intRange(d.sequence,0,bHead(g).sequence) && intRange(d.tick,0,9007199254740991)
+        && d.tick*1000 <= (request.time.toMillis()-galaxy.epoch-2000)*120
+        && d.encoding == 'gzip-base64' && d.state is string && d.state.size() <= 900000
+        && d.stateHash is string && d.stateHash.matches('^[a-f0-9]{64}$')
+        && d.replayHash is string && d.replayHash.matches('^[a-f0-9]{64}$')
+        && d.logHash is string && (d.sequence == 0 ? d.logHash == '' : d.logHash.matches('^[a-f0-9]{64}$'));
+    }
+    match /galaxies/{g}/liveSnapshots/{name} {
+      allow get: if name == 'latest' && bReadable(g);
+      allow create: if name == 'latest' && bLiveSnapshot(g,request.resource.data);
+      allow update: if name == 'latest' && bLiveSnapshot(g,request.resource.data)
+        && (resource.data.generation != bGalaxy(g).generation || resource.data.kernel != bGalaxy(g).kernel
+          || (request.resource.data.tick > resource.data.tick && request.resource.data.sequence >= resource.data.sequence));
     }
     match /galaxies/{g}/checkpoints/{name} {
       allow get: if bReadable(g);

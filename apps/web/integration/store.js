@@ -57,6 +57,9 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
         localStorage.removeItem(key);emit('actions',[accepted]);return accepted;
       }catch(error){throw new Error(`Your star is still in your hand. ${error.message}`,{cause:error});}
     },
+    async history(){return unpackLoaded(await backend.store.loadGalaxy(S.galaxyId,{history:true}));},
+    async claimSnapshot(holder){return !readOnly && !document.hidden && backend.store.claimSnapshotLease(S.galaxyId,holder);},
+    async publishSnapshot(snapshot){return !readOnly && !document.hidden && backend.store.publishSnapshot(S.galaxyId,snapshot);},
     async save(){return false;},async legacy(){return [];},
     touch(){if(!readOnly&&!document.hidden&&loaded?.galaxy.status==='active'&&member)return backend.store.touch(S.galaxyId).catch(()=>false);},
     now:()=>backend.clock.now(),stop,

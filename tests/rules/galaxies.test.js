@@ -940,3 +940,52 @@ it('does not reset the server launch clock on immediate edits or names', async (
   await assertSucceeds(s.setName('g','Alice'));
   expect((await getDoc(path)).data().mutationTime.toMillis()).toBe(before);
 });
+
+describe('leased client snapshots',()=>{
+  const lease=(holder='tab-a',memberId='m-alice')=>({holder,memberId,generation:1,kernel:galaxy.kernel,expiresAt:Date.now()+30000});
+  const snapshot=(holder='tab-a',extra={})=>({schemaVersion:1,generation:1,sequence:0,kernel:galaxy.kernel,
+    logHash:'',stateHash:'a'.repeat(64),replayHash:'b'.repeat(64),state:'packed',tick:120,encoding:'gzip-base64',holder,...extra});
+  const put=(uid,path,value)=>setDoc(doc(context(uid).firestore(),'galaxies/g/'+path),value);
+  beforeEach(async()=>{
+    for(const uid of ['alice','bob'])await seed('galaxies/g/members/'+uid,{...initialMember('m-'+uid,now),role:'editor'});
+  });
+  it('lets an anonymous editor save without a launch, admits public reads and denies nonleaders',async()=>{
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/liveSnapshots/latest')));
+    await assertFails(put('bob','liveSnapshots/latest',snapshot()));
+    await assertFails(put('bob','control/snapshotLease',lease('tab-b','m-bob')));
+    await assertFails(deleteDoc(doc(context().firestore(),'galaxies/g/liveSnapshots/latest')));
+  });
+  it('renews, fails over after expiry and fences the old writer',async()=>{
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await patch('galaxies/g/control/snapshotLease',{expiresAt:Date.now()-1});
+    await assertSucceeds(put('bob','control/snapshotLease',lease('tab-b','m-bob')));
+    await assertFails(put('alice','liveSnapshots/latest',snapshot()));
+    await assertSucceeds(put('bob','liveSnapshots/latest',snapshot('tab-b')));
+  });
+  it('denies stale, future, oversized and malformed writes, viewers, outsiders and frozen skies',async()=>{
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    for(const extra of [{generation:2},{kernel:'old'},{sequence:1},{tick:99999999},{encoding:'raw'},
+      {state:'x'.repeat(900001)},{replayHash:'bad'},{extra:true}])
+      await assertFails(put('alice','liveSnapshots/latest',snapshot('tab-a',extra)));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
+    await assertFails(put('alice','liveSnapshots/latest',snapshot()));
+    await assertFails(put('alice','control/snapshotLease',{...lease(),expiresAt:Date.now()+120000}));
+    await assertFails(put('outsider','control/snapshotLease',lease('other','m-other')));
+    await patch('galaxies/g/members/alice',{role:'viewer'});
+    await assertFails(put('alice','control/snapshotLease',lease()));
+    await patch('galaxies/g',{status:'frozen',writePolicy:'frozen'});
+    await assertFails(put('bob','control/snapshotLease',lease('tab-b','m-bob')));
+    await assertFails(put('alice','liveSnapshots/latest',snapshot('tab-a',{tick:121})));
+  });
+  it('keeps private snapshots unreadable outside membership and all lists closed',async()=>{
+    await patch('galaxies/g',{visibility:'invite-only',writePolicy:'members'});
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/liveSnapshots/latest')));
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
+    await assertFails(getDocs(collection(context().firestore(),'galaxies/g/liveSnapshots')));
+    await assertFails(put('alice','liveSnapshots/arbitrary',snapshot()));
+  });
+});
