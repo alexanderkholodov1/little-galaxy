@@ -53,6 +53,16 @@ it('matches all-pairs through cell boundaries, bounce chains and cooldown expiry
  sim.contacts.set('1:18',-1);sim.run(2400);expect(sim.bodies).toHaveLength(19);
 });
 
+it('prunes distant contact pairs instead of reading every body pair',()=>{
+ const sim=new Sim({halo:null,central:false});let reads=0;
+ for(let i=0;i<100;i++){
+  const b=sim.add({type:'planet',p:[i*10,0,0],v:[0,0,0]}),p=b.p;
+  Object.defineProperty(b,'p',{get(){reads++;return p;}});
+ }
+ reads=0;sim.touch();
+ expect(reads).toBeLessThan(1000);expect(sim.contacts.size).toBe(0);
+});
+
 it('rotates completed circular rails consistently with the universal solver and JSON restore',async()=>{
  const {propagate}=await import('../js/sim/index.js');const sim=new Sim();const b=sim.add({type:'planet',p:[7,0,0],v:[0,0,Math.sqrt(15/7)]});sim.run(120*370);
  for(const dt of [0,1,100,10000]){
