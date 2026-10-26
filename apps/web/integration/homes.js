@@ -1,14 +1,17 @@
-import {MASSES} from '@little-galaxy/shared';
+import {MASSES,LIMITS} from '@little-galaxy/shared';
 export const compact=kind=>['star','binary','pulsar','blackhole'].includes(kind);
 export function homeBudget(){return {bodies:0,mass:0,compact:0,giants:0,blackholes:0,ordinaryMass:0};}
 export function chooseHome(head,kind,preferred){
  const count=kind==='binary'?2:1,heavy=compact(kind)?count:0,mass=MASSES[kind];
  const fits=s=>s&&s.bodies+count<=32&&s.mass+mass<=3200000&&s.compact+heavy<=2&&s.giants+Number(kind==='giant')<=6&&s.blackholes+Number(kind==='blackhole')<=1&&s.ordinaryMass+(heavy?0:mass)<=200000;
+ if(head.bodies+count>LIMITS.bodies)throw new Error('Galaxy capacity');
  if(fits(head.systems[preferred]))return preferred;
  for(const [id,system] of Object.entries(head.systems))if(fits(system))return id;
- if(Object.keys(head.systems).length+Object.keys(head.reserves).length>=32)throw new Error('Every fire is full. Your star is still in your hand.');
- for(let i=0;i<32;i++)if(!head.systems[String(i)])return String(i);
- throw new Error('This sky is full. Your star is still in your hand.');
+ // Reserve cells are funded by existing bodies and never consume admission homes.
+ if(head.bodies+count+(heavy?0:1)<=LIMITS.bodies)
+  for(let i=0;i<LIMITS.systems;i++)if(!head.systems[String(i)])return String(i);
+ // A final ordinary body can share a home instead of charging an unnecessary nursery.
+ return head.systems[preferred]?preferred:Object.keys(head.systems)[0];
 }
 // Mirror only admitted budgets for routing hints; B1 rechecks every counter transactionally.
 export function observeAction(head,action){

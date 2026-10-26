@@ -56,3 +56,27 @@ it('waits if a funded destination has no replay anchor yet',()=>{
  world.sharedHomes.delete('3');
  expect(()=>routeLaunch(world,head,raw)).toThrow('shared sky catches up');
 });
+
+it.each(['bodies','mass','compact','giants','blackholes','ordinaryMass'])('routes past a home at its %s target',key=>{
+ const {head,world,raw}=fixture();
+ const ceiling={bodies:32,mass:3200000,compact:2,giants:6,blackholes:1,ordinaryMass:200000};
+ const kind={bodies:'planet',mass:'planet',compact:'star',giants:'giant',blackholes:'blackhole',ordinaryMass:'planet'};
+ head.systems['0'][key]=ceiling[key];raw.design.type=kind[key];
+ expect(routeLaunch(world,head,raw).launch.system).toBe('1');
+});
+it('founds another home beyond the former system and reserve allowance',()=>{
+ const {head,world,raw}=fixture();
+ for(let i=0;i<32;i++)head.systems[String(i)]={...budget,bodies:32};
+ for(let i=0;i<64;i++)head.reserves['r'+i]={...budget};
+ head.bodies=1024;head.mass=32000000;
+ expect(routeLaunch(world,head,raw).launch).toMatchObject({system:'32',anchor:0});
+});
+it('uses a parent home for moons even when that home has crossed a routing target',()=>{
+ const {head,world,raw}=fixture();head.systems['0'].bodies=32;raw.design.type='moon';
+ expect(routeLaunch(world,head,raw).launch).toMatchObject({system:'0',parent:'planet'});
+});
+it('refuses only the galaxy ceiling and uses the last physical slot without a nursery',()=>{
+ const {head,world,raw}=fixture();head.systems['0'].bodies=32;head.bodies=2047;
+ expect(routeLaunch(world,head,raw).launch.system).toBe('0');
+ head.bodies=2048;expect(()=>routeLaunch(world,head,raw)).toThrow('Galaxy capacity');
+});

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   MemoryGalaxyDriver,
   createGalaxyStore,
@@ -45,29 +45,22 @@ describe('admission contract', () => {
     expect(result.member.bodyIds).toEqual(['nonce1']);
     expect(result.head.mass).toBe(1_001_000);
   });
-  it.each(['mass', 'bodies', 'blackholes', 'sequence'])('rejects a full %s budget', async (key) => {
-    const c = context();
-    Object.assign(c.head, {
-      [key]: { mass: 96_000_000, bodies: 1024, blackholes: 4, sequence: 4096 }[key],
-    });
-    await expect(
-      prepareMutation(c, { ...launch, kind: key === 'blackholes' ? 'blackhole' : 'planet' }),
-    ).rejects.toThrow();
+  it('enforces only the physical galaxy ceiling and one-second launch pacing', async () => {
+    const c = context(); c.head.bodies = 2048;
+    await expect(prepareMutation(c, launch)).rejects.toThrow('Galaxy capacity');
+    c.head.bodies = 2047;
+    expect((await prepareMutation(c, launch)).head.bodies).toBe(2048);
+    c.head.bodies = 1; c.member = { ...member, lastLaunchAt: now - 999 };
+    await expect(prepareMutation(c, launch)).rejects.toThrow('Launch rate limit');
+    c.member.lastLaunchAt = now - 1000;
+    await expect(prepareMutation(c, launch)).resolves.toBeDefined();
   });
-  it('enforces player slots, mass, recipe and cooldown', async () => {
-    for (const delta of [
-      { bodyIds: ['a', 'b', 'c'] },
-      { mass: 3_100_000 },
-      { lastMutationAt: now - 1000 },
-      { blackholes: 1 },
-    ]) {
-      await expect(
-        prepareMutation(
-          { ...context(), member: { ...member, ...delta } },
-          { ...launch, kind: 'blackhole' },
-        ),
-      ).rejects.toThrow();
-    }
+  it('accepts past the former player, day, bucket and log ceilings', async () => {
+    const c = context();
+    Object.assign(c.head, {sequence:4096, tokens:0, dayMutations:900, dayLaunches:900, blackholes:4});
+    c.member = {...member,bodyIds:['a','b','c'], mass:3100000, blackholes:1, stellar:1, dayLaunches:6};
+    const r = await prepareMutation(c, {...launch,kind:'blackhole'});
+    expect(r.head.sequence).toBe(4097); expect(r.member.bodyIds).toHaveLength(4);
   });
   it('does not admit into frozen or archived galaxies', async () => {
     for (const status of ['frozen', 'archived'] as const)
@@ -75,33 +68,16 @@ describe('admission contract', () => {
         prepareMutation({ ...context(), galaxy: { ...galaxy, status } }, launch),
       ).rejects.toThrow();
   });
-  it('enforces token refill and the reserved first contribution budget', async () => {
-    const c = context();
-    c.head.tokens = 0;
-    await expect(prepareMutation(c, launch)).rejects.toThrow();
-    c.now += 2000;
-    await expect(prepareMutation(c, { ...launch, effectiveTick: 360 })).resolves.toBeDefined();
-    const d = context();
-    d.head.dayLaunches = 601;
-    d.member.dayLaunches = 1;
-    await expect(prepareMutation(d, launch)).rejects.toThrow();
-  });
-  it('limits system compact objects, giants and black holes', async () => {
-    for (const [kind, delta] of [
-      ['star', { compact: 2 }],
-      ['giant', { giants: 6 }],
-      ['blackhole', { blackholes: 1 }],
-    ] as const) {
-      const c = context();
-      Object.assign(c.head.systems['0'], delta);
-      await expect(prepareMutation(c, { ...launch, kind })).rejects.toThrow();
-    }
+  it('keeps system accounting exact when concurrent launches cross routing targets', async () => {
+    const c=context(); Object.assign(c.head.systems['0'], {bodies:32, compact:2, giants:6, blackholes:1});
+    const r=await prepareMutation(c,{...launch,kind:'blackhole'});
+    expect(r.head.systems['0']).toMatchObject({bodies:33,compact:3,blackholes:2});
   });
   it('rejects malformed vectors, unsafe integers and stale/far-future ticks', async () => {
     for (const input of [
       { ...launch, origin: [Infinity, 0] },
       { ...launch, seed: 0.5 },
-      { ...launch, effectiveTick: 0 },
+      { ...launch, effectiveTick: -1000 },
       { ...launch, effectiveTick: 99999 },
     ]) {
       await expect(prepareMutation(context(), input as typeof launch)).rejects.toThrow();
@@ -173,7 +149,7 @@ describe('GalaxyStore memory driver', () => {
   });
   it('rolls back failed launches without partial records', async () => {
     const { store, driver } = await fixture();
-    await expect(store.launch('g', { ...launch, effectiveTick: 99999 })).rejects.toThrow();
+    await expect(store.launch('g', { ...launch, seed: -1 })).rejects.toThrow();
     expect(await driver.get('galaxies/g/actions/nonce1')).toBeNull();
     expect((await driver.get('galaxies/g/control/head'))!.sequence).toBe(0);
   });
@@ -199,14 +175,12 @@ describe('GalaxyStore memory driver', () => {
     await store.setName('g', 'Cassidy Shittake');
     expect((await driver.get('galaxies/g/members/u'))!.displayName).toBe('Cassidy Shittake');
   });
-  it('refuses a rename within five minutes of the previous profile write', async () => {
-    const { store, driver } = await fixture();
-    await store.setName('g', 'Alice');
-    const m = (await driver.get('galaxies/g/members/u'))!;
-    await driver.seed('galaxies/g/members/u', { ...m, lastSeen: now - 60_000 });
-    await expect(store.setName('g', 'Bob')).rejects.toThrow('Profile cooldown');
-    await driver.seed('galaxies/g/members/u', { ...m, lastSeen: now - 300_000 });
-    await store.setName('g', 'Bob');
+  it('renames immediately before and after a launch without changing its pacing clock', async () => {
+    const {store,driver}=await fixture();
+    await store.setName('g','Alice'); await store.setName('g','Bob');
+    await store.launch('g',launch); await store.setName('g','Carol');
+    const m=await driver.get<import('./galaxy-store.js').Member>('galaxies/g/members/u');
+    expect(m?.displayName).toBe('Carol'); expect(m?.lastLaunchAt).toBe(now);
   });
 });
 
@@ -336,29 +310,18 @@ it('funds compact-object contingency cells without counting their physical mass 
       blackholes: 0,
       ordinaryMass: 0,
     };
-  await expect(prepareMutation(c, { ...launch, kind: 'star' })).rejects.toThrow();
+  await expect(prepareMutation(c, { ...launch, kind: 'star' })).resolves.toBeDefined();
 });
 
-it('charges edits to the same daily mutation ceiling and rolls over only in a real quota window', async () => {
-  const full = context();
-  full.head.dayMutations = 400;
-  await expect(prepareMutation(full, launch)).rejects.toThrow('Daily mutation budget');
-  full.head.window = 'yesterday';
-  expect((await prepareMutation(full, launch)).head.dayMutations).toBe(1);
-  const first = await prepareMutation(context(), launch);
-  const c = { ...context(), body: first.body };
-  c.member = { ...member, bodyIds: ['nonce1'] };
-  c.head.dayMutations = 399;
-  c.head.contributors = 300;
-  const edit = await prepareMutation(c, {
-    id: 'edit',
-    type: 'edit',
-    bodyId: 'nonce1',
-    design: { colour: 2 },
-    effectiveTick: 120,
+it('allows an immediate owner edit without consuming or resetting launch pacing', async () => {
+  const first=await prepareMutation(context(),launch);
+  const r=await prepareMutation({...context(),head:first.head,member:first.member,body:first.body}, {
+    id:'edit',type:'edit',bodyId:'nonce1',design:{colour:2},effectiveTick:121,
   });
-  expect(edit.head.dayMutations).toBe(400);
-  expect(edit.head.dayLaunches).toBe(0);
+  expect(r.member.lastLaunchAt).toBe(now);
+  await expect(prepareMutation({...context(),head:first.head,member:{...member,memberId:'other'},body:first.body}, {
+    id:'stolen',type:'edit',bodyId:'nonce1',design:{},effectiveTick:121,
+  })).rejects.toThrow('Body ownership');
 });
 
 it('namespaces binary component IDs so another valid nonce cannot collide with the second star', async () => {
@@ -442,4 +405,74 @@ it('ignores corrupt certified and phone caches even when their verifier throws',
   const loaded = await s.loadGalaxy('g');
   expect(loaded.checkpoint).toBeNull();
   expect(loaded.actions).toHaveLength(1);
+});
+
+ it('matches Web Crypto SHA-256 over canonical inputs without a secure context', async () => {
+   const inputs = [null, '', {}, { b: -0, a: [true, false, 1.25] }, 'Estrella 🌌 ñ',
+     ...[54, 55, 56, 63, 64, 65, 127, 128, 1024].map(n => 'x'.repeat(n))];
+   const expected = await Promise.all(inputs.map(canonicalHash));
+   try {
+     vi.stubGlobal('crypto', { subtle: undefined });
+     expect(await Promise.all(inputs.map(canonicalHash))).toEqual(expected);
+     vi.stubGlobal('crypto', undefined);
+     expect(await canonicalHash(inputs[4])).toBe(expected[4]);
+   } finally { vi.unstubAllGlobals(); }
+ });
+
+it('accepts the sixth, tenth and twentieth launch without pruning member inventory', async () => {
+  let clock=now;
+  const d=new MemoryGalaxyDriver();
+  await d.seed('config/live',{seasonOpen:true,activePublicGalaxyId:'g'});
+  await d.seed('galaxies/g',galaxy); await d.seed('galaxies/g/control/head',initialHead(now));
+  const s=createGalaxyStore(d,{uid:'u',memberId:'m1',now:()=>clock});
+  for(let n=1;n<=20;n++){
+    clock+=1000;
+    const a=await s.launch('g',{...launch,id:'launch-'+n});
+    if([6,10,20].includes(n))expect(a.sequence).toBe(n);
+  }
+  expect((await d.get<import('./galaxy-store.js').Member>('galaxies/g/members/u'))?.bodyIds).toHaveLength(20);
+});
+it('refreshes the anchored clock and tick on every transaction attempt after slow reads', async () => {
+  let clock=now;
+  const d=new MemoryGalaxyDriver();
+  await d.seed('config/live',{seasonOpen:true,activePublicGalaxyId:'g'});
+  await d.seed('galaxies/g',galaxy); await d.seed('galaxies/g/control/head',initialHead(now));
+  const original=d.transaction.bind(d), attempts: import('./galaxy-store.js').AcceptedAction[]=[];
+  d.transaction=async run=>{
+    await run({get:async path=>{clock+=1000; return d.get(path);},set:(path,value)=>{
+      if(path.includes('/actions/'))attempts.push(value as import('./galaxy-store.js').AcceptedAction);
+    }});
+    clock+=15000;
+    return original(run);
+  };
+  const s=createGalaxyStore(d,{uid:'u',memberId:'m1',now:()=>clock});
+  const a=await s.launch('g',launch);
+  expect(a.acceptedAt).toBe(clock);
+  expect(a.intent.effectiveTick).toBe(Math.ceil((clock-galaxy.epoch+2400)*.12));
+  expect(a.intent.effectiveTick).toBeGreaterThan(attempts[0].intent.effectiveTick);
+  expect(a.intent.id).toBe(attempts[0].intent.id);
+});
+it('keeps admission caches compact when head maps grow past 14K', async () => {
+  const d=new MemoryGalaxyDriver(); const h=initialHead(now);
+  for(let n=1;n<150;n++)h.systems[String(n)]={...h.systems['0']};
+  h.bodies=150; h.mass=150000000;
+  await d.seed('config/live',{seasonOpen:true,activePublicGalaxyId:'g'});
+  await d.seed('galaxies/g',galaxy); await d.seed('galaxies/g/control/head',h);
+  const s=createGalaxyStore(d,{uid:'u',memberId:'m1',now:()=>now});
+  await expect(s.launch('g',launch)).resolves.toBeDefined();
+});
+
+it.each([
+  {status:'frozen'}, {status:'archived'}, {writePolicy:'frozen'},
+])('refuses profile writes when the galaxy is read-only: %j', async patch => {
+  const d=new MemoryGalaxyDriver();
+  await d.seed('galaxies/g',{...galaxy,...patch});
+  const s=createGalaxyStore(d,{uid:'u',memberId:'m1',now:()=>now});
+  await expect(s.setName('g','Alice')).rejects.toThrow('read-only');
+});
+it('does not grant keepers permission to edit another member body', async () => {
+  const first=await prepareMutation(context(),launch);
+  await expect(prepareMutation({...context(),admin:true,body:first.body,member:{...member,memberId:'keeper'}},{
+    id:'edit',type:'edit',bodyId:'nonce1',design:{colour:2},effectiveTick:121,
+  })).rejects.toThrow('Body ownership');
 });

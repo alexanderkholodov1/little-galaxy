@@ -24,12 +24,12 @@ it('uses private name admission and public member labels for named and anonymous
  const {driver,adapter}=await fixture();expect(await adapter.setName('g','Ada')).toEqual({displayName:'Ada',anonymous:false});
  expect((await driver.get('galaxies/g/members/player')).displayName).toBe('Ada');expect(adapter.owner()).toBe('public-member');adapter.stop();
 });
-it('keeps the current name and explains the wait when a rename comes within five minutes',async()=>{
- const {adapter}=await fixture(),notices=[];const listen=({detail})=>notices.push(detail);addEventListener('galaxy:notice',listen);
+it('accepts consecutive renames and a rename immediately after launch',async()=>{
+ const {adapter}=await fixture();vi.spyOn(document,'hidden','get').mockReturnValue(false);
  await adapter.setName('g','Ada');
- expect(await adapter.setName('g','Grace')).toEqual({displayName:'Ada',anonymous:false});
- expect(notices).toEqual(['You can change your name again in a few minutes.']);
- removeEventListener('galaxy:notice',listen);adapter.stop();
+ expect(await adapter.setName('g','Grace')).toEqual({displayName:'Grace',anonymous:false});
+ await adapter.launch('g',{design:{type:'planet',seed:1,size:.5},origin:[7,0],velocity:[0,1.4],system:'0'});
+ expect(await adapter.setName('g','Caroline')).toEqual({displayName:'Caroline',anonymous:false});adapter.stop();
 });
 it('keeps a rude name off the sky and explains why',async()=>{
  const {driver,adapter}=await fixture(),notices=[];const listen=({detail})=>notices.push(detail);addEventListener('galaxy:notice',listen);
@@ -48,22 +48,18 @@ it('retries a committed launch after a lost acknowledgement and session reload w
  const draft=JSON.parse(localStorage.getItem('little-galaxy.launch:g'));adapter.stop();advance(10000);
  const returned=createSharedStore({session:async()=>backend});await returned.loadGalaxy();
  const accepted=await returned.launch('g',structuredClone(raw));
- expect(accepted.intent).toEqual(draft.intent);expect(accepted.sequence).toBe(1);
+ expect({...accepted.intent,effectiveTick:0}).toEqual(draft.intent);expect(accepted.sequence).toBe(1);
  expect((await driver.get('galaxies/g/control/head')).sequence).toBe(1);
  expect(await driver.list('galaxies/g/objects')).toHaveLength(1);
  expect(localStorage.getItem('little-galaxy.launch:g')).toBeNull();returned.stop();
 });
-it('refreshes an explicitly rejected stale tick while preserving the original launch identity and content',async()=>{
+it('submits an unscheduled draft and accepts a tick assigned after a delayed transaction start',async()=>{
  const {driver,adapter,backend,advance}=await fixture();vi.spyOn(document,'hidden','get').mockReturnValue(false);
- const launch=backend.store.launch.bind(backend.store),attempts=[];
+ const launch=backend.store.launch.bind(backend.store);
  vi.spyOn(backend.store,'launch').mockImplementation(async(id,intent)=>{
-  attempts.push(structuredClone(intent));
-  if(attempts.length===1){advance(10000);throw new Error('Resynchronize effective tick');}
-  return launch(id,intent);
+  expect(intent.effectiveTick).toBe(0);advance(10000);return launch(id,intent);
  });
  const raw={design:{type:'planet',seed:1,size:.5},origin:[7,0],velocity:[0,1.4],system:'0'};
  const accepted=await adapter.launch('g',raw);
- expect(attempts).toHaveLength(2);expect(attempts[1].effectiveTick).toBeGreaterThan(attempts[0].effectiveTick);
- expect({...attempts[1],effectiveTick:0}).toEqual({...attempts[0],effectiveTick:0});
- expect(accepted.sequence).toBe(1);expect((await driver.get('galaxies/g/control/head')).sequence).toBe(1);adapter.stop();
+ expect(accepted.intent.effectiveTick).toBe(1488);expect((await driver.get('galaxies/g/control/head')).sequence).toBe(1);adapter.stop();
 });

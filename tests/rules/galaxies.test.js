@@ -17,7 +17,6 @@ import {
   limit,
   where,
   writeBatch,
-  serverTimestamp,
 } from 'firebase/firestore';
 import {
   createGalaxyStore,
@@ -66,6 +65,34 @@ async function seed(path, data) {
 async function patch(path, data) {
   await env.withSecurityRulesDisabled((c) => updateDoc(doc(c.firestore(), path), data));
 }
+
+// Bypass client ownership while leaving the submitted member/body identity unchanged,
+// so these tests exercise the Firestore ownership/create boundary itself.
+function hostileBodyStore(uid, bodyId, phantom = null) {
+  const real = firestoreGalaxyDriver(context(uid).firestore());
+  let recordedOwner;
+  return createGalaxyStore({
+    ...real,
+    transaction: run => real.transaction(tx => run({
+      async get(path) {
+        const value = await tx.get(path);
+        if (path.endsWith('/members/' + uid)) return {...value, bodyIds:[bodyId]};
+        if (path.endsWith('/objects/' + bodyId)) {
+          recordedOwner = value?.memberId;
+          return {...(value ?? phantom), memberId:'m-' + uid};
+        }
+        return value;
+      },
+      set(path, value, mutation) {
+        if (path.endsWith('/members/' + uid)) value = {...value, bodyIds:[]};
+        if (path.endsWith('/objects/' + bodyId) && recordedOwner)
+          value = {...value, memberId:recordedOwner};
+        tx.set(path,value,mutation);
+      },
+    })),
+  }, {uid,memberId:'m-' + uid,now:()=>Date.now()});
+}
+
 beforeAll(async () => {
   const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
   env = await initializeTestEnvironment({
@@ -92,7 +119,7 @@ describe('atomic galaxy admission', () => {
     const local = await s.launch('g', i);
     const loaded = await s.loadGalaxy('g');
     const replay = new Replay({galaxy: {...loaded.galaxy, kernel: KERNEL}, actions: [local]});
-    replay.advanceTo(i.effectiveTick);
+    replay.advanceTo(local.intent.effectiveTick);
     // Firestore maps have no insertion-order contract. Mirror production normalization even
     // when this emulator happens to preserve the writer's field order.
     const reorder = value => Array.isArray(value) ? value.map(reorder) : value && typeof value === 'object'
@@ -101,7 +128,7 @@ describe('atomic galaxy admission', () => {
     // A lost commit acknowledgement can be retried from another session without another mutation.
     const returned = await store().launch('g', structuredClone(i));
     expect(() => replay.accept([returned])).not.toThrow();
-    replay.advanceTo(i.effectiveTick + 120);
+    replay.advanceTo(local.intent.effectiveTick + 120);
     expect(replay.entries.size).toBe(1);
     expect((await s.loadGalaxy('g')).head.sequence).toBe(1);
     await expect(store().launch('g', {...i, seed: i.seed + 1})).rejects.toThrow('Nonce already used');
@@ -134,13 +161,11 @@ describe('atomic galaxy admission', () => {
         expect(launch.origin.map((x,k)=>x+frame.p[k*2])).toEqual(raw.origin);
         expect(launch.velocity.map((x,k)=>x+frame.v[k*2])).toEqual(raw.velocity);
         if(kind==='moon')expect(launch.parent).toBe(`${site}-planet`);
-        // one galaxy token refills every 2 s: pace the burst like real players so slower CI runners do not drain it
-        await new Promise(resolve=>setTimeout(resolve,2100));
         const i=launchIntent(launch,liveGalaxy,Date.now(),head.effectiveTick);
         const accepted=await assertSucceeds(store(`${site}-${kind}`).launch('g',i));
-        first.accept([accepted]);first.advanceTo(i.effectiveTick);
+        first.accept([accepted]);first.advanceTo(accepted.intent.effectiveTick);
         await expect.poll(()=>received.some(a=>a.intent.id===i.id)).toBe(true);
-        second.accept(received);second.advanceTo(i.effectiveTick);
+        second.accept(received);second.advanceTo(accepted.intent.effectiveTick);
         expect(second.entries.get(second.ids.get(i.id))).toMatchObject({logical:i.id,home:i.system});
         expect(second.state()).toEqual(first.state());
       }
@@ -185,31 +210,20 @@ describe('atomic galaxy admission', () => {
     await patch('config/live', { activePublicGalaxyId: 'other' });
     await expect(store().launch('g', intent())).rejects.toThrow();
   });
-  it.each([
-    ['galaxy bodies', { bodies: 1024 }, {}, 'planet'],
-    ['galaxy mass', { mass: 96000000 }, {}, 'planet'],
-    ['galaxy black holes', { blackholes: 4 }, {}, 'blackhole'],
-    ['player slots', {}, { bodyIds: ['a', 'b', 'c'] }, 'planet'],
-    ['player mass', {}, { mass: 3100000 }, 'planet'],
-    ['player black hole', {}, { blackholes: 1 }, 'blackhole'],
-    ['stellar recipe', {}, { stellar: 1 }, 'star'],
-    ['daily player', {}, { dayLaunches: 6 }, 'planet'],
-    ['daily galaxy', { dayLaunches: 900 }, {}, 'planet'],
-    ['lifetime log', { sequence: 4096 }, {}, 'planet'],
-  ])('denies %s without partial documents', async (_, head, member, kind) => {
-    await patch('galaxies/g/control/head', head);
-    await seed('galaxies/g/members/alice', { ...initialMember('m-alice', now - 20000), ...member });
-    await expect(store().launch('g', intent('n1', { kind }))).rejects.toThrow();
-    expect((await getDoc(doc(context().firestore(), 'galaxies/g/actions/n1'))).exists()).toBe(
-      false,
-    );
+  it('refuses the physical galaxy ceiling without partial documents', async () => {
+    await patch('galaxies/g/control/head',{bodies:2048});
+    await expect(store().launch('g',intent())).rejects.toThrow('Galaxy capacity');
+    expect((await getDoc(doc(context().firestore(),'galaxies/g/actions/n1'))).exists()).toBe(false);
+  });
+  it('accepts beyond former player, daily and galaxy material limits', async () => {
+    await patch('galaxies/g/control/head',{tokens:0,dayLaunches:900,dayMutations:900,blackholes:4,lastBlackholeAt:Date.now()});
+    await seed('galaxies/g/members/alice',{...initialMember('m-alice',now),bodyIds:['a','b','c'],mass:3100000,blackholes:1,stellar:1,dayLaunches:6});
+    await assertSucceeds(store().launch('g',intent('more',{kind:'blackhole'})));
   });
   it('accepts black-hole mass and binary physical slots', async () => {
     const a = await store().launch('g', intent('hole', { kind: 'blackhole' }));
     expect(a.sequence).toBe(1);
-    await expect(
-      store('bob').launch('g', intent('hole2', { kind: 'blackhole' })),
-    ).rejects.toThrow();
+    await assertSucceeds(store('bob').launch('g', intent('hole2', { kind: 'blackhole',system:'1' })));
     await patch('galaxies/g/control/head', { tokens: 6, lastBlackholeAt: 0 });
     await assertSucceeds(
       store('carol').launch('g', intent('pair', { kind: 'binary', system: '1' })),
@@ -224,7 +238,8 @@ describe('atomic galaxy admission', () => {
       design: { colour: 2 },
       effectiveTick: intent().effectiveTick + 1,
     };
-    await expect(store('bob').edit('g', edit)).rejects.toThrow();
+    await store('bob').setName('g','Bob');
+    await assertFails(hostileBodyStore('bob','n1').edit('g',edit));
     await patch('galaxies/g/members/alice', {
       mutationTime: new Date(now - 20000),
       lastMutationAt: now - 20000,
@@ -233,44 +248,26 @@ describe('atomic galaxy admission', () => {
     const b = await getDoc(doc(context().firestore(), 'galaxies/g/objects/n1'));
     expect(b.data().launch.origin).toEqual([7000000, 0]);
   });
-  it('accepts five successive launches by one member and a moon from a member with two bodies', async () => {
-    const s = store();
-    for (let k = 1; k <= 5; k++) {
-      if (k > 1) {
-        await patch('galaxies/g/members/alice', {
-          mutationTime: new Date(Date.now() - 20000),
-          lastMutationAt: Date.now() - 20000,
-          ...(k > 3 ? { bodyIds: ['n1', 'n2'] } : {}),
-        });
-      }
-      await assertSucceeds(s.launch('g', intent(`n${k}`)));
+  it('accepts fifth, sixth, tenth and twentieth launches and a later moon under the expression limit', async () => {
+    const s=store();
+    for(let n=1;n<=20;n++){
+      if(n>1)await new Promise(resolve=>setTimeout(resolve,1050));
+      const a=await assertSucceeds(s.launch('g',intent('n'+n,{design:{size:500000,palette:2,oceans:500000,mountains:300000,clouds:300000,rings:0,atmosphere:1}})));
+      if([5,6,10,20].includes(n))expect(a.sequence).toBe(n);
     }
-    const bob = store('bob');
-    await patch('galaxies/g/control/head', {
-      tokens: 6,
-      bucketSlot: Math.floor(Date.now() / 2000),
-    });
-    await assertSucceeds(bob.launch('g', intent('b-planet', { kind: 'planet', system: '1' })));
-    await patch('galaxies/g/members/bob', {
-      mutationTime: new Date(Date.now() - 20000),
-      lastMutationAt: Date.now() - 20000,
-    });
-    await patch('galaxies/g/control/head', {
-      tokens: 6,
-      bucketSlot: Math.floor(Date.now() / 2000),
-    });
-    await assertSucceeds(bob.launch('g', intent('b-asteroid', { kind: 'asteroid', system: '1' })));
-    await patch('galaxies/g/members/bob', {
-      mutationTime: new Date(Date.now() - 20000),
-      lastMutationAt: Date.now() - 20000,
-    });
-    await patch('galaxies/g/control/head', {
-      tokens: 6,
-      bucketSlot: Math.floor(Date.now() / 2000),
-    });
-    await assertSucceeds(
-      bob.launch('g', intent('b-moon', { kind: 'moon', system: '1', parent: 'b-planet' })),
-    );
+    await new Promise(resolve=>setTimeout(resolve,1050));
+    await assertSucceeds(s.launch('g',intent('moon',{kind:'moon',parent:'n1'})));
+    expect((await s.loadGalaxy('g')).player.bodyIds).toHaveLength(21);
+  });
+  it('enforces server-timestamped one-second pacing even if the client removes its local check', async () => {
+    await store().launch('g',intent('first'));
+    const real=firestoreGalaxyDriver(context().firestore());
+    const hostile=createGalaxyStore({...real,transaction:run=>real.transaction(tx=>run({
+      get:async path=>{const value=await tx.get(path);return path.endsWith('/members/alice')?{...value,lastLaunchAt:0}:value;},set:tx.set,
+    }))},{uid:'alice',memberId:'m-alice',now:()=>Date.now()});
+    await assertFails(hostile.launch('g',intent('too-soon')));
+    await new Promise(resolve=>setTimeout(resolve,1050));
+    await assertSucceeds(store().launch('g',intent('later')));
   });
 });
 describe('privacy and administration', () => {
@@ -287,17 +284,10 @@ describe('privacy and administration', () => {
     await assertFails(updateDoc(doc(db, 'galaxies/g/members/alice'), { launches: 999 }));
     expect(await store().touch('g')).toBe(false);
   });
-  it('allows any profile write, rename included, only five minutes after the previous one', async () => {
-    await store().setName('g', 'Alice');
-    const member = doc(context().firestore(), 'galaxies/g/members/alice');
-    const rename = (displayName) =>
-      updateDoc(member, { displayName, lastSeen: Date.now(), updatedTime: serverTimestamp() });
-    await patch('galaxies/g/members/alice', { updatedTime: new Date(Date.now() - 16000) });
-    await assertFails(rename('Bob'));
-    await patch('galaxies/g/members/alice', { updatedTime: new Date(Date.now() - 299000) });
-    await assertFails(rename('Bob'));
-    await patch('galaxies/g/members/alice', { updatedTime: new Date(Date.now() - 301000) });
-    await assertSucceeds(rename('Bob'));
+  it('allows immediate renames, including directly after a launch', async () => {
+    await store().setName('g','Alice'); await store().setName('g','Bob');
+    await store().launch('g',intent()); await assertSucceeds(store().setName('g','Caroline'));
+    expect((await getDoc(doc(context().firestore(),'galaxies/g/members/alice'))).data().displayName).toBe('Caroline');
   });
   it.each([
     {},
@@ -350,7 +340,7 @@ describe('hostile clients bypassing adapter admission', () => {
           driver.transaction((tx) =>
             run({
               get: tx.get,
-              set: (path, data) => tx.set(path, modify(path, structuredClone(data))),
+              set: (path, data, mutation) => tx.set(path, modify(path, structuredClone(data)), mutation),
             }),
           ),
       },
@@ -397,8 +387,8 @@ describe('hostile clients bypassing adapter admission', () => {
             d.transaction((tx) =>
               run({
                 get: tx.get,
-                set: (p, v) => {
-                  if (!p.endsWith(suffix)) tx.set(p, v);
+                set: (p, v, mutation) => {
+                  if (!p.endsWith(suffix)) tx.set(p, v, mutation);
                 },
               }),
             ),
@@ -409,21 +399,10 @@ describe('hostile clients bypassing adapter admission', () => {
     }
   });
   it('refuses an edit that would create a body nobody launched', async () => {
-    const real = firestoreGalaxyDriver(context('mallory').firestore());
-    // A hostile client pretends the body exists so its own ownership precheck passes.
-    const ghost = { id: 'ghost', memberId: 'm-mallory', kind: 'planet', system: '0', parent: '',
-      moons: 0, design: {}, tombstone: false, lastAction: '' };
-    const s = createGalaxyStore(
-      {
-        ...real,
-        transaction: (run) =>
-          real.transaction((tx) =>
-            run({ get: (p) => (p.endsWith('/objects/ghost') ? ghost : tx.get(p)), set: tx.set }),
-          ),
-      },
-      { uid: 'mallory', memberId: 'm-mallory', now: () => Date.now(), admin: true },
-    );
-    await store('mallory').setName('g', 'Mallory');
+    const ghost = {id:'ghost',memberId:'m-mallory',kind:'planet',system:'0',parent:'',
+      moons:0,design:{},tombstone:false,lastAction:''};
+    await store('mallory').setName('g','Mallory');
+    const s=hostileBodyStore('mallory','ghost',ghost);
     const edit = { id: 'evil', type: 'edit', bodyId: 'ghost', design: { colour: 1 } };
     await assertFails(s.edit('g', { ...edit, effectiveTick: intent().effectiveTick }));
     expect((await getDoc(doc(context().firestore(), 'galaxies/g/actions/evil'))).exists()).toBe(
@@ -585,7 +564,7 @@ describe('remaining role, system and read boundaries', () => {
       }),
     );
   });
-  it('admits two moons with reciprocal parent changes and retains player entitlements after admin removal', async () => {
+  it('admits moons with reciprocal parent changes and retains ownership after admin removal', async () => {
     await store().launch('g', intent('planet'));
     await assertSucceeds(
       store('bob').launch('g', intent('moon1', { kind: 'moon', parent: 'planet' })),
@@ -593,9 +572,7 @@ describe('remaining role, system and read boundaries', () => {
     await assertSucceeds(
       store('carol').launch('g', intent('moon2', { kind: 'moon', parent: 'planet' })),
     );
-    await expect(
-      store('dave').launch('g', intent('moon3', { kind: 'moon', parent: 'planet' })),
-    ).rejects.toThrow();
+    await assertSucceeds(store('dave').launch('g', intent('moon3', { kind: 'moon', parent: 'planet' })));
     const a = store('operator', provider, true);
     await expect(
       a.admin.remove('g', {
@@ -699,10 +676,10 @@ it('anchors a skewed device through authenticated emulator REST readTime', async
 
 it('serializes twenty real phones racing for the last galaxy slot without partial records', async () => {
   const h = initialHead(Date.now());
-  h.bodies = 1023;
+  h.bodies = 2047;
   h.mass = 32991000;
   h.systems = Object.fromEntries(
-    Array.from({ length: 32 }, (_, i) => [
+    Array.from({ length: 64 }, (_, i) => [
       String(i),
       {
         bodies: i === 0 ? 31 : 32,
@@ -763,7 +740,7 @@ it('serializes twenty real phones racing for the last galaxy slot without partia
     const db = c.firestore();
     expect((await getDocs(collection(db, 'galaxies/g/actions'))).size).toBe(1);
     expect((await getDocs(collection(db, 'galaxies/g/members'))).size).toBe(1);
-    expect((await getDoc(doc(db, 'galaxies/g/control/head'))).data().bodies).toBe(1024);
+    expect((await getDoc(doc(db, 'galaxies/g/control/head'))).data().bodies).toBe(2048);
     expect((await getDoc(doc(db, 'galaxies/g/logPages/0'))).data().entries).toHaveLength(64);
   });
 });
@@ -777,8 +754,8 @@ it('rejects a forged historical first-seen date on first participation', async (
         driver.transaction((tx) =>
           run({
             get: tx.get,
-            set: (path, data) =>
-              tx.set(path, path.endsWith('/members/alice') ? { ...data, firstSeen: 0 } : data),
+            set: (path, data, mutation) =>
+              tx.set(path, path.endsWith('/members/alice') ? { ...data, firstSeen: 0 } : data, mutation),
           }),
         ),
     },
@@ -904,4 +881,62 @@ it('lets read-only booth and replay viewers read the public selection without cr
   await assertSucceeds(getDoc(doc(db,'config/live')));
   await assertFails(getDoc(doc(db,'config/admins')));
   await assertFails(updateDoc(doc(db,'config/live'),{boothGalaxyId:'other'}));
+});
+
+it('continues into a new log page beyond sequence 4096', async () => {
+  await patch('galaxies/g/control/head',{sequence:4096});
+  const accepted=await assertSucceeds(store().launch('g',intent()));
+  expect(accepted.sequence).toBe(4097);
+  expect((await getDoc(doc(context().firestore(),'galaxies/g/logPages/64'))).data().entries).toHaveLength(1);
+});
+it('preserves the entire old page prefix against rewriting an older entry', async () => {
+  await store().launch('g',intent('first'));
+  await store('bob').launch('g',intent('second'));
+  const real=firestoreGalaxyDriver(context('carol').firestore());
+  const hostile=createGalaxyStore({...real,transaction:run=>real.transaction(tx=>run({
+    get:async path=>{
+      const value=await tx.get(path);
+      if(path.endsWith('/logPages/0'))value.entries[0].displayName='Forged';
+      return value;
+    },set:tx.set,
+  }))},{uid:'carol',memberId:'m-carol',now:()=>Date.now()});
+  await assertFails(hostile.launch('g',intent('third')));
+});
+it.each([{status:'frozen'},{status:'archived'},{writePolicy:'frozen'}])(
+  'enforces lifecycle in rules against a forged client manifest %j', async patchFields => {
+    await patch('galaxies/g',patchFields);
+    const real=firestoreGalaxyDriver(context().firestore());
+    const hostile=createGalaxyStore({...real,transaction:run=>real.transaction(tx=>run({
+      get:async path=>{
+        const value=await tx.get(path);
+        return path==='galaxies/g'?{...value,status:'active',writePolicy:'public'}:value;
+      },set:tx.set,
+    }))},{uid:'alice',memberId:'m-alice',now:()=>Date.now()});
+    await assertFails(hostile.launch('g',intent()));
+    await assertFails(hostile.setName('g','Alice'));
+  },
+);
+
+it('accepts an already-open phone without new member fields or frozen bucket telemetry', async () => {
+  const real=firestoreGalaxyDriver(context().firestore());
+  const legacy=createGalaxyStore({...real,transaction:run=>real.transaction(tx=>run({
+    get:tx.get,
+    set(path,value){
+      if(path.endsWith('/members/alice')){
+        value={...value};delete value.lastLaunchAt;
+      }
+      if(path.endsWith('/control/head'))value={...value,tokens:5,bucketSlot:Math.floor(Date.now()/2000)};
+      tx.set(path,value);
+    },
+  }))},{uid:'alice',memberId:'m-alice',now:()=>Date.now()});
+  await assertSucceeds(legacy.launch('g',intent('old-phone')));
+});
+it('does not reset the server launch clock on immediate edits or names', async () => {
+  const s=store();
+  await s.launch('g',intent('planet'));
+  const path=doc(context().firestore(),'galaxies/g/members/alice');
+  const before=(await getDoc(path)).data().mutationTime.toMillis();
+  await assertSucceeds(s.edit('g',{id:'edit',type:'edit',bodyId:'planet',design:{colour:2},effectiveTick:0}));
+  await assertSucceeds(s.setName('g','Alice'));
+  expect((await getDoc(path)).data().mutationTime.toMillis()).toBe(before);
 });

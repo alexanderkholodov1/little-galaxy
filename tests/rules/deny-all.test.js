@@ -5,7 +5,7 @@ import { collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, setDoc, u
 
 let environment;
 const projectId = 'demo-little-galaxy';
-const paths = ['probe/existing', 'probe/existing/nested/existing', 'migrations/sky-v1'];
+const paths = ['probe/existing', 'probe/existing/nested/existing', 'migrations/sky-v1', 'arbitrary/player-write', 'galaxies/g/unrecognized/document'];
 // No domain document schemas exist yet. Exercise the existing shared VersionFile contract.
 /** @type {import('../../packages/shared/src/index.ts').VersionFile} */
 const fixture = { version: '0.1.0', commit: null, builtAt: '2026-10-15T00:00:00.000Z' };
