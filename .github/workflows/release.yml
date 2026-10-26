@@ -53,6 +53,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.guard.outputs.commit }}
+          fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -64,6 +66,7 @@ jobs:
       - name: Build the exact released commit and run the privacy gate
         env:
           GITHUB_SHA: ${{ needs.guard.outputs.commit }}
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
           VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
@@ -101,6 +104,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.guard.outputs.commit }}
+          fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -156,6 +161,7 @@ jobs:
         timeout-minutes: 9
         env:
           RELEASE_COMMIT: ${{ needs.guard.outputs.commit }}
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
         run: node scripts/verify-live-version.js
 
   deploy-rules:
@@ -175,6 +181,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.guard.outputs.commit }}
+          fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

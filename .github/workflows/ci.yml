@@ -25,10 +25,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
-      - name: Refuse an already tagged shipping version
+      - name: Show the automatic release version
         env:
           RELEASE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/check-release-version.js
+        run: node scripts/check-release-version.js --preview
 
   checks:
     uses: ./.github/workflows/checks.yml

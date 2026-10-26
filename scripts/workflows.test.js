@@ -25,7 +25,7 @@ it('releases token-created tags through the reusable workflow and preserves exte
   const merge = await read('.github/workflows/release-on-merge.yml');
   const release = await read('.github/workflows/release.yml');
   expect(merge).toContain('branches: [main]');
-  expect(merge).toContain('run: node scripts/verify-release.js --plan');
+  expect(merge).toContain('run: node scripts/check-release-version.js');
   expect(merge).toContain("if: needs.tag.outputs.create == 'true'");
   expect(merge).toContain('uses: ./.github/workflows/release.yml');
   expect(merge).toContain('-f "sha=$GITHUB_SHA"');
@@ -49,9 +49,16 @@ it('protects reviewed controls and cleans credentials even after failure', async
 it.each([['ci.yml', 'release-version'], ['release-on-merge.yml', 'tag'], ['release.yml', 'guard']])(
   '%s fetches tags explicitly for its %s job', async (file, job) => {
     const workflow = await read('.github/workflows/' + file);
-    const body = workflow.split('\n  ' + job + ':\n')[1].split(/\n  [a-z-]+:\n/u)[0];
+    const body = workflow.split('\n  ' + job + ':\n')[1].split(/\n {2}[a-z-]+:\n/u)[0];
     const checkout = body.split('uses: actions/checkout@')[1].split('\n      - ')[0];
     expect(checkout).toContain('fetch-depth: 0');
     expect(checkout).toContain('fetch-tags: true');
   },
 );
+
+it('passes the release tag through Turbo to Vite and confirms production with the same tag', async () => {
+  const release = await read('.github/workflows/release.yml');
+  expect(release.match(/RELEASE_TAG: \$\{\{ needs.guard.outputs.tag \}\}/gu).length).toBeGreaterThanOrEqual(7);
+  expect(JSON.parse(await read('turbo.json')).tasks.build.env).toContain('RELEASE_TAG');
+  expect(await read('.github/workflows/ci.yml')).toContain('node scripts/check-release-version.js --preview');
+});

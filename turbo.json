@@ -1,8 +1,8 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["tsconfig.base.json", "eslint.config.js", "apps/web/eslint.web.js", "vitest.config.js"],
+  "globalDependencies": ["tsconfig.base.json", "eslint.config.js", "apps/web/eslint.web.js", "vitest.config.js", "scripts/release-version.js"],
   "tasks": {
-    "build": { "outputs": ["dist/**"], "env": ["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID", "VITE_FIREBASE_STORAGE_BUCKET", "VITE_FIREBASE_MESSAGING_SENDER_ID", "VITE_FIREBASE_APP_ID", "GITHUB_SHA"], "cache": false },
+    "build": { "outputs": ["dist/**"], "env": ["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID", "VITE_FIREBASE_STORAGE_BUCKET", "VITE_FIREBASE_MESSAGING_SENDER_ID", "VITE_FIREBASE_APP_ID", "GITHUB_SHA", "RELEASE_TAG"], "cache": false },
     "typecheck": { "dependsOn": ["^typecheck"], "outputs": [] },
     "lint": { "outputs": [] },
     "test": { "dependsOn": ["^test"], "outputs": [] }

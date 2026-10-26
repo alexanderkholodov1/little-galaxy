@@ -2,14 +2,17 @@ import { appendFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { validateReleaseTag } from './release-version.js';
 
 export const liveVersionURL = 'https://alexanderkholodov.web.app/little-galaxy/version.json';
 
 export async function waitForLiveVersion(commit, {
   fetchVersion = fetch, sleep = delay, now = Date.now,
   timeoutMs = 480000, intervalMs = 5000, log = console.log,
+  tag,
 } = {}) {
   if (!/^[a-f0-9]{40}$/u.test(commit || '')) throw new Error('A full released commit SHA is required.');
+  if (tag) validateReleaseTag(tag);
   const deadline = now() + timeoutMs;
   let last;
   do {
@@ -21,11 +24,11 @@ export async function waitForLiveVersion(commit, {
       if (!response.ok) last = 'HTTP ' + response.status;
       else {
         const metadata = await response.json();
-        if (metadata.commit === commit) {
-          log('Production confirms released commit ' + commit + '.');
+        if (metadata.commit === commit && (!tag || metadata.version === tag.slice(1))) {
+          log('Production confirms ' + (tag ? tag + ' at ' : 'released commit ') + commit + '.');
           return;
         }
-        last = 'served commit ' + String(metadata.commit ?? 'missing');
+        last = 'served commit ' + String(metadata.commit ?? 'missing') + ', version ' + String(metadata.version ?? 'missing');
       }
     } catch (error) { last = error.message; }
     log('Waiting for production: ' + last);
@@ -38,8 +41,9 @@ export async function waitForLiveVersion(commit, {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   try {
-    await waitForLiveVersion(process.env.RELEASE_COMMIT);
-    if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, 'Production confirmed released commit ' + process.env.RELEASE_COMMIT + '.\n');
+    if (!process.env.RELEASE_TAG) throw new Error('RELEASE_TAG is required for production release confirmation.');
+    await waitForLiveVersion(process.env.RELEASE_COMMIT, { tag: process.env.RELEASE_TAG });
+    if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, 'Production confirmed ' + process.env.RELEASE_TAG + ' at commit ' + process.env.RELEASE_COMMIT + '.\n');
   } catch (error) {
     console.error('::error::' + error.message);
     if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, error.message + '\n');

@@ -39,7 +39,7 @@ if (args[0] === 'release' && args[1] === 'download') {
     // Re-running a failed publish job reuses verified bytes and repeats no create/upload.
     await writeFile(path.join(root, `galaxy-dist-${tag}.tar.gz`), 'checked bytes');
     await writeFile(path.join(root, 'version.json'), '{}');
-    const sums = execFileSync('sha256sum', [`galaxy-dist-${tag}.tar.gz`, 'version.json'], { cwd: root });
+    const sums = execFileSync('sha256sum', [`galaxy-dist-${tag}.tar.gz`, 'version.json'], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
     await writeFile(path.join(root, 'SHA256SUMS'), sums);
     const retry = runStep('Publish GitHub Release', { EXISTING: 'true' });
     expect(retry.stderr).toBe(''); expect(retry.status).toBe(0);

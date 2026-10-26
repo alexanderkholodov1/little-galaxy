@@ -397,15 +397,15 @@ See [live-sky.md](live-sky.md) for quota assumptions and failure boundaries.
 
 ### Release path: merge and approve in GitHub
 
-Only the operator merges the version PR. A push to main reads `apps/web/package.json`:
-if `v<version>` already exists it skips with an Actions notice and run summary; otherwise CI creates that exact tag
-on the merge commit and calls the full release workflow directly. No polling
-machine, laptop key, terminal command or manual tag is part of this path.
-External tag pushes still invoke the same release workflow; guards require the
-exact package version and a commit on main. Alpha and beta releases are prereleases.
+Merge the reviewed milestone PR. A shipping push to main chooses its version from the exact
+commit's first-parent count: `v1.0.0-alpha.H`. No package bump or manual tag is needed; the PR check
+shows a forecast and main computes the final tag. Existing tags on the same commit resume the
+release instead of skipping it. Docs-only changes skip explicitly. See
+[automatic releases](automatic-releases.md) for inputs, forecasts and tag compatibility.
+External tag pushes must match the automatic version and main's first-parent history.
 
 1. Merge the reviewed PR. Follow **Release on merge** in GitHub Actions. All normal
-   checks and the privacy gate run before the data-project job.
+   PR checks have already run; the exact release build and privacy gate run before the data-project job.
 2. Approve the existing **little-galaxy-rules** environment when GitHub requests it.
    The job uses the existing `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY` secret.
    If `config/live` is missing, the release creates the documented defaults below
@@ -474,14 +474,12 @@ changed, do not clear that field: keep the season closed and recover through a
 successful current release. Direct Console edits bypass emergency-close coordination;
 use `flag seasonOpen off` first if restoration must remain closed.
 
-Both deployment and publication fetch the current tip of `main` and refuse unless
-the tag equals `v` plus its web package version. Dispatch rechecks this boundary.
-Historical `v1.0.0` and `v1.0.1` tags do not determine the current alpha version.
-A stale run must remain red: run the current version's release instead. Releases
-serialize their data jobs in `galaxy-sky-releases`; controls have no concurrency
-pending slot and cannot be cancelled by a queued release. GitHub can still replace
-an older pending **release** with a newer release: inspect cancelled release jobs
-and retry only if the exact current-main version guard permits it.
+Deployment, publication and dispatch fetch current main and verify the tagged commit and its
+automatic version. They refuse a release superseded by newer shipping changes; later docs-only
+merges do not block it. Historical stable tags do not determine the current alpha version.
+A stale run remains red: finish the newest shipping release instead. Data jobs serialize in
+`galaxy-sky-releases`; controls have no concurrency pending slot. GitHub can replace an older pending
+data job: inspect cancelled jobs and retry only if the fresh-main guard permits it.
 
 Known alpha limitations from review:
 - **MINOR-1:** the workflow's main-branch `if` is a convenience, not a security
@@ -650,13 +648,15 @@ provisioning and physical failover remain operator acceptance; migration is auto
 
 ## 12. Exact-tag release dispatch (chain b)
 
-A merge to main creates a missing package-version tag in CI and calls `release.yml`
-with that exact tag. Tags remain immutable; an existing version is skipped.
-`verify-release.js` accepts stable `vX.Y.Z` or `vX.Y.Z-alpha.N`/`vX.Y.Z-beta.N`
-(positive non-zero-padded N), exactly matching the web package version. The tagged
-commit must belong to main. All checkout/build/deploy jobs use the verified tag's
-commit, including reusable calls whose event ref is main. Alpha/beta publication
-uses `--prerelease --latest=false`, preserving the stable latest release.
+A shipping merge creates an automatic exact-commit tag and calls `release.yml`; retries reuse
+that tag and resume the workflow. Tags remain immutable. The guard requires the automatic
+`v1.0.0-alpha.H` for the tagged commit and main's first-parent history. Numeric dotted alpha/beta
+levels are also valid tag syntax; the receiver regex is documented in
+[automatic releases](automatic-releases.md#portfolio-receiver-pattern). All checkout/build/deploy
+jobs use the verified commit, including reusable calls whose event ref is main. `RELEASE_TAG`
+stamps Vite runtime constants and `version.json`; package.json does not allocate releases.
+Alpha/beta publication uses `--prerelease --latest=false`. The final production poll requires the
+released commit and version together, failing loudly after eight minutes if either differs.
 
 Only after `gh release create` succeeds, the final publish step posts:
 

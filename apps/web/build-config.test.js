@@ -20,6 +20,16 @@ describe('production environment guard', () => {
 });
 
 describe('version file used by the Vite plugin', () => {
+  it('stamps the released tag instead of the unchanged package version', () => {
+    const metadata = createVersionFile({ version: '1.0.0-alpha.1' }, {
+      RELEASE_TAG: 'v1.0.0-alpha.9.4.1', GITHUB_SHA: 'a'.repeat(40),
+    }, vi.fn());
+    expect(metadata).toMatchObject({ version: '1.0.0-alpha.9.4.1', commit: 'a'.repeat(40) });
+  });
+  it('refuses a malformed release tag or missing release commit', () => {
+    expect(() => createVersionFile({}, { RELEASE_TAG: 'main' }, vi.fn())).toThrow('Release tag');
+    expect(() => createVersionFile({}, { RELEASE_TAG: 'v1.0.0-alpha.20' }, vi.fn())).toThrow('full commit SHA');
+  });
   it('uses the package version, CI commit and actual build time', () => {
     vi.useFakeTimers().setSystemTime(new Date('2026-10-15T00:00:00Z'));
     const git = vi.fn();

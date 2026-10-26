@@ -189,8 +189,8 @@ the exact release commit without repeating the PR test suite.
 
 `pnpm run test:rules` runs only `galaxies.test.js` and `deny-all.test.js`: ownership, reciprocal
 admission, immutable history, lifecycle/keeper permissions and catch-all denial. `pnpm run test:ui`
-checks welcome, name, two launches, a fresh browser reading both, background freeze/resume, and phone
-layout in light/dark themes. It waits for accepted state, not fixed delays. The retired users/objects/events,
+checks welcome, name, two launches, a fresh browser reading both, background freeze/resume, phone
+layout in light/dark themes, Google keeper refusal/acceptance, and booth selection with its join QR. It waits for accepted state, not fixed delays. The retired users/objects/events,
 stand enrichment, load/drill and quota-probe suites are removed. Current stand release migrations,
 emergency controls, privacy and publication safeguards retain their fast regression tests.
 
@@ -199,12 +199,19 @@ emergency controls, privacy and publication safeguards retain their fast regress
 when changing version/chunk recovery, then verify a deployed preview and actual phones. Browser freeze
 simulation and a phone-sized viewport do not certify hardware behavior.
 
-The PR check **This merge can reach production** compares the full PR diff and fetched tags. If
-`apps/web`, `packages/shared`, or `firestore.rules` changes with an already-tagged web version, it fails:
-**this merge will not reach production: bump apps/web/package.json**. Require this check and all three
-check jobs in branch protection. The merge workflow repeats the guard before tag creation to catch
-races or direct pushes. Docs-only merges do not require a bump. This work deliberately leaves version
-fields to the release coordinator.
+Shipping merges now choose `v1.0.0-alpha.H` automatically, where H is the merged commit's position
+in main's first-parent history. Nobody edits a version field, label or counter. The PR check
+**This merge can reach production** shows the forecast version in its Actions summary (base H + 1
+for merge/squash); main recalculates after merge. A newer base or multi-commit rebase can change the
+forecast. Package versions remain development metadata. Require this check and the three check jobs
+in branch protection. Docs-only merges show an explicit no-release result. The shipping filter
+includes web/shared/stand code, database rules/indexes/config, dependencies and build/release tooling.
+See [automatic releases](docs/automatic-releases.md) for the allocation, retries and receiver contract.
+
+On Windows the rules, UI and live-safety runners keep an emulator owner alive until the suite ends,
+then stop its full process tree with `taskkill /PID <pid> /T /F`, including after errors or Ctrl+C.
+POSIX keeps Firebase's `emulators:exec` lifecycle. Occupied emulator ports fail before startup;
+Windows also requires the local hub port 4400 to be free.
 
 The checked build is uploaded as `galaxy-dist`. Same-repository PRs pass it to a separate `preview`
 environment job, which never checks out or executes PR code and deploys only the expiring `pr-<number>`
@@ -212,18 +219,20 @@ channel. Missing preview credentials produce a notice; fork PRs never enter that
 read-only hosted smoke, set `BASE_URL` to the deployed origin and run `pnpm run test:ui`; it blocks
 identity creation and writes.
 
-On merge, the package version becomes an exact-commit `v*` tag. A release tag must match the web
-version and be contained in `main`. The release builds with the production public config and privacy
-gate, packs `galaxy-dist-vX.Y.Z.tar.gz`, and attaches `version.json` and `SHA256SUMS`. The
-`little-galaxy-rules` environment retains required operator review before deploying rules and indexes
+On merge, the automatic version becomes an exact-commit tag. An existing tag on the same commit
+resumes the release; it never silently skips shipping changes. The guard verifies the automatic
+version and main first-parent history. The build passes `RELEASE_TAG` through Turbo into Vite to
+stamp the runtime and `version.json`, independently of package.json. It builds with the production
+public config and privacy gate, packs `galaxy-dist-<tag>.tar.gz`, and attaches `version.json` and
+`SHA256SUMS`. The `little-galaxy-rules` environment retains required operator review before deploying rules and indexes
 with the current galaxy migration and season restoration. Keep the operator configured as its required
 reviewer. No PR tests run again during release.
 
 After the rules are live, publication verifies existing assets on retry and dispatches `galaxy-release`
 with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`. The final release step polls
 `https://alexanderkholodov.web.app/little-galaxy/version.json` with cache bypass, every five seconds
-for at most eight minutes. Only the exact released commit succeeds; HTTP errors, stale metadata and
-missing dispatch/deployment fail the workflow with **RELEASE NOT LIVE** and a recovery message.
+for at most eight minutes. Only the exact released commit and stamped version succeed; HTTP errors,
+stale metadata and missing dispatch/deployment fail with **RELEASE NOT LIVE** and a recovery message.
 Only the portfolio deploys production Hosting and performs Hosting rollback; see the
 [release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure).
 

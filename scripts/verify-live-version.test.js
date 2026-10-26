@@ -33,3 +33,8 @@ it('rejects a missing or abbreviated release SHA before sending requests', async
   await expect(waitForLiveVersion('abc', options)).rejects.toThrow('full released commit');
   expect(options.fetchVersion).not.toHaveBeenCalled();
 });
+it('requires the stamped release version as well as the exact commit when a tag is supplied', async () => {
+  const options = fixture([{ commit, version: '1.0.0-alpha.1' }, { commit, version: '1.0.0-alpha.20' }]);
+  await waitForLiveVersion(commit, { ...options, tag: 'v1.0.0-alpha.20' });
+  expect(options.fetchVersion).toHaveBeenCalledTimes(2);
+});

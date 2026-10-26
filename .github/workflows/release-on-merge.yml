@@ -31,15 +31,13 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
-      - name: Refuse a shipping merge that cannot release
+      - name: Choose the automatic version for this merged commit
+        id: plan
         env:
           RELEASE_BASE_SHA: ${{ github.event.before }}
         run: node scripts/check-release-version.js
-      - name: Decide from the merged package version and existing tags
-        id: plan
-        run: node scripts/verify-release.js --plan
       - name: Tag the exact merge commit
-        if: steps.plan.outputs.create == 'true'
+        if: steps.plan.outputs.create == 'true' && steps.plan.outputs.tag_exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.plan.outputs.tag }}

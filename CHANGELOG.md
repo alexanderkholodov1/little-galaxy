@@ -1,5 +1,17 @@
 # Changelog
 
+## Automatic release and A4 cleanup — 2026-10-25
+
+- Allocate shipping merge versions from main's first-parent history, show the forecast in PR checks,
+  stamp the exact release tag into the build and confirm both version and commit in production.
+- Resume existing exact-commit tags on retries; remove the manual package-version gate and reject
+  shallow history, tag collisions and stale shipping releases. Include all current build/deploy inputs.
+- Keep Windows emulator ownership through test completion and stop its full tree after success,
+  failures or interruption; route rules tests through the same cleanup. POSIX retains emulators:exec.
+- Retain the prior fix round's explicit tag fetch, index/config shipping regressions and admin/booth journey.
+- Document the design, operational boundaries and exact portfolio receiver regex in
+  `docs/automatic-releases.md`; portfolio's separate plan/CHANGELOG must record its receiver update.
+
 ## 1.0.0-alpha.3–8 — 2026-10-25, during the fair (operator's orders)
 
 - alpha.3: release PR #13's fixes, which its merge had not released (the version had not been bumped); the release
