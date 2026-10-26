@@ -373,3 +373,14 @@ benchmark, reduced replay lifetime and contact-cost regression. The final report
 separately. All commits use the operator's author identity. Nothing was pushed or deployed.
 No preview/real-phone or V8/JavaScriptCore/SpiderMonkey comparison has been performed; local
 arithmetic construction and empirical V8 accuracy do not replace those deployment checks.
+
+## Hito A integration — 2026-10-26
+
+A1's friction-free home routing and A2's deterministic hybrid simulation are combined with A4's
+checks and releases. The kernel fingerprint was recomputed using the current allowlisted simulation
+files in `scripts/sync-prototype.mjs` order, then the named replay/home/name integration files and
+shared names source, following that script's SHA-256 recipe. The A2-only identity
+`proto3-a7309c9242d1a8d6a8308f9201860dae09b78ee7992a7e6af9f95c59ef2eceed` reproduces exactly before integration; A1's changed
+`homes.js` makes the integrated identity `proto3-1abd3a0c4e19d4217695088203b6bb16a8793c13261fd3d1dc798d2581989f37`.
+The frozen fair galaxy must retain its historical kernel identity; the generation migration
+requirements above still apply. No physics or admission behavior was changed by integration.
