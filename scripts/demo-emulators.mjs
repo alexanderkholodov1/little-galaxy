@@ -1,10 +1,13 @@
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
 
 export function run(command, args, env = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: 'inherit', env: { ...process.env, ...env } });
+    // pnpm run supplies its JS entry: use Node to preserve arguments and paths on Windows.
+    const pnpmEntry = command === 'pnpm' && process.env.npm_execpath;
+    const child = spawn(pnpmEntry ? process.execPath : command, pnpmEntry ? [pnpmEntry, ...args] : args, {
+      stdio: 'inherit', shell: process.platform === 'win32' && !pnpmEntry, env: { ...process.env, ...env },
+    });
     child.on('error', reject);
     child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`${command} exited ${code}`)));
   });
@@ -27,9 +30,8 @@ function portFree(port) {
   });
 }
 export async function waitForDemoPorts() {
-  while (!(await portFree(8080)) || !(await portFree(9099))) {
-    console.log('Demo emulator ports busy; waiting without disturbing their owner.');
-    await delay(15000);
+  if (!(await portFree(8080)) || !(await portFree(9099))) {
+    throw new Error('Demo emulator ports 8080/9099 are busy. Stop the existing emulators before running this suite.');
   }
 }
 export async function runDemo(command, env = {}) {

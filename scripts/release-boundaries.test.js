@@ -2,9 +2,10 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, writeFile, mkdir, chmod, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 
-const sourceRoot = process.env.RELEASE_SOURCE_ROOT || new URL('../', import.meta.url).pathname;
+const sourceRoot = process.env.RELEASE_SOURCE_ROOT || fileURLToPath(new URL('../', import.meta.url));
 const workflow = await readFile(path.join(sourceRoot, '.github/workflows/release.yml'), 'utf8');
 const merge = await readFile(path.join(sourceRoot, '.github/workflows/release-on-merge.yml'), 'utf8');
 function step(source, name) {

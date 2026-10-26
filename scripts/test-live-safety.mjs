@@ -11,7 +11,8 @@ const demo={VITE_FIREBASE_API_KEY:'demo-key',VITE_FIREBASE_AUTH_DOMAIN:'demo-lit
 if(!process.argv.includes('--serve')){
  for(const release of ['a','b']){
   const env={...process.env,...demo,GITHUB_SHA:release.repeat(40)};delete env.VITE_USE_EMULATORS;
-  execFileSync('pnpm',['--filter','@little-galaxy/web','exec','vite','build','--outDir',path.join(artifacts,release)],{cwd:root,env,stdio:'inherit'});
+  const pnpmEntry=process.env.npm_execpath;
+  execFileSync(pnpmEntry?process.execPath:'pnpm',[...(pnpmEntry?[pnpmEntry]:[]),'--filter','@little-galaxy/web','exec','vite','build','--outDir',path.join(artifacts,release)],{cwd:root,env,stdio:'inherit',shell:process.platform==='win32'&&!pnpmEntry});
  }
  await runDemo('pnpm --filter @little-galaxy/stand exec tsx ../../scripts/test-live-safety.mjs --serve');
 }else{

@@ -71,8 +71,9 @@ pnpm install
 ```
 
 Java 21 is required for `pnpm run test:rules`, which starts the Firestore and Auth emulators.
-Install Chromium once with `pnpm exec playwright install chromium` before `pnpm run test`;
-CI installs Chromium and its system dependencies before the same step. Common commands:
+`pnpm run test` (also `test:unit`) runs the shared admission/store, web integration and release/privacy unit suites.
+Install Chromium once with `pnpm exec playwright install chromium` before `pnpm run test:ui`.
+The browser runner starts isolated demo emulators, so stop any existing emulator process first. Common commands:
 
 ```sh
 pnpm --filter @little-galaxy/web run dev
@@ -87,8 +88,8 @@ pnpm run lint
 pnpm run test
 pnpm run test:live-safety
 pnpm run test:rules
-pnpm run test:drills
-pnpm run test:load
+pnpm run test:ui
+pnpm run test:physics # separate simulation rehearsal, outside PR CI
 node scripts/record-screen.mjs --mode demo --url http://127.0.0.1:4177/galaxy/screen?synthetic=50 --duration 15 --output records/
 pnpm run build:rehearsal
 pnpm run privacy:rehearsal
@@ -157,7 +158,7 @@ VITE_USE_EMULATORS=1 pnpm --filter @little-galaxy/web run dev:lan
 project selected by the script, the checked-in rules and ports 8080/9099. Both SDKs use the page hostname,
 so a phone can reach the laptop through its LAN address. Stop both processes after the test. Rules
 tests use the loopback configuration and isolated demo project, start Firestore and Auth, and do not
-access live data. Browser checks run separately with emulators stopped.
+access live data. Run rules and browser commands sequentially locally; CI gives each its own runner.
 
 The stand starts without credentials. If `GOOGLE_APPLICATION_CREDENTIALS` is set, firebase-admin uses
 that file through application-default credentials and requires `FIREBASE_PROJECT_ID` to be exported.
@@ -174,26 +175,56 @@ In emulator mode it refuses non-`demo-` project IDs and does not load credential
 
 ## Build and delivery
 
-`apps/web/dist` is the release payload: unpack its contents under the portfolio's `dist/galaxy/`.
+`apps/web/dist` is the release payload: unpack its contents under the portfolio's `dist/little-galaxy/`.
 The payload includes the fonts' OFL notices and the QR/audio dependencies' license notices in `licenses/`.
-Vite fixes asset URLs to `/galaxy/`. Generated `version.json` contains `version`, `commit` (nullable
+Vite fixes asset URLs to `/little-galaxy/`. Generated `version.json` contains `version`, `commit` (nullable
 outside a git checkout), and `builtAt` (UTC ISO timestamp). Build caching is disabled so this metadata
 describes that invocation.
 
-`.github/workflows/checks.yml` is the reusable, secretless checks workflow. Pull requests and pushes to
-`main` run typecheck, lint, unit/browser tests, Firestore/Auth rules tests, the build and privacy gate,
-then upload `galaxy-dist`. On same-repository pull requests only, CI passes that artifact to a separate
-`preview` environment job. The preview job does not check out or execute pull-request code, and deploys
-only the expiring `pr-<number>` channel. Missing preview credentials produce a notice and skip deployment.
-Fork pull requests never enter the preview job.
+`.github/workflows/checks.yml` runs three independent PR jobs with the pnpm cache: unit tests + lint +
+typecheck + build/privacy, current-model Firestore rules, and one real browser player journey. The emulator
+and Chromium binaries are cached too. The target is about five minutes including a same-repository PR
+preview; cold downloads or runner queues can take longer. Superseded PR runs are cancelled. Merges build
+the exact release commit without repeating the PR test suite.
 
-A `v*` tag must point to a commit contained in `main` and match the web package version. The release then
-runs the full reusable checks. A read-only build job packages `galaxy-dist-vX.Y.Z.tar.gz`, copies
-`version.json`, and creates `SHA256SUMS`; only the final publish job receives `contents: write` and creates
-the GitHub Release (alpha tags are pre-releases). Its final step dispatches `galaxy-release`
-with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`; see RUNBOOK section 12. A separate `little-galaxy-rules` environment job re-runs the rules tests before
-deploying only `firestore.rules` to the data project. The operator must be configured as that environment's
-required reviewer. Only the portfolio deploys production Hosting and performs Hosting rollback; see the
+`pnpm run test:rules` runs only `galaxies.test.js` and `deny-all.test.js`: ownership, reciprocal
+admission, immutable history, lifecycle/keeper permissions and catch-all denial. `pnpm run test:ui`
+checks welcome, name, two launches, a fresh browser reading both, background freeze/resume, and phone
+layout in light/dark themes. It waits for accepted state, not fixed delays. The retired users/objects/events,
+stand enrichment, load/drill and quota-probe suites are removed. Current stand release migrations,
+emergency controls, privacy and publication safeguards retain their fast regression tests.
+
+`pnpm run test:physics` remains available separately; another worker owns its simulation contract.
+`pnpm run test:live-safety` is an explicit build-swap rehearsal, outside default PR checks. Run it
+when changing version/chunk recovery, then verify a deployed preview and actual phones. Browser freeze
+simulation and a phone-sized viewport do not certify hardware behavior.
+
+The PR check **This merge can reach production** compares the full PR diff and fetched tags. If
+`apps/web`, `packages/shared`, or `firestore.rules` changes with an already-tagged web version, it fails:
+**this merge will not reach production: bump apps/web/package.json**. Require this check and all three
+check jobs in branch protection. The merge workflow repeats the guard before tag creation to catch
+races or direct pushes. Docs-only merges do not require a bump. This work deliberately leaves version
+fields to the release coordinator.
+
+The checked build is uploaded as `galaxy-dist`. Same-repository PRs pass it to a separate `preview`
+environment job, which never checks out or executes PR code and deploys only the expiring `pr-<number>`
+channel. Missing preview credentials produce a notice; fork PRs never enter that job. For an optional
+read-only hosted smoke, set `BASE_URL` to the deployed origin and run `pnpm run test:ui`; it blocks
+identity creation and writes.
+
+On merge, the package version becomes an exact-commit `v*` tag. A release tag must match the web
+version and be contained in `main`. The release builds with the production public config and privacy
+gate, packs `galaxy-dist-vX.Y.Z.tar.gz`, and attaches `version.json` and `SHA256SUMS`. The
+`little-galaxy-rules` environment retains required operator review before deploying rules and indexes
+with the current galaxy migration and season restoration. Keep the operator configured as its required
+reviewer. No PR tests run again during release.
+
+After the rules are live, publication verifies existing assets on retry and dispatches `galaxy-release`
+with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`. The final release step polls
+`https://alexanderkholodov.web.app/little-galaxy/version.json` with cache bypass, every five seconds
+for at most eight minutes. Only the exact released commit succeeds; HTTP errors, stale metadata and
+missing dispatch/deployment fail the workflow with **RELEASE NOT LIVE** and a recovery message.
+Only the portfolio deploys production Hosting and performs Hosting rollback; see the
 [release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure).
 
 The privacy gate is part of `pnpm run build`. It scans every output file, gunzips `.gz` output, decodes
