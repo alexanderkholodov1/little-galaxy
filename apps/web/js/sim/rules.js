@@ -25,6 +25,9 @@ export const HALO = {r0: 22, rc: 14, v: 2.0};
 // Measured on the fair's 21 real launches, 30 minutes ahead: chaos 5x lower than none, no bodies stuck together, half
 // of them within ~100 of the centre, the farthest ~300. Braking compact bodies, even only far out, made them collapse
 // into stuck clusters, so they only feel the spring.
+// Settling is simulated age, never wall time. A finite Hermite bridge preserves position and velocity
+// at both ends; its 300 s duration gives an approximately 100 s relaxation scale.
+export const SETTLING = {grace: 60, duration: 300, spacing: 26, omega: 0.004, lightRadius: 14};
 export const CONFINE = {light: {calm: 60, wall: 100, k: 0.02, brake: 0.5/120}, heavy: {calm: Infinity, wall: 150, k: 0.01, brake: 0}};
 
 // Ventanas de encuentro y anfitriones

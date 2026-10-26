@@ -12,7 +12,7 @@ export const files = [
   'js/strings/player-ui.js', 'js/strings/core.js', 'js/strings/admin.js', 'js/strings/galaxy.js',
   'js/ui/prefs.js', 'js/ui/labels.js', 'js/ui/player.js',
   'js/sim/index.js', 'js/sim/bus.js', 'js/sim/predict.js', 'js/sim/core.js',
-  'js/sim/integrator.js', 'js/sim/kepler.js', 'js/sim/admission.js', 'js/sim/rng.js', 'js/sim/rules.js',
+  'js/sim/math.js', 'js/sim/integrator.js', 'js/sim/kepler.js', 'js/sim/admission.js', 'js/sim/rng.js', 'js/sim/rules.js',
 ];
 const source = process.argv[2];
 if(!source) throw new Error('Usage: node scripts/sync-prototype.mjs /path/to/proto3');

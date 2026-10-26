@@ -1,3 +1,4 @@
+import {hypot} from './math.js';
 // predict.js — la trayectoria punteada (R6) con las mismas reglas que la simulación:
 //  · un liviano que queda ligado a un sistema va en riel: se dibuja su elipse de Kepler entera, que es
 //    exactamente lo que hará (R25) — 'orbit', o 'long' si su apoastro sale del borde del sistema;
@@ -34,7 +35,7 @@ export function predict(sim, p0, v0, {seconds = 40, dt = 1/45, every = 4, type =
     if(i % every_ === 0) pts.push(...probe.p);
     let hit = false;
     for(const o of at){
-      const r = Math.hypot(probe.p[0]-o.p[0], probe.p[1]-o.p[1], probe.p[2]-o.p[2]);
+      const r = hypot(probe.p[0]-o.p[0], probe.p[1]-o.p[1], probe.p[2]-o.p[2]);
       if(o.m >= at[0].m) { rMin = Math.min(rMin, r); rMax = Math.max(rMax, r); }
       if(r < o.g){ hit = true; break; }
     }
