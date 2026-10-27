@@ -1,6 +1,7 @@
 // world.js — un solo mundo 3D: la galaxia, el banco del taller y la plataforma de lanzamiento
 // viven en la misma escena. Pasar de una pantalla a otra es mover la cámara, nunca cortar.
 import * as THREE from 'three';
+import {distantMarker} from '../integration/distant-marker.js';
 import {galaxyFrame} from '../integration/galaxy-frame.js';
 import {restoreCoordinates} from '../integration/replay-coordinates.js';
 import {Sim, predict, elements, propagate} from './sim/index.js';
@@ -637,6 +638,7 @@ export function createWorld(canvas, opts = {}){
     if(sb.comet) body.setComet(true);   // R8: la simulación decide quién puede ser cometa
     body.root.position.set(...sb.p);
     scene.add(body.root);
+    if(!toy){e.marker=sprite(glowTex(),['star','binary','pulsar'].includes(design.type)?'#ffb48c':'#bde7f7',1,1);e.marker.visible=false;scene.add(e.marker);}
     W.entries.push(e);
     return e;
   }
@@ -656,6 +658,7 @@ export function createWorld(canvas, opts = {}){
     return e;
   }
   function removeEntry(e){
+    if(e.marker){scene.remove(e.marker);e.marker.material.dispose();}
     scene.remove(e.body.root); e.body.dispose(); (e.toy && W.shared ? toySim : sim).remove(e.sb);
     W.entries = W.entries.filter(x => x !== e);
     if(W.lastLaunched === e) W.lastLaunched = null;
@@ -1548,6 +1551,13 @@ export function createWorld(canvas, opts = {}){
 
     writeTrails();
     updateRig(dt);
+    for(const entry of W.entries){
+      if(!entry.marker)continue;
+      const pos=entry.body.root.position,distance=pos.distanceTo(camera.position);
+      const marker=distantMarker(pxRadius(pos,entry.body.visR),distance,W.vh,camera.fov);
+      entry.marker.visible=W.mode==='home'&&marker.visible;
+      if(entry.marker.visible){entry.marker.position.copy(pos);entry.marker.scale.setScalar(marker.scale);entry.marker.material.opacity=marker.opacity;}
+    }
     placeSkyLayers();
     renderer.render(scene, camera);
 

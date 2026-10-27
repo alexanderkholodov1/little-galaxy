@@ -33,7 +33,7 @@ for(const profile of profiles)for(const lang of ['en','es']){
    await screenshot(page,`sandbox-home-${profile.name}-${lang}`);await expect(page.locator('#btnCreate')).toBeEnabled();await expect(page.locator('#sharedStatus')).toHaveCount(0);
    const before=Number(await page.locator('body').getAttribute('data-sequence'));
    const second=await observer.newPage();second.on('pageerror',e=>{(evidence.errors??=[]).push(e.message);});await second.goto(`/galaxy/?emulators=1&lang=${lang}`);await expect(second.locator('body')).toHaveAttribute('data-sky-ready','true');await enter(second);
-   await page.locator('#btnCreate').click();await page.locator('#btnToPad').click();await page.locator('.pu-sec').click();
+   await page.locator('#btnCreate').click();await screenshot(page,`workshop-${profile.name}-${lang}`);await page.locator('#btnToPad').click();await page.locator('.pu-sec').click();
    await expect(page.locator('body')).toHaveAttribute('data-bench-state','pad');
    const canvas=page.locator('canvas').first(),box=await canvas.boundingBox();
    // The pad follows the viewport; use its centre and a downward release, as a visitor does.
@@ -58,7 +58,7 @@ for(const profile of profiles)for(const lang of ['en','es']){
    let at=performance.now();await page.goto(`/galaxy/?g=bad-2026&view=recorded&smoke=readonly&lang=${lang}`);
    await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true');evidence.timings.navigationMs=performance.now()-at;
    at=performance.now();await enter(page);await expect(page.locator('#countN')).toHaveText('21',{timeout:2000});evidence.timings.enterMs=performance.now()-at;
-   await clean(page);await page.locator('#aboutRecordedGalaxy').click();await expect(page.locator('#recordInformation')).toBeVisible();await page.keyboard.press('Escape');await expect(page.locator('#recordInformation')).not.toBeVisible();await screenshot(page,`fair-${profile.name}-${lang}`);
+   await clean(page);await page.locator('#aboutRecordedGalaxy').click();await expect(page.locator('#recordInformation')).toBeVisible();await screenshot(page,`fair-info-${profile.name}-${lang}`);await page.keyboard.press('Escape');await expect(page.locator('#recordInformation')).not.toBeVisible();await screenshot(page,`fair-${profile.name}-${lang}`);
    await expect(page.locator('#galaxyVisits a').first()).toHaveText(lang==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
    await page.locator('#openTimelapse').click();await expect(page.locator('body')).toHaveAttribute('data-replay','true');await enter(page);
    await expect(page.locator('#countN')).toHaveText('21');const scrub=page.locator('#replayScrub');

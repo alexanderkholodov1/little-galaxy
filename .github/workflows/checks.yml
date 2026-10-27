@@ -41,14 +41,21 @@ jobs:
         run: |
           mkdir -p .tmp/verdict
           printf '{"sha":"%s","job":"%s","status":"%s"}\n' "${{ github.sha }}" "${{ github.job }}" "${{ job.status }}" > .tmp/verdict/verdict.json
-      - name: Upload verdict and check timings
-        if: always()
+      - name: Upload rehearsal verdict
+        if: ${{ always() && inputs.rehearsal }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rehearsal-verdict-check
           include-hidden-files: true
-          path: |
-            .tmp/verdict/verdict.json
-            .tmp/check-*.json
+          path: .tmp/verdict/verdict.json
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: Upload check timings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: check-timings
+          include-hidden-files: true
+          path: .tmp/check-*.json
           if-no-files-found: ignore
           retention-days: 3

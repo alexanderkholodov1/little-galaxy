@@ -26,6 +26,9 @@ explains when the fair happened, that visitors launched every body live, that di
 chosen nicknames, and how the timelapse and sandbox work. Both recorded views have a clear return
 to the sandbox. The dialog has a labelled heading, native modal focus and Escape handling, a close
 button and a scrolling phone-sized layout. English and Spanish use the same navigation structure.
+Distant bodies retain a small finding-chart marker at their exact position when their physical
+disc is too small to see; zooming fades the marker into the normal mesh. No simulation state or
+historical position changes. Keeper controls meet a 44-pixel minimum touch target.
 Recorded and return visits no longer wait through a timed title animation. The recorded destination hides launch controls without presenting a full-screen locked-game notice.
 The workshop action now says “Design a body”, the temporary comet toy is labelled “Practice”, and the keeper gate says “Galaxy administration”
 with a plain explanation of the Google account needed, rather than “The observatory key”.
@@ -87,3 +90,22 @@ release receiver. Only after that client is verified live does it provision and 
 Existing tabs follow the selection change into the newly deployed client; an old client is never
 sent to a newly active, incompatible kernel before its replacement is served. There is no manual environment review or deployment
 approval. Existing stale-release guards and credential cleanup remain active.
+
+## Recorded verification
+
+The archived `4a20e85` main client failed the production historical-kernel probe in 2242 ms.
+The first complete local acceptance passed all 12 EN/ES phone/laptop browser journeys, 80 rules
+cases and the real 21-intent current-kernel emulator proof in 393256 ms. The production-record
+digest was identical before and after. That was pre-commit evidence; final SHA receipts are in
+`.tmp/accept-<sha>.json`. The current-kernel proof retained 22 bodies including three black holes,
+with maximum radius 36.7695526217 from the fire.
+
+The old three-job rehearsal's longest job took 441 seconds (rules83, unit105 seconds in parallel).
+The new one-job check in run40557563336 completed successfully in 128 seconds. Its relay verdict
+was rejected because the combined timing artifact nested the verdict file; the artifact layout
+is now split so the relay receives its original root `verdict.json` contract. This does not count
+as an accepted rehearsal; a new passing receipt is required.
+
+An anonymous Google authorization probe on 2026-10-27 confirmed `redirect_uri_mismatch` for
+the new production admin callback. The single console setting above is required before using
+production Google sign-in. This was checked without a Google password or a production data write.

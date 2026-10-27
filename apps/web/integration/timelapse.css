@@ -30,3 +30,4 @@ html[data-ui-theme="light"] #recordInformation {background:#fff8ec;color:#182030
 @font-face{font-family:'Archivo Narrow';src:url('../src/assets/fonts/archivo-narrow-latin-700.woff2') format('woff2');font-style:normal;font-weight:700;font-display:swap}
 body[data-replay="true"] #galaxyVisits{top:80px;left:24px;right:24px;justify-content:flex-start;}
 @media(max-width:600px){body[data-replay="true"] #galaxyVisits{justify-content:center;}}
+html[data-ui-theme="light"] #galaxyVisits #openTimelapse {color:#176a91;}
