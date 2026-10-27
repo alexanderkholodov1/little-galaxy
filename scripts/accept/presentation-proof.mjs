@@ -1,4 +1,4 @@
-/* global document, location */
+/* global document */
 import {mkdir,writeFile} from 'node:fs/promises';
 import {chromium} from '@playwright/test';
 import {buildArchivedRelease} from './baseline.mjs';
@@ -43,9 +43,13 @@ export async function provePresentation(ref){
     if(await page.locator('#openTimelapse').isVisible()){
      await page.locator('#openTimelapse').click();await page.locator('body[data-replay="true"]').waitFor();await enter(page);
      // An intentional wrong destination proves the assertion observes navigation, not just an icon/href.
-     await page.locator('#backToFair').evaluate(el=>{el.href=location.href;});
+     const wrong=new URL(page.url());wrong.searchParams.delete('view');
+     await page.evaluate(wrong=>{
+      document.addEventListener('click',event=>{const link=event.target.closest?.('#backToFair');if(link)link.href=wrong;},{capture:true,once:true});
+     },wrong.href);
      let reason;try{await assertFairReturn(page);}catch(error){reason=error.message;}
-     report.negativeControls.push({name:`return misrouted to timelapse: ${state}`,caught:Boolean(reason),reason});
+     const landedPath=new URL(page.url()).pathname;
+     report.negativeControls.push({name:`return misrouted to timelapse: ${state}`,caught:Boolean(reason)&&landedPath.endsWith('/timelapse'),landedPath,reason});
     }
    }finally{await context.close();}
   }
