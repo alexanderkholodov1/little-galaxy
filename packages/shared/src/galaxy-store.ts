@@ -859,7 +859,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
         [g, h, cache, player, liveSnapshot] = await Promise.all([
           watchedManifests.get(id) ?? driver.get<Galaxy>(p),
           driver.get<Head>(`${p}/control/head`),
-          options.verifyCheckpoint
+          options.verifyCheckpoint && !mode.history
             ? driver.get<Checkpoint>(`${p}/checkpoints/latest`)
             : Promise.resolve(null),
           driver.get<Member>(pathMember(id)),
@@ -875,7 +875,9 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
         liveSnapshot.kernel === g.kernel && Number.isSafeInteger(liveSnapshot.sequence) &&
         liveSnapshot.sequence >= 0 && liveSnapshot.sequence <= h.sequence &&
         Number.isSafeInteger(liveSnapshot.tick) && liveSnapshot.tick >= 0 &&
-        liveSnapshot.tick <= Math.floor((options.now() - g.epoch - 2000) * 120 / 1000)) {
+        liveSnapshot.tick <= Math.floor((options.now() - g.epoch - 2000) * 120 / 1000) &&
+        (g.status === 'active' || liveSnapshot.tick <= Math.max(h.effectiveTick,
+          Math.ceil(((g.frozenAt ?? g.epoch) - g.epoch) * 120 / 1000)))) {
         try {
           if (await options.verifyLiveSnapshot(liveSnapshot, g)) {
             checkpoint = liveSnapshot; provisional = true;

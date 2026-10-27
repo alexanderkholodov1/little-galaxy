@@ -58,8 +58,35 @@ it('verifies provisional history in background and atomically replaces a self-co
   const w=await worker();w.send({load:{...loaded,trusted:true},tick:900,loadKey:1});await vi.runAllTimersAsync();
   expect(w.messages.at(-1).ready).toBe(true);expect(w.messages.at(-1).verified).toBe(false);
   vi.useRealTimers();w.send({verify:full,loadKey:1});
+  const late={...action,sequence:2,intent:{...action.intent,id:'during-verification',effectiveTick:800}};
+  if(forged)w.send({actions:[late],tick:900});
   await vi.waitFor(()=>expect(w.messages.some(m=>m.verification!==undefined)).toBe(true));
   expect(w.messages.find(m=>m.verification!==undefined)).toMatchObject({verification:!forged,fallback:forged});
-  expect(w.messages.at(-1).state).toEqual(expected.state());expect(w.messages.at(-1).verified).toBe(true);
+  const truth=forged?new Replay({...full,actions:[action,late]}):expected;
+  truth.advanceTo(900);
+  expect(w.messages.at(-1).state).toEqual(truth.state());expect(w.messages.at(-1).verified).toBe(true);
  }
+});
+
+it('falls back when a corrupt provisional orbit throws before its first present frame',async()=>{
+ const {prepareLiveSnapshot,verifyLiveSnapshot}=await import('./live-snapshot.js');
+ const {unpackLoaded,canonicalState,packState}=await import('./checkpoint.js');
+ const {canonicalHash}=await import('@little-galaxy/shared');
+ const launch={...action,intent:{...action.intent,kind:'planet',design:encodeDesign({type:'planet',size:.5})}};
+ const full={galaxy,actions:[launch],genesis:[]},truth=new Replay(full);truth.advanceTo(900);
+ const snapshot=await prepareLiveSnapshot(truth,720,'holder');
+ const loaded=await unpackLoaded({...full,actions:[],checkpoint:snapshot,provisional:true});
+ const state=JSON.parse(loaded.checkpoint.state);
+ // A missing binary partner survives JSON restoration but fails when its orbit is advanced.
+ state.sim.bodies[0].gSlot=0;state.sim.bodies[0].gPair=999999;
+ loaded.checkpoint.state=canonicalState(state);
+ const wire=await packState(loaded.checkpoint.state);
+ expect(await verifyLiveSnapshot({...snapshot,state:wire,stateHash:await canonicalHash(wire),replayHash:await canonicalHash(state)},galaxy)).toBe(true);
+ const w=await worker();w.send({load:{...loaded,trusted:true},tick:900,loadKey:1});
+ expect(w.messages).toContainEqual({verificationNeeded:true,loadKey:1});
+ expect(w.messages.some(m=>m.ready)).toBe(false);
+ vi.useRealTimers();w.send({verify:full,loadKey:1});
+ await vi.waitFor(()=>expect(w.messages.some(m=>m.fallback)).toBe(true));
+ expect(w.messages.at(-1).state).toEqual(truth.state());
+ expect(w.messages.some(m=>m.error)).toBe(false);
 });

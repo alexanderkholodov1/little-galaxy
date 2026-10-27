@@ -20,8 +20,9 @@ export async function openSession({readOnly=false,admin=false,history=false}={})
   // this independent public seed. Never correlate new galaxies with a browser-global label.
   const memberId=crypto.randomUUID();
   const store=createGalaxyStore(driver,{uid:auth.currentUser?.uid??'readonly',memberId,now:clock.now,admin,
-    // B1 verifies this immutable admin-only certification's state hash, manifest and generation first.
-    // Phone caches always arrive with their log and must never be promoted by comparing their own hash.
+    // Admin certifications establish a trusted replay prefix. Client snapshots only accelerate
+    // a provisional opening; their full log is independently verified after the first frame.
+
     verifyLiveSnapshot:history||admin?undefined:verifyLiveSnapshot,
     verifyCheckpoint:history?undefined:verifyCertified});
   return {store,driver,clock,selection,memberId};

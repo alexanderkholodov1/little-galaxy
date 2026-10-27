@@ -500,3 +500,22 @@ it('rejects a corrupt live snapshot before fetching its tail and can explicitly 
   expect((await s.loadGalaxy('g')).provisional).toBe(false);expect(verify).toHaveBeenCalledTimes(1);
   await s.loadGalaxy('g',{history:true});expect(verify).toHaveBeenCalledTimes(1);
 });
+
+it('publishes only from a current holder and never replaces a newer snapshot or advances the action head', async () => {
+  let clock = now;
+  const driver = new MemoryGalaxyDriver();
+  await driver.seed('galaxies/g', galaxy);
+  await driver.seed('galaxies/g/control/head', initialHead(now));
+  await driver.seed('galaxies/g/members/a', member);
+  const s = createGalaxyStore(driver,{uid:'a',memberId:member.memberId,now:()=>clock});
+  expect(await s.claimSnapshotLease('g','tab')).toBe(true);
+  const snapshot = {schemaVersion:1,generation:1,sequence:0,kernel:galaxy.kernel,logHash:'',
+    tick:0,encoding:'gzip-base64' as const,replayHash:'b'.repeat(64),holder:'tab',state:'packed',stateHash:await canonicalHash('packed')};
+  expect(await s.publishSnapshot('g',snapshot)).toBe(true);
+  expect(await s.publishSnapshot('g',snapshot)).toBe(false);
+  expect(await s.publishSnapshot('g',{...snapshot,tick:1,sequence:1})).toBe(false);
+  await expect(s.publishSnapshot('g',{...snapshot,tick:1,state:'corrupt'})).rejects.toThrow('Invalid live snapshot');
+  clock += 30001;
+  expect(await s.publishSnapshot('g',{...snapshot,tick:1})).toBe(false);
+  expect(await driver.get('galaxies/g/control/head')).toEqual(initialHead(now));
+});

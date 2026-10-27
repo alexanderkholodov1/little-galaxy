@@ -7,21 +7,23 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   const replayMode=location.pathname.replace(/\/$/,'').endsWith('/timelapse');
   let playback=null,lastLiveTick=0;
   const pending=new Map();let ready=false,lastTarget=-1,visible=!document.hidden;
-  const snapshotHolder=crypto.randomUUID();let loadKey=0,verified=!loaded.provisional,snapshotBusy=false,verificationTimer;
+  const snapshotHolder=crypto.randomUUID();let loadKey=0,verified=!loaded.provisional,snapshotBusy=false,verificationTimer,verificationStarted=false;
   let snapshotSequence=-1,snapshotTick=-1,needsSnapshot=true,unsettledTick=0;
   async function verifyHistory(key){
+    if(key!==loadKey || verificationStarted)return;verificationStarted=true;
     try{const history=await store.history();if(key===loadKey)worker.postMessage({verify:history,loadKey:key});}
-    catch{if(key===loadKey)verificationTimer=setTimeout(()=>verifyHistory(key),5000);}
+    catch{if(key===loadKey){verificationStarted=false;verificationTimer=setTimeout(()=>verifyHistory(key),5000);}}
   }
   function loadReplay(fresh){
-    clearTimeout(verificationTimer);loadKey++;verified=!fresh.provisional;
+    clearTimeout(verificationTimer);loadKey++;verified=!fresh.provisional;verificationStarted=false;
+    snapshotSequence=-1;snapshotTick=-1;unsettledTick=0;needsSnapshot=true;
     worker.postMessage({load:{...fresh,trusted:Boolean(fresh.checkpoint)},tick:target(),loadKey});
-    // Download/replay history only after the provisional present has been shown.
+    // Start history after the provisional frame, or immediately if that candidate fails.
   }
   async function snapshot(){
     if(snapshotBusy || !ready || !verified || !visible || replayMode || store.readOnly || !needsSnapshot)return;
-    snapshotBusy=true;
-    try{if(await store.claimSnapshot(snapshotHolder)){
+    snapshotBusy=true;const key=loadKey;
+    try{if(await store.claimSnapshot(snapshotHolder) && key===loadKey && visible){
       const tick=Math.floor((store.now()-S.galaxy.epoch-2000)*.12);
       if(tick>snapshotTick)worker.postMessage({snapshot:{tick,holder:snapshotHolder}});
     }}catch{ /* Optional acceleration must not interrupt launches. */ }
@@ -56,10 +58,12 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   worker.onmessage=({data})=>{
     if(data.loadKey!==undefined && data.loadKey!==loadKey)return;
     if(data.snapshot){
-      if(verified)store.publishSnapshot(data.snapshot).then(saved=>{if(saved){snapshotTick=data.snapshot.tick;snapshotSequence=data.snapshot.sequence;} }).catch(()=>false);
+      const key=loadKey;
+      if(verified)store.publishSnapshot(data.snapshot).then(saved=>{if(saved && key===loadKey){snapshotTick=data.snapshot.tick;snapshotSequence=data.snapshot.sequence;} }).catch(()=>false);
       return;
     }
-    if(data.verificationError){verificationTimer=setTimeout(()=>verifyHistory(loadKey),5000);return;}
+    if(data.verificationNeeded){void verifyHistory(loadKey);return;}
+    if(data.verificationError){verificationStarted=false;verificationTimer=setTimeout(()=>verifyHistory(loadKey),5000);return;}
     if(data.verification!==undefined){verified=true;return;}
     if(data.error){toast(data.error);return;}
     if(!data.ready)return;

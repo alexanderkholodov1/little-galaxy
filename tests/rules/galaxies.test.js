@@ -952,7 +952,10 @@ describe('leased client snapshots',()=>{
   it('lets an anonymous editor save without a launch, admits public reads and denies nonleaders',async()=>{
     await assertSucceeds(put('alice','control/snapshotLease',lease()));
     await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot('tab-a',{tick:121})));
     await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/liveSnapshots/latest')));
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/control/snapshotLease')));
+    await assertFails(deleteDoc(doc(context().firestore(),'galaxies/g/control/snapshotLease')));
     await assertFails(put('bob','liveSnapshots/latest',snapshot()));
     await assertFails(put('bob','control/snapshotLease',lease('tab-b','m-bob')));
     await assertFails(deleteDoc(doc(context().firestore(),'galaxies/g/liveSnapshots/latest')));
@@ -980,6 +983,15 @@ describe('leased client snapshots',()=>{
     await assertFails(put('bob','control/snapshotLease',lease('tab-b','m-bob')));
     await assertFails(put('alice','liveSnapshots/latest',snapshot('tab-a',{tick:121})));
   });
+  it('fences the previous generation and lets a new generation restart its snapshot tick',async()=>{
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
+    galaxy={...galaxy,generation:2,kernel:'next-kernel'};
+    await patch('galaxies/g',{generation:2,kernel:galaxy.kernel});
+    await assertSucceeds(put('bob','control/snapshotLease',{...lease('tab-b','m-bob'),generation:2}));
+    await assertFails(put('alice','liveSnapshots/latest',snapshot()));
+    await assertSucceeds(put('bob','liveSnapshots/latest',snapshot('tab-b',{generation:2,tick:0})));
+  });
   it('keeps private snapshots unreadable outside membership and all lists closed',async()=>{
     await patch('galaxies/g',{visibility:'invite-only',writePolicy:'members'});
     await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/liveSnapshots/latest')));
@@ -987,5 +999,7 @@ describe('leased client snapshots',()=>{
     await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
     await assertFails(getDocs(collection(context().firestore(),'galaxies/g/liveSnapshots')));
     await assertFails(put('alice','liveSnapshots/arbitrary',snapshot()));
+    await assertFails(getDoc(doc(context().firestore(),'galaxies/g/liveSnapshots/arbitrary')));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/control/snapshotLease')));
   });
 });
