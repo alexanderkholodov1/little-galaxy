@@ -18,8 +18,12 @@ file hash to the exact stored manifest, generation, sequence and action-log hash
 them as a same-origin trusted prefix; mutable client snapshots remain provisional and independently
 verified in the background. Missing, corrupt or stale acceleration falls through to the datastore
 and replay. No private account mapping or service credential enters these public assets.
-Generated public records and the original production export remain ignored build inputs, outside
-repository history. No visitor display names appear in fixtures, tests or reports.
+Generated records contain no visitor nicknames, including in compressed state. Nicknames remain
+in Firestore. The release pins hashes of the needed source pages; the client verifies those pages,
+restores attribution in memory, and checks the canonical full-state digest before replay. Imported
+acceleration caches are ignored by the release builder: every release moment comes from the verified
+log. The original production export stays ignored and local. No visitor display names appear in
+repository files, release artifacts, fixtures, tests or reports.
 
 The fair link names Be A Dragon 2026 and the USFQ fair in plain language. Its information panel
 explains when the fair happened, that visitors launched every body live, that displayed names are

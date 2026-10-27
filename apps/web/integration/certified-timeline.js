@@ -9,7 +9,7 @@ export function timelineEntry(timeline,tick){
   return timeline.index[Math.max(0,lo-1)];
 }
 export async function verifyRecordedMoment(cache,entry,galaxy){
-  if(!cache || cache.schemaVersion!==1 || cache.sequence!==entry.sequence || cache.stateHash!==entry.stateHash ||
+  if(!cache || cache.schemaVersion!==1 || cache.sequence!==entry.sequence || (cache.assetStateHash??cache.stateHash)!==entry.stateHash ||
     cache.kernel!==galaxy.kernel || cache.generation!==galaxy.generation || await canonicalHash(cache.state)!==cache.stateHash ||
     !await verifyCertified(cache,[],galaxy))throw new Error('Invalid recorded moment');
   const state=await unpackState(cache),parsed=JSON.parse(state);

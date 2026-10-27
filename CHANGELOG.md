@@ -25,6 +25,7 @@
   remove preview, rules and browser jobs from GitHub. Prove built-client journeys with local
   `pnpm accept`, production public reads and an isolated emulator seeded from an ignored export.
 - Publish rules, indexes and client automatically on merge without manual approval.
+- Publish replay moments without visitor nicknames; restore those labels in memory from hash-pinned history.
 
 ## A-show presentation — 2026-10-26
 
