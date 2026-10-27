@@ -18,7 +18,7 @@ body[data-replay] #btnPrefs{display:none}
 #timeRuler p{margin:0 0 16px;color:var(--celeste)}
 .timeControls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 #replaySpeed{display:flex;flex-wrap:wrap;gap:8px}
-#replaySpeed .chip{padding:0 12px}
+#replaySpeed .chip{min-width:44px;padding:0 12px;justify-content:center}
 #replaySpeed .chip[aria-checked="true"]{
   color:var(--crema);
   background:color-mix(in srgb, var(--brasa) 18%, transparent);
@@ -43,8 +43,12 @@ body[data-recorded="true"] #galaxyVisits .credits-link,
 body[data-replay="true"] #galaxyVisits .credits-link{position:static;margin:0}
 body[data-recorded="true"]:not([data-replay="true"]) .sky-primary{
   position:fixed;z-index:36;left:50%;bottom:calc(16px + var(--sb));transform:translateX(-50%);
-  max-width:calc(100% - 28px);
+  max-width:calc(100% - 28px);white-space:nowrap;
 }
+body[data-recorded="true"] #btnSystems,
+body[data-recorded="true"] #sysList,
+body[data-replay="true"] #btnSystems,
+body[data-replay="true"] #sysList{display:none}
 #recordScrim{position:fixed;inset:0;z-index:80;background:rgba(5,7,12,.78)}
 body:has(#recordInformation[open]) #btnSystems,
 body:has(#recordInformation[open]) #sysList,
