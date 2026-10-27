@@ -11,7 +11,7 @@ function say(key, vars){
 export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
  const nav=document.createElement('nav');nav.id='galaxyVisits';
  (document.querySelector('.home-footer')||document.getElementById('hud')).append(nav);
- const url=(suffix,params={})=>{const q=new URLSearchParams(params),current=new URLSearchParams(location.search);for(const key of ['emulators','lang','smoke'])if(current.has(key))q.set(key,current.get(key));return `${base}${suffix}${q.size?'?'+q:''}`;};
+ const url=(suffix,params={})=>{const q=new URLSearchParams(params),current=new URLSearchParams(location.search);for(const key of ['emulators','smoke'])if(current.has(key))q.set(key,current.get(key));q.set('lang',getLang());return `${base}${suffix}?${q}`;};
  let recordings=[],dialog,scrim;
  function information(){
   dialog?.remove();scrim?.remove();

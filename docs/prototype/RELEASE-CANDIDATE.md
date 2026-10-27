@@ -39,7 +39,8 @@ Recorded and return visits no longer wait through a timed title animation. The r
 The workshop action now says “Design a body”, the temporary comet toy is labelled “Practice”, and the keeper gate says “Galaxy administration”
 with a plain explanation of the Google account needed, rather than “The observatory key”.
 Live freeze and foreground resume refresh navigation as well as launch permissions. Reopening
-keeps the author destination. Recorded author sheets sit below navigation, clear of the primary
+keeps the author destination. Destination links carry the currently selected language, including
+after changing an explicit `?lang=` entry. Recorded author sheets sit below navigation, clear of the primary
 action and time ruler; settings switches, close buttons and author links have painted touch faces.
 
 ## Admin sign-in

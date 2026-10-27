@@ -1,7 +1,12 @@
 import './uuid.js';
-import {register,t} from '../js/i18n.js';
+import {getLang,register,setLang,t} from '../js/i18n.js';
 import core from '../js/strings/core.js';
 register(core);
+function say(key){
+ const page=document.documentElement.lang==='es'?'es':'en';
+ if(getLang()!==page)setLang(page);
+ return t(key);
+}
 import {publishedRecords} from './published-records.js';
 import {createGalaxyStore} from '@little-galaxy/shared';
 import {firestoreGalaxyDriver,ServerClock} from '@little-galaxy/shared/firestore';
@@ -9,10 +14,10 @@ import {auth,firestore,startAnonymousSession} from '../src/firebase.ts';
 import {verifyCertified} from './checkpoint.js';
 import {verifyLiveSnapshot} from './live-snapshot.js';
 export async function openSession({readOnly=false,admin=false,history=false}={}){
-  if(!firestore||!auth)throw new Error(t('session.disconnected'));
+  if(!firestore||!auth)throw new Error(say('session.disconnected'));
   await auth.authStateReady();
   if(!readOnly&&!admin)await startAnonymousSession();
-  if(admin&&!auth.currentUser)throw new Error(t('session.signin'));
+  if(admin&&!auth.currentUser)throw new Error(say('session.signin'));
   const clock=new ServerClock();
   const emulator=firestore.app.options.projectId==='demo-little-galaxy' && (import.meta.env.DEV || ['localhost','127.0.0.1'].includes(location.hostname));
   const transport=publishedRecords(firestoreGalaxyDriver(firestore,{clock,getToken:()=>auth.currentUser?.getIdToken()??Promise.resolve(''),

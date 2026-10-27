@@ -93,6 +93,14 @@ for(const profile of profiles)for(const lang of ['en','es']){
    at=performance.now();await enter(page);await expect(page.locator('#countN')).toHaveText('21',{timeout:2000});evidence.timings.enterMs=performance.now()-at;
    await clean(page);await page.locator('#aboutRecordedGalaxy').click();await expect(page.locator('#recordInformation')).toBeVisible();await screenshotThemes(page,`fair-info-${profile.name}-${lang}`);await page.keyboard.press('Escape');await expect(page.locator('#recordInformation')).not.toBeVisible();await screenshotThemes(page,`fair-${profile.name}-${lang}`);
    await check('fair author is reachable',()=>authorReachable(page,`fair-author-${profile.name}-${lang}`));
+   await check('record navigation follows the selected language',async()=>{
+    const other=lang==='es'?'en':'es';await page.locator('#langSwitch').click();
+    await expect(page.locator('html')).toHaveAttribute('lang',other);
+    await expect(page.locator('#openTimelapse')).toHaveAttribute('href',new RegExp(`lang=${other}(?:&|$)`,'u'));
+    await expect(page.locator('#backToSandbox')).toHaveAccessibleName(other==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
+    await page.locator('#langSwitch').click();await expect(page.locator('html')).toHaveAttribute('lang',lang);
+    await expect(page.locator('#openTimelapse')).toHaveAttribute('href',new RegExp(`lang=${lang}(?:&|$)`,'u'));
+   });
    await expect(page.locator('#backToSandbox')).toHaveAttribute('aria-label', lang==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
    await page.locator('#openTimelapse').click();await expect(page.locator('body')).toHaveAttribute('data-replay','true');await enter(page);
    await expect(page.locator('#countN')).toHaveText('21');await screenshotThemes(page,`timelapse-end-${profile.name}-${lang}`);const scrub=page.locator('#replayScrub');
