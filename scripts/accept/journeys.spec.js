@@ -1,6 +1,6 @@
 /* global document, getComputedStyle, requestAnimationFrame */
 import {expectLayout} from '../../tests/ui/layout-geometry.js';
-import {assertHeaderIcons, assertShotSize} from './presentation.mjs';
+import {assertHeaderIcons, assertProductType, assertReadableBodies, assertScrubTracksThumb, assertShotSize} from './presentation.mjs';
 import {expect,test} from '@playwright/test';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {enter} from '../../tests/ui/galaxy-fixture.js';
@@ -27,6 +27,9 @@ async function screenshot(page,name){
  await mkdir('.tmp/accept-screenshots',{recursive:true});const path=`.tmp/accept-screenshots/${name}.png`;
  if(name.startsWith('sandbox-home')){await expect(page.locator('#brand')).toBeVisible();await page.waitForFunction(()=>getComputedStyle(document.querySelector('#brand')).opacity==='1');}
  await expectLayout(page,name);
+ await assertProductType(page,name);
+ if(/^(sandbox-home|fair)-/u.test(name))await assertReadableBodies(page,name);
+ if(name.startsWith('timelapse-'))await assertScrubTracksThumb(page,name);
  if(await page.locator('.top-actions .icon-btn:visible, #panelTheme:visible').count())await assertHeaderIcons(page,name);
  const buffer=await page.screenshot({path});assertShotSize(name,buffer);evidence.screenshots.push(path);
 }
@@ -69,7 +72,7 @@ for(const profile of profiles)for(const lang of ['en','es']){
    await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true');evidence.timings.navigationMs=performance.now()-at;
    at=performance.now();await enter(page);await expect(page.locator('#countN')).toHaveText('21',{timeout:2000});evidence.timings.enterMs=performance.now()-at;
    await clean(page);await page.locator('#aboutRecordedGalaxy').click();await expect(page.locator('#recordInformation')).toBeVisible();await screenshot(page,`fair-info-${profile.name}-${lang}`);await page.keyboard.press('Escape');await expect(page.locator('#recordInformation')).not.toBeVisible();await screenshot(page,`fair-${profile.name}-${lang}`);
-   await expect(page.locator('#backToSandbox')).toHaveText(lang==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
+   await expect(page.locator('#backToSandbox')).toHaveAttribute('aria-label', lang==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
    await page.locator('#openTimelapse').click();await expect(page.locator('body')).toHaveAttribute('data-replay','true');await enter(page);
    await expect(page.locator('#countN')).toHaveText('21');const scrub=page.locator('#replayScrub');
    at=performance.now();await scrub.focus();await page.keyboard.press('Home');await expect(page.locator('body')).toHaveAttribute('data-tick','0');evidence.timings.homeSeekMs=performance.now()-at;
@@ -82,11 +85,17 @@ for(const profile of profiles)for(const lang of ['en','es']){
    for(const speed of ['0.25','1','4','16','60']){
     const first=launches[0].tick;await scrub.evaluate((el,t)=>{el.value=String(t);el.dispatchEvent(new Event('input',{bubbles:true}));},first-12);
     await expect(page.locator('body')).toHaveAttribute('data-tick',String(first-12));await expect(page.locator('#timeRuler')).not.toHaveAttribute('aria-busy','true');
-    await page.locator('#replaySpeed').selectOption(speed);await page.locator('#replayPlay').click();
+    await page.locator(`#replaySpeed [data-speed="${speed}"]`).click();await page.locator('#replayPlay').click();
     await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-sequence')),{timeout:2000}).toBeGreaterThanOrEqual(1);
     await page.locator('#replayPlay').click();
    }
-   await clean(page);await expect(page.locator('#backToFair')).toBeVisible();await screenshot(page,`timelapse-${profile.name}-${lang}`);
+   await clean(page);await expect(page.locator('#backToFair svg')).toHaveCount(1);await screenshot(page,`timelapse-${profile.name}-${lang}`);
+   await page.locator('#backToFair').click();
+   await expect(page).toHaveURL(/view=recorded/u);
+   await expect(page).not.toHaveURL(/timelapse/u);
+   await expect(page.locator('body')).not.toHaveAttribute('data-replay','true');
+   await expect(page.locator('#countN')).toHaveText('21');
+   await expect(page.locator('#openTimelapse')).toBeVisible();
    await page.locator('#backToSandbox').click();await expect(page).not.toHaveURL(/g=bad-2026/u);
   }finally{await context.close();}
  });

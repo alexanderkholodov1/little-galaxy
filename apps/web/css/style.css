@@ -240,9 +240,11 @@ html[data-ui-theme=light] .credits-link{background:#fff1de;color:#182030;border-
 .ws-top{position:absolute;top:calc(14px + var(--st));left:14px}
 .ws-name{position:absolute;top:calc(70px + var(--st));left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:2px}
 .ws-name-k{font-size:.72rem;font-weight:760;letter-spacing:.09em;text-transform:uppercase;color:var(--lav-t)}
-.name-btn{display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:0 6px 0 10px;border-radius:999px}
-.name-btn b{font-family:var(--f-display);font-weight:600;font-size:1.5rem;letter-spacing:-.02em;white-space:nowrap}
-.name-btn svg{width:26px;height:26px;color:var(--lav-t);transition:transform .5s var(--spring)}
+.name-btn{display:inline-flex;align-items:center;gap:10px;max-width:calc(100% - 32px);min-width:44px;min-height:44px;padding:0 8px 0 16px;border-radius:999px;border:1px solid #fff1de55;background:#182030cc}
+html[data-ui-theme=light] .name-btn{background:#fff1de;color:#182030;border-color:#18203055}
+.name-btn b{font-family:var(--f-display);font-weight:600;font-size:clamp(1.125rem,5vw,2rem);letter-spacing:-.02em;white-space:normal;overflow-wrap:normal;word-break:normal;text-align:center}
+.name-btn svg{flex-shrink:0;width:44px;height:44px;padding:10px;box-sizing:border-box;color:#ffb48c;transition:transform .5s var(--spring)}
+html[data-ui-theme=light] .name-btn svg{color:#6f2f12}
 .name-btn:hover svg{transform:rotate(-18deg)}
 .name-btn.roll b{animation:roll .45s var(--spring)}
 .name-btn.roll svg{transform:rotate(200deg)}
@@ -496,16 +498,6 @@ html[data-motion="reduce"] *,html[data-motion="reduce"] *::before,html[data-moti
   width:min(100%,480px);margin:0;padding:16px 24px;border-radius:var(--r-sheet);
   font-size:.9375rem;line-height:1.5;text-align:left;pointer-events:auto;
 }
-#openTimelapse{
-  display:flex;align-items:center;justify-content:space-between;gap:16px;
-  min-height:44px;margin-top:8px;color:var(--celeste);font-weight:760;
-  text-decoration:none;border-bottom:1px solid currentColor;
-}
-/* Drawn, not typed: a '↗' character depends on the visitor's installed fonts and shows as a box where it is missing. */
-#openTimelapse::after{content:'';flex:none;width:18px;height:18px;background:currentColor;
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 17L17 7M9 7h8v8' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
-  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 17L17 7M9 7h8v8' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat}
-#openTimelapse:hover{color:var(--crema)}
 .cta:disabled,.round:disabled{opacity:1;cursor:default;animation:none !important;
   color:var(--crema-2);background:#182030;box-shadow:inset 0 0 0 1px #baebfb55}
 .cta:disabled .cta-orb{background:#0d1018;color:#baebfb}
@@ -539,10 +531,6 @@ body:has(#loadErr:not([hidden])) .layer.is-on{visibility:hidden}
 .ctl-l,.ctl-v{overflow-wrap:normal;word-break:normal}
 .tg{height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;text-align:left}
 .tg i,.tg svg{flex-shrink:0}
-.name-btn{max-width:calc(100% - 32px);padding:0 8px 0 16px;min-height:44px;min-width:44px;border-radius:999px;border:1px solid #fff1de55;background:#182030cc}
-html[data-ui-theme=light] .name-btn{background:#fff1de;color:#182030;border-color:#18203055}
-.name-btn b{white-space:normal;overflow-wrap:normal;word-break:normal;text-align:center;font-size:clamp(1.125rem,5vw,2rem)}
-.name-btn svg{flex-shrink:0;width:44px;height:44px;padding:10px;box-sizing:border-box}
 .sheet{max-height:calc(100% - 208px - var(--st) - var(--sb));overflow-y:auto}
 .types{flex-shrink:0}
 .ctls,.cta-wide{flex-shrink:0}

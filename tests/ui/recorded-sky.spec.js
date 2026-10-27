@@ -33,7 +33,7 @@ for(const profile of [{name:'laptop',width:1280,height:800,rate:1},{name:'phone-
     // Place the playhead just before the launch, then let the real playback clock cross it.
     await scrub.evaluate((el,value)=>{el.value=String(value);el.dispatchEvent(new Event('input',{bubbles:true}));},tick-12);
     await expect(page.locator('body')).toHaveAttribute('data-tick',String(tick-12));await expect(page.locator('#countN')).toHaveText('0');
-    await page.locator('#replaySpeed').selectOption(speed);start=performance.now();await page.locator('#replayPlay').click();
+    await page.locator(`#replaySpeed [data-speed="${speed}"]`).click();start=performance.now();await page.locator('#replayPlay').click();
     await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-sequence')),{timeout:2000}).toBeGreaterThanOrEqual(1);
     timings.launches.push({speed,ms:performance.now()-start});await page.locator('#replayPlay').click();
    }

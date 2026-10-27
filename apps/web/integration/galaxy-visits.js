@@ -1,33 +1,64 @@
 import {recordedStories} from './recorded-stories.js';
+import {getLang, register, setLang, t} from '../js/i18n.js';
+import galaxyStrings from '../js/strings/galaxy.js';
+register(galaxyStrings);
 /** The open sky and recorded skies are destinations, never a locked-game landing screen. */
+function say(key, vars){
+  const page=document.documentElement.lang==='es'?'es':'en';
+  if(getLang()!==page)setLang(page);
+  return t(key, vars);
+}
 export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
- const nav=document.createElement('nav');nav.id='galaxyVisits';nav.setAttribute('aria-label','Galaxies');
+ const nav=document.createElement('nav');nav.id='galaxyVisits';
  (document.querySelector('.home-footer')||document.getElementById('hud')).append(nav);
- const language=()=>document.documentElement.lang==='es';
  const url=(suffix,params={})=>{const q=new URLSearchParams(params),current=new URLSearchParams(location.search);for(const key of ['emulators','lang','smoke'])if(current.has(key))q.set(key,current.get(key));return `${base}${suffix}${q.size?'?'+q:''}`;};
  let recordings=[],dialog,scrim;
  function information(){
   dialog?.remove();scrim?.remove();
   scrim=document.createElement('div');scrim.id='recordScrim';
   dialog=document.createElement('dialog');dialog.id='recordInformation';dialog.setAttribute('aria-labelledby','recordInformationTitle');
-  const es=language(),g=store.loaded().galaxy,story=recordedStories[g.id]?.[es?'es':'en'];
+  const es=document.documentElement.lang==='es',g=store.loaded().galaxy,story=recordedStories[g.id]?.[es?'es':'en'];
   const title=document.createElement('h2');title.id='recordInformationTitle';title.textContent=story?.title??g.name;dialog.append(title);
-  for(const text of story?.paragraphs??[es?'Este cielo conserva los lanzamientos de sus visitantes. Recorre su historia en el timelapse o vuelve al sandbox para lanzar tu propio astro.':'This sky preserves its visitors’ launches. Explore its history in the timelapse, or return to the sandbox to launch your own body.']){const p=document.createElement('p');p.textContent=text;dialog.append(p);}
-  const close=document.createElement('button');close.type='button';close.textContent=es?'Cerrar':'Close';close.onclick=()=>dialog.close();dialog.append(close);
+  for(const text of story?.paragraphs??[say('record.fallback')]){const p=document.createElement('p');p.textContent=text;dialog.append(p);}
+  const close=document.createElement('button');close.type='button';close.id='recordInformationClose';close.className='pill';close.textContent=say('record.close');close.onclick=()=>dialog.close();dialog.append(close);
   const shut=()=>{scrim?.remove();nav.hidden=false;};
   dialog.addEventListener('close',shut);scrim.onclick=()=>dialog.close();
   nav.hidden=true;document.body.append(scrim,dialog);dialog.showModal();
  }
+ function backChip(id, href, label, aria){
+  const a=document.createElement('a');a.className='pill glass sky-back';a.id=id;a.href=href;a.setAttribute('aria-label',aria);
+  a.innerHTML='<svg aria-hidden="true"><use href="#i-back"/></svg>';
+  const span=document.createElement('span');span.textContent=label;a.append(span);return a;
+ }
  function render(){
-  nav.replaceChildren();const frozen=store.loaded().galaxy.status!=='active';
-  const link=(label,href,id)=>{const a=document.createElement('a');a.className='galaxyVisit';if(id)a.id=id;a.textContent=label;a.href=href;nav.append(a);};
-  if(frozen||replayMode){link(language()?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body',url(''),'backToSandbox');
-   const info=document.createElement('button');info.type='button';info.className='galaxyVisit';info.id='aboutRecordedGalaxy';info.textContent=language()?'Acerca de esta galaxia':'About this galaxy';info.onclick=information;nav.append(info);}
-
-  if(frozen&&!replayMode)link(language()?'Ver el timelapse':'Watch the timelapse',url('timelapse',{g:store.galaxyId}),'openTimelapse');
-  if(replayMode)link(language()?'Volver a la feria Be A Dragon 2026':'Back to the Be A Dragon 2026 fair',url('',{g:store.galaxyId,view:'recorded'}),'backToFair');
-  if(!frozen&&!replayMode)for(const g of recordings)link(recordedStories[g.id]?.[language()?'es':'en']?.visit??(language()?`Visitar ${g.name}`:`Visit ${g.name}`),url('',{g:g.id,view:'recorded'}));
+  const author=document.getElementById('btnCredits');
+  nav.replaceChildren();nav.setAttribute('aria-label',say('record.nav'));
+  const frozen=store.loaded().galaxy.status!=='active';
+  if(frozen||replayMode){
+   const back=replayMode
+    ? backChip('backToFair',url('',{g:store.galaxyId,view:'recorded'}),say('record.back.fair'),say('record.back.fair.aria'))
+    : backChip('backToSandbox',url(''),say('record.back.sandbox'),say('record.back.sandbox.aria'));
+   const info=document.createElement('button');info.type='button';info.className='icon-btn glass';info.id='aboutRecordedGalaxy';info.setAttribute('aria-label',say('record.about'));
+   info.innerHTML='<svg aria-hidden="true"><use href="#i-info"/></svg>';info.onclick=information;
+   nav.append(back,info);
+   if(author)nav.append(author);
+   const primary=document.createElement('a');primary.className=replayMode?'pill glass sky-primary':'cta sky-primary';
+   if(replayMode){primary.id='backToSandbox';primary.href=url('');primary.textContent=say('record.back.sandbox');primary.setAttribute('aria-label',say('record.back.sandbox.aria'));}
+   else{
+    primary.id='openTimelapse';primary.href=url('timelapse',{g:store.galaxyId});
+    primary.innerHTML='<span class="cta-orb" aria-hidden="true"><svg><use href="#i-go"/></svg></span><span class="cta-txt"></span>';
+    primary.querySelector('.cta-txt').textContent=say('record.timelapse');
+   }
+   nav.append(primary);
+  }else{
+   if(author&&author.parentElement===nav)document.querySelector('.home-footer')?.append(author);
+   for(const g of recordings){
+    const a=document.createElement('a');a.className='galaxyVisit';a.href=url('',{g:g.id,view:'recorded'});
+    a.textContent=recordedStories[g.id]?.[document.documentElement.lang==='es'?'es':'en']?.visit??say('record.visit',{name:g.name});
+    nav.append(a);
+   }
+  }
  }
  render();store.recordings?.().then(rows=>{recordings=rows;render();}).catch(()=>{});
- return {render,dispose:()=>{dialog?.remove();scrim?.remove();nav.hidden=false;nav.remove();}};
+ return {render,dispose:()=>{dialog?.remove();scrim?.remove();const author=document.getElementById('btnCredits');if(author)document.querySelector('.home-footer')?.append(author);nav.hidden=false;nav.remove();}};
 }

@@ -1,4 +1,12 @@
 import './uuid.js';
+import {getLang, register, setLang, t} from '../js/i18n.js';
+import core from '../js/strings/core.js';
+register(core);
+function say(key, vars){
+  const page=document.documentElement?.lang==='es'?'es':'en';
+  if(getLang()!==page)setLang(page);
+  return t(key, vars);
+}
 import {observeAction} from './homes.js';
 import {openSession} from './session.js';
 import {launchIntent} from './replay.js';
@@ -38,8 +46,7 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       const current=loaded.player&&loaded.player.displayName!=='Anonymous'?loaded.player.displayName:'';
       try{await backend.store.setName(id,name);}
       catch(error){
-        const es=document.documentElement.lang==='es';
-        if(/kinder name/.test(error.message))emit('notice',es?'Elige un nombre más amable. Por ahora tus astros siguen anónimos.':'Please choose a kinder name. Your stars stay anonymous for now.');
+        if(/kinder name/.test(error.message))emit('notice',say('name.kinder'));
         else throw error;
         return {displayName:current,anonymous:!current};
       }

@@ -120,7 +120,7 @@ for (const viewport of [{width: 360, height: 780}, {width: 1280, height: 800}]) 
           await page.locator(`.pu-chip[data-v="${lang === 'es' ? 'en' : 'es'}"]`).click();
           await page.locator('.pu-panel .x-btn').click();
           await expect(page.locator('.pu-panel')).toBeHidden();
-          await expect(page.locator('#galaxyVisits')).toContainText(lang === 'es' ? 'Back to the sandbox' : 'Volver al sandbox');
+          await expect(page.locator('#backToSandbox')).toContainText('Sandbox');
           await expectLayout(page, 'record navigation after language change');
           await page.locator('#btnPrefs').click();
           await page.locator(`.pu-chip[data-v="${lang}"]`).click();

@@ -1,9 +1,15 @@
+import {getLang, setLang, t} from '../js/i18n.js';
 import {galaxyVisits} from './galaxy-visits.js';
 import {launchVoice} from './voice.js';
 import {routeLaunch} from './launch-routing.js';
 import {setupTimelapse} from './timelapse.js';
 import {watchVersion} from './version.js';
 import {timelineEntry} from './certified-timeline.js';
+function say(key, vars){
+  const page=document.documentElement?.lang==='es'?'es':'en';
+  if(getLang()!==page)setLang(page);
+  return t(key, vars);
+}
 export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft}){
   const worker=new Worker(new URL('./replay-worker.js',import.meta.url),{type:'module'});
   const replayMode=location.pathname.replace(/\/$/,'').endsWith('/timelapse');
@@ -53,7 +59,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     world.readOnly=frozen||store.readOnly;S.frozen=frozen;document.body.dataset.recorded=String(frozen);
     for(const id of ['btnCreate','btnToss','btnToPad']){
       const button=document.getElementById(id);button.disabled=world.readOnly;
-      button.title=frozen?(document.documentElement.lang==='es'?'Esta galaxia está descansando. Puedes mirar, pero no lanzar.':'This galaxy is resting: you can visit, but no more stars can launch here.'):'';
+      button.title=frozen?say('sky.resting.title'):'';
     }
     document.getElementById('sharedStatus')?.remove();
   }
@@ -91,7 +97,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     if(data.error){toast(data.error);return;}
     if(!data.ready)return;
     const entries=world.applySharedState(data.state,normDesign,store.owner());
-    if(ready) for(const event of data.events||[]) {if(event.type==='reservation'&&entries.find(e=>e.id===event.id)?.mine)toast(document.documentElement.lang==='es'?'Ese fuego aún no tiene sitio. Tu astro sigue viajando.':'That fire has no room yet. Your star keeps travelling.');world.sim.emit(event.type,world.sim.byId(event.id),{...event.values,...Object.fromEntries(Object.entries(event.refs).map(([k,id])=>[k,world.sim.byId(id)]))});}
+    if(ready) for(const event of data.events||[]) {if(event.type==='reservation'&&entries.find(e=>e.id===event.id)?.mine)toast(say('sky.fire.full'));world.sim.emit(event.type,world.sim.byId(event.id),{...event.values,...Object.fromEntries(Object.entries(event.refs).map(([k,id])=>[k,world.sim.byId(id)]))});}
     if(!ready && loaded.provisional)void verifyHistory(loadKey);
     verified=data.verified??verified;
     if(data.state.sim.bodies.some(b=>!b.settled))unsettledTick=data.state.sim.steps;
@@ -113,16 +119,14 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     try{
       const {launch,rerouted,reserved}=routeLaunch(world,store.loaded().head,raw);
       const accepted=await store.launch(store.galaxyId,launch);
-      if(rerouted)toast(reserved&&launch.system==='0'
-        ? (document.documentElement.lang==='es'?'Este fuego joven aún está creciendo. Tu astro se unirá al fuego central.':'This young fire is still growing. Your star will join the central fire.')
-        : (document.documentElement.lang==='es'?'Tu astro se unirá a otro fuego con espacio para cuidarlo.':'Your star will join another fire with room to care for it.'));
+      if(rerouted)toast(say(reserved&&launch.system==='0'?'sky.fire.young':'sky.fire.other'));
       pending.set(accepted.intent.id,raw);
       worker.postMessage({actions:[accepted],tick:target()});
     }catch(error){world.failSharedLaunch();toast(launchVoice(error));}
   };
   const onActions=({detail})=>{worker.postMessage({actions:detail,tick:target()});};
   const onManifest=({detail})=>{saveDraft();S.galaxy=detail;readonly();worker.postMessage({tick:target()});};
-  const onError=({detail})=>toast(document.documentElement.lang==='es'?`El cielo no puede oírte. Tu diseño está guardado. ${detail.message}`:`The sky cannot hear you. Your draft is safe. ${detail.message}`);
+  const onError=({detail})=>toast(say('sky.hear',{message:detail.message}));
   const onNotice=({detail})=>toast(detail);
   const onSelection=()=>{saveDraft();location.reload();};
   addEventListener('galaxy:actions',onActions);addEventListener('galaxy:manifest',onManifest);

@@ -146,8 +146,8 @@ async function boot(){
   world.on('frame', onFrame);
   wireWorldEvents();
   startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});
-  world.on('shared-pending', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
-  world.on('shared-denied', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});
+  world.on('shared-pending', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => t('launch.pending.title')); aimStats(() => t('launch.pending.stats'));});
+  world.on('shared-denied', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => t('launch.denied.title')); aimStats(() => t('launch.denied.stats'));});
   indexLayers();
   setMode('home', {instant:true});
   glass.scan();
@@ -170,7 +170,7 @@ async function boot(){
   for(const g of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(g, unlock, {capture:true, passive:true});
   setupTheme();
   const langSwitch = document.querySelector('#langSwitch');
-  const paintLang = () => { langSwitch.textContent = getLang() === 'es' ? 'EN' : 'ES'; langSwitch.setAttribute('aria-label', getLang() === 'es' ? 'English' : 'Español'); };
+  const paintLang = () => { const to = getLang() === 'es' ? 'en' : 'es'; langSwitch.textContent = t('lang.to.' + to); langSwitch.setAttribute('aria-label', t('lang.to.' + to + '.aria')); };
   paintLang(); langSwitch.onclick = () => setLang(getLang() === 'es' ? 'en' : 'es'); onLang(paintLang);
   setupShake();
   setupScreen({world,labels});
@@ -180,6 +180,7 @@ async function boot(){
   requestAnimationFrame(loop);
 
   window.__FOG_OK = true;
+  window.__galaxyDiscs = () => world.discPixels();
   if(import.meta.env.DEV) window.__fog = {world, S, audio, labels, prefs:prefsPanel, store};
   requestAnimationFrame(() => $('#veil').classList.add('is-done'));
   // pantalla de título: el nombre del juego aparece grande y se retira a la esquina

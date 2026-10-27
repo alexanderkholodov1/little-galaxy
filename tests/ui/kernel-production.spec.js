@@ -31,7 +31,7 @@ test('a frozen fair opens and plays its historical timelapse without a kernel no
  await expect(page.locator('body')).toHaveAttribute('data-sequence','2');await enter(page);
  await page.locator('#replayScrub').focus();await page.keyboard.press('Home');
  await expect(page.locator('body')).toHaveAttribute('data-sequence','0');
- await page.locator('#replaySpeed').selectOption('60');await page.locator('#replayPlay').click();
+ await page.locator('#replaySpeed [data-speed="60"]').click();await page.locator('#replayPlay').click();
  await expect(page.locator('body')).toHaveAttribute('data-tick','3600');
  await expect(page.locator('#countN')).toHaveText('2');
  await page.locator('#replayScrub').evaluate(el=>{el.value='180';el.dispatchEvent(new Event('input',{bubbles:true}));});

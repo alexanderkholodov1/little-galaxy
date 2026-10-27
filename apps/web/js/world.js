@@ -2,7 +2,7 @@
 // viven en la misma escena. Pasar de una pantalla a otra es mover la cámara, nunca cortar.
 import * as THREE from 'three';
 import {distantMarker} from '../integration/distant-marker.js';
-import {galaxyFrame} from '../integration/galaxy-frame.js';
+import {galaxyFrame, paintedDistance} from '../integration/galaxy-frame.js';
 import {restoreCoordinates} from '../integration/replay-coordinates.js';
 import {Sim, predict, elements, propagate} from './sim/index.js';
 import {Body, GALAXY_SCALE, TYPE_INFO, glowTex, raysTex, sprite, NOISE, mulberry} from './bodies.js';
@@ -545,7 +545,21 @@ export function createWorld(canvas, opts = {}){
   // Include travellers as well as systems; the camera follows the complete visible galaxy.
   function homeFrame(base){
     const frame=galaxyFrame(sim.bodies,base);
-    return {target:new THREE.Vector3(...frame.centre),R:frame.radius};
+    const disc=base*1.08;
+    return {target:new THREE.Vector3(...frame.centre),R:Math.min(frame.radius,disc)};
+  }
+  // Stored orbits can sit far outside the painted spiral. Draw them inside it; the record stays as it is.
+  function paintSkyPoint(out){
+    const base=camera.aspect<0.9?11:17.5;
+    const frame=galaxyFrame(sim.bodies,base);
+    const disc=base;
+    if(!(frame.radius>disc*1.08))return out;
+    const centre=frame.centre,dx=out[0]-centre[0],dy=out[1]-centre[1],dz=out[2]-centre[2];
+    const distance=Math.hypot(dx,dy,dz);
+    const shown=paintedDistance(distance,frame.radius/1.08,disc);
+    const k=distance>0?shown/distance:1;
+    out[0]=centre[0]+dx*k;out[1]=centre[1]+dy*k;out[2]=centre[2]+dz*k;
+    return out;
   }
   function rememberView(){
     galaxyView = {target:rig.goal.target.clone(), az:rig.goal.az, el:rig.goal.el, dist:rig.goal.dist, shift:{...rig.shiftGoal}};
@@ -816,22 +830,22 @@ export function createWorld(canvas, opts = {}){
   }
   function skyPos(sb, out){
     const list = W.shared && skyState.r !== null && skyState.snaps.get(sb.id);
-    if(!list || !list.length){ out[0] = sb.p[0]; out[1] = sb.p[1]; out[2] = sb.p[2]; return out; }
+    if(!list || !list.length){ out[0] = sb.p[0]; out[1] = sb.p[1]; out[2] = sb.p[2]; return paintSkyPoint(out); }
     const r = skyState.r;
     let i = list.length - 1;
     while(i > 0 && list[i].k > r) i--;
     const a = list[i], b = list[i + 1];
-    if(r <= a.k){ out[0] = a.p[0]; out[1] = a.p[1]; out[2] = a.p[2]; return out; }
+    if(r <= a.k){ out[0] = a.p[0]; out[1] = a.p[1]; out[2] = a.p[2]; return paintSkyPoint(out); }
     if(!b){
       // past the newest state: coast along its velocity for at most a quarter second
       const t = Math.min(r - a.k, 30)/SKY_HZ;
       for(let j = 0; j < 3; j++) out[j] = a.p[j] + a.v[j]*t;
-      return out;
+      return paintSkyPoint(out);
     }
     const h = (b.k - a.k)/SKY_HZ, u = (r - a.k)/(b.k - a.k), u2 = u*u, u3 = u2*u;
     const h00 = 2*u3 - 3*u2 + 1, h10 = u3 - 2*u2 + u, h01 = -2*u3 + 3*u2, h11 = u3 - u2;
     for(let j = 0; j < 3; j++) out[j] = h00*a.p[j] + h10*h*a.v[j] + h01*b.p[j] + h11*h*b.v[j];
-    return out;
+    return paintSkyPoint(out);
   }
   // a whole trail from the orbit itself: the path this body flew in the last seconds (never before its launch)
   function orbitTrail(e){
@@ -847,7 +861,8 @@ export function createWorld(canvas, opts = {}){
     for(let i = 0; i < n; i++){
       const o = propagate(r0, v0, mu, -(n - 1 - i)*TRAIL_EVERY, _orb);
       if(![...o.p].every(Number.isFinite)){ tr.n = 0; return; }
-      tr.buf[i*3] = hp[0] + o.p[0]; tr.buf[i*3+1] = hp[1] + o.p[1]; tr.buf[i*3+2] = hp[2] + o.p[2];
+      const painted=paintSkyPoint([hp[0]+o.p[0],hp[1]+o.p[1],hp[2]+o.p[2]]);
+      tr.buf[i*3] = painted[0]; tr.buf[i*3+1] = painted[1]; tr.buf[i*3+2] = painted[2];
     }
     tr.head = n % TRAIL_K; tr.n = n;
   }
@@ -1637,6 +1652,7 @@ export function createWorld(canvas, opts = {}){
     viewState: () => ({az:rig.goal.az,el:rig.goal.el,dist:rig.goal.dist,target:rig.goal.target.toArray()}),
     restoreView: o => {if([o.az,o.el,o.dist,...(o.target||[])].every(Number.isFinite) && o.target?.length===3) snapTo({...views().home,...o,target:new THREE.Vector3(...o.target)});},
     frame, resize, setMode, recenter, homeFocus, isOffHome, focus, project, pxRadius,
+    discPixels: () => W.entries.filter(e => !e.toy).map(e => pxRadius(e.body.root.position, e.body.visR)),
     applySharedState, completeSharedLaunch, failSharedLaunch,
     addEntry, removeEntry, orbitOf, systemsInfo, flyToSystem, serialize, loadGalaxy, setBenchDesign, moveBenchToPad, moveBenchBack, startAurora, sparks, warm,
     enterToss, exitToss, loadToy,

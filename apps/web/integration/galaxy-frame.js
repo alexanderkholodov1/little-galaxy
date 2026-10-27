@@ -9,3 +9,13 @@ export function galaxyFrame(bodies,base=17.5){
   const radius=Math.max(base,...points.map(b=>Math.hypot(...b.p.map((x,k)=>x-centre[k]))+(b.r??0)+2));
   return {centre,radius:radius*1.08};
 }
+
+/**
+ * The spiral and the fire are painted for a disc of radius `disc`. Orbits stored farther out
+ * (the fair's history) are drawn inside that disc so the camera can stay where a body reads
+ * as a body. Distances inside the disc are unchanged. The stored record is not.
+ */
+export function paintedDistance(distance,outermost,disc){
+  if(!(outermost>disc)||!(distance>0)||!(disc>0))return distance;
+  return Math.sqrt(distance/outermost)*disc;
+}

@@ -38,12 +38,6 @@ export default defineConfig(({ command, mode }) => {
           emitRecords(recordRoot);
         }
         // The release payload redistributes the fonts, so it must carry their notices too.
-        for (const name of ['OFL-Spectral.txt', 'OFL-ArchivoNarrow.txt']) {
-          this.emitFile({
-            type: 'asset', fileName: `licenses/${name}`,
-            source: readFileSync(new URL(`./src/assets/fonts/${name}`, import.meta.url), 'utf8'),
-          });
-        }
         this.emitFile({ type: 'asset', fileName: 'licenses/MIT-qrcode-generator.txt',
           source: readFileSync(new URL('./src/assets/licenses/MIT-qrcode-generator.txt', import.meta.url), 'utf8') });
         for (const family of ['figtree', 'unbounded']) {

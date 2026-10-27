@@ -19,7 +19,7 @@ function notify(message,error=false,undo=null){
  if(undo) { document.querySelector('#ad-undo').onclick=safe(async()=>{await store.undoDelete(undo.token);toast.hidden=true;await render();}); toastTimer=setTimeout(()=>{toast.innerHTML=`<p>${esc(t('expired'))}</p>`;toastTimer=setTimeout(()=>toast.hidden=true,3500);},Math.max(0,undo.expiresAt-Date.now())); }
  else toastTimer=setTimeout(()=>toast.hidden=true,20000);
 }
-function chrome(){document.documentElement.lang=lang;document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));document.querySelector('#ad-lang').textContent=lang==='es'?'EN':'ES';document.querySelector('#ad-lang').setAttribute('aria-label',lang==='es'?'English':'Español');document.querySelector('#ad-logout').hidden=!unlocked;}
+function chrome(){document.documentElement.lang=lang;document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));const to=lang==='es'?'en':'es';document.querySelector('#ad-lang').textContent=t('lang.'+to);document.querySelector('#ad-lang').setAttribute('aria-label',t('lang.'+to+'.aria'));document.querySelector('#ad-logout').hidden=!unlocked;}
 document.querySelector('#ad-lang').onclick=safe(async()=>{if(dialog.open)dialog.close();lang=lang==='es'?'en':'es';try{localStorage.setItem('little-galaxy.admin-language',lang);}catch{ /* Keep the current page usable. */ }await render();});
 document.querySelector('#ad-logout').onclick=async()=>{await store.signOut();unlocked=false;dialog.close();toast.hidden=true;render();};
 function gate(){

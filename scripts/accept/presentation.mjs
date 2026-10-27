@@ -1,3 +1,4 @@
+/* global document, getComputedStyle, NodeFilter, window */
 import {inflateSync} from 'node:zlib';
 import core from '../../apps/web/js/strings/core.js';
 import galaxy from '../../apps/web/js/strings/galaxy.js';
@@ -107,6 +108,52 @@ export function iconContrast(buffer) {
     if (Math.abs(data[k] - fr) + Math.abs(data[k + 1] - fg) + Math.abs(data[k + 2] - fb) > 90) n++;
   }
   return n;
+}
+
+export async function assertProductType(page, state) {
+  const foreign = await page.evaluate(() => {
+    const allowed = new Set(['unbounded variable', 'unbounded', 'figtree variable', 'figtree', 'trebuchet ms', 'sans-serif']);
+    const seen = new Set();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const text = walker.currentNode.textContent;
+      if (!text || !/\S/u.test(text)) continue;
+      const el = walker.currentNode.parentElement;
+      if (!el) continue;
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) continue;
+      const family = style.fontFamily;
+      const names = family.split(',').map(part => part.trim().replace(/^["']|["']$/gu, '').toLowerCase());
+      if (names.some(name => !allowed.has(name))) seen.add(family);
+    }
+    return [...seen];
+  });
+  if (foreign.length) throw new Error(`${state}: visible text is not set in Unbounded or Figtree (${foreign.join(' | ')})`);
+}
+
+// A disc under 4px is the finding-chart pinprick. Sandbox bodies already clear this.
+export async function assertReadableBodies(page, state) {
+  const radii = await page.evaluate(() => (typeof window.__galaxyDiscs === 'function' ? window.__galaxyDiscs() : []));
+  if (!radii.length) throw new Error(`${state}: the galaxy opened with no bodies to measure`);
+  const smallest = Math.min(...radii);
+  if (!(smallest >= 4)) throw new Error(`${state}: a body is drawn at ${smallest.toFixed(2)}px`);
+}
+
+// The track fill follows --v. An unset variable paints the stylesheet's 50% fallback while the thumb sits at the real moment.
+export async function assertScrubTracksThumb(page, state) {
+  const scrub = page.locator('#replayScrub');
+  if (!(await scrub.count()) || !(await scrub.isVisible())) return;
+  const detail = await scrub.evaluate(el => {
+    const max = Number(el.max);
+    const value = Number(el.value);
+    const ratio = max > 0 ? value / max * 100 : 0;
+    const raw = getComputedStyle(el).getPropertyValue('--v').trim();
+    const painted = Number(raw);
+    return {raw, ratio, delta: Number.isFinite(painted) ? Math.abs(painted - ratio) : Infinity};
+  });
+  if (!detail.raw || detail.delta > 2) throw new Error(`${state}: the scrub fill does not meet the thumb`);
 }
 
 export async function assertHeaderIcons(page, state) {
