@@ -42,6 +42,10 @@ export async function measureLayout(page) {
       const a = controls[i], b = controls[j];
       if (intersects(a.box, b.box)) overlaps.push([name(a.el), name(b.el)]);
     }
+    // Title letters are inline-blocks (for their entrance animation), so a box narrower than a word splits it.
+    const brokenWords = [...document.querySelectorAll('.splash-title span')].filter(span => visibleBox(span)
+      && new Set([...span.querySelectorAll('i')].map(letter => Math.round(letter.getBoundingClientRect().top))).size > 1)
+      .map(span => span.textContent);
     const note = document.getElementById('sharedStatus');
     const noteBox = note && visibleBox(note);
     return {
@@ -52,6 +56,7 @@ export async function measureLayout(page) {
       }).map(({el}) => ({name: name(el), width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})),
       // The timelapse action belongs inside the notice; all other controls must stay clear.
       noticeIntersections: noteBox ? controls.filter(({el, box}) => !note.contains(el) && intersects(noteBox, box)).map(({el}) => name(el)) : [],
+      brokenWords,
       controls: controls.length,
     };
   });
@@ -65,6 +70,7 @@ export async function expectLayout(page, state) {
   expect(layout.overlaps, `${state}: intersecting controls`).toEqual([]);
   expect(layout.small, `${state}: phone touch targets below 44px`).toEqual([]);
   expect(layout.noticeIntersections, `${state}: notice intersects controls`).toEqual([]);
+  expect(layout.brokenWords, `${state}: a title word wraps across lines`).toEqual([]);
   return layout;
 }
 

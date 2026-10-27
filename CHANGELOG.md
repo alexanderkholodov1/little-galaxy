@@ -1,5 +1,11 @@
 # Changelog
 
+## Welcome title and timelapse icon fix — 2026-10-27
+
+- Keep each word of the welcome title on one line: from 1024px the 420px box split "Galaxy" between its letters.
+- The layout journeys now fail when any title word wraps across lines.
+- Draw the "Watch the timelapse" arrow as an icon instead of the U+2197 character, which showed as an empty box where the visitor's fonts lack it.
+
 ## A-show presentation — 2026-10-26
 
 - Place resting status and its timelapse action in the home layout above visibly disabled launches.
