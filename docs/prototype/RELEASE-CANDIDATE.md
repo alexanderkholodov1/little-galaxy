@@ -59,14 +59,10 @@ Firebase documents the [Google credential exchange](https://firebase.google.com/
 Sign-in discovers the existing public Google client ID through Firebase's provider metadata;
 it does not create an OAuth client or modify an Auth provider.
 
-One console setting is required on that existing Google **Web client**:
-[Google Auth Platform → Clients, project little-galaxy](https://console.cloud.google.com/auth/clients?project=little-galaxy)
-→ the existing Web client used by Firebase Google sign-in → **Authorized redirect URIs** → add exactly
-`https://alexanderkholodov.web.app/little-galaxy/admin` → **Save**.
-Keep its existing redirect URIs. This is distinct from Firebase's already-configured Authorized
-domains. The owner's Google consent/password cannot be exercised by an unattended test.
-Local acceptance substitutes only Google's identity-provider page and uses the actual application
-redirect, callback, Firebase Auth emulator credential exchange, allowlist and Firestore admin actions.
+Production sign-in needs the single console change in **Owner's one-time setting** below.
+Everything else in this release is automatic. Local acceptance substitutes only Google's
+identity-provider page and uses the actual application redirect, callback, Firebase Auth emulator
+credential exchange, allowlist and Firestore admin actions.
 
 ## Verification and release
 
@@ -111,5 +107,18 @@ is now split so the relay receives its original root `verdict.json` contract. Th
 as an accepted rehearsal; a new passing receipt is required.
 
 An anonymous Google authorization probe on 2026-10-27 confirmed `redirect_uri_mismatch` for
-the new production admin callback. The single console setting above is required before using
-production Google sign-in. This was checked without a Google password or a production data write.
+the new production admin callback (`.tmp/google-redirect-probe.json`, HTTP 302). The owner's
+one-time setting below is required before production Google sign-in. This was checked without a
+Google password or a production data write.
+
+## Owner's one-time setting
+
+Add one redirect URI on the existing Firebase Google Web client. Keep every URI already listed.
+No other console change is required: Firebase Authorized domains already include
+`alexanderkholodov.web.app`, and the release deploys rules, indexes, the client and the open sandbox.
+
+- **Link:** [Google Auth Platform → Clients → `582862355672-os40u5nj70iok1cbtttjmif2nm9gu2pp.apps.googleusercontent.com`](https://console.cloud.google.com/auth/clients/582862355672-os40u5nj70iok1cbtttjmif2nm9gu2pp.apps.googleusercontent.com?project=little-galaxy) (project `little-galaxy`)
+- **Field:** Authorized redirect URIs
+- **Value:** `https://alexanderkholodov.web.app/little-galaxy/admin`
+
+Save the client. Do not create a new OAuth client and do not change the Firebase auth domain.
