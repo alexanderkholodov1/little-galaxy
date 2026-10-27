@@ -49,10 +49,10 @@ export function firestoreGalaxyDriver(
                 tx.set(doc(database, path), {
                   ...data,
                   updatedTime: serverTimestamp(),
-                  mutationTime:
-                    data.lastMutationAt === 0 || old?.lastMutationAt === data.lastMutationAt
-                      ? (old?.mutationTime ?? null)
-                      : serverTimestamp(),
+                  // Reuse the existing server field so already-open clients can still launch.
+                  // Updated clients preserve this clock for edits, profiles and presence.
+                  mutationTime: data.launches !== (old?.launches ?? 0)
+                    ? serverTimestamp() : (old?.mutationTime ?? null),
                 });
               } else
                 tx.set(

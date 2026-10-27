@@ -3,15 +3,12 @@ import { isRudeName } from './rude.js';
 export const GALAXY_SCHEMA = 1;
 export const LIMITS = {
   accounts: 3,
-  bodies: 1024,
-  systems: 32,
-  mass: 96_000_000,
-  blackholes: 4,
-  mutations: 4096,
-  dayLaunches: 900,
-  memberBodies: 3,
-  memberMass: 3_100_000,
-  cooldown: 15_000,
+  bodies: 2048,
+  systems: 2048,
+  // Derived from physical slots, never an independent material/player quota.
+  mass: 4_096_000_000,
+  blackholes: 2048,
+  launchInterval: 1000,
   activity: 300_000,
   page: 64,
 } as const;
@@ -98,6 +95,7 @@ export interface Member {
   firstSeen: number;
   lastSeen: number;
   lastMutationAt: number;
+  lastLaunchAt?: number;
   launches: number;
   window: string;
   dayLaunches: number;
@@ -241,12 +239,58 @@ export function canonicalBytes(value: unknown): Uint8Array {
   };
   return new TextEncoder().encode(text(value));
 }
+/** SHA-256 for plain HTTP practice, where Web Crypto is unavailable. */
+function sha256(bytes: Uint8Array): Uint8Array {
+  const constants = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+  ];
+  const state = new Uint32Array([
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+  ]);
+  const padded = new Uint8Array(Math.ceil((bytes.length + 9) / 64) * 64);
+  padded.set(bytes);
+  padded[bytes.length] = 0x80;
+  const view = new DataView(padded.buffer);
+  view.setUint32(padded.length - 8, Math.floor(bytes.length / 0x20000000), false);
+  view.setUint32(padded.length - 4, (bytes.length * 8) >>> 0, false);
+  const words = new Uint32Array(64);
+  const rotate = (x: number, n: number) => (x >>> n) | (x << (32 - n));
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    for (let t = 0; t < 16; t++) words[t] = view.getUint32(offset + t * 4, false);
+    for (let t = 16; t < 64; t++) {
+      const x = words[t - 15], y = words[t - 2];
+      words[t] = words[t - 16] + (rotate(x, 7) ^ rotate(x, 18) ^ (x >>> 3)) +
+        words[t - 7] + (rotate(y, 17) ^ rotate(y, 19) ^ (y >>> 10));
+    }
+    let [a, b, c, d, e, f, g, h] = state;
+    for (let t = 0; t < 64; t++) {
+      const first = (h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) +
+        ((e & f) ^ (~e & g)) + constants[t] + words[t]) >>> 0;
+      const second = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) +
+        ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      h = g; g = f; f = e; e = (d + first) >>> 0;
+      d = c; c = b; b = a; a = (first + second) >>> 0;
+    }
+    for (const [i, value] of [a, b, c, d, e, f, g, h].entries()) state[i] += value;
+  }
+  const result = new Uint8Array(32), output = new DataView(result.buffer);
+  state.forEach((word, i) => output.setUint32(i * 4, word, false));
+  return result;
+}
 export async function canonicalHash(value: unknown) {
-  const digest = await globalThis.crypto.subtle.digest(
-    'SHA-256',
-    canonicalBytes(value) as Uint8Array<ArrayBuffer>,
-  );
-  return [...new Uint8Array(digest)].map((n) => n.toString(16).padStart(2, '0')).join('');
+  const bytes = canonicalBytes(value);
+  const subtle = globalThis.crypto?.subtle;
+  const digest = subtle
+    ? new Uint8Array(await subtle.digest('SHA-256', bytes as Uint8Array<ArrayBuffer>))
+    : sha256(bytes);
+  return [...digest].map((n) => n.toString(16).padStart(2, '0')).join('');
 }
 export function quotaWindow(at: number): QuotaWindow {
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -362,14 +406,9 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
   check(validId(intent.id) && Number.isSafeInteger(intent.effectiveTick), 'Invalid identity/tick');
   check(
     intent.effectiveTick > h.effectiveTick &&
-      intent.effectiveTick >= Math.ceil(((now - g.epoch + 500) * 120) / 1000) &&
-      intent.effectiveTick <= Math.floor(((now - g.epoch + 3000) * 120) / 1000),
+      intent.effectiveTick >= Math.ceil(((now - g.epoch - 1500) * 120) / 1000) &&
+      intent.effectiveTick <= Math.floor(((now - g.epoch + 15000) * 120) / 1000),
     'Resynchronize effective tick',
-  );
-  check(now >= w.start && now < w.end && w.id === quotaWindow(now).id, 'Invalid quota window');
-  check(
-    true, // Fair 2026-10-25 (operator): no mutation cap and no cooldown
-    'Mutation limit or cooldown',
   );
   check(new TextEncoder().encode(JSON.stringify(intent)).length <= 512, 'Intent too large');
   if (intent.type !== 'remove')
@@ -394,22 +433,12 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
     m.window = w.id;
     m.dayLaunches = 0;
   }
-  // Fair 2026-10-25 (operator): no daily mutation budget
-  if (intent.type !== 'launch' || m.dayLaunches > 0)
-    check(
-      true, // Fair 2026-10-25 (operator): no first-contribution reservation
-      'First-contribution reservation',
-    );
+  // Legacy daily counters remain telemetry for existing dashboards, never admission budgets.
   h.dayMutations++;
-  const slot = Math.floor(now / 2000),
-    tokens = Math.min(6, h.tokens + slot - h.bucketSlot);
-  // Fair 2026-10-25 (operator): no galaxy rate limit
-  h.tokens = Math.max(0, tokens - 1);
-  h.bucketSlot = slot;
   let body: Body;
   if (intent.type === 'launch') {
     check(
-      intent.kind in MASSES && /^(0|[1-9]|[12][0-9]|3[01])$/.test(intent.system),
+      intent.kind in MASSES && /^(0|[1-9][0-9]{0,3})$/.test(intent.system) && Number(intent.system) < LIMITS.systems,
       'Invalid kind/system',
     );
     const vectors = [...intent.origin, ...intent.velocity];
@@ -430,27 +459,10 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
       bh = intent.kind === 'blackhole' ? 1 : 0;
     const stellar = ['star', 'binary', 'pulsar'].includes(intent.kind) ? 1 : 0,
       compact = stellar ? count : bh;
-    check(
-      true, // Fair 2026-10-25 (operator): everyone may launch everything
-      'Player capacity',
-    );
-    check(
-      true, // Fair 2026-10-25 (operator): no daily launch budget
-      'Daily launch budget',
-    );
-    check(!bh || h.blackholes < 4, 'Black-hole budget'); // Fair 2026-10-25 (operator): no black-hole cooldown
+    check(now - (m.lastLaunchAt ?? 0) >= LIMITS.launchInterval, 'Launch rate limit');
     const fresh = !h.systems[intent.system],
       nursery = fresh && !compact ? 1 : 0;
-    check(!fresh || Object.keys(h.systems).length < 32, 'System budget');
     const reserve = !fresh && compact > 0;
-    check(
-      Object.keys(h.systems).length +
-        Object.keys(h.reserves).length +
-        (fresh ? 1 : 0) +
-        (reserve ? 1 : 0) <=
-        32,
-      'System contingency capacity',
-    );
     if (reserve)
       h.reserves[intent.id] = {
         bodies: count,
@@ -469,17 +481,9 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
       ordinaryMass: 0,
     };
     const ordinary = compact ? 0 : mass;
+    // System envelopes guide routing; concurrent launches may cross a target without denial.
     check(
-      s.bodies + count <= 32 &&
-        s.mass + mass <= 3_200_000 &&
-        s.compact + compact <= 2 &&
-        s.giants + (intent.kind === 'giant' ? 1 : 0) <= 6 &&
-        s.blackholes + bh <= 1 &&
-        s.ordinaryMass + ordinary <= 200_000,
-      'System capacity',
-    );
-    check(
-      h.bodies + count + nursery <= 1024 && h.mass + mass + nursery * 1_000_000 <= 96_000_000,
+      h.bodies + count + nursery <= LIMITS.bodies,
       'Galaxy capacity',
     );
     if (intent.kind === 'moon')
@@ -488,7 +492,6 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
           ['planet', 'giant'].includes(c.parent.kind) &&
           c.parent.system === intent.system &&
           !c.parent.tombstone &&
-          c.parent.moons < 2 &&
           intent.parent === c.parent.id,
         'Moon parent capacity',
       );
@@ -509,6 +512,7 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
     if (m.dayLaunches === 0) h.contributors++;
     m.dayLaunches++;
     m.launches++;
+    m.lastLaunchAt = now;
     m.mass += mass;
     m.blackholes += bh;
     m.stellar += stellar;
@@ -531,7 +535,8 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
     check(
       c.body &&
         !c.body.tombstone &&
-        (c.admin || (c.body.memberId === m.memberId && m.bodyIds.includes(c.body.id))),
+        (intent.type === 'remove' ? c.admin :
+          c.body.memberId === m.memberId && m.bodyIds.includes(c.body.id)),
       'Body ownership',
     );
     body = { ...c.body, lastAction: intent.id };
@@ -658,9 +663,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
   };
   const pathMember = (id: string) => `${base(id)}/members/${options.uid}`;
   async function mutate(id: string, intent: Intent, cache?: PreparedCheckpoint) {
-    const p = base(id),
-      now = options.now(),
-      w = quotaWindow(now);
+    const p = base(id);
     return driver.transaction(async (tx) => {
       const existing = await tx.get<AcceptedAction>(`${p}/actions/${intent.id}`);
       if (existing) {
@@ -672,12 +675,13 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
               ownMember.bodyIds.includes(
                 existing.intent.type === 'launch' ? existing.intent.id : existing.intent.bodyId,
               )) &&
-            (await canonicalHash(existing.intent)) === (await canonicalHash(intent)),
+            (await canonicalHash({ ...existing.intent, effectiveTick: 0 })) ===
+              (await canonicalHash({ ...intent, effectiveTick: 0 })),
           'Nonce already used',
         );
         return existing;
       }
-      const [g, h, old, live, window] = await Promise.all([
+      const [g, h, old, live] = await Promise.all([
         tx.get<Galaxy>(p),
         tx.get<Head>(`${p}/control/head`),
         tx.get<Member>(pathMember(id)),
@@ -687,9 +691,8 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
           launches?: boolean;
           edits?: boolean;
         }>('config/live'),
-        tx.get<QuotaWindow>(`quotaWindows/${w.id}`),
       ]);
-      check(g && h && window, 'Missing galaxy/head/quota window');
+      check(g && h, 'Missing galaxy/head');
       check(
         g.writePolicy !== 'public' || live?.activePublicGalaxyId === id || options.admin,
         'Public galaxy switched; preserve draft',
@@ -711,8 +714,12 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
           ? await tx.get<Body>(`${p}/objects/${intent.parent}`)
           : null;
       check(old || g.writePolicy === 'public' || g.owner === options.uid, 'Invite required');
+      // Reads and contention backoff must finish before scheduling each attempt.
+      const now = options.now(), window = quotaWindow(now);
+      const scheduled = { ...intent, effectiveTick: Math.max(h.effectiveTick + 1,
+        Math.ceil((now - g.epoch + 2400) * 120 / 1000)) };
       const m = old ?? initialMember(options.memberId, now);
-      if (g.owner === options.uid) m.role = 'owner';
+      if (!old && g.owner === options.uid) m.role = 'owner';
       if (cache)
         check(
           cache.baseSequence === h.sequence &&
@@ -733,7 +740,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
           parent,
           admin: options.admin,
         },
-        intent,
+        scheduled,
       );
       check((page?.entries.length ?? 0) === h.sequence % 64, 'Missing log page');
       const entries = [...(page?.entries ?? []), r.action];
@@ -754,7 +761,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
         });
       // Admission summaries are useful for comparison, never authority for physical trajectories.
       const cacheState =
-        cache?.state ?? JSON.stringify({ kind: 'admission-v1', head: r.head, body: r.body });
+        cache?.state ?? JSON.stringify({ kind: 'admission-v1', sequence: r.head.sequence, body: r.body });
       check(cacheState.length <= 14000, 'Checkpoint byte limit');
       const cacheHash = cache?.stateHash ?? (await canonicalHash(cacheState));
       tx.set(`${p}/checkpoints/latest`, {
@@ -940,10 +947,12 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
     async setName(id, name) {
       name = normalizeName(name);
       check(!isRudeName(name), 'Please choose a kinder name');
-      const now = options.now();
       await driver.transaction(async (tx) => {
-        const old = await tx.get<Member>(pathMember(id));
-        check(!old || now - old.lastSeen >= 300_000, 'Profile cooldown');
+        const [old, g] = await Promise.all([
+          tx.get<Member>(pathMember(id)), tx.get<Galaxy>(base(id)),
+        ]);
+        check(g && g.status === 'active' && g.writePolicy !== 'frozen', 'Galaxy is read-only');
+        const now = options.now();
         tx.set(pathMember(id), {
           ...(old ?? initialMember(options.memberId, now)),
           displayName: name,
@@ -953,7 +962,10 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
     },
     async touch(id) {
       return driver.transaction(async (tx) => {
-        const m = await tx.get<Member>(pathMember(id));
+        const [m, g] = await Promise.all([
+          tx.get<Member>(pathMember(id)), tx.get<Galaxy>(base(id)),
+        ]);
+        check(g && g.status === 'active' && g.writePolicy !== 'frozen', 'Galaxy is read-only');
         check(m, 'Set name or launch first');
         if (options.now() - m.lastSeen < 300_000) return false;
         tx.set(pathMember(id), { ...m, lastSeen: options.now() });

@@ -282,8 +282,6 @@ service cloud.firestore {
           && (flags.get('seasonOpen',false) || (operation == 'remove' && bAdmin()))
           : galaxy.owner == request.auth.uid || (get(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)).data.role in ['owner','editor']) || bAdmin());
     }
-    function bMin(a,b) { return a < b ? a : b; }
-    function bMax(a,b) { return a > b ? a : b; }
     function bMass(k) {
       return k == 'pulsar' ? 1400000 : k == 'star' ? 1000000 : k in ['binary','blackhole'] ? 2000000
         : k == 'giant' ? 10000 : k == 'planet' ? 1000 : k == 'moon' ? 10 : k == 'nebula' ? 100 : 1;
@@ -350,7 +348,7 @@ service cloud.firestore {
       return id(i.id) && i.effectiveTick is int && (i.type == 'launch'
         ? i.keys().hasOnly(['id','type','system','kind','origin','velocity','seed','design','effectiveTick','parent'])
           && i.kind in ['planet','giant','moon','asteroid','comet','meteor','nebula','star','binary','pulsar','blackhole']
-          && i.system is string && i.system.matches('^(0|[1-9]|[12][0-9]|3[01])$')
+          && i.system is string && i.system.matches('^(0|[1-9][0-9]{0,3})$') && int(i.system) < 2048
           && i.origin is list && i.origin.size() == 2
           && intRange(i.origin[0],-1000000000000,1000000000000) && intRange(i.origin[1],-1000000000000,1000000000000)
           && i.velocity is list && i.velocity.size() == 2
@@ -371,20 +369,21 @@ service cloud.firestore {
       return signed() && h.updatedTime == request.time && d.schemaVersion == 1 && h.lastAction == a
         && d.sequence == h.sequence && d.hash == h.hash && d.memberId == m.memberId && d.displayName == m.displayName
         && d.generation == galaxy.generation && d.acceptedAt is int
-        && d.acceptedAt >= reqMs - 1500 && d.acceptedAt <= reqMs + 1500
+        && d.acceptedAt >= reqMs - 30000 && d.acceptedAt <= reqMs + 30000
         && d.previousHash is string && d.hash is string && d.hash.matches('^[a-f0-9]{64}$')
         && bIntent(d.intent) && d.intent.id == a && d.intent.effectiveTick == h.effectiveTick
-        && tick1000 >= (epochOffset + 500) * 120
-        && tick1000 <= (epochOffset + 3000) * 120
+        // Later commits stay newer than the keeper's two-second certification lag.
+        && tick1000 >= (epochOffset - 1500) * 120
+        && tick1000 <= (epochOffset + 15000) * 120
         && d.keys().hasOnly(['schemaVersion','generation','sequence','previousHash','hash','memberId','displayName','acceptedAt','intent']);
     }
     function bSystem(old,s,i,cost) {
-      return s.bodies == old.bodies + cost.count && s.bodies <= 32
-        && s.mass == old.mass + cost.mass && s.mass <= 3200000
-        && s.compact == old.compact + cost.compact && s.compact <= 2
-        && s.giants == old.giants + (i.kind == 'giant' ? 1 : 0) && s.giants <= 6
-        && s.blackholes == old.blackholes + cost.hole && s.blackholes <= 1
-        && s.ordinaryMass == old.ordinaryMass + (cost.compact == 0 ? cost.mass : 0) && s.ordinaryMass <= 200000
+      return s.bodies == old.bodies + cost.count
+        && s.mass == old.mass + cost.mass
+        && s.compact == old.compact + cost.compact
+        && s.giants == old.giants + (i.kind == 'giant' ? 1 : 0)
+        && s.blackholes == old.blackholes + cost.hole
+        && s.ordinaryMass == old.ordinaryMass + (cost.compact == 0 ? cost.mass : 0)
         && s.keys().hasOnly(['bodies','mass','compact','giants','blackholes','ordinaryMass']);
     }
     function bHeadLaunch(g,d,old,a,m,prior,memberFirst) {
@@ -394,7 +393,7 @@ service cloud.firestore {
       let launches = sameWindow ? old.dayLaunches : 0; let contributors = sameWindow ? old.contributors : 0;
       let priorBodies = prior.get('bodyIds', []);
       let compactLaunch = !fresh && cost.compact > 0;
-      return d.systems.size() + d.reserves.size() <= 32
+      return d.systems.size() + d.reserves.size() <= 2048
         && (compactLaunch ? !(i.id in old.reserves)
           && d.reserves[i.id] == {'bodies':cost.count,'mass':cost.mass,'compact':cost.compact,'giants':0,'blackholes':cost.hole,'ordinaryMass':0}
           && d.reserves.diff(old.reserves).affectedKeys().hasOnly([i.id])
@@ -402,11 +401,11 @@ service cloud.firestore {
         && d.systems.diff(old.systems).affectedKeys().hasOnly([i.system])
         && bSystem(s,d.systems[i.system],i,cost)
         && (i.kind != 'moon' || getAfter(/databases/$(database)/documents/galaxies/$(g)/objects/$(i.parent)).data.lastAction == i.id)
-        && d.bodies == old.bodies + cost.count + nursery && d.bodies <= 1024
-        && d.mass == old.mass + cost.mass + nursery*1000000 && d.mass <= 96000000
-        && d.blackholes == old.blackholes + cost.hole && d.blackholes <= 4
-        && (i.kind == 'blackhole' ? request.time.toMillis() >= old.lastBlackholeAt + 601500 && d.lastBlackholeAt == a.acceptedAt : d.lastBlackholeAt == old.lastBlackholeAt)
-        && d.dayLaunches == launches + 1 && d.dayLaunches <= 900
+        && d.bodies == old.bodies + cost.count + nursery && d.bodies <= 2048
+        && d.mass == old.mass + cost.mass + nursery*1000000 && d.mass <= 4096000000
+        && d.blackholes == old.blackholes + cost.hole && d.blackholes <= 2048
+        && (i.kind == 'blackhole' ? d.lastBlackholeAt == a.acceptedAt : d.lastBlackholeAt == old.lastBlackholeAt)
+        && d.dayLaunches == launches + 1
         && d.contributors == contributors + (memberFirst ? 1 : 0)
         && m.mass == prior.get('mass', 0) + cost.mass
         && m.blackholes == prior.get('blackholes', 0) + cost.hole
@@ -417,7 +416,6 @@ service cloud.firestore {
       let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(d.lastAction)).data;
       let m = bMember(g);
       let prior = exists(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)) ? get(/databases/$(database)/documents/galaxies/$(g)/members/$(request.auth.uid)).data : {};
-      let w = get(/databases/$(database)/documents/quotaWindows/$(d.window)).data;
       let page = getAfter(/databases/$(database)/documents/galaxies/$(g)/logPages/$(string(int(old.sequence / 64)))).data;
       let cache = getAfter(/databases/$(database)/documents/galaxies/$(g)/checkpoints/latest).data;
       let galaxy = bGalaxy(g);
@@ -425,15 +423,13 @@ service cloud.firestore {
       let sameWindow = old.window == d.window;
       let memberFirst = isLaunch && (!('dayLaunches' in prior) || prior.get('window','') != d.window || prior.dayLaunches == 0);
       return bOpen(g,galaxy,a.intent.type)
-        && d.sequence == old.sequence+1 && d.sequence <= 4096 && d.effectiveTick > old.effectiveTick
+        && d.sequence == old.sequence+1 && d.effectiveTick > old.effectiveTick
         && a.sequence == d.sequence && a.hash == d.hash && a.previousHash == old.hash
         && a.intent.effectiveTick == d.effectiveTick && d.updatedTime == request.time
-        && m.mutationTime == request.time && cache.sequence == d.sequence
-        && d.bucketSlot is int && d.bucketSlot <= int(request.time.toMillis() / 2000) && d.bucketSlot >= int(request.time.toMillis() / 2000)-1
-        && d.tokens == bMin(6,old.tokens+d.bucketSlot-old.bucketSlot)-1 && d.tokens >= 0
-        && d.dayMutations == (sameWindow ? old.dayMutations+1 : 1) && d.dayMutations <= galaxy.dailyLimit
-        && (memberFirst || (sameWindow ? old.dayMutations : 0) < galaxy.dailyLimit - bMax(0,300-(sameWindow ? old.contributors : 0)))
-        && w.id == d.window && w.start <= request.time.toMillis() && w.end > request.time.toMillis()
+        && m.updatedTime == request.time && m.lastMutationAt == a.acceptedAt
+        && m.lastSeen == a.acceptedAt && m.window == d.window && cache.sequence == d.sequence
+        && intRange(d.tokens,0,6) && intRange(d.bucketSlot,0,9007199254740991)
+        && d.dayMutations == (sameWindow ? old.dayMutations+1 : 1)
         && page.entries.size() == old.sequence%64+1
         && getAfter(/databases/$(database)/documents/galaxies/$(g)/objects/$(isLaunch ? a.intent.id : a.intent.bodyId)).data.lastAction == a.intent.id
         && (isLaunch ? bHeadLaunch(g,d,old,a,m,prior,memberFirst)
@@ -445,26 +441,31 @@ service cloud.firestore {
     function bMemberSchema(d) {
       let reqMs = request.time.toMillis();
       return d.updatedTime == request.time
-        && d.launches is int && d.launches >= 0
-        && intRange(d.dayLaunches, 0, 6)
-        && intRange(d.mass, 0, 3100000)
-        && intRange(d.blackholes, 0, 1)
-        && intRange(d.stellar, 0, 1)
-        && d.bodyIds is list && d.bodyIds.size() <= 3
+        && intRange(d.launches, 0, 9007199254740991)
+        && intRange(d.get('lastLaunchAt',0), 0, 9007199254740991)
+        && (d.mutationTime == null || d.mutationTime is timestamp)
+        && intRange(d.dayLaunches, 0, 9007199254740991)
+        && intRange(d.mass, 0, 4096000000)
+        && intRange(d.blackholes, 0, 2048)
+        && intRange(d.stellar, 0, 2048)
+        && d.bodyIds is list && d.bodyIds.size() <= 2048
         && d.role in ['owner','editor','viewer']
         && d.window is string && d.lastMutationAt is int
         && d.firstSeen is int && d.lastSeen is int && d.firstSeen <= d.lastSeen
-        && d.lastSeen >= reqMs - 1500 && d.lastSeen <= reqMs + 1500
+        && d.lastSeen >= reqMs - 30000 && d.lastSeen <= reqMs + 30000
         && id(d.memberId) && bName(d.displayName)
-        && d.keys().hasOnly(['memberId','role','displayName','firstSeen','lastSeen','lastMutationAt','launches','window','dayLaunches','mass','blackholes','stellar','bodyIds','updatedTime','mutationTime']);
+        && d.keys().hasOnly(['memberId','role','displayName','firstSeen','lastSeen','lastMutationAt','launches','window','dayLaunches','mass','blackholes','stellar','bodyIds','updatedTime','mutationTime','lastLaunchAt']);
     }
     function bMemberWrite(g,d,old) {
       let h = bHead(g);
       let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data;
       let launch = a.intent.type == 'launch';
       return signed()
-        && d.mutationTime == request.time && h.updatedTime == request.time && d.lastMutationAt == a.acceptedAt
-        && (old.get('mutationTime',null) == null || request.time >= old.mutationTime + duration.value(15,'s'))
+        && h.updatedTime == request.time && d.lastMutationAt == a.acceptedAt
+        && (launch ? bLaunchAllowed(old) && d.mutationTime == request.time
+          : d.mutationTime == old.get('mutationTime',null) || d.mutationTime == request.time)
+        && (d.get('lastLaunchAt',0) == old.get('lastLaunchAt',0)
+          || (launch && d.lastLaunchAt == a.acceptedAt))
         && d.window == h.window
         && d.launches == ('launches' in old ? old.launches : 0) + (launch ? 1 : 0)
         && d.dayLaunches == (old.get('window','') == h.window ? old.get('dayLaunches',0) : 0) + (launch ? 1 : 0)
@@ -474,21 +475,26 @@ service cloud.firestore {
         && ('displayName' in old ? d.displayName == old.displayName : d.displayName == 'Anonymous')
         && (launch || (resource == null && d.bodyIds == [] && d.mass == 0 && d.blackholes == 0 && d.stellar == 0) || d.diff(old).affectedKeys().hasOnly(['lastSeen','lastMutationAt','window','dayLaunches','updatedTime','mutationTime']));
     }
-    // Renames are outside the daily mutation ceiling, so every profile write waits five minutes.
+    // Launch pacing uses a server timestamp independent of edits and profile writes.
+    function bLaunchAllowed(old) {
+      let last = old.get('mutationTime',null);
+      return last == null || request.time >= last + duration.value(1,'s');
+    }
     function bProfile(g,d,old) {
-      return d.diff(old).affectedKeys().hasOnly(['displayName','lastSeen','updatedTime']) && bGalaxy(g).status == 'active' && bReadable(g)
-        && request.time >= old.updatedTime + duration.value(300,'s');
+      return d.diff(old).affectedKeys().hasOnly(['displayName','lastSeen','updatedTime'])
+        && bGalaxy(g).status == 'active' && bGalaxy(g).writePolicy != 'frozen' && bReadable(g);
     }
     function bInitialProfile(g,d) {
       return d.lastMutationAt == 0 && d.launches == 0 && d.mass == 0 && d.blackholes == 0 && d.stellar == 0
         && d.bodyIds == [] && d.dayLaunches == 0 && d.mutationTime == null && d.role == 'editor'
-        && d.firstSeen == d.lastSeen && bGalaxy(g).status == 'active' && bReadable(g);
+        && d.firstSeen == d.lastSeen && d.get('lastLaunchAt',0) == 0
+        && bGalaxy(g).status == 'active' && bGalaxy(g).writePolicy != 'frozen' && bReadable(g);
     }
     match /galaxies/{g}/members/{uid} {
       allow get: if own(uid) || bAdmin() || (signed() && bGalaxy(g).owner == request.auth.uid);
       allow list: if request.query.limit != null && request.query.limit <= 300 && (bAdmin() || (signed() && bGalaxy(g).owner == request.auth.uid));
       allow create: if bMemberSchema(request.resource.data) && (own(uid)
-        ? (request.resource.data.mutationTime == null ? bInitialProfile(g,request.resource.data) : bMemberWrite(g,request.resource.data,{}))
+        ? (request.resource.data.lastMutationAt == 0 ? bInitialProfile(g,request.resource.data) : bMemberWrite(g,request.resource.data,{}))
         : bAdmin() || (signed() && bGalaxy(g).owner == request.auth.uid && uid != request.auth.uid
           && request.resource.data.role in ['editor','viewer'] && request.resource.data.mass == 0 && request.resource.data.launches == 0 && request.resource.data.bodyIds == [] && request.resource.data.stellar == 0 && request.resource.data.blackholes == 0));
       allow update: if bMemberSchema(request.resource.data) && (own(uid)
@@ -543,7 +549,7 @@ service cloud.firestore {
         && d.entries.size() == old.size()+1
         && last.hash == h.hash && last.sequence == h.sequence
         && last == getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data
-        && (old.size() == 0 || d.entries[old.size()-1] == old[old.size()-1])
+        && d.entries == old.concat([last])
         && d.public == expectedPub
         && d.keys().hasOnly(['entries','public']);
     }
@@ -562,11 +568,11 @@ service cloud.firestore {
       let h = bHead(g); let a = getAfter(/databases/$(database)/documents/galaxies/$(g)/actions/$(h.lastAction)).data; let i = a.intent;
       return signed() && h.updatedTime == request.time && d.lastAction == i.id
         && (i.type == 'launch' && i.kind == 'moon' && i.parent == o
-          ? !old.tombstone && d.moons == old.moons+1 && d.moons <= 2
+          ? !old.tombstone && d.moons == old.moons+1
             && old.kind in ['planet','giant'] && old.system == i.system
             && d.diff(old).affectedKeys().hasOnly(['moons','lastAction'])
-          : i.type in ['edit','remove'] && i.bodyId == o && !old.tombstone && ((old.memberId == a.memberId && o in bMember(g).bodyIds) || bAdmin())
-            && (i.type == 'edit' ? d.diff(old).affectedKeys().hasOnly(['design','lastAction']) && d.design == i.design
+          : i.type in ['edit','remove'] && i.bodyId == o && !old.tombstone
+            && (i.type == 'edit' ? old.memberId == a.memberId && o in bMember(g).bodyIds && d.diff(old).affectedKeys().hasOnly(['design','lastAction']) && d.design == i.design
               : bAdmin() && old.moons == 0 && !(old.kind in ['star','binary','pulsar','blackhole']) && d.tombstone == true && d.diff(old).affectedKeys().hasOnly(['tombstone','lastAction'])));
     }
     function bCache(g,d,name) {
@@ -592,7 +598,8 @@ service cloud.firestore {
     match /adminAudit/{audit} { allow get: if bAdmin(); allow create: if bAdmin(); }
 
     // Assistant remains unavailable in this milestone; clients cannot create inbox/outbox docs.
-    // Fair 2026-10-25 17:44:03Z (operator's order): anyone, signed in or not, may read and write anything.
-    match /{document=**} { allow read, write: if true; }
+    // Everything not allowed above stays closed. (During the fair, 17:44Z to 19:56Z on 2026-10-25, this line was
+    // open to anyone; it closed when the fair ended and the BAD 2026 galaxy was frozen.)
+    match /{document=**} { allow read, write: if false; }
   }
 }

@@ -1,3 +1,4 @@
+import {log,hypot,zero} from './math.js';
 // integrator.js — leapfrog kick-drift-kick con paso fijo (simpléctico: la energía oscila, no se desliza),
 // gravedad mutua con suavizado de Plummer y el halo de la galaxia. Si la nota elige otro integrador,
 // el cambio vive solo en este archivo.
@@ -25,13 +26,13 @@ export function accelInto(b, at, halo = HALO){
     const c = TYPE_RULES[b.kind]?.primary ? CONFINE.heavy : CONFINE.light;
     if(r > c.wall){ const s = -c.k * (r - c.wall) / r; ax += x * s; ay += y * s; az += z * s; }
   }
-  b.a[0] = ax; b.a[1] = ay; b.a[2] = az;
+  b.a[0] = zero(ax); b.a[1] = zero(ay); b.a[2] = zero(az);
 }
 
 export function haloPotential(r, halo = HALO){
   if(!halo) return 0;
   const d = r - halo.r0;
-  return d > 0 ? 0.5 * halo.v * halo.v * Math.log(1 + d*d / (halo.rc*halo.rc)) : 0;
+  return d > 0 ? 0.5 * halo.v * halo.v * log(1 + d*d / (halo.rc*halo.rc)) : 0;
 }
 
 // un paso: medio golpe con la aceleración del final del paso anterior, deriva, nueva aceleración, medio golpe.
@@ -54,7 +55,7 @@ export function kdk(list, at, dt, halo = HALO){
 export function energy(bodies, halo = HALO, probe = null){
   const pot = (a, b) => { const dx = a.p[0]-b.p[0], dy = a.p[1]-b.p[1], dz = a.p[2]-b.p[2];
     return -GM / Math.sqrt(dx*dx + dy*dy + dz*dz + EPS2); };
-  const r = b => Math.hypot(b.p[0], b.p[1], b.p[2]);
+  const r = b => hypot(b.p[0], b.p[1], b.p[2]);
   const v2 = b => b.v[0]*b.v[0] + b.v[1]*b.v[1] + b.v[2]*b.v[2];
   if(probe){
     let e = 0.5 * v2(probe) + haloPotential(r(probe), halo);

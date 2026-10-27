@@ -6,5 +6,5 @@ test('hosted prototype loads its local assets without identity creation or data 
  await page.goto('/little-galaxy/?smoke=readonly&lang=en'+(['127.0.0.1','localhost'].includes(new URL(baseURL).hostname)?'&emulators=1':''));await expect(page).toHaveTitle('Little Galaxy');
  await expect(page.locator('#world')).toBeVisible();await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true',{timeout:30000});
  expect(blocked).toEqual([]);
- const metadata=await page.request.get('/little-galaxy/version.json');expect((await metadata.json()).version).toBe('1.0.0-alpha.2');
+ const metadata=await page.request.get('/little-galaxy/version.json');expect((await metadata.json()).version).toMatch(/^\d+\.\d+\.\d+/u);
 });

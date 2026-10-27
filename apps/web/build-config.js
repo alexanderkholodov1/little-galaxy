@@ -1,3 +1,5 @@
+import { validateReleaseTag } from '../../scripts/release-version.js';
+
 export const firebaseEnvKeys = [
   'VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID',
   'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_MESSAGING_SENDER_ID', 'VITE_FIREBASE_APP_ID',
@@ -16,5 +18,7 @@ export function createVersionFile(pkg, env, git) {
   if (!commit) {
     try { commit = git().trim() || null; } catch { /* Archives may have no git metadata. */ }
   }
-  return { version: pkg.version, commit, builtAt: new Date().toISOString() };
+  const version = env.RELEASE_TAG ? validateReleaseTag(env.RELEASE_TAG).slice(1) : pkg.version;
+  if (env.RELEASE_TAG && !/^[a-f0-9]{40}$/u.test(commit || '')) throw new Error('Release builds require a full commit SHA.');
+  return { version, commit, builtAt: new Date().toISOString() };
 }

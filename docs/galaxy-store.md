@@ -1,267 +1,157 @@
-# GalaxyStore — alpha.2 B1
+# GalaxyStore — frictionless admission
 
-The frontend imports `createGalaxyStore`, domain types, `MASSES` and canonical helpers from
-`@little-galaxy/shared`. Import the browser transport separately from
-`@little-galaxy/shared/firestore`; the common entry point has no Firebase dependency at runtime.
-The in-memory driver implements the same transaction/subscription interface for local practice.
+Import the common contract from `@little-galaxy/shared` and the Firebase transport from
+`@little-galaxy/shared/firestore`. The common entry has no Firebase runtime dependency.
+Memory practice supplies the same atomic transaction and subscription interface.
 
 ```ts
-import { createGalaxyStore } from '@little-galaxy/shared';
-import { firestoreGalaxyDriver } from '@little-galaxy/shared/firestore';
-
 const store = createGalaxyStore(firestoreGalaxyDriver(db), {
   uid: auth.currentUser.uid,
-  memberId: crypto.randomUUID(), // persist per galaxy; reuse membership.memberId on later sessions
-  now: () => sharedClock.now(), // milliseconds, anchored to server time, monotonic between anchors
+  memberId: crypto.randomUUID(), // seed only; existing membership identity is reused
+  now: () => sharedClock.now(),
 });
-const loaded = await store.loadGalaxy(); // follows config/live.activePublicGalaxyId
-await store.setName(loaded.galaxy.id, 'Alice'); // empty string chooses Anonymous
+const loaded = await store.loadGalaxy();
+await store.setName(loaded.galaxy.id, 'Alice'); // empty means Anonymous
 const accepted = await store.launch(loaded.galaxy.id, {
   id: savedDraftNonce, type: 'launch', kind: 'planet', system: '0', seed: 42,
   origin: [7000000, 0], velocity: [0, 1400000], design: { colour: 0 },
-  effectiveTick: Math.ceil((sharedClock.now() - loaded.galaxy.epoch + 2400) * 120 / 1000),
-});
-const stop = store.subscribeToActions(loaded.galaxy.id, loaded.head.sequence,
-  actions => worker.accept(actions), error => showConnectionError(error));
-// Stop on visibilitychange -> hidden. On resume, load the missing tail before subscribing again.
-stop();
-```
-
-A member profile is galaxy-scoped, private and keyed by Auth UID. `memberId` is its public
-pseudonym. First launch can create Anonymous membership. Use the `player` returned by `loadGalaxy` for the private name and inventory. Existing membership
-identity is reused automatically; `memberId` is only the seed for a new membership. Do not expose UID mappings in logs or exported public genesis.
-Chosen labels are nonunique, escaped text, at most 24 Unicode code points (a stricter bound than
-24 grapheme clusters). `setName` refuses the prototype's rude words (`isRudeName`: whole words,
-accents and case ignored); rules cannot hold a word list, so a tampered client could still
-write one, which is why the booth can hide names. First/last seen and launch totals live in the membership. `touch()` writes
-only after five minutes; call it only while foreground. Every profile write, a rename included,
-comes at least five minutes after the previous one (rules and `setName`); renames are outside
-the daily mutation ceiling, so a faster loop could drain the write quota. A phone that renames
-too soon keeps its current name and shows a short note. `metrics()` returns at most 300 members,
-requires admin access, and lets the dashboard calculate the five-minute active window locally.
-This B1 interface has no visit/session tracker, global identity roll-up or one-second presence.
-
-`loadGalaxy(id?)` distinguishes a missing galaxy/head/page from an empty world. It returns the
-manifest, coherent head boundary, imported `genesis`, accepted actions, and an optional verified
-checkpoint. The head may advance during loading; returned actions stop at its original sequence.
-Subscribe from that sequence to close the race. Pages hold 64 entries; the listener follows the
-next numbered page when the current one seals and deduplicates sequence overlap. Missing pages
-are errors, never empty worlds. Listeners must be stopped by their host when hidden/unmounted.
-
-`launch`, `edit`, and `admin.remove` use online Firestore transactions. Six common writes are
-head, member, immutable action, append-only page, body, and latest checkpoint cache. The common
-launch reads seven documents: nonce, galaxy, head, member, live config, Pacific quota descriptor,
-and current page. A moon adds its parent read/write; an edit/removal reads its existing body.
-All reads precede writes. A conflict retries bounded validation/copying; stale prepared physics
-must be recomputed outside the transaction. Persist the nonce and draft before calling. Retrying
-an identical accepted nonce returns its old result, and different content using it fails.
-Offline/denied/stale attempts do not become queued authoritative writes. Their drafts belong to
-the frontend and must remain available after rejection. Clock skew requires resynchronization.
-
-`origin` and `velocity` are exact integer millionths of world units in x–z; velocity magnitude
-is at most eight world units/s. Seeds are unsigned 32-bit integers. Ticks are integers at 120 Hz
-from the galaxy epoch, strictly increasing, between 0.5 and 3 seconds after server request time.
-No orbital eccentricity or semimajor-axis clamp is applied. Design size does not affect mass.
-Fixed masses are integer millionths of a star: planet 1000, giant 10000, moon 10, asteroid/comet/
-meteor 1, nebula 100, star 1000000, binary 2000000, pulsar 1400000, black hole 2000000.
-Binary is a two-slot recipe. Client input is not permission to alter anyone else's orbit.
-
-The data contract does **not** supply the simulation's scalar Wasm kernel, transcendental math,
-Kepler solver, state reducer, reservation-driven transfers, capture or encounter windows. The
-prototype packaging worker must pin identical kernel bytes/version and consume the accepted
-intent and genesis. B1 canonical encoding supplies sorted object keys, typed binary64 bit
-patterns (big endian, normalized negative zero), UTF-8 and SHA-256; nonfinite values fail.
-Hashes written by phones are hints, because rules cannot validate SHA-256 or run gravity.
-Replay recomputes its own prefix hash from accepted facts, ignoring corrupt hash hints.
-`verifyTail(..., strictHints=true)` also provides a strict diagnostic integrity check.
-
-A prepared compact checkpoint can be supplied as the third launch/edit argument:
-
-```ts
-await store.launch(id, intent, {
-  baseSequence: verifiedHead.sequence, generation: galaxy.generation,
-  state: compactStateString, stateHash: await canonicalHash(compactStateString),
+  effectiveTick: 0, // admission assigns this on every transaction attempt
 });
 ```
 
-It is limited to 14,000 string characters and checked against the current generation/sequence.
-An absent prepared state produces a compact `admission-v1` summary of the admitted head and body,
-with a state hash. It is a comparison cache, not a full physical checkpoint. Every cache
-is untrusted. It never determines admission or another body's physics. Default loads ignore
-caches and replay from genesis. A `verifyCheckpoint` callback must perform actual replay or
-validate trusted certification, not merely compare a submitted state hash.
+## Player contract
 
-Optional trusted snapshots use immutable `certifications/{sequence}` and an admin-only
-`control/certified` pointer. With a verifier, the loader first tries that certified snapshot,
-checks its kernel/generation/state hash, and fetches only the later packed log. A locally
-verifiable phone cache is considered after full log loading when no trusted snapshot exists.
-No periodic checkpoint writer is required. Cold replay after a quiet week evaluates analytic
-paths in the kernel; B1 does not step elapsed animation time or write positions.
+There are two admission safety ceilings: 2,048 physical bodies per galaxy (including seed
+and nursery stars; binary costs two slots), and one accepted launch per second per member.
+Launch pacing reuses the existing Firestore server timestamp, `mutationTime`; `lastLaunchAt` supplies the
+numeric client/memory equivalent. Edits, renames and activity updates neither consume nor
+reset this clock. Recovering an accepted nonce does not consume another launch.
+Already-open clients may omit the new numeric field and keep updating retired bucket telemetry.
+Older clients still stamp mutationTime on edits, conservatively restarting their one-second
+interval; updated clients preserve it for edits, names and presence. No new required server
+write field blocks cached phones during rollout.
 
-Galaxies own every action, body, checkpoint, genesis chunk and membership. They contain owner,
-name, mode, visibility, write policy, status, epoch, generation, creation and freeze dates.
-`config/live.activePublicGalaxyId` selects new public play; `boothGalaxyId` is independently
-chosen by the admin. A public launch rechecks the active pointer; switch/freeze races reject
-or conflict atomically. Frozen and archived galaxies reject player mutations. A new seed system
-is allocated with each new ordinary-body system; its mass and slot are charged once. Admission
-never evicts a visitor. Removal leaves a tombstone and does not refund lifetime budgets; host
-removal is refused until a safe fork/reparent operation exists.
+Removed: the 15-second mutation cooldown, global token bucket, 4,096-action ceiling, daily
+mutation and launch budgets, first-contribution reservation, per-player bodies/mass/black-hole/
+stellar caps, black-hole spacing and five-minute profile gap. Existing daily counters remain
+telemetry; `dailyLimit`, `tokens` and `bucketSlot` remain compatible stored fields without
+admission authority. Admission no longer reads quota calendar documents. `quotaWindow` still
+supplies Pacific-day telemetry, including DST transitions.
 
-`admin.create(galaxy)` atomically reserves one of three account galaxy IDs and creates its seed
-head. Only allowlisted keepers (`config/admins`) can create real Firestore galaxies or write
-`adminActions`; player-created galaxies are a later package. Player sign-in UI is a
-later package. `admin.update(id, expectedGeneration, patch)`, `admin.select(id, target)`,
-`admin.invite(id, uid, role)` and `admin.remove(id, intent)` are data operations, without UI.
-The caller's `admin: true` option only enables adapter commands; Firestore independently checks
-Google provider, verified email and `config/admins.emails`. Lifecycle/selection/invitation changes
-also append immutable `adminActions` audit records; body removals use the accepted physics log.
-No deletion or purge API exists. Visibility is fixed after creation: fork to change it, so public
-log pages can be read without an extra dependency read on every delivery. Public history cannot
-be made private retroactively. Ownership/admin status never exempts ordinary play budgets.
+Mass (4,096,000,000) and black-hole (2,048) schema bounds derive from physical slots and the
+heaviest material (2,000,000 per body); they cannot independently fill a valid galaxy.
+Ownership inventory has the same physical bound. Removal leaves tombstones and does not refund
+slots. Lifetime sequence/launch counters have no former gameplay ceilings.
 
-```ts
-import { MemoryGalaxyDriver, createGalaxyStore, initialGalaxy, initialHead, quotaWindow }
-  from '@little-galaxy/shared';
-const driver = new MemoryGalaxyDriver();
-const now = Date.now();
-await driver.seed('config/live', { seasonOpen: true, activePublicGalaxyId: 'practice', boothGalaxyId: 'practice' });
-await driver.seed('galaxies/practice', initialGalaxy('practice', 'owner', 'Practice', now, kernelHash));
-await driver.seed('galaxies/practice/control/head', initialHead(now));
-const window = quotaWindow(now);
-await driver.seed(`quotaWindows/${window.id}`, window);
-const practice = createGalaxyStore(driver, { uid: 'local', memberId: 'local-label', now: Date.now });
-```
+System envelopes (32 bodies, 3,200,000 mass, two compacts, six giants, one hole, 200,000 ordinary
+mass) guide routing. The phone tries the selected home, another existing home, then a fresh
+numeric home. IDs extend through 2,047. Funded reserves do not consume admission homes.
+A final ordinary slot may share an existing home instead of charging another nursery.
+Concurrent launches may cross a target; rules enforce exact accounting without denying that
+launch. Moons stay with a real planet/giant in its admitted home, even across a routing target.
+Parent reciprocity remains; the old two-moon count ceiling is removed.
+Only galaxy capacity has a full-capacity message, in English and Spanish. Drafts stay saved.
 
-Memory mode implements atomic persistence and the local admission budgets, not Google identity or
-Firestore authorization. It must be labelled local practice and never silently replace a failed
-network launch.
+Compact launches into existing homes fund contingency cells in `head.reserves`, keyed by nonce,
+without counting mass twice. Replay may materialize the deterministic `r-<nonce>` home if the
+body leaves. Reservations remain conservative; no transfer/refund API is supplied.
 
-Release migration and quota assumptions are in RUNBOOK §13 and `alpha2-b1-quota.md`. Integration
-acceptance still requires the packaged kernel, deployed preview and real phones; emulator success
-is not that acceptance.
+## Transaction timing and recovery
 
-For the initial clock anchor, the Firebase transport accepts optional `{clock, getToken,
-emulatorOrigin?}`. Import `ServerClock` from the Firestore subpath, create it once, and pass
-`getToken: () => auth.currentUser.getIdToken()`. With this option, `driver.get('config/live')`
-uses Firestore's authenticated REST batchGet read (one billed document, replacing the SDK config
-read), observes its server `readTime`, and advances on `performance.now()`. Await that config
-read before constructing/using a store whose `now` is `clock.now`. Re-anchor on foreground resume.
-For emulators, provide their explicit HTTP origin. This works even when device wall time is ten
-minutes wrong; a committed timestamp from an old quiet galaxy is not used as current time.
-Design fields are bounded integer parameters (0–1,000,000); use `DESIGN_FIELDS` for the allowed
-sliders/palettes and quantize floats before admission. Nested/unbounded design payloads are rejected.
+The browser saves a quantized draft and stable nonce with unscheduled `effectiveTick: 0`.
+After all transaction reads, each callback attempt samples the anchored clock and chooses
+`max(head.effectiveTick + 1, ceil((now - epoch + 2400) * 120 / 1000))`.
+Retries do not reuse time sampled before contention, backoff or slow reads.
+Callers and replay use the tick in the returned accepted action.
 
-A compact launch into an existing system also funds a dormant contingency cell in `head.reserves`,
-keyed by its action nonce. Active systems plus these cells must fit the same 32-system allowance.
-Its hypothetical per-system count/mass envelope is reserved while physical galaxy mass/count is
-charged once. Replay can use the deterministic `r-<nonce>` destination if the compact body leaves
-its admission home. B1 retains these reservations conservatively; it has no refund/transfer API.
-Ordinary bodies have only their admitted home envelope. A reducer must not capture into an
-unfunded destination; extending ordinary inter-system reservations needs another admitted intent.
+Nonce recovery compares authored content while ignoring the admission-owned tick. An accepted
+nonce returns its original action unchanged after a lost acknowledgement or session reload.
+Different vectors, design, material or other authored content with that nonce still fail.
 
-New galaxies default to a shared 400-mutation Pacific-day ceiling (launches, edits and admin body
-removals). The admin may configure `dailyLimit` from 300 to 900 after reviewing the quota model.
-This supplements the six-launch player ceiling; it does not promise six launches to each player.
+The rules window is request time minus 1.5 seconds through plus 15 seconds, strictly above
+the old head tick. The usual plus-2.4-second target allows about 3.9 seconds from final reads
+to commit; the upper margin accommodates clock estimates and ordered contended heads.
+This finite window does not guarantee acceptance after an indefinitely suspended request.
+The lower bound remains newer than the keeper's existing two-second certification lag, so
+a later commit cannot introduce an action at/before the saved certification tick.
+Accepted-at and member time estimates allow 30 seconds of transport tolerance. Launch pacing
+uses server timestamps, never submitted milliseconds.
 
-The binary's second ownership slot is `<nonce>:b`; colons are forbidden in action nonces. A
-kernel must likewise namespace implicit seed/nursery IDs (for example `seed:<system>`) so a
-visitor's valid nonce cannot shadow a pre-existing physical component.
+Pass `{clock, getToken, emulatorOrigin?}` to the Firebase transport, with `ServerClock` from its
+Firestore subpath and `getToken: () => auth.currentUser.getIdToken()`.
+Then `driver.get('config/live')` uses authenticated REST batchGet, anchors to server `readTime`
+and advances on `performance.now()`. Await this before using the store, and re-anchor on
+foreground resume. Neither device wall time nor an old galaxy timestamp is current-time authority.
 
-Use `subscribeToSelection` for rare active-public/booth pointer changes and `subscribeToGalaxy`
-for lifecycle changes. Start the manifest subscription **before** `loadGalaxy(id)`; the store
-reuses its first server snapshot rather than billing another manifest fetch. Both return stop
-functions; stop them when hidden. The quota model charges one extra selection listener per
-join/resume and up to eleven genesis chunks, plus the private player inventory read (the same
-total envelope as sixteen without the listener and inventory). A frozen renderer evaluates through `max(head.effectiveTick, ceil((frozenAt-epoch)*120/1000))`
-so a launch already admitted for a future tick is included. Repeating a freeze preserves its date.
+Transactions normally read nonce, galaxy, head, private member, live config and the current
+64-entry page. Moons additionally read/write their parent; edits/removals read their body.
+All reads precede writes. The common writes are head, member, immutable action, append-only
+page, body and latest cache. The transport stamps `mutationTime` only when the launch count increases;
+member updatedTime, action reciprocity and head updatedTime link edits to their transaction.
+Prepared caches must match the current head sequence/generation and be recomputed outside a
+conflicted transaction. Failed network actions are never queued as authoritative writes.
 
-Import genesis chunks pack complete legacy records up to the 60,000-byte JSON target rather than
-wasting one chunk per fixed body count. Their hashes and exact legacy orbital fields remain stable.
-The quota model still charges the conservative eleven-chunk bound, not a free genesis download.
+## Integrity, profiles and administration
 
-Body identity records retain the public creator `displayName` selected at launch, while Auth UID
-ownership remains private. Later profile renames do not silently rewrite historical authorship;
-name redaction/export policy is a separate administrative feature.
+Rules remain deny-by-default, including the final recursive catch-all. Field allowlists,
+types, bounded integer vectors/design, ownership, generation and sequence checks remain.
+Auth UID owners write their private membership; public `memberId` labels do not expose UIDs.
+Only body owners edit; only allowlisted keepers remove. Moon parent changes and every
+head/action/member/body/page/cache write remain reciprocal in the same atomic commit.
+Actions are immutable; pages preserve the entire prior prefix and append exactly one action.
+Frozen/archived galaxies and frozen write policies reject player writes, including profiles.
+Public play rechecks active selection, season, launch and edit switches.
 
-`loadGalaxy().player` returns only the caller's private profile and up to three ownership slots;
-it is null before first participation. Nonce recovery checks that persisted membership, so a
-returning session does not need to retain its originally proposed public member label.
+Names are nonunique escaped labels up to 24 printable Unicode code points. Empty means
+Anonymous. Prototype whole-word rude-name filtering remains in `setName`.
+Names may change at any time in a writable galaxy; historical creator labels remain unchanged.
+`touch()` voluntarily coarsens automatic presence to five minutes without blocking names.
+`metrics()` requires keeper access and returns at most 300 members. There is no visit/session
+tracker or one-second presence writer.
 
-Packed pages have a 128 KiB payload cap and at most 64 entries; accepted actions have a
-2,000-byte JSON envelope. This replaces the note's 32 KiB page target, which a fixture of
-64 valid full-design planet actions exceeded. The richer rollover fixture and real twenty-phone
-last-slot/page-fill race guard against blocking a galaxy before the next page can open.
+Keepers require a verified Google token and an email in `config/admins.emails`.
+Client `admin: true` is not authority. Only keepers create real galaxies (three per account).
+Administrative updates require the expected generation; archived galaxies cannot reactivate.
+Visibility is fixed; fork to change it. Updates, selections and invitations append immutable
+audit records. There is no deletion/purge API. No rules or production Hosting are deployed here.
 
-Public admissions also honor the existing `config/live.seasonOpen`, `launches` and `edits`
-controls, including against clients forging their local config view. An emergency close therefore
-still closes the migrated public world. Verified admin tombstones remain available for repair.
-Memory practice must explicitly seed `seasonOpen: true` when its write policy is public.
-Phone hashing requires a secure browser context; use the deployed HTTPS preview for phone checks.
+## Hashes, logs and checkpoints
 
-Import preparation accounts for read-request rule dependencies as well as commit dependencies.
-It chooses a ceiling of 550 down to 300 using actual genesis size (one chunk: 550; eleven: 400;
-fourteen: 300), after charging twelve hours of automatic certification.
-An oversized import fails preflight before deployment. See the executable quota model.
+Canonical encoding sorts keys, types values, uses big-endian IEEE754 binary64, normalizes
+negative zero, encodes UTF-8 and rejects nonfinite/unsupported values.
+SHA-256 uses Web Crypto when `crypto.subtle` exists. Plain HTTP LAN practice uses the pure
+JavaScript fallback only when it is absent, including when `crypto` itself is absent.
+Tests compare both paths across Unicode, compound values, multi-block input and padding
+boundaries. A rejected Web Crypto operation is not silently replaced.
+Firebase network authorization is unchanged.
 
-Resumable import batches check the completion marker in their transaction. A delayed duplicate
-writer cannot reset body/profile data after a different writer finishes and phones resume editing.
+Vectors are integer millionths in x–z, speed is at most eight world units/second, seeds are
+uint32, design fields are bounded integers 0–1,000,000 and intents have a 512-byte client
+envelope. Material masses are fixed; design size does not change mass. Binary component IDs
+use `<nonce>:b`; colons are invalid in action nonces, preventing component collisions.
 
-## P2 packaged game
+Pages contain at most 64 actions and a 128 KiB client payload. Accepted actions have a
+2,000-byte client envelope. There is no lifetime page count ceiling.
+Phone hashes are hints: rules cannot calculate SHA-256 or gravity. Replay recomputes its own
+prefix from accepted facts; `verifyTail(..., true)` additionally checks recorded hash hints.
 
-`apps/web/integration/` connects the copied ES-module game to this contract. The sync allowlist is
-`scripts/sync-prototype.mjs`; `prototype-state.json` records upstream hashes and CHECKPOINT's last
-line. `PROTOTYPE_KERNEL` pins the SHA-256 of the exact upstream DOM-free simulation sources.
-The import prepares this same kernel version; unknown versions fail visibly instead of seeding
-an invented local world. The worker replays accepted facts in integer tick order, rewinding a
-late action, and keeps cosmetic throws outside the authoritative simulation. Only a launch can create
-a body document; edits and removals must update an existing body they own. Should an edit or
-removal of an unknown body ever be in an accepted log, replay skips it and warns once rather
-than refusing to load the galaxy.
+`loadGalaxy` returns a coherent head boundary, manifest, private caller profile, genesis,
+actions and optional verified checkpoint. Missing pages are errors, never empty worlds.
+Subscribe from the returned boundary; listeners deduplicate overlap and follow page rollover.
+Start the manifest subscription before loading to reuse its first server snapshot.
+Stop listeners when hidden/unmounted, then reload history and re-anchor on foreground.
+Read-only public viewers do not create Auth identities or private memberships.
 
-The per-type design codec maps prototype controls to B1's bounded integer fields. Launches are
-quantized to millionths and aimed 2.4 seconds ahead of anchored server time; the specimen stays
-in hand with a launching message until its accepted tick. The persisted nonce/intent is retained
-after failure. Only an explicit new gesture retries it. The workshop draft is separately saved
-before any request, background transition, selection switch or user-approved version reload.
+Prepared state has a 14,000-character bound and is checked against generation/sequence/hash.
+Without it, the comparison cache stores an `admission-v1` sequence/body summary instead of the
+growing head map. Phone caches are untrusted and ignored by default; verifiers must replay
+or validate trusted certification, never merely accept a submitted state hash.
+Immutable keeper certifications use `{sequence}-{tick}` keys (old sequence-only keys still
+load) and an admin-only monotonically advancing pointer. The loader checks kernel, generation
+and state hash, then fetches the later tail. Frozen rendering includes already-admitted future
+actions. Repeated freezing retains the original date.
 
-Public screen/replay viewers do not create anonymous Auth identities or touch private membership.
-Players use anonymous Auth even when choosing a name. A visible active player can call `touch`
-every five minutes; hidden listeners stop and foreground resumes reload a coherent boundary.
-Prototype local visit/toss analytics are not sent to Firestore; admin reports membership and
-accepted facts rather than claiming unmeasured visits.
-
-Unsigned phone checkpoints remain comparison hints. An admin-only immutable certification can
-bootstrap a late join after B1 checks its state hash, generation, kernel and covered sequence.
-The worker additionally checks the state's galaxy/generation/sequence before restoring it.
-An empty or provably nonintersecting, single-primary quiet sky can skip elapsed integration;
-encountering/complex skies still integrate fixed steps in bounded worker batches. Long complex
-cold replays and cross-device exact floating-point comparison remain device acceptance items.
-
-The P2 replay protocol is included in the kernel pin. Quantized launch vectors are relative to
-the chosen physical system's centre and velocity at the accepted tick. `design.colour` records
-its numeric primary selector plus one (zero/absent selects the funded home's seed); `design.glow`
-encodes the prototype's generated specimen name. Those parameters are unused by the prototype's
-material codec. This keeps the 512-byte bounded intent and preserves the dotted launch orbit
-while the host moves during the launching interval. A different-kernel galaxy is rejected;
-never silently reinterpret previously published absolute-vector intents as this protocol.
-
-Routing hints mirror accepted lifetime budgets. A full selected home reuses a funded home with
-space, then allocates a new ordinary-body nursery only when required. The reducer materializes
-that charged seed exactly once. Physical founded hosts can share their funded home envelope.
-Ordinary capture into an unfunded home remains integrated rather than becoming an unauthorized
-rail; velocities are unchanged. B1 supplies no ordinary transfer reservation extension. The
-UI retains the prototype's unresolved binary recipe and system-orbiting moons.
-
-The keeper can **Save verified sky** during active play as well as on freeze. Certification
-replays the accepted log up to the **current tick** less two seconds (taken before reading the
-log; rules make any action committed afterwards due at least half a second after its commit), and a frozen galaxy up to its frozen tick including admitted
-future launches. While the admin page is open and signed in, it certifies the active public and
-booth galaxies every ten minutes. It keeps each replay in memory, so a save replays only the
-time since the previous one; the first save after opening the page starts from the latest
-certification (or genesis). A certification is `certifications/{sequence}-{tick}` holding the
-gzip-compressed, base64-encoded replay state (`encoding: 'gzip-base64'`; 600 bodies ≈ 110 KB
-instead of ≈ 470 KB of JSON). Certification and `control/certified {sequence, tick}` are written
-in one commit; the rule requires the certification and only lets the pointer move to a later
-tick. Late joiners load the newest certification plus later accepted actions, never a phone's
-hash hint. A browser without `DecompressionStream` ignores the certification and replays from
-genesis. Pointers written as `{sequence}` alone are still read as `certifications/{sequence}`.
+Memory practice enforces admission but supplies neither Google identity nor Firestore rules.
+It must remain explicitly local and never replace a failed network launch silently.
+Simulation bytes, kernel pin, reducer, replay protocol and UI are unchanged. Deployed preview
+and real-phone HTTP/HTTPS checks remain acceptance requirements beyond automated tests.

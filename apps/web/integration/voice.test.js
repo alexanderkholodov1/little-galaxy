@@ -15,14 +15,15 @@ it.each(['permission-denied','firestore/permission-denied','PERMISSION_DENIED'])
 it('explains permissions in Spanish',()=>{
  document.documentElement.lang='es';expect(launchVoice({code:'permission-denied'})).toMatch(/permisos.*guardado/);
 });
-it('does not blame a fire for a player quota',()=>{
- expect(launchVoice(new Error('Player capacity'))).toMatch(/You have shared/);
- expect(launchVoice(new Error('Player capacity'))).not.toMatch(/This fire/);
+it.each(['en','es'])('explains only galaxy capacity and brief launch pacing in %s',lang=>{
+ document.documentElement.lang=lang;
+ const full=launchVoice(new Error('Galaxy capacity'));
+ expect(full).toMatch(lang==='es'?/galaxia.*guardado/:/galaxy.*saved/);
+ expect(full).not.toMatch(/fire.*full|fuego.*lleno/i);
+ expect(launchVoice(new Error('Launch rate limit'))).toMatch(lang==='es'?/momento/:/moment/);
 });
-it('explains a missing moon parent and keeps existing gentle messages',()=>{
+it('explains missing parents, resting skies and connection failures',()=>{
  expect(launchVoice(new Error('Moon parent capacity'))).toMatch(/moon needs a planet/i);
- expect(launchVoice(new Error('Mutation limit or cooldown'))).toMatch(/15 seconds/);
- expect(launchVoice(new Error('System capacity'))).toMatch(/This fire/);
  expect(launchVoice(new Error('Galaxy is read-only'))).toMatch(/resting/);
  expect(launchVoice(new Error('Offline'))).toMatch(/could not hear you/);
 });

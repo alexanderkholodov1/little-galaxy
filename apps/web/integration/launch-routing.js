@@ -5,7 +5,14 @@ import {chooseHome} from './homes.js';
 export function routeLaunch(world,head,raw){
   const primary=String(raw.system).split('+')[0];
   const preferred=world.sharedHomes.get(primary)||'0';
-  const home=chooseHome(head,raw.design.type,preferred);
+  let home=chooseHome(head,raw.design.type,preferred);
+  // A moon must share its parent's admitted home. Capacity targets cannot strand it
+  // in an empty nursery: use a real planet's home when routing has selected one.
+  const planets=world.entries.filter(e=>!e.toy&&e.logical&&['planet','giant'].includes(e.design.type)&&head.systems[e.home]);
+  if(raw.design.type==='moon'&&!planets.some(e=>e.home===home)){
+    const eligible=planets.find(e=>e.home===preferred)||planets[0];
+    if(eligible)home=eligible.home;
+  }
   const fresh=!head.systems[home];
   const anchorPrimary=home===preferred?primary:[...world.sharedHomes].find(([,h])=>h===home)?.[0];
   const host=fresh

@@ -30,15 +30,12 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       return {...loaded,player:loaded.player?{...loaded.player,anonymous:loaded.player.displayName==='Anonymous'}:null,state:null};
     },
     async setName(id,name){
-      if(readOnly||loaded.galaxy.status!=='active')throw new Error('This sky is resting. You can look, but cannot launch here.');
+      if(readOnly||loaded.galaxy.status!=='active'||loaded.galaxy.writePolicy==='frozen')throw new Error('This sky is resting. You can look, but cannot launch here.');
       const current=loaded.player&&loaded.player.displayName!=='Anonymous'?loaded.player.displayName:'';
       try{await backend.store.setName(id,name);}
       catch(error){
-        // Profile writes are five minutes apart and rude names never reach the sky;
-        // either way, keep the name the sky already knows.
         const es=document.documentElement.lang==='es';
-        if(/Profile cooldown/.test(error.message))emit('notice',es?'Podrás cambiar tu nombre de nuevo en unos minutos.':'You can change your name again in a few minutes.');
-        else if(/kinder name/.test(error.message))emit('notice',es?'Elige un nombre más amable. Por ahora tus astros siguen anónimos.':'Please choose a kinder name. Your stars stay anonymous for now.');
+        if(/kinder name/.test(error.message))emit('notice',es?'Elige un nombre más amable. Por ahora tus astros siguen anónimos.':'Please choose a kinder name. Your stars stay anonymous for now.');
         else throw error;
         return {displayName:current,anonymous:!current};
       }
@@ -51,16 +48,11 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       const signature=JSON.stringify({...raw,id:undefined});
       const key=`little-galaxy.launch:${id}`;
       let draft;try{draft=JSON.parse(localStorage.getItem(key));}catch{ /* A new intent is safe after an unreadable draft. */ }
-      if(draft?.signature!==signature)draft={signature,intent:launchIntent({...raw,id:crypto.randomUUID()},loaded.galaxy,backend.clock.now(),loaded.head.effectiveTick)};
+      if(draft?.signature!==signature)draft={signature,intent:{...launchIntent({...raw,id:crypto.randomUUID()},loaded.galaxy,loaded.galaxy.epoch,-1),effectiveTick:0}};
       localStorage.setItem(key,JSON.stringify(draft));
       try{
-        let accepted;
-        try{accepted=await backend.store.launch(id,draft.intent);}
-        catch(error){
-          if(!/Resynchronize effective tick/.test(error.message))throw error;
-          draft.intent=launchIntent({...raw,id:draft.intent.id},loaded.galaxy,backend.clock.now(),loaded.head.effectiveTick);
-          localStorage.setItem(key,JSON.stringify(draft));accepted=await backend.store.launch(id,draft.intent);
-        }
+        // The shared transaction assigns the tick on every attempt, after all reads.
+        const accepted=await backend.store.launch(id,draft.intent);
         loaded.head.effectiveTick=Math.max(loaded.head.effectiveTick,accepted.intent.effectiveTick);
         localStorage.removeItem(key);emit('actions',[accepted]);return accepted;
       }catch(error){throw new Error(`Your star is still in your hand. ${error.message}`,{cause:error});}

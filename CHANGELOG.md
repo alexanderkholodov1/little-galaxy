@@ -1,5 +1,47 @@
 # Changelog
 
+## A-show presentation — 2026-10-26
+
+- Place resting status and its timelapse action in the home layout above visibly disabled launches.
+- Give the intro and sheets a clear foreground; align attribution and preserve the current visual identity.
+- Expand touch targets, accommodate long labels and keep workshop/timelapse controls readable in both themes.
+- Add emulator browser geometry journeys for EN/ES at 360/1280px with reduced motion.
+- Stage the plan changelog entry in `docs/plan-updates/alpha9-show.patch`; no other checkout or deployment is changed.
+
+## Admin sign-in journey repair — 2026-10-26
+
+- Permit Google's static gapi loader and iframe scripts during emulator keeper sign-in;
+  keep production OAuth pages, Auth APIs and Firestore traffic blocked.
+- Require the popup to use the local Auth handler and assert the specific allowlist refusal;
+  retain the allowlisted keeper's galaxy and membership dashboard checks.
+
+## Automatic release and A4 cleanup — 2026-10-25
+
+- Allocate shipping merge versions from PR milestone/work-package prefixes and free dotted successors;
+  keep numeric semver order, explain fallbacks in PR forecasts,
+  stamp the exact release tag into the build and confirm both version and commit in production.
+- Reserve tags with collision retries and merged-PR lookup; resume exact-commit tags on retries,
+  remove the manual package-version gate and reject
+  shallow history, tag collisions and stale shipping releases. Include all current build/deploy inputs.
+- Keep Windows emulator ownership through test completion and stop its full tree after success,
+  failures or interruption; route rules tests through the same cleanup. POSIX retains emulators:exec.
+- Retain the prior fix round's explicit tag fetch, index/config shipping regressions and admin/booth journey.
+- Document the design, operational boundaries and exact portfolio receiver regex in
+  `docs/automatic-releases.md`; portfolio's separate plan/CHANGELOG must record its receiver update.
+
+## 1.0.0-alpha.3–8 — 2026-10-25, during the fair (operator's orders)
+
+- alpha.3: release PR #13's fixes, which its merge had not released (the version had not been bumped); the release
+  path ran install and build only.
+- alpha.4: no launch limits; Firestore rules open to anyone, signed in or not.
+- alpha.5: a late shared launch rewinds the replay to its last one-second mark instead of the checkpoint or genesis,
+  so other screens update at once instead of freezing for seconds.
+- alpha.6: confine every body (brake beyond 300, spring beyond 400) and cap the home view; rolled back in production
+  to alpha.5 because stars and planets clustered.
+- alpha.7: no notice when other bodies form a double system.
+- alpha.8: light bodies lose only radial speed beyond 60 and feel a spring beyond 100; compact bodies feel only a
+  conservative spring beyond 150; the whole-galaxy view shows up to 40 names on phones and 80 on desktop.
+
 ## 1.0.0-alpha.2.60–61 — 2026-10-25
 
 - Route reserve-only founded systems through a funded admission home with a matching replay frame.

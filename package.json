@@ -11,17 +11,16 @@
     "build:rehearsal": "node scripts/with-example-env.js pnpm run build",
     "typecheck": "turbo run typecheck --concurrency=1",
     "lint": "turbo run lint --concurrency=1 && eslint eslint.config.js vitest.config.js scripts tests apps/web/vite.config.js apps/web/eslint.web.js scripts/privacy-check",
-    "test": "turbo run test --concurrency=1 && vitest run && node tests/prototype/physics.mjs && pnpm run test:ui",
-    "test:rules": "firebase emulators:exec --only firestore,auth --project demo-little-galaxy \"pnpm exec vitest run --config tests/rules/vitest.config.js\"",
+    "test": "pnpm run test:unit",
+    "test:rules": "node scripts/test-rules.mjs",
     "privacy": "node scripts/privacy-check",
     "privacy:rehearsal": "node scripts/with-example-env.js pnpm run privacy",
     "emulators:lan": "firebase emulators:start --config firebase.lan.json --only firestore,auth --project demo-little-galaxy",
     "demo:seed": "pnpm --filter @little-galaxy/stand exec tsx src/seed-demo.ts",
     "test:live-safety": "node scripts/test-live-safety.mjs",
-    "test:drills": "firebase emulators:exec --only firestore,auth --project demo-little-galaxy \"pnpm --filter @little-galaxy/stand exec tsx ../../scripts/drills.ts\"",
-    "test:load": "firebase emulators:exec --only firestore,auth --project demo-little-galaxy \"pnpm --filter @little-galaxy/stand exec tsx ../../scripts/load-test.ts\"",
-    "test:sound": "playwright test --config tests/ui/playwright.config.js tests/ui/sound.spec.js",
-    "test:ui": "node scripts/test-ui.mjs"
+    "test:ui": "node scripts/test-ui.mjs",
+    "test:unit": "turbo run test --concurrency=2 && vitest run",
+    "test:physics": "node tests/prototype/physics.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

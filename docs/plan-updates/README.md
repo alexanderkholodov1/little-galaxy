@@ -15,3 +15,6 @@ sandbox cannot write there. The implementation docs and migration live in this r
 `alpha2-r3-sync.patch` logs the operator-directed emergency fix for launches beside a reserved
 founder, coherent funded-home fallback frames, nearby moon parents and launch diagnostics.
 It preserves the numeric B1 admission/rules contract and requires deployed-preview/phone acceptance.
+
+`alpha9-show.patch` records the operator-directed recruiter-facing presentation audit and emulator
+geometry checks. It is staged here because A-show explicitly forbids editing other worktrees.
