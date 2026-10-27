@@ -1,5 +1,5 @@
 import {canonicalHash,verifyTail} from '@little-galaxy/shared';
-import {Replay,KERNEL} from './replay.js';
+import {createReplay} from './kernel-routing.js';
 import {PACKED,packState,unpackLoaded} from './checkpoint.js';
 export const CERTIFY_EVERY=10*60*1000;
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -11,7 +11,7 @@ export function createCertifier({driver,now,load}){
   const skies=new Map();let queue=Promise.resolve();
   async function open(id){
     const loaded=await unpackLoaded(await load(id)),cp=loaded.checkpoint;
-    const replay=new Replay({...loaded,trusted:Boolean(cp)});
+    const replay=createReplay({...loaded,trusted:Boolean(cp)});
     return {replay,base:{sequence:cp?.sequence??0,hash:cp?.logHash??''},pending:[...loaded.actions],
       through:loaded.head.sequence,tick:cp?replay.sim.steps:-1};
   }
@@ -22,7 +22,7 @@ export function createCertifier({driver,now,load}){
     // certifying 2 s behind the read also covers a slow commit that the read did not see.
     const readAt=now();
     const galaxy=await driver.get(root);
-    if(!galaxy||galaxy.generation!==sky.replay.galaxy.generation||galaxy.kernel!==KERNEL){
+    if(!galaxy||galaxy.generation!==sky.replay.galaxy.generation||galaxy.kernel!==sky.replay.galaxy.kernel){
       skies.delete(id);throw new Error('The sky changed before certification. Reload the ledger.');
     }
     for(;;){
@@ -41,7 +41,7 @@ export function createCertifier({driver,now,load}){
     const sequence=sky.replay.sequence,covered=sky.pending.filter(a=>a.sequence<=sequence);
     const logHash=await verifyTail(covered,sky.base.sequence,sky.base.hash,false);
     const state=await packState(JSON.stringify(sky.replay.state()));
-    const cache={schemaVersion:1,generation:galaxy.generation,sequence,kernel:KERNEL,logHash,encoding:PACKED,state,stateHash:await canonicalHash(state)};
+    const cache={schemaVersion:1,generation:galaxy.generation,sequence,kernel:galaxy.kernel,logHash,encoding:PACKED,state,stateHash:await canonicalHash(state)};
     // One atomic commit; the pointer rule only moves forward and requires this certification.
     await driver.transaction(async tx=>{
       tx.set(`${root}/certifications/${sequence}-${tick}`,cache);

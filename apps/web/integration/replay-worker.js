@@ -1,7 +1,7 @@
 import {canonicalHash,verifyTail} from '@little-galaxy/shared';
 import {canonicalState} from './checkpoint.js';
 import {prepareLiveSnapshot} from './live-snapshot.js';
-import {Replay} from './replay.js';
+import {createReplay} from './kernel-routing.js';
 let replay=null,target=0,busy=false,observed=null;
 let verified=true,candidate=null,verifier=null,liveActions=[],loadKey=0,verifying=false,saving=false,provisionalFailed=false;
 async function verifyPump(){
@@ -69,10 +69,10 @@ onmessage=({data})=>{
     if(data.load){
       loadKey=data.loadKey??loadKey+1;verified=!data.load.provisional;candidate=data.load.checkpoint;
       verifier=null;verifying=false;provisionalFailed=false;liveActions=[];events=[];
-      replay=new Replay(data.load);target=data.tick||0;shown=Math.max(shown,target);
+      replay=createReplay(data.load);target=data.tick||0;shown=Math.max(shown,target);
     }
     if(data.verify && data.loadKey===loadKey && !verified){
-      verifier=new Replay({...data.verify,checkpoint:null});verifyPump();
+      verifier=createReplay({...data.verify,checkpoint:null});verifyPump();
     }
     if(data.snapshot)void saveSnapshot(data.snapshot.tick,data.snapshot.holder);
     if(data.actions){replay.accept(data.actions);if(!verified)liveActions.push(...data.actions);}

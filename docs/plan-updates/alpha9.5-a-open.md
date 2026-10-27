@@ -12,8 +12,11 @@ update for the coordinator to transfer to its plan and `CHANGELOG.md`.
   clients cannot publish. Trusted administrator certifications remain separate.
 - Kernel identity, state format/security, measurements, reproduction and deployment/device
   limitations are recorded in `docs/prototype/A-OPEN.md` and `SIM-DECISIONS.md`.
-- Before release: coordinator CI runs rules/browser tests, migrates/forks any target generation
-  under the existing kernel policy, and verifies a deployed preview from real phones. Local Node
+- The owner's release plan keeps the fair frozen and creates/selects a new current-kernel galaxy
+  through admin.html. No generation migration or fork is needed. The shipped historical dispatcher
+  retains the final fair implementation for its original frozen identity, in both replay and
+  display; suite tests pin its source and prove current snapshot joins plus historical timelapse.
+- Before release: coordinator CI runs rules/browser tests and verifies a deployed preview from real phones. Local Node
   proxies do not complete the approximately-two-second whole-game acceptance criterion.
 
 This transfer does not change scope, the approved physics intent, player limits or public names.

@@ -393,3 +393,16 @@ The operator-approved client-leader snapshot and formula-orbit opening design is
 closed-form sampling have the same canonical state. The kernel identity changes to
 `proto3-81e31788dd7a8eef8ab2a1a738c42055541186f33e3d6b26d9bb1329a0614e05`; historical galaxies
 retain their original identity. No production manifest, rules or Hosting deployment was changed.
+
+### A-open release kernel routing — 2026-10-27
+
+The owner will keep BAD 2026 frozen and create/select a new galaxy after the release. This plan
+needs no generation migration: admin creation already pins the current kernel on a new document
+at generation 1. A-open now ships the final fair release's archived simulation and replay under
+its historical identity for frozen/archived records only. The worker and display use that same
+implementation; the original manifest and accepted history remain unchanged. Live snapshots
+stay on the current kernel; optional historical certifications retain their original identity.
+Unknown identities and active old identities remain rejected. This implements the version
+dispatcher anticipated in the migration notes above; it supersedes their earlier statement that
+no production routing was included. See [A-OPEN.md](A-OPEN.md#production-kernel-decision--2026-10-27)
+for source provenance, compatibility tests and the precise release procedure.

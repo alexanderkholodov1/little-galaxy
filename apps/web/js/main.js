@@ -1,5 +1,6 @@
 import {setupTheme} from '../integration/theme.js';
 import {startSharedWorld} from '../integration/shared-world.js';
+import {simulationFor} from '../integration/kernel-routing.js';
 import {setupScreen} from '../integration/screen.js';
 import {recoverWorkshop} from '../integration/draft.js';
 // main.js — Little Galaxy · "Fogata". Orquesta el mundo 3D, el sonido y el vidrio.
@@ -112,7 +113,8 @@ async function boot(){
   document.documentElement.dataset.motion = RM ? 'reduce' : 'full';
   translateDom();
   const canvas = $('#world');
-  try{ world = createWorld(canvas, {rm:RM}); }
+  const loaded = await store.loadGalaxy();
+  try{ world = createWorld(canvas, {rm:RM,Simulation:simulationFor(loaded.galaxy)}); }
   catch(err){ console.error(err); window.__FOG_FAIL && window.__FOG_FAIL('webgl'); return; }
   world.setQuality(PREFS.quality);
   audio = createAudio();
@@ -122,7 +124,6 @@ async function boot(){
 
   world.owner = store.owner();
   if(import.meta.env.DEV && new URLSearchParams(location.search).has('sandbox')) Object.assign(world.sim.budget, {playerBlackHoles:99, playerStellar:99, blackHoleGapMs:0});
-  const loaded = await store.loadGalaxy();
   world.owner = store.owner();
   S.player = loaded.player || localPlayer();
   S.galaxy = loaded.galaxy || {status:'active'};

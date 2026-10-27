@@ -90,3 +90,17 @@ it('falls back when a corrupt provisional orbit throws before its first present 
  expect(w.messages.at(-1).state).toEqual(truth.state());
  expect(w.messages.some(m=>m.error)).toBe(false);
 });
+
+it('opens and scrubs a frozen historical kernel without a mismatch error or identity change',async()=>{
+ const {fairGalaxy,fairActions}=await import('./fair-fixture.js');
+ const {createReplay}=await import('./kernel-routing.js');
+ const w=await worker();w.send({load:{galaxy:fairGalaxy,actions:fairActions},tick:3600});
+ await vi.runAllTimersAsync();
+ const truth=createReplay({galaxy:fairGalaxy,actions:fairActions});truth.advanceTo(3600);
+ expect(w.messages.at(-1).state).toEqual(truth.state());expect(w.messages.at(-1).state.entries).toHaveLength(2);
+ w.send({tick:180});await vi.runAllTimersAsync();
+ expect(w.messages.at(-1).state.entries).toHaveLength(1);
+ w.send({tick:3600});await vi.runAllTimersAsync();
+ expect(w.messages.at(-1).state).toEqual(truth.state());
+ expect(w.messages.some(m=>m.error||m.verificationNeeded)).toBe(false);
+});

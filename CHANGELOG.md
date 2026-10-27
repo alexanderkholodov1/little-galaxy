@@ -1,5 +1,14 @@
 # Changelog
 
+## A-open production kernel compatibility — 2026-10-27
+
+- Keep the frozen fair visitable with its original final-release simulation in replay and display;
+  preserve its identity, accepted history and timelapse without a compatibility notice.
+- Keep new admin-created galaxies on the current kernel and snapshot opening path; no generation
+  migration is needed for the owner's frozen-fair plus new-active-galaxy release plan.
+- Pin archived source provenance and test admin creation/selection, snapshot joins, historical
+  opening/seeking/restoration, identity isolation and browser journeys in the normal suites.
+
 ## 1.0.0-alpha.9.5 — A-open, 2026-10-27
 
 - Evaluate mature systems directly at an integer present tick with the deterministic math kernel.

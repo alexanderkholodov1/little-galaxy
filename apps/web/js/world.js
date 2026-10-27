@@ -36,7 +36,7 @@ export function createWorld(canvas, opts = {}){
   renderer.setClearColor('#0d1018', 1);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 1200);
-  const sim = new Sim({seed: opts.seed ?? 1});
+  const sim = new (opts.Simulation ?? Sim)({seed: opts.seed ?? 1});
   const toySim = new Sim({seed:1});
   const listeners = {};
   const emit = (ev, ...a) => (listeners[ev] || []).forEach(fn => fn(...a));

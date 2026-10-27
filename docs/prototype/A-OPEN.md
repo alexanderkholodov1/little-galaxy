@@ -32,8 +32,58 @@ cooldown or budget is added.
 This changes the kernel identity to
 `proto3-81e31788dd7a8eef8ab2a1a738c42055541186f33e3d6b26d9bb1329a0614e05`.
 It follows the `scripts/sync-prototype.mjs` allowlist/order and SHA-256 recipe. Existing galaxies,
-especially the frozen fair record, retain their historical identity. The coordinator must use
-the existing generation/fork migration procedure rather than relabel an old running generation.
+especially the frozen fair record, retain their historical identity.
+
+## Production kernel decision — 2026-10-27
+
+The owner's release plan needs **no generation migration or fork**. After publishing the client
+and rules, the keeper creates a **new galaxy in `admin.html`** and selects it as the active public
+galaxy. `createAdminStore.createGalaxy` already calls `initialGalaxy` with the current `KERNEL`;
+the new document starts at generation 1, with an empty head and its own epoch. Its first players
+can elect a snapshot writer normally. Creating/selecting it never updates the old manifest,
+accepted pages, generation or kernel. Do not unfreeze or relabel BAD 2026 for this plan.
+
+The released client now includes a kernel dispatcher. The current identity uses the unchanged
+A-open simulation/replay. Only the known historical identity
+`proto3-ed2f1b0ac6cdf637229711dc5c1b94e3645a4d18eea47786082e1393b50bf30e`,
+on a frozen/archived record with frozen write policy, selects the archived final fair release
+(`9ccf27d`, alpha.8). It preserves the original motion, including native JavaScript mathematics;
+the deterministic A2/A-open equations are for new galaxies. Unknown identities and active old
+identities still fail closed. No identity alias accepts historical state into new physics.
+
+`integration/kernels/fair-alpha8/manifest.json` pins original and packaged source SHA-256 values.
+Simulation, home and name modules retain their release bytes. Replay changes only its relative
+simulation import and pins the historical constant instead of importing the new one. Tests
+reverse those packaging substitutions and compare original hashes. The shared name table is
+also pinned. Historical admission helpers cannot limit players: this reader only applies already
+accepted facts, and the UI/rules keep the galaxy frozen. New player admissions are unchanged.
+
+Both the worker and display select the historical implementation. The display restores old
+topology/rails with that implementation, so current `Sim.restore` cannot reinterpret an old
+frame. Timelapse still requests authoritative history and supports play and seeking. No mismatch
+notice or compatibility warning is added. The ordinary resting notice remains. Live snapshots
+are current-kernel-only; an optional keeper certification retains the historical identity.
+
+Suite evidence: `kernel-production.test.js` exercises the actual admin adapter over the memory
+driver, creation/selection, lease/publication and a snapshot join with byte-identical canonical
+state and SHA-256 equality to full replay. It verifies old identity/log immutability, bodies,
+backward/forward seeking, display restoration, certification and invalid-identity rejection.
+`replay-worker.test.js` exercises old-kernel opening and scrubbing without an error message.
+`tests/ui/kernel-production.spec.js` runs the real admin create/select flow, a player launch and
+leader snapshot, and a fresh browser's provisional snapshot load. Its frozen-fair journey checks
+rendered bodies, play, scrubbing, empty toast notices and unchanged stored history. The fixtures
+are public synthetic records; private fair visitor payloads are never committed.
+
+An additional local check reads the private fair fixture without committing it: all 21 accepted
+launches / 22 bodies reach tick 2,278,338 under the unchanged historical identity and generation 1.
+A historical display restoration preserves all positions. Canonical end-state SHA-256:
+`a267df14ea2e750d5ebe02049bf64c0170b61ae70d8080fe61fa818c55ec802d`.
+This uses a local read-only frozen view through the last accepted tick, not a production write
+or a claim about current Hosting. The reproducible suite uses the public fixture above.
+
+The current fingerprint and measured simulation path below are unchanged by this dispatcher.
+A running old galaxy that must adopt new equations would still need an explicit generation/fork
+design; the owner's frozen-record plus new-galaxy plan does not perform that operation.
 
 ## Snapshot writer and storage
 
@@ -168,6 +218,7 @@ browser, emulator or rules command ran; those belong to the rehearsal jobs.
 ## Rehearsal evidence
 
 Recovery commit `9b64c23` passed rehearsal run `40446067586`: unit/build/privacy, rules and
-player journey all succeeded. The final commit requires a separate passing rehearsal that also
-includes the primary-contact oracle and measurement harness. Its receipt is kept in
+player journey all succeeded. Accepted measurement commit `06e2be1` passed run `40448518129`.
+Merge commit `34b66f1` passed run `40493679723`, including A-show and its expanded journey
+timeout. The kernel compatibility commit requires its own passing rehearsal. Its receipt is kept in
 `.tmp/rehearse-results/` and reported in the final handoff. Rehearsals do not deploy a preview.

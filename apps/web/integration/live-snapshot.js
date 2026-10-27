@@ -3,6 +3,7 @@ import {PACKED,packState,unpackState,canonicalState} from './checkpoint.js';
 import {Replay,KERNEL} from './replay.js';
 
 export async function prepareLiveSnapshot(replay,tick,holder){
+  if(replay.galaxy.kernel!==KERNEL)return null;
   // Fork from a coherent rewind mark. Keep the display and its event bus untouched.
   if(tick<replay.sim.steps && !replay.marks.some(m=>m.steps<=tick))return null;
   const mark=[...replay.marks].reverse().find(m=>m.steps<=tick);
@@ -21,6 +22,7 @@ export async function prepareLiveSnapshot(replay,tick,holder){
 }
 /** Integrity is not authenticity: callers must still compare with an independent replay. */
 export async function verifyLiveSnapshot(snapshot,galaxy){
+  if(galaxy.kernel!==KERNEL)return false;
   try{
     if(snapshot.encoding!==PACKED || typeof snapshot.state!=='string' || snapshot.state.length>900000 ||
       await canonicalHash(snapshot.state)!==snapshot.stateHash)return false;
