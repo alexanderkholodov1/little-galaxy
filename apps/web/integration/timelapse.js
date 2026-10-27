@@ -1,5 +1,5 @@
 import './timelapse.css';
-import {recordedStories} from './recorded-stories.js';
+import {recordedStory} from './recorded-stories.js';
 import {getLang, register, setLang, t} from '../js/i18n.js';
 import galaxyStrings from '../js/strings/galaxy.js';
 register(galaxyStrings);
@@ -68,8 +68,14 @@ export function setupTimelapse({loaded,request,now}){
     render();
   };
   function render(){
-    const es=document.documentElement.lang==='es',story=recordedStories[g.id]?.[es?'es':'en'];
-    name.textContent=story?.shortTitle??g.name;
+    const story=recordedStory(g.id,say);
+    const title=story?.shortTitle??g.name;
+    if(name.textContent!==title){
+      name.replaceChildren(...title.split(/(\s+)/u).map(word=>{
+        if(/^\s+$/u.test(word))return document.createTextNode(word);
+        const span=document.createElement('span');span.textContent=word;return span;
+      }));
+    }
     record.textContent=`${new Date(g.epoch).toISOString().slice(0,10)} · ${story?.timeline??say('replay.readonly')}`;
     speeds.setAttribute('aria-label',say('replay.speed'));
     scrub.setAttribute('aria-label',say('replay.moment'));

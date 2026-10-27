@@ -1,7 +1,8 @@
 /* global document, getComputedStyle, requestAnimationFrame */
 import {expectLayout} from '../../tests/ui/layout-geometry.js';
-import {assertHeaderIcons, assertProductType, assertReadableBodies, assertScrubTracksThumb, assertShotSize} from './presentation.mjs';
+import {assertFairReturn, assertHeaderIcons, assertProductType, assertReadableBodies, assertScrubTracksThumb, assertShotSize} from './presentation.mjs';
 import {expect,test} from '@playwright/test';
+import {completeJourney} from './report.mjs';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {enter} from '../../tests/ui/galaxy-fixture.js';
 import {googleSignIn,localOnly} from '../../tests/ui/admin-helper.js';
@@ -11,9 +12,9 @@ const launches=[...docs].filter(([p])=>p.startsWith('galaxies/bad-2026/logPages/
 const end=Math.max(head.effectiveTick,Math.ceil((fair.frozenAt-fair.epoch)*.12));
 const profiles=[{name:'phone',width:390,height:844,rate:4},{name:'laptop',width:1440,height:900,rate:1}];
 let evidence;
-test.beforeEach(async({page},info)=>{void page;evidence={name:info.title,pass:false,timings:{},screenshots:[]};});
-test.afterEach(async({page},info)=>{
- void page;evidence.pass=info.status==='passed';let report={journeys:[]};try{report=JSON.parse(await readFile(process.env.ACCEPT_REPORT,'utf8'));}catch{/* First journey. */}
+test.beforeEach(async({browser},info)=>{void browser;evidence={name:info.title,pass:false,timings:{},screenshots:[],checks:[]};});
+test.afterEach(async({browser},info)=>{
+ void browser;evidence=completeJourney(evidence,info);let report={journeys:[]};try{report=JSON.parse(await readFile(process.env.ACCEPT_REPORT,'utf8'));}catch{/* First journey. */}
  (report.journeys??=[]).push(evidence);await writeFile(process.env.ACCEPT_REPORT,JSON.stringify(report,null,2));
  console.log(`${evidence.pass?'PASS':'FAIL'} ${info.title}`);
 });
@@ -27,13 +28,32 @@ async function screenshot(page,name){
  await mkdir('.tmp/accept-screenshots',{recursive:true});const path=`.tmp/accept-screenshots/${name}.png`;
  if(name.startsWith('sandbox-home')){await expect(page.locator('#brand')).toBeVisible();await page.waitForFunction(()=>getComputedStyle(document.querySelector('#brand')).opacity==='1');}
  await expectLayout(page,name);
- await assertProductType(page,name);
- if(/^(sandbox-home|fair)-/u.test(name))await assertReadableBodies(page,name);
- if(name.startsWith('timelapse-'))await assertScrubTracksThumb(page,name);
+ await check(`product typefaces: ${name}`,()=>assertProductType(page,name));
+ if(/^(sandbox-home|observer-from|fair|timelapse-end)-/u.test(name))await check(`readable bodies: ${name}`,()=>assertReadableBodies(page,name));
+ if(name.startsWith('timelapse-'))await check(`scrub fill: ${name}`,()=>assertScrubTracksThumb(page,name));
  if(await page.locator('.top-actions .icon-btn:visible, #panelTheme:visible').count())await assertHeaderIcons(page,name);
- const buffer=await page.screenshot({path});assertShotSize(name,buffer);evidence.screenshots.push(path);
+ const buffer=await page.screenshot({path}),size=assertShotSize(name,buffer);evidence.screenshots.push(path);
+ (evidence.shots??=[]).push({path,sha:process.env.ACCEPT_SHA,...size,lang:await page.locator('html').getAttribute('lang'),theme:await page.locator('html').getAttribute('data-ui-theme')});
+}
+async function check(name,run){
+ try{const detail=await run();evidence.checks.push({name,pass:true,...detail});}
+ catch(error){evidence.checks.push({name,pass:false,reason:error.message});throw error;}
+}
+async function screenshotThemes(page,name){
+ const original=await page.locator('html').getAttribute('data-ui-theme');
+ await screenshot(page,name);
+ for(const theme of ['dark','light']){
+  await page.locator('html').evaluate((el,theme)=>{el.dataset.uiTheme=theme;},theme);
+  await screenshot(page,`${name}-${theme}`);
+ }
+ await page.locator('html').evaluate((el,theme)=>{el.dataset.uiTheme=theme;},original);
 }
 async function clean(page){await expect(page.locator('#toasts')).toHaveText('');await expect(page.locator('body')).not.toContainText('Unsupported simulation kernel');}
+async function authorReachable(page,name){
+ await page.locator('#btnCredits').click();await expect(page.locator('#credits')).toBeVisible();
+ await screenshot(page,name);
+ await page.locator('#creditsClose').click();await expect(page.locator('#credits')).toBeHidden();
+}
 for(const profile of profiles)for(const lang of ['en','es']){
  test(`1 sandbox launches and a second browser receives it (${profile.name}, ${lang})`,async({browser})=>{
   const {context,page}=await contextFor(browser,profile,lang),observer=await browser.newContext({viewport:{width:profile.width,height:profile.height},hasTouch:profile.name==='phone',isMobile:profile.name==='phone'});
@@ -46,7 +66,7 @@ for(const profile of profiles)for(const lang of ['en','es']){
    const second=await observer.newPage();second.on('pageerror',e=>{(evidence.errors??=[]).push(e.message);});await second.goto(`/galaxy/?emulators=1&lang=${lang}`);await expect(second.locator('body')).toHaveAttribute('data-sky-ready','true');await enter(second);
    await page.locator('#btnCreate').click();await expect(page.locator('body')).toHaveAttribute('data-workshop-focus','near');
    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-   await screenshot(page,`workshop-${profile.name}-${lang}`);await page.locator('#btnToPad').click();await page.locator('.pu-sec').click();
+   await screenshotThemes(page,`workshop-${profile.name}-${lang}`);await page.locator('#btnToPad').click();await page.locator('.pu-sec').click();
    await expect(page.locator('body')).toHaveAttribute('data-bench-state','pad');
    const canvas=page.locator('canvas').first(),box=await canvas.boundingBox();
    // The pad follows the viewport; use its centre and a downward release, as a visitor does.
@@ -71,10 +91,11 @@ for(const profile of profiles)for(const lang of ['en','es']){
    let at=performance.now();await page.goto(`/galaxy/?g=bad-2026&view=recorded&smoke=readonly&lang=${lang}`);
    await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true');evidence.timings.navigationMs=performance.now()-at;
    at=performance.now();await enter(page);await expect(page.locator('#countN')).toHaveText('21',{timeout:2000});evidence.timings.enterMs=performance.now()-at;
-   await clean(page);await page.locator('#aboutRecordedGalaxy').click();await expect(page.locator('#recordInformation')).toBeVisible();await screenshot(page,`fair-info-${profile.name}-${lang}`);await page.keyboard.press('Escape');await expect(page.locator('#recordInformation')).not.toBeVisible();await screenshot(page,`fair-${profile.name}-${lang}`);
+   await clean(page);await page.locator('#aboutRecordedGalaxy').click();await expect(page.locator('#recordInformation')).toBeVisible();await screenshotThemes(page,`fair-info-${profile.name}-${lang}`);await page.keyboard.press('Escape');await expect(page.locator('#recordInformation')).not.toBeVisible();await screenshotThemes(page,`fair-${profile.name}-${lang}`);
+   await check('fair author is reachable',()=>authorReachable(page,`fair-author-${profile.name}-${lang}`));
    await expect(page.locator('#backToSandbox')).toHaveAttribute('aria-label', lang==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
    await page.locator('#openTimelapse').click();await expect(page.locator('body')).toHaveAttribute('data-replay','true');await enter(page);
-   await expect(page.locator('#countN')).toHaveText('21');const scrub=page.locator('#replayScrub');
+   await expect(page.locator('#countN')).toHaveText('21');await screenshotThemes(page,`timelapse-end-${profile.name}-${lang}`);const scrub=page.locator('#replayScrub');
    at=performance.now();await scrub.focus();await page.keyboard.press('Home');await expect(page.locator('body')).toHaveAttribute('data-tick','0');evidence.timings.homeSeekMs=performance.now()-at;
    await page.keyboard.press('ArrowRight');await expect(page.locator('body')).toHaveAttribute('data-tick','120');
    await page.keyboard.press('End');await expect(page.locator('body')).toHaveAttribute('data-tick',String(end));
@@ -89,13 +110,11 @@ for(const profile of profiles)for(const lang of ['en','es']){
     await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-sequence')),{timeout:2000}).toBeGreaterThanOrEqual(1);
     await page.locator('#replayPlay').click();
    }
-   await clean(page);await expect(page.locator('#backToFair svg')).toHaveCount(1);await screenshot(page,`timelapse-${profile.name}-${lang}`);
-   await page.locator('#backToFair').click();
-   await expect(page).toHaveURL(/view=recorded/u);
-   await expect(page).not.toHaveURL(/timelapse/u);
-   await expect(page.locator('body')).not.toHaveAttribute('data-replay','true');
-   await expect(page.locator('#countN')).toHaveText('21');
-   await expect(page.locator('#openTimelapse')).toBeVisible();
+   await clean(page);await expect(page.locator('#backToFair svg')).toHaveCount(1);await screenshotThemes(page,`timelapse-${profile.name}-${lang}`);
+   await check('timelapse author is reachable',()=>authorReachable(page,`timelapse-author-${profile.name}-${lang}`));
+   await page.locator('#aboutRecordedGalaxy').click();await expect(page.locator('#recordInformation')).toBeVisible();
+   await screenshot(page,`timelapse-info-${profile.name}-${lang}`);await page.keyboard.press('Escape');await expect(page.locator('#recordInformation')).toBeHidden();
+   await check('timelapse click returns to the fair galaxy',()=>assertFairReturn(page));
    await page.locator('#backToSandbox').click();await expect(page).not.toHaveURL(/g=bad-2026/u);
   }finally{await context.close();}
  });

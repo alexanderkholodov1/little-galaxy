@@ -125,7 +125,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     }catch(error){world.failSharedLaunch();toast(launchVoice(error));}
   };
   const onActions=({detail})=>{worker.postMessage({actions:detail,tick:target()});};
-  const onManifest=({detail})=>{saveDraft();S.galaxy=detail;readonly();worker.postMessage({tick:target()});};
+  const onManifest=({detail})=>{saveDraft();S.galaxy=detail;readonly();visits.render();worker.postMessage({tick:target()});};
   const onError=({detail})=>toast(say('sky.hear',{message:detail.message}));
   const onNotice=({detail})=>toast(detail);
   const onSelection=()=>{saveDraft();location.reload();};
@@ -143,7 +143,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     try{
       // Re-anchor to server time; reload a coherent boundary before reattaching the log.
       const backend=store.backend();backend.selection=await backend.driver.get('config/live');
-      const fresh=await store.loadGalaxy();S.galaxy=fresh.galaxy;loaded=fresh;readonly();
+      const fresh=await store.loadGalaxy();S.galaxy=fresh.galaxy;loaded=fresh;readonly();visits.render();
       ready=false;loadReplay(fresh);
     }catch(error){onError({detail:error});}
   };

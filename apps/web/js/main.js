@@ -1,3 +1,4 @@
+import {randomBodyName} from './strings/body-names.js';
 import {setupTheme} from '../integration/theme.js';
 import {startSharedWorld} from '../integration/shared-world.js';
 import {simulationFor} from '../integration/kernel-routing.js';
@@ -14,14 +15,12 @@ import {createLocalStore} from './store.js';
 import {track, flush} from '../integration/metrics.js';
 import {getPlayer, askPlayer} from './ui/player.js';
 import {loadPrefs, savePrefs as storePrefs, createPrefsPanel} from './ui/prefs.js';
-import {createLabels, strings as labelStrings} from './ui/labels.js';
+import {createLabels} from './ui/labels.js';
 import core from './strings/core.js';
 import galaxyStrings from './strings/galaxy.js';
 import playerStrings from './strings/player-ui.js';
 register(core);
 register(playerStrings);
-register({es:{'welcome.enter':'Entrar', 'welcome.line':'Una galaxia hecha entre todos. Entra con sonido.'}, en:{'welcome.enter':'Enter', 'welcome.line':'A galaxy everyone builds together. Come in with sound.'}});
-register(labelStrings);
 register(galaxyStrings);
 window.__FOG_T = translateDom;
 
@@ -38,22 +37,7 @@ const DEBUG = import.meta.env.DEV && /[?&]debug\b/.test(location.search);
 window.__FOG_OK = false;
 
 /* ------------------------------------------------------------------ nombres (sin texto libre) */
-const NOUNS = [['Brasa','f'],['Lucero','m'],['Miel','f'],['Farol','m'],['Canela','f'],['Vela','f'],['Duende','m'],
-  ['Mochi','m'],['Ceniza','f'],['Bruma','f'],['Guijarro','m'],['Ámbar','m'],['Lila','f'],['Pompa','f'],['Cascabel','m'],
-  ['Lumbre','f'],['Rescoldo','m'],['Chispa','f'],['Malvavisco','m'],['Nube','f'],['Grillo','m'],['Luciérnaga','f'],['Botón','m'],['Pluma','f']];
-const ADJS = [['Tímido','Tímida'],['Dormido','Dormida'],['Risueño','Risueña'],['Tibio','Tibia'],['Lejano','Lejana'],
-  ['Valiente','Valiente'],['Curioso','Curiosa'],['Pequeño','Pequeña'],['Callado','Callada'],['Soñador','Soñadora'],
-  ['Tierno','Tierna'],['Despistado','Despistada'],['Bailarín','Bailarina'],['Viajero','Viajera'],['Dulce','Dulce'],
-  ['Lento','Lenta'],['Feliz','Feliz'],['Brillante','Brillante']];
-const EN_NOUNS = ['Ember','Honey','Lantern','Cinnamon','Candle','Pebble','Amber','Lilac','Bubble','Bell','Spark','Cloud','Button','Feather','Mist'];
-const EN_ADJS = ['Shy','Sleeping','Laughing','Warm','Distant','Brave','Curious','Little','Quiet','Dreaming','Gentle','Wandering','Sweet','Slow','Happy','Bright'];
-function randomName(){
-  if(getLang() === 'en'){
-    return EN_ADJS[(Math.random()*EN_ADJS.length)|0] + ' ' + EN_NOUNS[(Math.random()*EN_NOUNS.length)|0];
-  }
-  const n = NOUNS[(Math.random()*NOUNS.length)|0], a = ADJS[(Math.random()*ADJS.length)|0];
-  return n[0] + ' ' + (n[1] === 'f' ? a[1] : a[0]);
-}
+const randomName = () => randomBodyName(getLang());
 
 /* ------------------------------------------------------------------ estado */
 const QS = new URLSearchParams(location.search);

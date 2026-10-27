@@ -15,6 +15,7 @@ body[data-replay] #btnPrefs{display:none}
   font-family:var(--f-display);font-weight:600;font-size:1.25rem;line-height:1.2;
   margin:0 0 8px;overflow-wrap:normal;word-break:normal;
 }
+#timeRuler h1 span{display:inline-block;max-width:100%;vertical-align:bottom;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #timeRuler p{margin:0 0 16px;color:var(--celeste)}
 .timeControls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 #replaySpeed{display:flex;flex-wrap:wrap;gap:8px}
@@ -39,12 +40,19 @@ body[data-replay] #btnPrefs{display:none}
   background:var(--glass, rgba(20,24,40,.75));box-sizing:border-box;
   overflow-wrap:normal;word-break:normal;
 }
+.sky-back,.sky-primary{text-decoration:none}
+body[data-replay="true"] #backToSandbox{padding-right:14px}
 body[data-recorded="true"] #galaxyVisits,
 body[data-replay="true"] #galaxyVisits{
   position:fixed;z-index:36;top:calc(88px + var(--st));left:14px;right:14px;justify-content:flex-start;
 }
 body[data-recorded="true"] #galaxyVisits .credits-link,
 body[data-replay="true"] #galaxyVisits .credits-link{position:static;margin:0}
+body[data-recorded="true"] .home-footer .credits,
+body[data-replay="true"] .home-footer .credits{
+  position:fixed;z-index:40;top:calc(144px + var(--st));left:14px;right:auto;bottom:auto;
+  width:min(480px, calc(100% - 28px));margin:0;
+}
 body[data-recorded="true"]:not([data-replay="true"]) .sky-primary{
   position:fixed;z-index:36;left:50%;bottom:calc(16px + var(--sb));transform:translateX(-50%);
   max-width:calc(100% - 28px);white-space:nowrap;
@@ -56,7 +64,8 @@ body[data-replay="true"] #sysList{display:none}
 #recordScrim{position:fixed;inset:0;z-index:80;background:rgba(5,7,12,.78)}
 body:has(#recordInformation[open]) #btnSystems,
 body:has(#recordInformation[open]) #sysList,
-body:has(#recordInformation[open]) .top-actions{display:none !important}
+body:has(#recordInformation[open]) .top-actions,
+body:has(#recordInformation[open]) #timeRuler{display:none !important}
 #recordInformation{
   position:fixed;z-index:81;top:88px;left:16px;right:16px;margin:0 auto;
   width:min(520px, calc(100% - 32px));max-height:calc(100dvh - 112px);overflow:auto;box-sizing:border-box;

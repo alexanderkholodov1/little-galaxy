@@ -26,3 +26,4 @@ geometry checks. It is staged here because A-show explicitly forbids editing oth
 current-kernel changes, measurements and the owner options for preserving the fair record.
 
 - [alpha.10.0-rc1: the complete shared-game candidate](../prototype/RELEASE-CANDIDATE.md): open sandbox provisioning, public frozen release moments, reliable Google redirect, plain-language record navigation, local acceptance and one CI check job.
+- [rc1 presentation / plan changelog transfer](alpha10-rc1-presentation.md): coherent fair and timelapse presentation, centralized copy and local presentation evidence.

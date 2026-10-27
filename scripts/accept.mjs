@@ -11,12 +11,14 @@ import {publicExport} from './accept/public-data.mjs';
 import {seedAcceptance} from './accept/seed.mjs';
 import {assertCopyParity} from './accept/presentation.mjs';
 assertCopyParity();
+const presentationBaseline=process.argv.find(arg=>arg.startsWith('--presentation-baseline='));
+if(presentationBaseline){const {provePresentation}=await import('./accept/presentation-proof.mjs');const result=await provePresentation(presentationBaseline.slice('--presentation-baseline='.length));process.exit(result.pass?0:1);}
 const baseline=process.argv.find(arg=>arg.startsWith('--baseline='));
 if(baseline){await acceptBaseline(baseline.slice('--baseline='.length));process.exit(1);}
 const sha=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),reportPath=`.tmp/accept-${sha}.json`;
 await mkdir('.tmp',{recursive:true});
 if(!process.env.ACCEPT_EMULATORS){
- const start=performance.now();let pass=false;await writeFile(reportPath,JSON.stringify({sha,journeys:[]}));
+ const start=performance.now();let pass=false,reason;await writeFile(reportPath,JSON.stringify({sha,journeys:[]}));
  try{
   const before=await prepareReleaseRecords();
   const recordHash=docs=>canonicalHash([...docs].filter(([path])=>path==='galaxies/bad-2026'||path.startsWith('galaxies/bad-2026/')).sort(([a],[b])=>a.localeCompare(b)));
@@ -28,9 +30,9 @@ if(!process.env.ACCEPT_EMULATORS){
   const afterHash=await recordHash(await publicExport());if(afterHash!==originalHash)throw new Error('Production record changed during acceptance');
   const verified=JSON.parse(await readFile(reportPath,'utf8'));verified.version=JSON.parse(await readFile('apps/web/dist/version.json','utf8'));verified.dirty=Boolean(execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim());verified.productionRecordUnchanged=true;verified.productionRecordHash=afterHash;await writeFile(reportPath,JSON.stringify(verified));
   pass=true;
- }catch(error){console.error(`Acceptance FAIL: ${error.message}`);}
+ }catch(error){reason=error.message;console.error(`Acceptance FAIL: ${reason}`);}
  let details={};try{details=JSON.parse(await readFile(reportPath,'utf8'));}catch{/* Failure before browser startup. */}
- await writeFile(reportPath,JSON.stringify({...details,sha,pass,ms:Math.round(performance.now()-start)},null,2));if(!pass)process.exitCode=1;
+ await writeFile(reportPath,JSON.stringify({...details,sha,pass,...(reason?{reason}:{}),ms:Math.round(performance.now()-start)},null,2));if(!pass)process.exitCode=1;
 }else{
  await run('pnpm',['exec','vitest','run','--config','tests/rules/vitest.config.js']);
  const docs=new Map(JSON.parse(await readFile(process.env.GALAXY_PUBLIC_EXPORT??'.tmp/production-export.json','utf8')));

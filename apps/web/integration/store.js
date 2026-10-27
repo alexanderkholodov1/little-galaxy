@@ -42,7 +42,7 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       return {...loaded,player:loaded.player?{...loaded.player,anonymous:loaded.player.displayName==='Anonymous'}:null,state:null};
     },
     async setName(id,name){
-      if(readOnly||loaded.galaxy.status!=='active'||loaded.galaxy.writePolicy==='frozen')throw new Error('This sky is resting. You can look, but cannot launch here.');
+      if(readOnly||loaded.galaxy.status!=='active'||loaded.galaxy.writePolicy==='frozen')throw new Error(say('sky.resting.title'));
       const current=loaded.player&&loaded.player.displayName!=='Anonymous'?loaded.player.displayName:'';
       try{await backend.store.setName(id,name);}
       catch(error){
@@ -55,7 +55,7 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
     },
     async launch(id,raw){
       if(readOnly||document.hidden||!navigator.onLine)throw new Error('The sky cannot hear you while offline. Your star is still in your hand.');
-      if(loaded.galaxy.status!=='active'||loaded.galaxy.writePolicy==='frozen')throw new Error('This sky is resting. Your star is still in your hand.');
+      if(loaded.galaxy.status!=='active'||loaded.galaxy.writePolicy==='frozen')throw new Error(say('launch.voice.resting'));
       const signature=JSON.stringify({...raw,id:undefined});
       const key=`little-galaxy.launch:${id}`;
       let draft;try{draft=JSON.parse(localStorage.getItem(key));}catch{ /* A new intent is safe after an unreadable draft. */ }

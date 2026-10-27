@@ -1,4 +1,4 @@
-import {recordedStories} from './recorded-stories.js';
+import {recordedStory} from './recorded-stories.js';
 import {getLang, register, setLang, t} from '../js/i18n.js';
 import galaxyStrings from '../js/strings/galaxy.js';
 register(galaxyStrings);
@@ -17,7 +17,7 @@ export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
   dialog?.remove();scrim?.remove();
   scrim=document.createElement('div');scrim.id='recordScrim';
   dialog=document.createElement('dialog');dialog.id='recordInformation';dialog.setAttribute('aria-labelledby','recordInformationTitle');
-  const es=document.documentElement.lang==='es',g=store.loaded().galaxy,story=recordedStories[g.id]?.[es?'es':'en'];
+  const g=store.loaded().galaxy,story=recordedStory(g.id,say);
   const title=document.createElement('h2');title.id='recordInformationTitle';title.textContent=story?.title??g.name;dialog.append(title);
   for(const text of story?.paragraphs??[say('record.fallback')]){const p=document.createElement('p');p.textContent=text;dialog.append(p);}
   const close=document.createElement('button');close.type='button';close.id='recordInformationClose';close.className='pill glass';close.textContent=say('record.close');close.onclick=()=>dialog.close();dialog.append(close);
@@ -33,7 +33,7 @@ export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
  function render(){
   const author=document.getElementById('btnCredits');
   nav.replaceChildren();nav.setAttribute('aria-label',say('record.nav'));
-  const frozen=store.loaded().galaxy.status!=='active';
+  const current=store.loaded().galaxy,frozen=current.status!=='active'||current.writePolicy==='frozen';
   if(frozen||replayMode){
    const back=replayMode
     ? backChip('backToFair',url('',{g:store.galaxyId,view:'recorded'}),say('record.back.fair'),say('record.back.fair.aria'))
@@ -51,10 +51,10 @@ export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
    }
    nav.append(primary);
   }else{
-   if(author&&author.parentElement===nav)document.querySelector('.home-footer')?.append(author);
+   if(author)document.querySelector('.home-footer')?.append(author);
    for(const g of recordings){
     const a=document.createElement('a');a.className='galaxyVisit';a.href=url('',{g:g.id,view:'recorded'});
-    a.textContent=recordedStories[g.id]?.[document.documentElement.lang==='es'?'es':'en']?.visit??say('record.visit',{name:g.name});
+    a.textContent=recordedStory(g.id,say)?.visit??say('record.visit',{name:g.name});
     nav.append(a);
    }
   }

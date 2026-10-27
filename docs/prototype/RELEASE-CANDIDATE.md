@@ -30,12 +30,17 @@ explains when the fair happened, that visitors launched every body live, that di
 chosen nicknames, and how the timelapse and sandbox work. Both recorded views have a clear return
 to the sandbox. The dialog has a labelled heading, native modal focus and Escape handling, a close
 button and a scrolling phone-sized layout. English and Spanish use the same navigation structure.
-Distant bodies retain a small finding-chart marker at their exact position when their physical
-disc is too small to see; zooming fades the marker into the normal mesh. No simulation state or
-historical position changes. Keeper controls meet a 44-pixel minimum touch target.
+Wide orbits use a display-only radial scale inside the painted spiral, keeping the fire and
+readable bodies together in the opening frame. The same scale applies to the fair and timelapse;
+simulation coordinates and the stored history stay unchanged. Distant bodies retain a small
+finding-chart marker when their disc is too small to see; zooming fades it into the normal mesh.
+Keeper controls meet a 44-pixel minimum touch target.
 Recorded and return visits no longer wait through a timed title animation. The recorded destination hides launch controls without presenting a full-screen locked-game notice.
 The workshop action now says “Design a body”, the temporary comet toy is labelled “Practice”, and the keeper gate says “Galaxy administration”
 with a plain explanation of the Google account needed, rather than “The observatory key”.
+Live freeze and foreground resume refresh navigation as well as launch permissions. Reopening
+keeps the author destination. Recorded author sheets sit below navigation, clear of the primary
+action and time ruler; settings switches, close buttons and author links have painted touch faces.
 
 ## Admin sign-in
 
@@ -77,6 +82,19 @@ export with neutral visitor labels and recanonicalized chains. The same release 
 the sandbox twice to check idempotence and preservation. Browser journeys cover phone/laptop,
 English/Spanish, launches and a second observer, the real fair, seeking and each speed, and keeper
 redirect/list/create/activate/freeze. Reports go to `.tmp/accept-<sha>.json`; screenshots remain local.
+Failed journeys retain their assertion/error messages. Named checks verify that clicking back
+from timelapse opens the same recorded fair, visible text uses the loaded product typefaces,
+and every drawn body has at least a four-pixel projected radius. Body measurements also run on
+the sandbox observer after a launch, so an initially empty sandbox cannot bypass that check.
+Fair, information, timelapse and workshop screenshots cover both themes independently of language,
+at 390×844 and 1440×900; each screenshot's SHA, dimensions, language and theme are recorded.
+`pnpm accept --presentation-baseline=125849d` runs those same presentation assertions independently
+against an archived build, using only a projection observation hook and the verified frozen assets.
+Its JSON proof is `.tmp/presentation-baseline-<sha>/report.json`; real failures exit nonzero.
+The `125849d` archive fails the body-size, typography and scrub-fill checks. Its actual return
+click already opens the correct fair in all four profiles; it is retained as passing evidence.
+The archived probe also records whether a deliberately misrouted return link is rejected, so
+navigation proof does not depend on an SVG count or a fabricated baseline route failure.
 Use `NODE_OPTIONS=--max-old-space-size=768` and `TMPDIR=$PWD/.tmp/t` on Beacon. Java 21 and the
 pinned Playwright Chromium must already be installed. The command never deploys or writes to
 production. Use `pnpm accept --baseline=4a20e85` to build the archived production-main source without a

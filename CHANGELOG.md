@@ -26,6 +26,13 @@
   `pnpm accept`, production public reads and an isolated emulator seeded from an ignored export.
 - A merge to main deploys rules, indexes and the client directly. The rules environment only allows `main` and `v*` tags and has no manual reviewer.
 - Publish replay moments without visitor nicknames; restore those labels in memory from hash-pinned history.
+- Draw wide recorded orbits inside the painted spiral so the opening shows readable bodies and the
+  fire without changing the stored history. Use the same Unbounded/Figtree typography, glass,
+  pill navigation and speed chips across the fair, timelapse and workshop in both themes.
+- Centralize recorded explanations, navigation and playback copy; correct the Spanish orbit count
+  and give the workshop dice readable contrast. Consolidate component styles at their source.
+- Keep failed acceptance assertions in its JSON report. Check actual timelapse return navigation,
+  visible product typefaces and projected body sizes, with EN/ES phone/laptop screenshots in both themes.
 
 ## A-show presentation — 2026-10-26
 

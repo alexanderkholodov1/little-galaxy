@@ -1,5 +1,6 @@
 /* global document, getComputedStyle, NodeFilter, window */
 import {inflateSync} from 'node:zlib';
+import {expect} from '@playwright/test';
 import core from '../../apps/web/js/strings/core.js';
 import galaxy from '../../apps/web/js/strings/galaxy.js';
 import player from '../../apps/web/js/strings/player-ui.js';
@@ -112,7 +113,7 @@ export function iconContrast(buffer) {
 
 export async function assertProductType(page, state) {
   const foreign = await page.evaluate(() => {
-    const allowed = new Set(['unbounded variable', 'unbounded', 'figtree variable', 'figtree', 'trebuchet ms', 'sans-serif']);
+    const product = new Set(['unbounded variable', 'unbounded', 'figtree variable', 'figtree']);
     const seen = new Set();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
@@ -124,13 +125,15 @@ export async function assertProductType(page, state) {
       if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) continue;
       const rect = el.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) continue;
+      if (!el.checkVisibility({opacityProperty: true, visibilityProperty: true})) continue;
       const family = style.fontFamily;
       const names = family.split(',').map(part => part.trim().replace(/^["']|["']$/gu, '').toLowerCase());
-      if (names.some(name => !allowed.has(name))) seen.add(family);
+      if (!product.has(names[0]) || !document.fonts.check(`16px "${names[0]}"`)) seen.add(family);
     }
     return [...seen];
   });
   if (foreign.length) throw new Error(`${state}: visible text is not set in Unbounded or Figtree (${foreign.join(' | ')})`);
+  return {typefaces: ['Unbounded', 'Figtree']};
 }
 
 // A disc under 4px is the finding-chart pinprick. Sandbox bodies already clear this.
@@ -142,9 +145,22 @@ export async function assertReadableBodies(page, state) {
   });
   if (!detail.radii) throw new Error(`${state}: bodies cannot be measured`);
   if (detail.count > 0 && !detail.radii.length) throw new Error(`${state}: the galaxy opened with no bodies to measure`);
-  if (!detail.radii.length) return;
+  if (detail.radii.length !== detail.count) throw new Error(`${state}: expected ${detail.count} drawn bodies, measured ${detail.radii.length}`);
+  if (!detail.radii.length) return {count: 0};
   const smallest = Math.min(...detail.radii);
   if (!(smallest >= 4)) throw new Error(`${state}: a body is drawn at ${smallest.toFixed(2)}px`);
+  return {count: detail.count, minRadiusPx: smallest};
+}
+
+export async function assertFairReturn(page) {
+  await page.locator('#backToFair').click();
+  await expect(page).toHaveURL(url => url.searchParams.get('g') === 'bad-2026' && url.searchParams.get('view') === 'recorded' && !url.pathname.endsWith('/timelapse'));
+  await expect(page.locator('body')).not.toHaveAttribute('data-replay', 'true');
+  await expect(page.locator('body')).toHaveAttribute('data-recorded', 'true');
+  await expect(page.locator('#countN')).toHaveText('21');
+  await expect(page.locator('#openTimelapse')).toBeVisible();
+  await expect(page.locator('#btnCreate')).not.toBeVisible();
+  return {galaxy: 'bad-2026', view: 'recorded', bodies: 21};
 }
 
 // The track fill follows --v. An unset variable paints the stylesheet's 50% fallback while the thumb sits at the real moment.

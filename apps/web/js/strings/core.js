@@ -20,6 +20,11 @@ for(const [id, [lEs, nEs, g, lEn, nEn]] of Object.entries(types)){
 
 export default {
   es: {
+    "welcome.enter": "Entrar",
+    "welcome.line": "Una galaxia hecha entre todos. Entra con sonido.",
+    "labels.anon": "anónimo",
+    'session.disconnected': 'Este cielo aún no está conectado. Vuelve a intentarlo pronto.',
+    'session.signin': 'Inicia sesión con Google para abrir la administración de galaxias.',
     ...typeEs,
     'ws.unit.km': '{n} km',
     'ws.unit.kelvin': '{n} K',
@@ -300,6 +305,11 @@ export default {
   },
 
   en: {
+    "welcome.enter": "Enter",
+    "welcome.line": "A galaxy everyone builds together. Come in with sound.",
+    "labels.anon": "anonymous",
+    'session.disconnected': 'This sky is not connected yet. Please try again soon.',
+    'session.signin': 'Sign in with Google to open galaxy administration.',
     ...typeEn,
     'ws.unit.km': '{n} km',
     'ws.unit.kelvin': '{n} K',

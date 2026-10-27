@@ -2,6 +2,14 @@
 // (js/strings/core.js es del ayudante de i18n); main.js lo registra igual que core.
 export default {
   es: {
+    "story.bad-2026.shortTitle": "Be A Dragon 2026 · feria USFQ",
+    "story.bad-2026.timeline": "Los lanzamientos de sus visitantes, en vivo",
+    "story.bad-2026.visit": "Visita la feria Be A Dragon 2026 en la Universidad San Francisco de Quito",
+    "story.bad-2026.title": "Una galaxia creada en Be A Dragon 2026",
+    "story.bad-2026.paragraphs.1": "Be A Dragon 2026 fue una feria de la Universidad San Francisco de Quito (USFQ). Sus visitantes crearon este cielo juntos, en vivo, el 25 de octubre de 2026.",
+    "story.bad-2026.paragraphs.2": "Cada astro que ves fue lanzado por un visitante. Los nombres que aparecen son los apodos que eligieron.",
+    "story.bad-2026.paragraphs.3": "El timelapse te permite recorrer el día y ver cómo cada lanzamiento se une al cielo. Esta es la galaxia original registrada.",
+    "story.bad-2026.paragraphs.4": "¿Quieres lanzar tu propio astro? Vuelve al sandbox compartido. Allí todos pueden jugar.",
     'focus.by.name': 'Lo lanzó {name}',
     'focus.by.anon': 'Lo lanzó alguien sin nombre',
     'galaxy.frozen': '{name} está congelada: se puede mirar, no lanzar',
@@ -85,6 +93,14 @@ export default {
     'replay.readonly': 'Cielo registrado · solo mirar',
   },
   en: {
+    "story.bad-2026.shortTitle": "Be A Dragon 2026 · USFQ fair",
+    "story.bad-2026.timeline": "Visitor launches, as they happened",
+    "story.bad-2026.visit": "Visit the Be A Dragon 2026 fair at Universidad San Francisco de Quito",
+    "story.bad-2026.title": "A galaxy made at Be A Dragon 2026",
+    "story.bad-2026.paragraphs.1": "Be A Dragon 2026 was a fair at Universidad San Francisco de Quito (USFQ). Visitors built this sky together, live, on 25 October 2026.",
+    "story.bad-2026.paragraphs.2": "Every body you see was launched by a visitor. The names beside them are the nicknames visitors chose.",
+    "story.bad-2026.paragraphs.3": "The timelapse lets you move through the day and see each launch join the sky. This is the original recorded galaxy.",
+    "story.bad-2026.paragraphs.4": "Want to launch your own? Go back to the shared sandbox. Everyone can play there.",
     'focus.by.name': 'Thrown by {name}',
     'focus.by.anon': 'Thrown by someone nameless',
     'galaxy.frozen': '{name} is frozen: look around, no throwing',

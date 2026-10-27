@@ -18,13 +18,13 @@
   position:relative;width:calc(100% - 20px);margin:0 auto calc(10px + var(--sb));
   padding:22px 18px 16px;border-radius:var(--r-sheet);
   display:flex;flex-direction:column;
-  animation:sheetin .55s var(--spring);
+  animation:sheetin .55s var(--spring);max-height:calc(100% - 20px - var(--sb));overflow-y:auto;
 }
 .pu-title{
   margin:4px 0 0;font-family:var(--f-display);font-weight:600;font-size:clamp(1.2rem,4.6vw,1.55rem);
   letter-spacing:-.015em;line-height:1.16;color:var(--crema);
 }
-.pu-k,.pu-preview-k{
+:is(.pu-k,.pu-preview-k){
   font-size:var(--fs-5);font-weight:760;letter-spacing:.12em;text-transform:uppercase;color:var(--lav-t);
 }
 .pu-k{display:block}
@@ -74,10 +74,10 @@
 }
 
 /* ------------------------------------------------ los dos botones iguales */
-.pu-btns{display:grid;gap:12px;margin-top:16px}
-.pu-cta{width:100%;height:58px;justify-content:center;padding:0 20px;font-size:1rem}
+.pu-btns{display:grid;margin-top:16px;gap:24px;grid-template-columns:minmax(0,1fr)}
+.pu-cta{width:100%;justify-content:center;font-size:1rem;min-width:0;min-height:58px;height:auto;padding:12px 20px}
 .pu-cta .cta-orb{width:42px;height:42px;flex:0 0 42px}
-.pu-cta .cta-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pu-cta .cta-txt{min-width:0;white-space:normal;overflow:visible;overflow-wrap:anywhere}
 .pu-sec{
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
   height:58px;padding:0 18px;border-radius:999px;
@@ -107,13 +107,13 @@
   animation:sheetin .5s var(--spring);
 }
 .pu-panel.pu-out{animation:sheetout .25s var(--out) forwards}
-.pu-head{display:flex;align-items:center;gap:8px;padding:2px 2px 4px}
-.pu-head .pu-title{flex:1;margin:0;font-size:1.05rem;line-height:1.2}
+.pu-head{display:flex;align-items:center;gap:8px;padding:2px 2px 4px;min-height:44px;padding-right:44px;flex-shrink:0}
+.pu-head .pu-title{flex:1;margin:0;font-size:1.05rem;line-height:1.2;min-width:0}
 .pu-sic{display:inline-grid;place-items:center;width:24px;height:24px;flex:0 0 24px;color:var(--celeste)}
 .pu-sic svg{width:21px;height:21px}
 .pu-body{
   display:flex;flex-direction:column;gap:14px;overflow-y:auto;overscroll-behavior:contain;
-  padding:6px 2px 4px;scrollbar-width:none;
+  padding:8px 2px 4px;scrollbar-width:none;min-height:0;
 }
 .pu-body::-webkit-scrollbar{display:none}
 .pu-grp{display:flex;flex-direction:column;gap:9px}
@@ -138,7 +138,7 @@
 .pu-vol .pu-range{min-width:0}
 
 /* interruptor: 44px de blanco, el rastro dentro */
-.pu-sw{width:44px;height:44px;border-radius:999px;display:grid;place-items:center}
+.pu-sw{width:44px;height:44px;border-radius:999px;display:grid;place-items:center;background:color-mix(in srgb, var(--crema) 8%, transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--crema) 35%, transparent)}
 .pu-track{
   position:relative;display:block;width:40px;height:24px;border-radius:999px;
   background:color-mix(in srgb, var(--noche) 55%, transparent);
@@ -165,7 +165,7 @@
   font-weight:760;font-size:.86rem;letter-spacing:.01em;
   color:color-mix(in srgb, var(--crema) 74%, transparent);
   background:color-mix(in srgb, var(--crema) 4%, transparent);
-  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--crema) 9%, transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--crema) 9%, transparent);min-width:44px;justify-content:center;
 }
 .pu-chip:hover{color:var(--crema)}
 .pu-chip[aria-checked="true"]{
@@ -193,7 +193,7 @@
 .pu-foot{margin:10px 4px 4px;font-size:var(--fs-5);letter-spacing:.02em;color:var(--lav-t);opacity:.75}
 
 /* ------------------------------------------------------------ mochi en lo pu- */
-.pu-sec,.pu-chip,.pu-sw,.pu-change{
+:is(.pu-sec,.pu-chip,.pu-sw,.pu-change){
   transition:transform .42s var(--spring),background-color .25s,box-shadow .35s,color .25s,opacity .3s;
 }
 .pu-sec:active,.pu-chip:active,.pu-sw:active,.pu-change:active{transform:scale(1.05,.9);transition-duration:.09s}
@@ -206,7 +206,6 @@
     padding:16px 16px 10px;max-height:calc(100% - 124px)}
   .pu-body{gap:16px;padding-right:6px}
   .pu-title{font-size:1.6rem}
-  .pu-btns{grid-template-columns:1fr 1fr}
   .pu-preview{padding-top:16px}
 }
 
@@ -235,13 +234,5 @@ html[data-motion="reduce"] .pu-sw,html[data-motion="reduce"] .pu-change{transiti
 html[data-motion="full"] .pu-preview-name{animation-duration:4.5s !important}
 
 /* Sheets reserve a full close-button row and scroll inside the visible viewport. */
-.pu-card{max-height:calc(100% - 20px - var(--sb));overflow-y:auto}
 .pu-card > .pu-k,.pu-card > .pu-title,.pu-card > .pu-intro{padding-right:40px}
 .pu-card > *{flex-shrink:0}
-.pu-head{min-height:44px;padding-right:44px;flex-shrink:0}
-.pu-head .pu-title{min-width:0}
-.pu-body{min-height:0;padding-top:8px}
-.pu-btns{gap:24px;grid-template-columns:minmax(0,1fr)}
-.pu-cta{min-width:0;min-height:58px;height:auto;padding:12px 20px}
-.pu-cta .cta-txt{white-space:normal;overflow:visible;overflow-wrap:anywhere}
-.pu-chip{min-width:44px;justify-content:center}

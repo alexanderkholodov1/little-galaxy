@@ -15,3 +15,18 @@ it('explains a recorded fair and offers an accessible return to the open sandbox
   dialog.querySelector('button').click();expect(dialog.open).toBe(false);nav.dispose();expect(document.querySelector('dialog')).toBeNull();
  }
 });
+
+it('updates recorded navigation and preserves the author across freeze, language change and reopening',()=>{
+ document.body.innerHTML='<div id="hud"><div class="home-footer"><button id="btnCredits">Author</button></div></div>';
+ document.documentElement.lang='en';
+ const galaxy={id:'test',status:'active',writePolicy:'public'},store={galaxyId:'test',loaded:()=>({galaxy})};
+ const nav=galaxyVisits({store,replayMode:false,base:'/little-galaxy/'});
+ galaxy.status='frozen';nav.render();
+ expect(document.querySelector('#openTimelapse')).not.toBeNull();
+ expect(document.querySelector('#galaxyVisits #btnCredits')).not.toBeNull();
+ document.documentElement.lang='es';nav.render();
+ expect(document.querySelector('#backToSandbox').getAttribute('aria-label')).toBe('Volver al sandbox para crear un astro');
+ galaxy.status='active';nav.render();
+ expect(document.querySelector('.home-footer > #btnCredits')).not.toBeNull();
+ expect(document.querySelector('#backToSandbox')).toBeNull();nav.dispose();
+});
