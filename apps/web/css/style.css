@@ -509,8 +509,10 @@ body:has(.pu-scrim) .layer.is-on,
 body:has(.pu-panel:not([hidden])) .layer.is-on,
 body:has(#veil:not(.is-done)) .layer.is-on,
 body:has(#loadErr:not([hidden])) .layer.is-on{visibility:hidden}
-.welcome-in{width:100%}
+.welcome-in{width:100%;max-width:min(100%,760px)}
 .welcome .splash-title{margin:0;font-size:clamp(2.7rem,12vw,6.6rem)}
+/* Each word stays on one line: the letters are inline-blocks, so a narrow box broke "Galaxy" mid-word. */
+.welcome .splash-title span{white-space:nowrap}
 .welcome .splash-line{max-width:32ch;line-height:1.5}
 
 .ctl-tab{min-height:44px}
