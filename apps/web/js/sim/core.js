@@ -158,8 +158,11 @@ export class Sim {
     this.moveGalactic();
     this.updateSystems();
     for(const b of this.bodies) if(b.calmStart !== undefined) this.moveLight(b);
-    this.kiss(P);
-    for(const b of this.bodies) if((b.mode === 'active' || b.mode === 'drift') && b.calmStart === undefined) this.guard(b, P);
+    // A direct scan is cheaper for a small primary group; larger groups share one grid.
+    const primaryGrid=P.length>=32
+      ?new ContactGrid(P,Math.max(KISS,...P.map(b=>TYPE_RULES[b.kind].guard))):undefined;
+    this.kiss(P,primaryGrid);
+    for(const b of this.bodies) if((b.mode === 'active' || b.mode === 'drift') && b.calmStart === undefined) this.guard(b, P,primaryGrid);
     if(this.steps % GALAXY_EVERY === 0) this.galaxyTick();
     else this.updateSystems();
   }
@@ -396,8 +399,10 @@ export class Sim {
 
   /* ---------------------------------------------------------------- guardas y rebotes */
   // cae en la guarda de un compacto → sale soplado en una órbita alargada (un evento visible: R25)
-  guard(b, P){
-    for(const c of P){
+  guard(b, P, grid){
+    if(!grid && P.length>=32)grid=new ContactGrid(P,Math.max(KISS,...P.map(b=>TYPE_RULES[b.kind].guard)));
+    const candidates=grid?grid.near(b.p).map(index=>P[index]):P;
+    for(const c of candidates){
       const g = TYPE_RULES[c.kind].guard;
       const x = b.p[0]-c.p[0], y = b.p[1]-c.p[1], z = b.p[2]-c.p[2];
       const r = hypot(x, y, z) || 1e-9;
@@ -422,10 +427,16 @@ export class Sim {
   // momento. Ligados (volverían a chocar cada vuelta): el rebote es blando (SNUGGLE en la normal) y el par se
   // acurruca en una binaria estrecha en pocos toques, en vez de rebotar para siempre (feel pass, 2026-10-25).
   // La energía que se va queda en sim.snuggleEnergy. Un roce lento se resuelve sin evento ni sonido.
-  kiss(P){
-    for(let i = 0; i < P.length; i++) for(let j = i + 1; j < P.length; j++){
-      const a = P[i], b = P[j], n = sub(b.p, a.p), d = hypot(...n) || 1e-9;
-      if(a.gSlot !== undefined || b.gSlot !== undefined || d >= KISS) continue;
+  kiss(P,grid){
+    if(P.length<2)return;
+    if(!grid && P.length>=32)grid=new ContactGrid(P,KISS);
+    const order=grid?null:P.map((_,i)=>i);
+    for(let i = 0; i < P.length; i++){
+      const a=P[i];if(a.gSlot!==undefined)continue;
+      for(const j of grid?grid.near(a.p):order){
+      if(j<=i || P[j].gSlot!==undefined)continue;
+      const b=P[j],n=sub(b.p,a.p),d=hypot(...n) || 1e-9;
+      if(d>=KISS)continue;
       for(let k = 0; k < 3; k++) n[k] /= d;
       const rv = sub(b.v, a.v), vn = dot(rv, n);
       if(vn >= 0) continue;
@@ -435,7 +446,7 @@ export class Sim {
       for(let k = 0; k < 3; k++){ a.v[k] -= J/a.m*n[k]; b.v[k] += J/b.m*n[k]; }
       if(bound) this.snuggleEnergy += 0.5*mu*vn*vn*(1 - e*e);
       if(-vn > KISS_QUIET) this.emit('kiss', b, {other: a, snuggle: bound});
-    }
+    }}
   }
 
   /* ---------------------------------------------------------------- lejos y de vuelta */
@@ -717,8 +728,8 @@ function orbitBridge(body,from,velocity,target,elapsed,duration,start){
 // Mutable broad phase. Cell width covers the largest possible contact diameter; body-id
 // ordering is restored explicitly, including distant contacts that need cooldown cleanup.
 class ContactGrid {
- constructor(bodies){
-  this.bodies=bodies;this.width=2*Math.max(1e-9,...bodies.map(b=>b.r));this.cells=new Map();this.keys=[];
+ constructor(bodies,width=2*Math.max(1e-9,...bodies.map(b=>b.r))){
+  this.bodies=bodies;this.width=width;this.cells=new Map();this.keys=[];
   for(let i=0;i<bodies.length;i++)this.update(i);
  }
  coordinate(b){return b.p.map(x=>Math.floor(x/this.width));}
@@ -726,6 +737,15 @@ class ContactGrid {
   const key=this.coordinate(this.bodies[i]).join(',');if(this.keys[i]===key)return;
   if(this.keys[i]!==undefined)this.cells.get(this.keys[i]).delete(i);
   if(!this.cells.has(key))this.cells.set(key,new Set());this.cells.get(key).add(i);this.keys[i]=key;
+ }
+ // Fixed-width primary queries cover both the kiss separation and every guard radius.
+ // Compact contacts change velocities only; guard puffs move the light query, not grid members.
+ near(p){
+  const [x,y,z]=p.map(v=>Math.floor(v/this.width)),out=[];
+  for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){
+   const cell=this.cells.get([x+dx,y+dy,z+dz].join(','));if(cell)for(const i of cell)out.push(i);
+  }
+  return out.sort((a,b)=>a-b);
  }
  after(i,cursor,linked=[]){
   const out=new Set(linked.filter(j=>j>cursor)),a=this.bodies[i],[x,y,z]=this.coordinate(a);
