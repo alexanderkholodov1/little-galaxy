@@ -84,8 +84,9 @@ Decision:
 
 ## Known gaps (for the next run)
 
-- The sim resumes at its saved time when a page reopens. Rails could be evaluated at wall-clock time analytically,
-  but the compact bodies and travellers would need catch-up integration, so I did not mix the two.
+- Shared visitors now resume from a provisional live snapshot and verify history in the background. Mature
+  multi-system populations advance directly to the present; the young cohort retains fixed steps. See
+  [A-OPEN.md](A-OPEN.md) for its kernel identity, trust model, measurements and device-verification limits.
 - Moons do not orbit planets; all light bodies orbit systems.
 - The pair renderer for a real two-component `binary`, low-speed aggregates, the nursery primary.
 - Visual feel of the young cohort, crossings of quiet light rails and the galactic site pattern still need deployed-preview and real-phone play. Node measurements cannot establish browser/device rendering quality.
@@ -384,3 +385,11 @@ shared names source, following that script's SHA-256 recipe. The A2-only identit
 `homes.js` makes the integrated identity `proto3-1abd3a0c4e19d4217695088203b6bb16a8793c13261fd3d1dc798d2581989f37`.
 The frozen fair galaxy must retain its historical kernel identity; the generation migration
 requirements above still apply. No physics or admission behavior was changed by integration.
+
+## A-open — 2026-10-26
+
+The operator-approved client-leader snapshot and formula-orbit opening design is implemented in
+[A-OPEN.md](A-OPEN.md). Mature escape/return metadata freezes at settlement, so fixed-step and
+closed-form sampling have the same canonical state. The kernel identity changes to
+`proto3-81e31788dd7a8eef8ab2a1a738c42055541186f33e3d6b26d9bb1329a0614e05`; historical galaxies
+retain their original identity. No production manifest, rules or Hosting deployment was changed.

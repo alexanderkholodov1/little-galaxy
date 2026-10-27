@@ -15,3 +15,6 @@ sandbox cannot write there. The implementation docs and migration live in this r
 `alpha2-r3-sync.patch` logs the operator-directed emergency fix for launches beside a reserved
 founder, coherent funded-home fallback frames, nearby moon parents and launch diagnostics.
 It preserves the numeric B1 admission/rules contract and requires deployed-preview/phone acceptance.
+
+`alpha9.5-a-open.md` records the approved A-open implementation and acceptance limits for transfer
+to the portfolio plan and its CHANGELOG. It is staged here; no external plan checkout was edited.

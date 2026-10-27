@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-alpha.9.5 — A-open, 2026-10-27
+
+- Evaluate mature systems directly at an integer present tick with the deterministic math kernel.
+- Share the spatial grid for large primary contact groups and preserve the all-pairs contact order;
+  keep small-group scans cheap and verify both against frozen reference resolvers.
+- Elect an existing anonymous/editor client to save a canonical compressed snapshot every ten seconds
+  during activity, independently of player admissions; expire and fence leadership with a lease.
+- Open provisionally from the snapshot and uncovered tail, verify full accepted history in the
+  background and fall back atomically on mismatch. Keep unverified clients from publishing snapshots.
+- Add canonical-state, corruption/fallback, lease and rules regressions and isolated fair/one-hour/
+  six-hour measurements. See `docs/prototype/A-OPEN.md`; deployed-device acceptance remains pending; rules/browser evidence comes from the final rehearsal.
+
 ## Admin sign-in journey repair — 2026-10-26
 
 - Permit Google's static gapi loader and iframe scripts during emulator keeper sign-in;
