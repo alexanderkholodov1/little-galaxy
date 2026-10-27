@@ -117,7 +117,7 @@ PR #13 failure: a previously tagged package version can never suppress a shippin
 Retry failed jobs after repairing their cause. If an existing published archive differs from a
 rebuilt archive/checksum, publication refuses to overwrite it: recover the original checked artifact
 or release the current main commit. Preserve the rules environment's branch restriction (no manual reviewer: the merge is the
-approval), privacy gate, and local phone/live-update acceptance checks.
+approval), preview separation, privacy gate, and local phone/live-update acceptance checks.
 
 ## Portfolio receiver pattern
 

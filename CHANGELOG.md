@@ -24,7 +24,7 @@
 - Honour exact release-candidate requests. Run the same local `pnpm check` in one CI job;
   remove preview, rules and browser jobs from GitHub. Prove built-client journeys with local
   `pnpm accept`, production public reads and an isolated emulator seeded from an ignored export.
-- Publish rules, indexes and client automatically on merge without manual approval.
+- A merge to main deploys rules, indexes and the client directly. The rules environment only allows `main` and `v*` tags and has no manual reviewer.
 - Publish replay moments without visitor nicknames; restore those labels in memory from hash-pinned history.
 
 ## A-show presentation — 2026-10-26

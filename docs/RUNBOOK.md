@@ -547,7 +547,7 @@ These are project IAM grants, not new credentials or external services.
 ### Operate the sky from GitHub
 
 Open this repository's **Actions → Operate the sky → Run workflow**, select **main**,
-enter the action/key/value, and approve **little-galaxy-rules**. Dispatches from
+enter the action/key/value. The rules environment has no manual reviewer. Dispatches from
 other branches are normally skipped; enforce the environment branch policy above.
 Controls execute independently of release queues. Transactions coordinate config
 and migration recovery: emergency close takes precedence, other flags are preserved,

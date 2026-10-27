@@ -196,7 +196,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/little-galaxy-bootstrap.json"
 
   deploy-rules:
-    # Release credentials are scoped to this environment; it has no manual reviewer.
+    # Credentials stay in this environment. It only allows main and v* tags; the merge is the approval, so there is no manual reviewer.
     needs: [guard, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
