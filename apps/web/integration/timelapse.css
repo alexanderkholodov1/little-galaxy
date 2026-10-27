@@ -18,7 +18,10 @@ body[data-replay] #btnPrefs{display:none}
 #timeRuler p{margin:0 0 16px;color:var(--celeste)}
 .timeControls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 #replaySpeed{display:flex;flex-wrap:wrap;gap:8px}
-#replaySpeed .chip{min-width:44px;padding:0 12px;justify-content:center}
+#replaySpeed .chip{
+  min-width:44px;padding:0 12px;justify-content:center;
+  background:rgba(255,241,222,.08);box-shadow:inset 0 0 0 1px rgba(255,241,222,.28);
+}
 #replaySpeed .chip[aria-checked="true"]{
   color:var(--crema);
   background:color-mix(in srgb, var(--brasa) 18%, transparent);
