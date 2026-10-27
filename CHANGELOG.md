@@ -15,7 +15,7 @@
   the settled galactic anchor.
 - Preserve the physical launch minute, deterministic snapshots/replay and finite settling bridges.
   Add no player cooldown, cap or budget. Record before/after timings and fair-intent end states.
-- Integrate the separately shipped alpha.9.6 welcome-title and timelapse mask-icon hotfix.
+- Keep each welcome-title word on one line, and draw the timelapse arrow as an icon so a missing font glyph never shows as a box.
 - Create and activate an open sandbox idempotently during release; preserve all frozen generations.
 - Explain Be A Dragon 2026, visitor nicknames and timelapse in English and Spanish; add clear
   navigation between the shared sandbox, fair and timelapse, with a phone-sized information panel.
