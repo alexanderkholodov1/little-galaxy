@@ -8,8 +8,8 @@ afterEach(()=>{stop?.();stop=null;vi.useRealTimers();vi.restoreAllMocks();vi.uns
 function fixture({provisional=false,checkpoint=null}={}){
  let now=10000;const workers=[];
  vi.stubGlobal('Worker',class{constructor(){workers.push(this);}postMessage=vi.fn();terminate=vi.fn();});
- const galaxy={status:'active',writePolicy:'public',epoch:0};
- const loaded={galaxy,head:initialHead(0),checkpoint,provisional};
+ const galaxy={id:'g',name:'Test galaxy',status:'active',writePolicy:'public',epoch:0};
+ const loaded={galaxy,head:initialHead(0),checkpoint,provisional,actions:[]};
  const store={history:vi.fn(async()=>loaded),claimSnapshot:vi.fn(async()=>true),publishSnapshot:vi.fn(async()=>true),now:()=>now,readOnly:false,galaxyId:'g',owner:()=> 'm',touch:vi.fn(),stop:vi.fn(),loadGalaxy:vi.fn(async()=>loaded),backend:()=>({driver:{get:async()=>({})}})};
  const world={frame:vi.fn(),sharedHomes:new Map([['0','0']]),failSharedLaunch:vi.fn(),sim:{bodies:[],systems:[{id:'0',prim:[0],p:[0,0,0],v:[0,0,0]}],emit:vi.fn()},entries:[],applySharedState:vi.fn(()=>[])};
  store.loaded=()=>loaded;store.launch=vi.fn(async(_id,launch)=>({intent:{...launch,id:'accepted'}}));
@@ -41,6 +41,20 @@ it('honors the final frozen tick even when the last live frame was already beyon
  const f=fixture();
  dispatchEvent(new CustomEvent('galaxy:manifest',{detail:{...f.loaded.galaxy,status:'frozen',frozenAt:9000}}));
  expect(f.worker.postMessage.mock.calls.at(-1)[0].tick).toBe(1080);
+});
+it('continues replay moment requests when the live-world visibility gate is suspended',async()=>{
+ const previous=location.href;history.replaceState(null,'','/little-galaxy/timelapse');
+ try{
+  vi.spyOn(document,'hidden','get').mockReturnValue(true);
+  const f=fixture();document.querySelector('#replaySpeed [data-speed="0.25"]').click();document.getElementById('replayPlay').click();
+  await vi.advanceTimersByTimeAsync(0);
+  f.worker.onmessage({data:{ready:true,loadKey:1,seekKey:1,state:{sequence:0,sim:{steps:0,bodies:[]}}}});
+  await vi.advanceTimersByTimeAsync(500);
+  expect(f.worker.postMessage.mock.calls.some(([message])=>message.seekKey===1&&message.tick>=12)).toBe(true);
+  expect(document.getElementById('replayPlay').getAttribute('aria-pressed')).toBe('true');
+  document.getElementById('replayPlay').click();const calls=f.worker.postMessage.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(1000);expect(f.worker.postMessage.mock.calls).toHaveLength(calls);
+ }finally{history.replaceState(null,'',previous);document.body.removeAttribute('data-replay');}
 });
 it('detaches action delivery and restores the frame method when stopped',()=>{
  const f=fixture();stop();stop=null;f.worker.postMessage.mockClear();

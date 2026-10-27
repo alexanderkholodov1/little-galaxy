@@ -112,11 +112,18 @@ for(const profile of profiles)for(const lang of ['en','es']){
    for(const launch of launches){at=performance.now();await scrub.evaluate((el,t)=>{el.value=String(t);el.dispatchEvent(new Event('input',{bubbles:true}));},launch.tick);await expect(page.locator('body')).toHaveAttribute('data-tick',String(launch.tick));await expect(page.locator('body')).toHaveAttribute('data-sequence',String(launch.sequence));seeks.push(performance.now()-at);}
    evidence.timings.maxLaunchSeekMs=Math.max(...seeks);
    for(const speed of ['0.25','1','4','16','60']){
+    await check(`playback crosses the first launch at ${speed}×`,async()=>{
     const first=launches[0].tick;await scrub.evaluate((el,t)=>{el.value=String(t);el.dispatchEvent(new Event('input',{bubbles:true}));},first-12);
     await expect(page.locator('body')).toHaveAttribute('data-tick',String(first-12));await expect(page.locator('#timeRuler')).not.toHaveAttribute('aria-busy','true');
     await page.locator(`#replaySpeed [data-speed="${speed}"]`).click();await page.locator('#replayPlay').click();
-    await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-sequence')),{timeout:2000}).toBeGreaterThanOrEqual(1);
+    try{await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-sequence')),{timeout:2000}).toBeGreaterThanOrEqual(1);}
+    catch(error){
+     try{evidence.playbackFailure=await page.evaluate(()=>({tick:document.body.dataset.tick,sequence:document.body.dataset.sequence,play:document.querySelector('#replayPlay').textContent,pressed:document.querySelector('#replayPlay').getAttribute('aria-pressed'),clock:document.querySelector('#replayTime').value,busy:document.querySelector('#timeRuler').getAttribute('aria-busy'),visibility:document.visibilityState,speed:document.querySelector('#replaySpeed [aria-checked="true"]').dataset.speed}));}
+     catch{/* Keep the original assertion if the page ended during diagnostics. */}
+     throw error;
+    }
     await page.locator('#replayPlay').click();
+    });
    }
    await clean(page);await expect(page.locator('#backToFair svg')).toHaveCount(1);await screenshotThemes(page,`timelapse-${profile.name}-${lang}`);
    await check('timelapse author is reachable',()=>authorReachable(page,`timelapse-author-${profile.name}-${lang}`));

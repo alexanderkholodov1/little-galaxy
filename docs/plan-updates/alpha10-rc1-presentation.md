@@ -12,5 +12,7 @@
 - Make local acceptance inspect real return navigation, loaded product typography and projected
   body sizes on both layouts. Report failed assertion messages and record a full theme/language
   screenshot matrix with commit and dimensions. Preserve the language-change regression check.
+- Keep replay requests with the timelapse's running clock, independent of the live-world visibility
+  scheduler. Prove the suspended-gate regression red/green and stop requests when paused.
 - Retain the operator's no-push/no-deploy/no-production-write boundary and relay-only commit /
   rehearsal process. Local browser evidence does not replace a deployed preview or real phones.

@@ -132,7 +132,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   addEventListener('galaxy:actions',onActions);addEventListener('galaxy:manifest',onManifest);
   addEventListener('galaxy:error',onError);addEventListener('galaxy:selection',onSelection);addEventListener('galaxy:notice',onNotice);
   const timer=setInterval(()=>{
-    if(!visible)return;
+    if(!visible||playback)return;
     const tick=target();if(tick!==lastTarget){lastTarget=tick;void requestTick(tick);}
   },100);
   const snapshotTimer=setInterval(snapshot,10000);

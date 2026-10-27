@@ -86,6 +86,7 @@ export function setupTimelapse({loaded,request,now}){
     clock.value=`${time(tick)} / ${time(duration)}${pending?` · ${say('replay.opening')}`:''}`;
     const running=pending?.resume??playback.playing;
     play.textContent=running?say('replay.pause'):(playback.position>=duration?say('replay.fromStart'):say('replay.play'));
+    play.setAttribute('aria-pressed',String(running));
     for(const chip of speeds.querySelectorAll('[data-speed]')){
       const on=Number(chip.dataset.speed)===playback.speed;
       chip.setAttribute('aria-checked',String(on));
@@ -94,7 +95,8 @@ export function setupTimelapse({loaded,request,now}){
   render();
   const language=new MutationObserver(render);
   language.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
-  const timer=setInterval(render,100);
+  // Play owns its clock feed, including when the live-world visibility scheduler is suspended.
+  const timer=setInterval(()=>{if(playback.playing&&!pending)request(playback.tick());render();},100);
   playback.dispose=()=>{clearInterval(timer);language.disconnect();footer.remove();};
   return playback;
 }

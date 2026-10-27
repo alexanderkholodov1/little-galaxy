@@ -33,6 +33,8 @@
   and give the workshop dice readable contrast. Consolidate component styles at their source.
 - Keep failed acceptance assertions in its JSON report. Check actual timelapse return navigation,
   visible product typefaces and projected body sizes, with EN/ES phone/laptop screenshots in both themes.
+- Keep the timelapse's running clock and replay requests together, so suspending live-world
+  visibility updates cannot leave Play running without frames. Retain per-speed failure state.
 
 ## A-show presentation — 2026-10-26
 
