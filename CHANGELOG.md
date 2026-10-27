@@ -1,5 +1,9 @@
 # Changelog
 
+## Welcome title fix — 2026-10-27
+
+- Keep each word of the welcome title on one line: from 1024px the 420px box split "Galaxy" between its letters.
+- The layout journeys now fail when any title word wraps across lines.
 ## A-open production kernel compatibility — 2026-10-27
 
 - Keep the frozen fair visitable with its original final-release simulation in replay and display;
