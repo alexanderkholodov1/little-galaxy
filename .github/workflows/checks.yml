@@ -122,7 +122,7 @@ jobs:
     name: Real player journey
     runs-on: ubuntu-latest
     continue-on-error: ${{ inputs.rehearsal }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       JAVA_TOOL_OPTIONS: -Xmx512m
     steps:
@@ -155,6 +155,15 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Phone launch, shared history and return
         run: pnpm run test:ui
+      - name: Upload showcase timing evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: showcase-timings
+          include-hidden-files: true
+          path: .tmp/ui-results/**/showcase-timings.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

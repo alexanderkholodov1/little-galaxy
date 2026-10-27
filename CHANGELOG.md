@@ -1,29 +1,21 @@
 # Changelog
 
-## Welcome title fix — 2026-10-27
+## 1.0.0-alpha.9.7 — recorded skies open at once and new galaxies gather around the fire, 2026-10-27
 
-- Keep each word of the welcome title on one line: from 1024px the 420px box split "Galaxy" between its letters.
-- The layout journeys now fail when any title word wraps across lines.
-## A-open production kernel compatibility — 2026-10-27
-
-- Keep the frozen fair visitable with its original final-release simulation in replay and display;
-  preserve its identity, accepted history and timelapse without a compatibility notice.
-- Keep new admin-created galaxies on the current kernel and snapshot opening path; no generation
-  migration is needed for the owner's frozen-fair plus new-active-galaxy release plan.
-- Pin archived source provenance and test admin creation/selection, snapshot joins, historical
-  opening/seeking/restoration, identity isolation and browser journeys in the normal suites.
-
-## 1.0.0-alpha.9.5 — A-open, 2026-10-27
-
-- Evaluate mature systems directly at an integer present tick with the deterministic math kernel.
-- Share the spatial grid for large primary contact groups and preserve the all-pairs contact order;
-  keep small-group scans cheap and verify both against frozen reference resolvers.
-- Elect an existing anonymous/editor client to save a canonical compressed snapshot every ten seconds
-  during activity, independently of player admissions; expire and fence leadership with a lease.
-- Open provisionally from the snapshot and uncovered tail, verify full accepted history in the
-  background and fall back atomically on mismatch. Keep unverified clients from publishing snapshots.
-- Add canonical-state, corruption/fallback, lease and rules regressions and isolated fair/one-hour/
-  six-hour measurements. See `docs/prototype/A-OPEN.md`; deployed-device acceptance remains pending; rules/browser evidence comes from the final rehearsal.
+- Open active galaxies from canonical leased snapshots, verify history in the background and fall
+  back on mismatch; evaluate mature orbits directly and share deterministic contact grids.
+- Keep the original fair kernel and record intact. Extend “Save verified sky” with immutable
+  endpoint and indexed timeline states so frozen visits and seeks avoid replaying hours.
+- Open timelapse at the recorded endpoint, play from its first launch, support pointer and
+  Home/End/arrow seeking, and display completed frames and each launch at every playback speed.
+- Preserve checkpoint coordinates at compact-launch frame changes and frame every body with the
+  camera, including distant travellers; remove the old home-view crop.
+- Anchor the current kernel's mature galaxy on the fire and guide light bodies into its system;
+  preserve genuine satellite captures. Black holes retain their bodies and orbits without shifting
+  the settled galactic anchor.
+- Preserve the physical launch minute, deterministic snapshots/replay and finite settling bridges.
+  Add no player cooldown, cap or budget. Record before/after timings and fair-intent end states.
+- Integrate the separately shipped alpha.9.6 welcome-title and timelapse mask-icon hotfix.
 
 ## A-show presentation — 2026-10-26
 

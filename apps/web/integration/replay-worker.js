@@ -3,6 +3,9 @@ import {canonicalState} from './checkpoint.js';
 import {prepareLiveSnapshot} from './live-snapshot.js';
 import {createReplay} from './kernel-routing.js';
 let replay=null,target=0,busy=false,observed=null;
+let originalLoad=null,playbackMode=false,seekKey=0,frameTarget=null,pumpTimer=null;
+const frameIdentity=()=>playbackMode?{seekKey}:{};
+function schedulePump(){if(pumpTimer===null)pumpTimer=setTimeout(()=>{pumpTimer=null;pump();},0);}
 let verified=true,candidate=null,verifier=null,liveActions=[],loadKey=0,verifying=false,saving=false,provisionalFailed=false;
 async function verifyPump(){
   if(!verifier || verifying)return;
@@ -38,6 +41,7 @@ function reportError(error){
 }
 function pump(){
   if(busy||!replay||provisionalFailed)return;
+  if(pumpTimer!==null){clearTimeout(pumpTimer);pumpTimer=null;}
   busy=true;
   try{
     if(observed!==replay.sim){
@@ -51,25 +55,39 @@ function pump(){
         events.push({type,id:body?.id,refs,values,tick:observed.steps});
       });
     }
-    const ready=replay.advanceTo(target,480);
+    // Playback finishes a fixed frame even while newer clock requests arrive. Otherwise a
+    // moving 60x target can prevent every frame from becoming ready on a slower phone.
+    if(playbackMode && frameTarget===null){
+      const next=replay.actions[replay.cursor]?.intent.effectiveTick;
+      frameTarget=next!==undefined&&next>replay.sim.steps?Math.min(target,next):target;
+    }
+    const ready=replay.advanceTo(playbackMode?frameTarget:target,480);
     // Catch-up slices are historical, not renderable frames. Publishing them removes live bodies
     // on resume/late delivery, destroys their trails and visibly rewinds the sky.
     if(ready){
       const state=replay.state();
-      postMessage({state,ready,verified,loadKey,events:events.filter(e=>e.tick>shown).slice(-64)});
-      shown=Math.max(shown,state.sim.steps);
+      postMessage({state,ready,verified,loadKey,...frameIdentity(),events:events.filter(e=>e.tick>shown).slice(-64)});
+      shown=Math.max(shown,state.sim.steps);frameTarget=null;
     }
     events=[];
     busy=false;
-    if(!ready)setTimeout(pump,0);
+    if(!ready || (playbackMode && replay.sim.steps!==target))schedulePump();
   }catch(error){busy=false;reportError(error);}
 }
 onmessage=({data})=>{
   try{
+    if(!data.load && data.loadKey!==undefined && data.loadKey!==loadKey)return;
+    if(!data.load && data.seekKey!==undefined && data.seekKey<seekKey)return;
     if(data.load){
       loadKey=data.loadKey??loadKey+1;verified=!data.load.provisional;candidate=data.load.checkpoint;
       verifier=null;verifying=false;provisionalFailed=false;liveActions=[];events=[];
+      originalLoad=data.load;playbackMode=Boolean(data.load.playback);seekKey=data.seekKey??0;frameTarget=null;
       replay=createReplay(data.load);target=data.tick||0;shown=Math.max(shown,target);
+    }
+    if(data.seek && playbackMode){
+      seekKey=data.seekKey;frameTarget=null;events=[];
+      replay=createReplay({...originalLoad,checkpoint:data.seek.checkpoint,trusted:Boolean(data.seek.checkpoint)});
+      target=data.seek.tick;shown=target;
     }
     if(data.verify && data.loadKey===loadKey && !verified){
       verifier=createReplay({...data.verify,checkpoint:null});verifyPump();

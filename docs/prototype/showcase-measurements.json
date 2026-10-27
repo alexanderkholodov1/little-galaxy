@@ -1,0 +1,49 @@
+{
+  "end": 2802241,
+  "kernel": "proto3-0c0adef90be59e2accdde89a69900af00642ff2163ba4d7c2b0b70e826a9f01a",
+  "beforeKernel": "proto3-81e31788dd7a8eef8ab2a1a738c42055541186f33e3d6b26d9bb1329a0614e05",
+  "node": "v24.9.0",
+  "proxyFactor": 4,
+  "beforeFrozenOpenMs": 71044.243616,
+  "historical": {
+    "bodies": 22,
+    "blackholes": 3,
+    "settled": 0,
+    "fireRadius": 115.4860538369631,
+    "maxRadiusFromFire": 334.54321019958513,
+    "lights": 13,
+    "lightsOnFireRails": 0
+  },
+  "certificationMs": 43506.46126,
+  "moments": 412,
+  "afterFrozenOpenMs": 5.497145000001183,
+  "timelapseOpenMs": 7.368884000010439,
+  "seekCases": 454,
+  "maxSeekMs": 313.54403099999763,
+  "meanSeekMs": 94.57150721806117,
+  "endpointBytes": 7027,
+  "indexBytes": 45037,
+  "previousCurrent": {
+    "bodies": 22,
+    "blackholes": 3,
+    "settled": 22,
+    "fireRadius": 1.2580645161290318,
+    "maxRadiusFromFire": 45.37498342640529,
+    "lights": 13,
+    "lightsOnFireRails": 3,
+    "replayMs": 9329.480218000012
+  },
+  "newCurrent": {
+    "bodies": 22,
+    "blackholes": 3,
+    "settled": 22,
+    "fireRadius": 0,
+    "maxRadiusFromFire": 36.76955262170047,
+    "lights": 13,
+    "lightsOnFireRails": 12,
+    "lightsBoundInFireGalaxy": 13,
+    "replayMs": 14599.068641
+  },
+  "currentKernelRerun": true,
+  "frozenKernel": "proto3-ed2f1b0ac6cdf637229711dc5c1b94e3645a4d18eea47786082e1393b50bf30e"
+}

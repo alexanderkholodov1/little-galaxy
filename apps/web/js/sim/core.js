@@ -550,19 +550,20 @@ export class Sim {
   foundGalactic(){
     if(!this.settling) return;
     const added=[];
-    let slot=1+Math.max(-1,...this.primaries().map(b=>b.gSlot??-1));
+    let slot=1+Math.max(0,...this.primaries().map(b=>b.gSlot??0));
     for(const s of this.systems){
       const members=s.prim.map(id=>this.byId(id));
       if(members.some(b=>b.gSlot!==undefined || (this.steps-b.bornStep)*DT<SETTLING.grace)) continue;
       const separation=members.length===2?Math.max(3,Math.min(6,hypot(...sub(members[1].p,members[0].p)))):0;
       const phase=members.length===2?atan2(members[1].p[2]-members[0].p[2],members[1].p[0]-members[0].p[0]):0;
       const direction=members.length===2 && ((members[1].p[0]-members[0].p[0])*(members[1].v[2]-members[0].v[2])-(members[1].p[2]-members[0].p[2])*(members[1].v[0]-members[0].v[0]))<0?-1:1;
+      // The fire's system owns site zero; later mass cannot move the galaxy's anchor.
+      const site=members.includes(this.central)?0:slot++;
       for(const b of members){
-        b.gSlot=slot;b.gStart=this.t;b.gFrom=[...b.p];b.gVelocity=[...b.v];
+        b.gSlot=site;b.gStart=this.t;b.gFrom=[...b.p];b.gVelocity=[...b.v];
         b.gPair=members.length===2?members.find(o=>o!==b).id:null;
         b.gRadius=separation;b.gPhase=phase;b.gDirection=direction;b.founded=true;added.push(b);
       }
-      slot++;
     }
     if(added.length){
       this.retargetGalactic();const centre=this.galacticCentre();
@@ -576,9 +577,9 @@ export class Sim {
     orbitBridge(out,c.from,c.velocity,target,this.t-c.start,SETTLING.duration,target);return out;
   }
   retargetGalactic(current=this.galacticCentre()){
-    let M=0,x=0,z=0;
-    for(const b of this.primaries())if(b.gSlot!==undefined){const site=galacticSite(b.gSlot);M+=b.m;x+=site[0]*b.m;z+=site[1]*b.m;}
-    this.gCentre={start:this.t,from:[...current.p],velocity:[...current.v],target:M?[x/M,0,z/M]:[0,0,0]};
+    // The extended galactic halo is anchored on the fire, rather than the most massive
+    // newcomer. Retain the existing finite translation bridge after a frame change.
+    this.gCentre={start:this.t,from:[...current.p],velocity:[...current.v],target:[0,0,0]};
   }
   galacticTarget(b,centre,time=this.t){
     const site=galacticSite(b.gSlot),angle=phase(time,SETTLING.omega),c=cos(angle),s=sin(angle);
@@ -607,24 +608,41 @@ export class Sim {
   beginLight(b){
     if(!this.settling || b.settled || b.calmStart!==undefined || (this.steps-b.bornStep)*DT<=SETTLING.grace) return false;
     let host=null,distance=Infinity;
+    const captured=b.mode==='rail'?this.sysById.get(b.host):null;
     for(const s of this.systems){
-      const max=Math.min(SETTLING.lightRadius,s.railLimit*.8);
-      if(max<s.guard+2)continue;
+      // Keep genuine bound captures as satellite systems within the fire-centred galaxy.
+      // Unbound travellers join the fire instead of choosing the nearest massive newcomer.
+      if(captured?s!==captured:(this.central && !s.prim.includes(this.central.id)))continue;
+      const matureFire=this.central && s.prim.includes(this.central.id) && s.prim.every(id=>this.byId(id).gSlot!==undefined);
+      const max=matureFire?SETTLING.lightRadius:Math.min(SETTLING.lightRadius,s.railLimit*.8);
+      const guard=matureFire?Math.max(...s.prim.map(id=>TYPE_RULES[this.byId(id).kind].guard))+Math.max(...s.prim.map(id=>this.byId(id).gRadius))*.5:s.guard;
+      if(max<guard+2)continue;
       const d=hypot(...sub(b.p,s.p));if(d<distance){host=s;distance=d;}
     }
     if(!host)return false;
     if(b.mode==='rail')this.syncRail(b);
     const rel=sub(b.p,host.p),rv=sub(b.v,host.v);
-    b.calmRadius=Math.max(host.guard+2,Math.min(SETTLING.lightRadius,host.railLimit*.8,distance));
+    // Once the fire is on its galactic site, a passing young compact cannot postpone
+    // everyone else's settling deadline. Its own bridge will take it to a distinct site.
+    const matureFire=this.central && host.prim.includes(this.central.id) && host.prim.every(id=>this.byId(id).gSlot!==undefined);
+    const outer=matureFire?SETTLING.lightRadius:Math.min(SETTLING.lightRadius,host.railLimit*.8);
+    const guard=matureFire?Math.max(...host.prim.map(id=>TYPE_RULES[this.byId(id).kind].guard))+Math.max(...host.prim.map(id=>this.byId(id).gRadius))*.5:host.guard;
+    b.calmRadius=Math.max(guard+2,Math.min(outer,distance));
     // Reserve distinct radii in body-id order. Include bridges as well as finished rails.
-    const lower=host.guard+2,upper=Math.min(SETTLING.lightRadius,host.railLimit*.8);
+    const lower=guard+2,upper=outer;
     const used=this.bodies.filter(o=>o!==b && o.calmHost===host.id && (o.calmStart!==undefined || o.settled)).map(o=>o.calmRadius);
     const preferred=b.calmRadius,spacing=.01;
     let lane=null;
     for(let i=0;i<=1024 && lane===null;i++)for(const r of i===0?[preferred]:[preferred+i*spacing,preferred-i*spacing]){
       if(r>=lower && r<=upper && used.every(x=>Math.abs(x-r)>=spacing-1e-12)){lane=r;break;}
     }
-    if(lane===null)return false; // Full host: never assign an occupied path.
+    if(lane===null){
+      // Subdivide a free radial gap instead of refusing dense galaxies a settled orbit.
+      const edges=[lower,...used.filter(r=>r>=lower&&r<=upper).sort((a,b)=>a-b),upper];
+      let width=0;
+      for(let i=1;i<edges.length;i++)if(edges[i]-edges[i-1]>width){width=edges[i]-edges[i-1];lane=(edges[i]+edges[i-1])/2;}
+      if(!(width>0))return false;
+    }
     b.calmRadius=zero(lane);
     b.calmPhase=atan2(rel[2],rel[0]);b.calmDirection=rel[0]*rv[2]-rel[2]*rv[0]<0?-1:1;
     b.calmHost=host.id;b.calmStart=this.t;b.calmFrom=rel;b.calmVelocity=rv;

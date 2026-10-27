@@ -318,6 +318,21 @@ describe('privacy and administration', () => {
     await assertSucceeds(getDoc(doc(context().firestore(), 'galaxies/g')));
     await assertSucceeds(store().launch('g', intent()));
   });
+  it('keeps recorded timeline moments and their index public, keeper-only and immutable on frozen skies', async () => {
+    await patch('galaxies/g', {status:'frozen',writePolicy:'frozen'});
+    const admin=context('operator',provider).firestore(),visitor=context().firestore(),publicDb=env.unauthenticatedContext().firestore();
+    for(const name of ['moment-v1-1-0-0','timeline-v1-1-7200']){
+      const path='galaxies/g/certifications/'+name;
+      const value={schemaVersion:1,generation:1,kernel:galaxy.kernel,sequence:0,tick:0,timeline:[]};
+      await assertFails(setDoc(doc(visitor,path),value));
+      await assertFails(setDoc(doc(publicDb,path),value));
+      await assertSucceeds(setDoc(doc(admin,path),value));
+      await assertSucceeds(getDoc(doc(publicDb,path)));
+      await assertFails(updateDoc(doc(admin,path),{sequence:1}));
+      await assertFails(deleteDoc(doc(admin,path)));
+    }
+    expect((await getDoc(doc(publicDb,'galaxies/g'))).data().generation).toBe(1);
+  });
   it('denies checkpoint certifications to players, permits immutable admin certification', async () => {
     const path = 'galaxies/g/certifications/0';
     await assertFails(setDoc(doc(context().firestore(), path), { hash: 'fake' }));

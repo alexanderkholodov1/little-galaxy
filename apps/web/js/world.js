@@ -1,6 +1,8 @@
 // world.js — un solo mundo 3D: la galaxia, el banco del taller y la plataforma de lanzamiento
 // viven en la misma escena. Pasar de una pantalla a otra es mover la cámara, nunca cortar.
 import * as THREE from 'three';
+import {galaxyFrame} from '../integration/galaxy-frame.js';
+import {restoreCoordinates} from '../integration/replay-coordinates.js';
 import {Sim, predict, elements, propagate} from './sim/index.js';
 import {Body, GALAXY_SCALE, TYPE_INFO, glowTex, raysTex, sprite, NOISE, mulberry} from './bodies.js';
 
@@ -38,8 +40,8 @@ export function createWorld(canvas, opts = {}){
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 1200);
   const sim = new (opts.Simulation ?? Sim)({seed: opts.seed ?? 1});
   const toySim = new Sim({seed:1});
-  const listeners = {};
-  const emit = (ev, ...a) => (listeners[ev] || []).forEach(fn => fn(...a));
+  const listeners = {};let homeAuto=true;
+  const emit = (ev, ...a) => {if(ev==='camera-user')homeAuto=false;(listeners[ev] || []).forEach(fn => fn(...a));};
   const W = {renderer, scene, camera, sim, entries:[], mode:'home', t:0, px:1, rm:RM, fps:60, owner:'local'};
   sim.budget.galaxyBodies = MAX_BODIES - TOY_MAX - 2;
   let dprCap = Math.min(window.devicePixelRatio || 1, 1.75);
@@ -517,9 +519,9 @@ export function createWorld(canvas, opts = {}){
     return out;
   }
   const vfov = () => camera.fov*Math.PI/180;
-  function fitDist(R, el){
+  function fitDist(R){
     const a = camera.aspect, tv = Math.tan(vfov()/2), th = tv*a;
-    const halfH = R*Math.max(Math.sin(el), 0.35) + 1.5;
+    const halfH = R + 1.5;
     return Math.max(R/th, halfH/tv) * 1.04 + R*0.15;
   }
   function views(){
@@ -539,22 +541,10 @@ export function createWorld(canvas, opts = {}){
   }
   // la última vista de la galaxia que eligió el jugador (al irse al taller se recuerda)
   let galaxyView = null;
-  const homeTarget = new THREE.Vector3();
-  let homeR = r => r;          // M4: el mapa se ensancha cuando la galaxia crece
-  // Fair 2026-10-25 (operator): the home view frames the heart of the galaxy, never thousands of units away;
-  // the player can still zoom out by hand.
-  const HOME_R_MAX = 120, HOME_TARGET_MAX = 60;
-  // the circle around every founded system (each with its own radius of room), centred between them
+  // Include travellers as well as systems; the camera follows the complete visible galaxy.
   function homeFrame(base){
-    const fs = sim.systems.filter(s => s.founded && s.p);
-    if(fs.length < 2) return {target:homeTarget.clone(), R:Math.min(homeR(base), HOME_R_MAX)};
-    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-    for(const s of fs){ x0 = Math.min(x0, s.p[0]); x1 = Math.max(x1, s.p[0]); z0 = Math.min(z0, s.p[2]); z1 = Math.max(z1, s.p[2]); }
-    let cx = (x0 + x1)/2, cz = (z0 + z1)/2;
-    const off = Math.hypot(cx, cz); if(off > HOME_TARGET_MAX){ cx *= HOME_TARGET_MAX/off; cz *= HOME_TARGET_MAX/off; }
-    let R = base;
-    for(const s of fs) R = Math.max(R, Math.hypot(s.p[0] - cx, s.p[2] - cz) + 17.5);
-    return {target:new THREE.Vector3(cx, 0, cz), R:Math.min(R*1.08, HOME_R_MAX)};
+    const frame=galaxyFrame(sim.bodies,base);
+    return {target:new THREE.Vector3(...frame.centre),R:frame.radius};
   }
   function rememberView(){
     galaxyView = {target:rig.goal.target.clone(), az:rig.goal.az, el:rig.goal.el, dist:rig.goal.dist, shift:{...rig.shiftGoal}};
@@ -624,6 +614,8 @@ export function createWorld(canvas, opts = {}){
     const par = RM ? {x:0,y:0} : W.parallax;
     camFromRig(rig.target, rig.az + par.x*0.035, rig.el + breathe + par.y*0.02, rig.dist, _cam);
     camera.position.copy(_cam);
+    const far=Math.max(1200,rig.dist+galaxyFrame(sim.bodies).radius*2);
+    if(camera.far!==far){camera.far=far;camera.updateProjectionMatrix();}
     camera.lookAt(rig.target);
     const w = W.vw, h = W.vh;
     camera.setViewOffset(w, h, rig.shift.x*w, rig.shift.y*h, w, h);
@@ -776,7 +768,6 @@ export function createWorld(canvas, opts = {}){
       if(s) rig.goal.target.lerp(_kp.set(s.p[0], 0, s.p[2]), 1 - Math.exp(-dt*2)); else followSys = null;
     }
   }
-  homeR = r => r*W.extent/17.5;
   function systemsInfo(){
     return sim.systems.filter(s => s.founded).map(s => {
       const prim = s.prim.map(id => sim.byId(id));
@@ -796,11 +787,11 @@ export function createWorld(canvas, opts = {}){
   const SKY_HZ = 120, SKY_DELAY = 16, SKY_JUMP = 90;
   const skyState = {k:-1, clock:null, r:null, snaps:new Map()}, _sky = [0, 0, 0], _orb = {p:[0, 0, 0], v:[0, 0, 0]};
   const skyNow = () => performance.now()/1000;
-  const skyClock = () => skyState.clock ? skyState.clock.tick + (skyNow() - skyState.clock.at)*SKY_HZ : skyState.k;
+  const skyClock = () => W.replay?skyState.k:skyState.clock ? skyState.clock.tick + (skyNow() - skyState.clock.at)*SKY_HZ : skyState.k;
   function noteSkyState(k){
     // a short rewind (a late launch re-simulated) keeps drawing what was shown until the sky passes it again
-    if(k <= skyState.k && skyState.k - k <= SKY_JUMP) return false;
-    const jump = skyState.k < 0 || Math.abs(k - skyState.k) > SKY_JUMP, want = skyClock();
+    if(!W.replay && k <= skyState.k && skyState.k - k <= SKY_JUMP) return false;
+    const jump = skyState.k < 0 || (W.replay && k<skyState.k) || Math.abs(k - skyState.k) > SKY_JUMP, want = skyClock();
     skyState.clock = jump || Math.abs(k - want) > 60 ? {tick:k, at:skyNow()} : {tick:want + (k - want)*0.1, at:skyNow()};
     if(jump) skyState.r = null;
     skyState.k = k;
@@ -816,6 +807,7 @@ export function createWorld(canvas, opts = {}){
   }
   // the drawn sky time advances with each frame's own (display-paced) step and leans gently toward the sky clock
   function skyTick(dtRaw){
+    if(W.replay){skyState.r=skyState.k;return;}
     const want = skyClock() - SKY_DELAY;
     skyState.r = skyState.r === null || Math.abs(want - skyState.r) > 30 ? want : skyState.r + dtRaw*SKY_HZ + (want - skyState.r)*0.04;
   }
@@ -859,7 +851,7 @@ export function createWorld(canvas, opts = {}){
   function applySharedState(state, norm, owner){
     const ids = new Set(state.entries.map(e=>e.id));
     for(const e of [...W.entries]) if(!e.toy && !ids.has(e.id)) removeEntry(e);
-    sim.restore(state.sim);
+    sim.restore(state.sim);restoreCoordinates(sim,state.sim);
     W.sharedHomes = new Map(state.homes);
     for(const m of state.entries){
       let e = W.entries.find(e=>!e.toy && e.id===m.id);
@@ -872,8 +864,13 @@ export function createWorld(canvas, opts = {}){
       e.logical=m.logical; e.home=m.home;
     }
     const firstSky = skyState.k < 0;
-    if(noteSkyState(state.sim.steps)) for(const e of W.entries) if(!e.toy) orbitTrail(e);
-    if(firstSky && W.mode === 'home' && !rig.follow) flyTo(views().home, RM ? 0.4 : 1.6);
+    const jump=noteSkyState(state.sim.steps);
+    if(jump) for(const e of W.entries) if(!e.toy) orbitTrail(e);
+    if((firstSky || (W.replay && jump && homeAuto)) && W.mode === 'home' && !rig.follow) flyTo(views().home,firstSky?0:(RM?0:0.25));
+    else if(homeAuto && W.mode==='home' && !rig.follow && !rig.keep){
+      const view=views().home;
+      if(view.dist>rig.goal.dist*1.03 || view.target.distanceTo(rig.goal.target)>view.dist*.05)flyTo(view,RM?0:0.25);
+    }
     return W.entries.filter(e=>!e.toy);
   }
   function completeSharedLaunch(entry,res){
@@ -1411,7 +1408,7 @@ export function createWorld(canvas, opts = {}){
     if(mode === 'workshop' && prev !== 'workshop') rememberView();
     // galaxia ↔ lanzamiento es la misma vista; del taller se vuelve a la última vista de la galaxia
     if((mode === 'home' && prev === 'launch') || (mode === 'launch' && prev === 'home')) keep = true;
-    W.mode = mode;
+    W.mode = mode;if(mode==='home'&&!keep)homeAuto=true;
     const v = mode === 'home' && prev === 'workshop' && galaxyView ? views().launch : views()[mode];
     if(mode === 'workshop') benchZoom = 1;
     if(keep){ rig.flight = null; rig.shiftGoal = {...views().home.shift}; }
@@ -1419,7 +1416,7 @@ export function createWorld(canvas, opts = {}){
     if(mode !== 'launch'){ aimCancel(); }
     rig.idle = 0;
   }
-  function recenter(){ followSys = null; flyTo(views().home, 1.4); }
+  function recenter(){ homeAuto=true;followSys = null; flyTo(views().home, 1.4); }
   // volver a la galaxia después de lanzar: sin vuelo de cámara, solo seguir al astro
   function homeFocus(e){
     W.mode = 'home';

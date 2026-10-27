@@ -21,3 +21,6 @@ to the portfolio plan and its CHANGELOG. It is staged here; no external plan che
 
 `alpha9-show.patch` records the operator-directed recruiter-facing presentation audit and emulator
 geometry checks. It is staged here because A-show explicitly forbids editing other worktrees.
+
+`alpha9.7-showcase.md` records the operator-directed frozen opening/seeking and fire-centred
+current-kernel changes, measurements and the owner options for preserving the fair record.

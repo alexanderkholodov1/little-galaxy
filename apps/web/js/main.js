@@ -267,7 +267,7 @@ function updateCount(){
   const n = world.entries.filter(e => !e.toy).length;
   updateSystems();
   $('#countN').textContent = n;
-  const l = $('#countLabel'); l.dataset.i18n = n === 1 ? 'home.count.one' : 'home.count.other'; l.textContent = t(l.dataset.i18n);
+  const l = $('#countLabel'),prefix=S.frozen||world.replay?'home.recorded':'home.count'; l.dataset.i18n = prefix+(n===1?'.one':'.other'); l.textContent = t(l.dataset.i18n);
 }
 
 function openFocus(e){

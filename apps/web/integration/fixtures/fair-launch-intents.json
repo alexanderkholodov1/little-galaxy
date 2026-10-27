@@ -1,0 +1,516 @@
+[
+  {
+    "id": "fair-copy-1",
+    "type": "launch",
+    "kind": "planet",
+    "system": "0",
+    "seed": 727,
+    "origin": [
+      -1867480,
+      7971680
+    ],
+    "velocity": [
+      1264086,
+      171211
+    ],
+    "design": {
+      "size": 710000,
+      "palette": 1,
+      "oceans": 550000,
+      "mountains": 500000,
+      "clouds": 500000,
+      "icy": 490000,
+      "rings": 1000000,
+      "colour": 1,
+      "glow": 707
+    },
+    "effectiveTick": 18536
+  },
+  {
+    "id": "fair-copy-2",
+    "type": "launch",
+    "kind": "star",
+    "system": "0",
+    "seed": 727,
+    "origin": [
+      -17087793,
+      17582163
+    ],
+    "velocity": [
+      1507822,
+      560342
+    ],
+    "design": {
+      "size": 1000000,
+      "palette": 0,
+      "temperature": 920000,
+      "corona": 1000000,
+      "colour": 1,
+      "glow": 707
+    },
+    "effectiveTick": 40016
+  },
+  {
+    "id": "fair-copy-3",
+    "type": "launch",
+    "kind": "planet",
+    "system": "0",
+    "seed": 727,
+    "origin": [
+      12493673,
+      7584504
+    ],
+    "velocity": [
+      1808374,
+      -854007
+    ],
+    "design": {
+      "size": 1000000,
+      "palette": 0,
+      "oceans": 500000,
+      "mountains": 500000,
+      "clouds": 500000,
+      "icy": 300000,
+      "rings": 0,
+      "colour": 3,
+      "glow": 707
+    },
+    "effectiveTick": 50359
+  },
+  {
+    "id": "fair-copy-4",
+    "type": "launch",
+    "kind": "moon",
+    "system": "0",
+    "seed": 521,
+    "origin": [
+      500454,
+      8202822
+    ],
+    "velocity": [
+      -1247286,
+      -51939
+    ],
+    "design": {
+      "size": 500000,
+      "palette": 0,
+      "craters": 600000,
+      "oceans": 400000,
+      "colour": 1,
+      "glow": 9
+    },
+    "effectiveTick": 666331,
+    "parent": "d8171f6e-beeb-4f0e-a143-54773318529f"
+  },
+  {
+    "id": "fair-copy-5",
+    "type": "launch",
+    "kind": "asteroid",
+    "system": "0",
+    "seed": 546,
+    "origin": [
+      -1357349,
+      -14961908
+    ],
+    "velocity": [
+      -972353,
+      -811815
+    ],
+    "design": {
+      "size": 500000,
+      "palette": 0,
+      "mountains": 600000,
+      "craters": 500000,
+      "colour": 3,
+      "glow": 237
+    },
+    "effectiveTick": 1576047
+  },
+  {
+    "id": "fair-copy-6",
+    "type": "launch",
+    "kind": "asteroid",
+    "system": "0",
+    "seed": 546,
+    "origin": [
+      17202381,
+      12166534
+    ],
+    "velocity": [
+      -346493,
+      -1342696
+    ],
+    "design": {
+      "size": 500000,
+      "palette": 0,
+      "mountains": 600000,
+      "craters": 500000,
+      "colour": 1,
+      "glow": 237
+    },
+    "effectiveTick": 1846092
+  },
+  {
+    "id": "fair-copy-7",
+    "type": "launch",
+    "kind": "giant",
+    "system": "0",
+    "seed": 396,
+    "origin": [
+      -13425759,
+      8586213
+    ],
+    "velocity": [
+      -2664289,
+      -2550369
+    ],
+    "design": {
+      "size": 500000,
+      "palette": 0,
+      "surface": 450000,
+      "texture": 400000,
+      "variant": 1000000,
+      "rings": 1000000,
+      "colour": 3,
+      "glow": 490
+    },
+    "effectiveTick": 1847139
+  },
+  {
+    "id": "fair-copy-8",
+    "type": "launch",
+    "kind": "star",
+    "system": "1",
+    "seed": 396,
+    "origin": [
+      -75889656,
+      9213586
+    ],
+    "velocity": [
+      -472076,
+      -2195825
+    ],
+    "design": {
+      "size": 500000,
+      "palette": 0,
+      "temperature": 300000,
+      "corona": 550000,
+      "glow": 490
+    },
+    "effectiveTick": 1849340
+  },
+  {
+    "id": "fair-copy-9",
+    "type": "launch",
+    "kind": "moon",
+    "system": "0",
+    "seed": 396,
+    "origin": [
+      22330657,
+      16557939
+    ],
+    "velocity": [
+      -1395644,
+      -1362918
+    ],
+    "design": {
+      "size": 500000,
+      "palette": 0,
+      "craters": 600000,
+      "oceans": 400000,
+      "colour": 1,
+      "glow": 490
+    },
+    "effectiveTick": 1860900,
+    "parent": "d8171f6e-beeb-4f0e-a143-54773318529f"
+  },
+  {
+    "id": "fair-copy-10",
+    "type": "launch",
+    "kind": "moon",
+    "system": "0",
+    "seed": 14,
+    "origin": [
+      17707426,
+      -21222759
+    ],
+    "velocity": [
+      -1931536,
+      -3236365
+    ],
+    "design": {
+      "size": 620000,
+      "palette": 0,
+      "craters": 600000,
+      "oceans": 400000,
+      "colour": 1,
+      "glow": 104
+    },
+    "effectiveTick": 1926965,
+    "parent": "c2de1793-dfe4-4d82-a34e-3ac9eb695d21"
+  },
+  {
+    "id": "fair-copy-11",
+    "type": "launch",
+    "kind": "pulsar",
+    "system": "1",
+    "seed": 835,
+    "origin": [
+      9502078,
+      27435752
+    ],
+    "velocity": [
+      -1361915,
+      -2313100
+    ],
+    "design": {
+      "size": 420000,
+      "palette": 1,
+      "variant": 450000,
+      "corona": 600000,
+      "colour": 9,
+      "glow": 196
+    },
+    "effectiveTick": 1954375
+  },
+  {
+    "id": "fair-copy-12",
+    "type": "launch",
+    "kind": "blackhole",
+    "system": "2",
+    "seed": 835,
+    "origin": [
+      -160597081,
+      -13379544
+    ],
+    "velocity": [
+      -5636903,
+      -2046520
+    ],
+    "design": {
+      "size": 1000000,
+      "palette": 2,
+      "surface": 1000000,
+      "glow": 196
+    },
+    "effectiveTick": 1963469
+  },
+  {
+    "id": "fair-copy-13",
+    "type": "launch",
+    "kind": "star",
+    "system": "2",
+    "seed": 416,
+    "origin": [
+      880213794,
+      242557429
+    ],
+    "velocity": [
+      807509,
+      -1997994
+    ],
+    "design": {
+      "size": 1000000,
+      "palette": 0,
+      "temperature": 1000000,
+      "corona": 1000000,
+      "colour": 13,
+      "glow": 712
+    },
+    "effectiveTick": 1991625
+  },
+  {
+    "id": "fair-copy-14",
+    "type": "launch",
+    "kind": "star",
+    "system": "3",
+    "seed": 110,
+    "origin": [
+      -114745628,
+      -23647098
+    ],
+    "velocity": [
+      -2908525,
+      -4667418
+    ],
+    "design": {
+      "size": 1000000,
+      "palette": 0,
+      "temperature": 1000000,
+      "corona": 1000000,
+      "glow": 355
+    },
+    "effectiveTick": 1996559
+  },
+  {
+    "id": "fair-copy-15",
+    "type": "launch",
+    "kind": "planet",
+    "system": "0",
+    "seed": 224,
+    "origin": [
+      -11426448,
+      27235977
+    ],
+    "velocity": [
+      1946017,
+      4103200
+    ],
+    "design": {
+      "size": 1000000,
+      "palette": 4,
+      "oceans": 500000,
+      "mountains": 500000,
+      "clouds": 500000,
+      "icy": 300000,
+      "rings": 1000000,
+      "colour": 1,
+      "glow": 482
+    },
+    "effectiveTick": 2044718
+  },
+  {
+    "id": "fair-copy-16",
+    "type": "launch",
+    "kind": "planet",
+    "system": "0",
+    "seed": 625,
+    "origin": [
+      -11275656,
+      22595881
+    ],
+    "velocity": [
+      2569927,
+      1410603
+    ],
+    "design": {
+      "size": 770000,
+      "palette": 0,
+      "oceans": 500000,
+      "mountains": 500000,
+      "clouds": 500000,
+      "icy": 300000,
+      "rings": 0,
+      "colour": 1,
+      "glow": 141
+    },
+    "effectiveTick": 2123844
+  },
+  {
+    "id": "fair-copy-17",
+    "type": "launch",
+    "kind": "giant",
+    "system": "1",
+    "seed": 268,
+    "origin": [
+      -961466,
+      30480744
+    ],
+    "velocity": [
+      1070703,
+      -3188415
+    ],
+    "design": {
+      "size": 840000,
+      "palette": 2,
+      "surface": 450000,
+      "texture": 400000,
+      "variant": 1000000,
+      "rings": 1000000,
+      "colour": 9,
+      "glow": 577
+    },
+    "effectiveTick": 2169980
+  },
+  {
+    "id": "fair-copy-18",
+    "type": "launch",
+    "kind": "blackhole",
+    "system": "3",
+    "seed": 373,
+    "origin": [
+      256975309,
+      -18286522
+    ],
+    "velocity": [
+      -2311911,
+      -5368511
+    ],
+    "design": {
+      "size": 370000,
+      "palette": 2,
+      "surface": 340000,
+      "colour": 15,
+      "glow": 552
+    },
+    "effectiveTick": 2210589
+  },
+  {
+    "id": "fair-copy-19",
+    "type": "launch",
+    "kind": "blackhole",
+    "system": "4",
+    "seed": 533,
+    "origin": [
+      -276923914,
+      12692357
+    ],
+    "velocity": [
+      -3081061,
+      -3392635
+    ],
+    "design": {
+      "size": 1000000,
+      "palette": 1,
+      "surface": 1000000,
+      "glow": 259
+    },
+    "effectiveTick": 2214436
+  },
+  {
+    "id": "fair-copy-20",
+    "type": "launch",
+    "kind": "nebula",
+    "system": "1",
+    "seed": 378,
+    "origin": [
+      -22349707,
+      20201604
+    ],
+    "velocity": [
+      -2955269,
+      -1999298
+    ],
+    "design": {
+      "size": 1000000,
+      "palette": 0,
+      "atmosphere": 930000,
+      "colour": 12,
+      "glow": 163
+    },
+    "effectiveTick": 2263635
+  },
+  {
+    "id": "fair-copy-21",
+    "type": "launch",
+    "kind": "comet",
+    "system": "1",
+    "seed": 633,
+    "origin": [
+      8889350,
+      -37874237
+    ],
+    "velocity": [
+      -3275886,
+      1902473
+    ],
+    "design": {
+      "size": 1000000,
+      "palette": 1,
+      "corona": 650000,
+      "colour": 9,
+      "glow": 239
+    },
+    "effectiveTick": 2278338
+  }
+]

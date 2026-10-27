@@ -28,7 +28,9 @@ test('a frozen fair opens and plays its historical timelapse without a kernel no
  await expect.poll(()=>page.evaluate(()=>window.__fog.world.entries.filter(e=>!e.toy).map(e=>e.logical))).toEqual(['recorded-planet','recorded-star']);
  await page.locator('#openTimelapse').click();
  await expect(page.locator('body')).toHaveAttribute('data-replay','true');
- await expect(page.locator('body')).toHaveAttribute('data-sequence','0');await enter(page);
+ await expect(page.locator('body')).toHaveAttribute('data-sequence','2');await enter(page);
+ await page.locator('#replayScrub').focus();await page.keyboard.press('Home');
+ await expect(page.locator('body')).toHaveAttribute('data-sequence','0');
  await page.locator('#replaySpeed').selectOption('60');await page.locator('#replayPlay').click();
  await expect(page.locator('body')).toHaveAttribute('data-tick','3600');
  await expect(page.locator('#countN')).toHaveText('2');
@@ -50,6 +52,11 @@ test('an admin-created active galaxy uses the new kernel and serves a fresh visi
  try{
   await localOnly(keeperContext,{googlePopup:true});await localOnly(phoneContext);await localOnly(joinContext);
   const keeper=await keeperContext.newPage();await keeper.goto('/little-galaxy/admin');await googleSignIn(keeper,'captain@example.test');
+  const recorded=keeper.locator(`[data-galaxy="${fairId}"]`);await expect(recorded).toBeVisible();
+  await recorded.locator('[data-action="certify"]').click();
+  await expect(keeper.locator('#ad-toast')).toContainText('Verified sky saved');
+  const certification=await withDatabase(async db=>({pointer:(await db.doc(`galaxies/${fairId}/control/certified`).get()).data(),index:(await db.doc(`galaxies/${fairId}/certifications/timeline-v1-1-3600`).get()).exists}));
+  expect(certification).toEqual({pointer:{sequence:2,tick:3600},index:true});
   await keeper.locator('#ad-create').click();await keeper.locator('#ad-new input[name="name"]').fill('Release sky');await keeper.locator('#ad-new button[type="submit"],#ad-new button.ad-primary').click();
   const card=keeper.locator('.ad-galaxy').filter({hasText:'Release sky'});await expect(card).toBeVisible();
   const id=await card.getAttribute('data-galaxy');await card.locator('[data-action="active"]').click();await keeper.locator('#ad-confirm').click();

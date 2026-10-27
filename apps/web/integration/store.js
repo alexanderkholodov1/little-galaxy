@@ -3,6 +3,7 @@ import {observeAction} from './homes.js';
 import {openSession} from './session.js';
 import {launchIntent} from './replay.js';
 import {unpackLoaded} from './checkpoint.js';
+import {loadCertifiedTimeline,loadRecordedMoment} from './certified-timeline.js';
 export function createSharedStore({galaxyId=null,booth=false,readOnly=false,replay=false,session=openSession}={}){
   let backend,loaded,stops=[],member='',selection,stopped=false;
   const emit=(name,detail)=>{if(name==='actions'&&loaded)for(const action of detail)observeAction(loaded.head,action);return dispatchEvent(new CustomEvent(`galaxy:${name}`,{detail}));};
@@ -24,6 +25,9 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
         if(next&&loaded?.galaxy.id===next.id){loaded.galaxy=next;emit('manifest',next);}
       },error=>emit('error',error)));
       loaded=await unpackLoaded(await backend.store.loadGalaxy(S.galaxyId));
+      if(replay){
+        try{loaded.timeline=await loadCertifiedTimeline(backend.driver,loaded);if(loaded.timeline)loaded.checkpoint=loaded.timeline.final;}catch{loaded.timeline=null;}
+      }
       member=loaded.player?.memberId??backend.memberId;
       if(!readOnly)stops.push(backend.store.subscribeToActions(S.galaxyId,loaded.head.sequence,actions=>emit('actions',actions),error=>emit('error',error)));
       else if(booth)stops.push(backend.store.subscribeToActions(S.galaxyId,loaded.head.sequence,actions=>emit('actions',actions),error=>emit('error',error)));
@@ -57,6 +61,7 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
         localStorage.removeItem(key);emit('actions',[accepted]);return accepted;
       }catch(error){throw new Error(`Your star is still in your hand. ${error.message}`,{cause:error});}
     },
+    async recordedMoment(entry){return loadRecordedMoment(backend.driver,loaded,entry);},
     async history(){return unpackLoaded(await backend.store.loadGalaxy(S.galaxyId,{history:true}));},
     async claimSnapshot(holder){return !readOnly && !document.hidden && backend.store.claimSnapshotLease(S.galaxyId,holder);},
     async publishSnapshot(snapshot){return !readOnly && !document.hidden && backend.store.publishSnapshot(S.galaxyId,snapshot);},

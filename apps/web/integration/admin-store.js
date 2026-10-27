@@ -41,7 +41,7 @@ export function createAdminStore(){
     catch(error){backend=null;throw new Error('This Google account is not on the keeper’s allowlist.',{cause:error});}
     clear();stopCertifying();
     const session=backend;
-    certifier=createCertifier({driver:session.driver,now:session.clock.now,load:id=>session.store.loadGalaxy(id)});
+    certifier=createCertifier({driver:session.driver,now:session.clock.now,load:(id,mode)=>session.store.loadGalaxy(id,mode)});
     stopCertifying=scheduleCertification({certify,selection:()=>session.selection,
       onError:(error,id)=>console.warn(`Automatic sky certification of ${id} failed: ${error.message}`)});
     return true;

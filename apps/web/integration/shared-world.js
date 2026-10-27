@@ -2,10 +2,11 @@ import {launchVoice} from './voice.js';
 import {routeLaunch} from './launch-routing.js';
 import {setupTimelapse} from './timelapse.js';
 import {watchVersion} from './version.js';
+import {timelineEntry} from './certified-timeline.js';
 export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft}){
   const worker=new Worker(new URL('./replay-worker.js',import.meta.url),{type:'module'});
   const replayMode=location.pathname.replace(/\/$/,'').endsWith('/timelapse');
-  let playback=null,lastLiveTick=0;
+  let playback=null,lastLiveTick=0,seekKey=0,seekPending=false;
   const pending=new Map();let ready=false,lastTarget=-1,visible=!document.hidden;
   const snapshotHolder=crypto.randomUUID();let loadKey=0,verified=!loaded.provisional,snapshotBusy=false,verificationTimer,verificationStarted=false;
   let snapshotSequence=-1,snapshotTick=-1,needsSnapshot=true,unsettledTick=0;
@@ -17,7 +18,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   function loadReplay(fresh){
     clearTimeout(verificationTimer);loadKey++;verified=!fresh.provisional;verificationStarted=false;
     snapshotSequence=-1;snapshotTick=-1;unsettledTick=0;needsSnapshot=true;
-    worker.postMessage({load:{...fresh,trusted:Boolean(fresh.checkpoint)},tick:target(),loadKey});
+    worker.postMessage({load:{...fresh,trusted:Boolean(fresh.checkpoint),playback:replayMode},tick:target(),loadKey,seekKey});
     // Start history after the provisional frame, or immediately if that candidate fails.
   }
   async function snapshot(){
@@ -29,7 +30,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     }}catch{ /* Optional acceleration must not interrupt launches. */ }
     finally{snapshotBusy=false;}
   }
-  world.shared=true;
+  world.shared=true;world.replay=replayMode;
   function target(){
     if(playback)return playback.tick();
     if(replayMode)return 0;
@@ -56,9 +57,24 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   const onLanguage=()=>readonly();
   const languageObserver=new MutationObserver(onLanguage);
   languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
-  if(replayMode)playback=setupTimelapse({loaded,now:store.now,request:tick=>worker.postMessage({tick})});
+  async function requestTick(tick,{seek=false}={}){
+    if(!replayMode){worker.postMessage({tick});return;}
+    if(seek){
+      const key=++seekKey,boundary=loadKey;seekPending=true;
+      try{
+        const entry=loaded.timeline?timelineEntry(loaded.timeline,tick):null;
+        const checkpoint=entry?await store.recordedMoment(entry):null;
+        if(key!==seekKey||boundary!==loadKey)return;
+        worker.postMessage({seek:{checkpoint,tick},seekKey:key,loadKey});
+      }catch{
+        if(key===seekKey&&boundary===loadKey)worker.postMessage({seek:{checkpoint:null,tick},seekKey:key,loadKey});
+      }finally{if(key===seekKey&&boundary===loadKey)seekPending=false;}
+    }else if(!seekPending)worker.postMessage({tick,seekKey,loadKey});
+  }
+  if(replayMode)playback=setupTimelapse({loaded,now:store.now,request:requestTick});
   worker.onmessage=({data})=>{
     if(data.loadKey!==undefined && data.loadKey!==loadKey)return;
+    if(replayMode && (seekPending || (data.seekKey??0)!==seekKey))return;
     if(data.snapshot){
       const key=loadKey;
       if(verified)store.publishSnapshot(data.snapshot).then(saved=>{if(saved && key===loadKey){snapshotTick=data.snapshot.tick;snapshotSequence=data.snapshot.sequence;} }).catch(()=>false);
@@ -80,7 +96,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     document.body.dataset.tick=String(data.state.sim.steps);document.body.dataset.sequence=String(data.state.sequence);
     document.body.dataset.galaxy=store.galaxyId;
     if(S.focus && S.focus!=='fire'&&!world.entries.includes(S.focus)){S.focus=null;document.getElementById('focusCard').hidden=true;}
-    updateCount();
+    updateCount();if(playback)playback.present(data.state.sim.steps);
     for(const [logical,res] of pending){
       const entry=entries.find(e=>e.logical===logical);
       if(entry){pending.delete(logical);world.completeSharedLaunch(entry,res);}
@@ -108,7 +124,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   addEventListener('galaxy:error',onError);addEventListener('galaxy:selection',onSelection);addEventListener('galaxy:notice',onNotice);
   const timer=setInterval(()=>{
     if(!visible)return;
-    const tick=target();if(tick!==lastTarget){lastTarget=tick;worker.postMessage({tick});}
+    const tick=target();if(tick!==lastTarget){lastTarget=tick;void requestTick(tick);}
   },100);
   const snapshotTimer=setInterval(snapshot,10000);
   const touch=setInterval(()=>{if(visible)store.touch();},5*60*1000);
@@ -125,7 +141,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   document.addEventListener('visibilitychange',visibility);
   const stopVersion=watchVersion(saveDraft);
   return ()=>{
-    clearInterval(timer);clearInterval(touch);clearInterval(snapshotTimer);clearTimeout(verificationTimer);loadKey++;languageObserver.disconnect();stopVersion();worker.terminate();store.stop();
+    clearInterval(timer);clearInterval(touch);clearInterval(snapshotTimer);clearTimeout(verificationTimer);loadKey++;seekKey++;playback?.dispose();languageObserver.disconnect();stopVersion();worker.terminate();store.stop();
     document.removeEventListener('visibilitychange',visibility);
     removeEventListener('galaxy:actions',onActions);removeEventListener('galaxy:manifest',onManifest);
     removeEventListener('galaxy:error',onError);removeEventListener('galaxy:selection',onSelection);removeEventListener('galaxy:notice',onNotice);

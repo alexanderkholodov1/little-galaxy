@@ -406,3 +406,15 @@ Unknown identities and active old identities remain rejected. This implements th
 dispatcher anticipated in the migration notes above; it supersedes their earlier statement that
 no production routing was included. See [A-OPEN.md](A-OPEN.md#production-kernel-decision--2026-10-27)
 for source provenance, compatibility tests and the precise release procedure.
+
+## Showcase hito alpha.9.7 — 2026-10-27
+
+The owner requires a coherent galaxy around the fire, including when black holes arrive.
+The mature galactic site-zero anchor now belongs to the fire's system rather than the mass-weighted
+site mean. Unbound mature light bridges choose that system, genuine bound captures retain their
+satellite hosts, and dense orbit lanes subdivide remaining
+radial gaps. Protected first-minute dynamics, finite C1 bridges and exact mature orbits remain.
+The new fingerprint is `proto3-0c0adef90be59e2accdde89a69900af00642ff2163ba4d7c2b0b70e826a9f01a`.
+Historical source/identity is unchanged. Existing keeper certification now also indexes frozen
+moments for quick opening/seeking. See [SHOWCASE.md](SHOWCASE.md) for the production diagnosis,
+owner action, private-fixture measurements, public intent regression, limits and fair options.

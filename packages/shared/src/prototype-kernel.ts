@@ -1,2 +1,2 @@
 // Pinned upstream simulation and P2 admission/replay protocol. Re-sync only into a new kernel generation.
-export const PROTOTYPE_KERNEL = 'proto3-81e31788dd7a8eef8ab2a1a738c42055541186f33e3d6b26d9bb1329a0614e05';
+export const PROTOTYPE_KERNEL = 'proto3-0c0adef90be59e2accdde89a69900af00642ff2163ba4d7c2b0b70e826a9f01a';

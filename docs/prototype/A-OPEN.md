@@ -3,6 +3,8 @@
 Work package `v1.0.0-alpha.9.5`, on top of integrated hito A (`3a1099e`).
 This implements the operator-approved formula-orbit / client-leader snapshot design.
 Local Node results are evidence about replay, not deployed-preview or real-phone acceptance.
+The subsequent alpha.9.7 [SHOWCASE.md](SHOWCASE.md) supersedes the current-kernel identity and
+adds indexed frozen certifications; the measurements below retain their original alpha.9.5 source identity.
 
 ## Formula advancement
 

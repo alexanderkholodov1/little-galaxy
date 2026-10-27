@@ -1,6 +1,7 @@
 import {canonicalHash,verifyTail} from '@little-galaxy/shared';
 import {createReplay} from './kernel-routing.js';
 import {PACKED,packState,unpackLoaded} from './checkpoint.js';
+import {certifyFrozenTimeline} from './frozen-certifier.js';
 export const CERTIFY_EVERY=10*60*1000;
 const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
 /**
@@ -16,6 +17,10 @@ export function createCertifier({driver,now,load}){
       through:loaded.head.sequence,tick:cp?replay.sim.steps:-1};
   }
   async function run(id){
+    const manifest=await driver.get(`galaxies/${id}`);
+    if(manifest && manifest.status!=='active' && manifest.writePolicy==='frozen'){
+      skies.delete(id);return certifyFrozenTimeline({id,driver,load});
+    }
     if(!skies.has(id))skies.set(id,await open(id));
     const sky=skies.get(id),root=`galaxies/${id}`;
     // Taken before reading the log. Rules make an action due at least 0.5 s after its commit;
