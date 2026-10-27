@@ -1,7 +1,7 @@
 # Fair-Day Runbook · Collective Galaxy (G v1.0.0-alpha.1)
 
 **Alpha.1:** the live sky works with both stands stopped. Stand startup below is optional
-enrichment. Section 11 covers the merge/approval release path, one-time console IAM,
+enrichment. Section 11 covers the merge-to-production release path, one-time console IAM,
 GitHub controls and optional Beacon/laptop failover setup.
 
 **Plan of record reference**: `portfolio/docs/plan/05-live-deploys-and-ops.md` § Fair-day runbook.
@@ -409,7 +409,7 @@ to main's first-parent history.
 
 1. Merge the reviewed PR. Follow **Release on merge** in GitHub Actions. All normal
    PR checks have already run; the exact release build and privacy gate run before the data-project job.
-2. Approve the existing **little-galaxy-rules** environment when GitHub requests it.
+2. The **little-galaxy-rules** environment deploys without approval (the merge is the approval).
    The job uses the existing `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY` secret.
    If `config/live` is missing, the release creates the documented defaults below
    transactionally without overwriting any existing document. No prior dispatch is
@@ -487,7 +487,7 @@ data job: inspect cancelled jobs and retry only if the fresh-main guard permits 
 Known alpha limitations from review:
 - **MINOR-1:** the workflow's main-branch `if` is a convenience, not a security
   boundary. Restrict the **little-galaxy-rules** environment's deployment branches
-  to `main` and retain the operator as required reviewer. If external tag-push
+  to `main`, with no required reviewer. If external tag-push
   releases are needed, explicitly allow `v*` tags too; otherwise they are blocked.
 - **MINOR-2:** no watchdog runs after runner loss or a Firestore outage. Recovery
   state remains in the marker; inspect the red run and use the recovery flow above.
@@ -506,9 +506,8 @@ edits, comets, shake, shooting stars, meteor showers, screen sound, sound alias 
 spotlight enabled; public assistant disabled; idle 60 seconds; meteors 360–900
 seconds; scene `galaxy`. The stand also creates these only if missing on startup.
 An existing document is never overwritten; open the season explicitly when ready.
-IAM grants and environment restrictions/reviewer must be set before the first merge;
-there is no required `init` dispatch. Live IAM and GitHub approval behaviour still
-need the first approved run to verify them.
+IAM grants and the environment branch restriction must be set before the first merge;
+there is no required `init` dispatch.
 
 ### One-time release service-account IAM (Google Cloud Console only)
 
@@ -719,7 +718,7 @@ Keep at least one working admin account before removing an address.
 Stop existing alpha.1 stand binaries before opening alpha.2; a new alpha.2 daemon exits after
 recognizing data-layer version 2, disabling the obsolete enrichment stream. No new rules, indexes,
 allowlist, credential, public name or production Hosting were deployed by B1 implementation.
-Rules deployment retains the existing required-reviewer release environment.
+Rules deployment runs in the release environment, restricted to `main` and `v*` tags, without manual review.
 
 Before opening: integrate the pinned kernel and legacy genesis reader; anchor the client clock;
 verify the accepted log on the deployed preview and real phones; test a hidden/resumed phone,

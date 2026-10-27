@@ -1,5 +1,11 @@
 # Changelog
 
+## Releases without manual approval — 2026-10-27
+
+- The `little-galaxy-rules` environment no longer requires the owner as reviewer: a merge to main deploys rules,
+  indexes and the client to production directly. The environment keeps its `main`/`v*` deployment restriction.
+- Remove every instruction to approve releases by hand from the workflow, README, runbook and release guide.
+
 ## Welcome title and timelapse icon fix — 2026-10-27
 
 - Keep each word of the welcome title on one line: from 1024px the 420px box split "Galaxy" between its letters.

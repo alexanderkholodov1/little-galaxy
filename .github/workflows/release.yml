@@ -165,7 +165,7 @@ jobs:
         run: node scripts/verify-live-version.js
 
   deploy-rules:
-    # The operator must be configured as the required reviewer for this environment.
+    # The environment only restricts deployment to main and v* tags: the merge is the approval, so no manual review.
     needs: [guard, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15

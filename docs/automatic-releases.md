@@ -100,8 +100,8 @@ PR #13 failure: a previously tagged package version can never suppress a shippin
    the runtime version constants. Release builds reject malformed tags and missing commit IDs.
    The package version remains a fallback for development builds. Build caching remains disabled.
 3. Build/privacy runs once. The artifact is `galaxy-dist-<tag>.tar.gz`, plus `version.json` and
-   `SHA256SUMS`. The existing `little-galaxy-rules` environment still requires operator review for
-   rules/index deployment and migration with season restoration. No PR suite is repeated here.
+   `SHA256SUMS`. The `little-galaxy-rules` environment then deploys rules/indexes and the migration with
+   season restoration without manual review: the merge is the approval. No PR suite is repeated here.
 4. Fresh-main guards before deployment, publication and dispatch reject a superseded shipping
    commit. Later docs-only merges do not block a release. Distinct merges have distinct orchestration
    groups and cannot silently replace one another there; the shared data-deploy concurrency group
@@ -109,7 +109,7 @@ PR #13 failure: a previously tagged package version can never suppress a shippin
    release, rather than deploying an old commit over it. Rapid merges can supersede an older release
    before production; the latest shipping merge must finish green.
 5. Publication verifies existing checksummed assets on retry and dispatches `galaxy-release` with
-   the exact tag to portfolio. Only portfolio deploys production Hosting. Its approval, secrets,
+   the exact tag to portfolio. Only portfolio deploys production Hosting. Its secrets,
    receiver validation and availability remain prerequisites; automatic numbering bypasses none.
 6. The final step polls production `little-galaxy/version.json`, bypassing caches every five seconds
    for up to eight minutes. Both the exact released commit and stamped version must match. HTTP
@@ -118,8 +118,8 @@ PR #13 failure: a previously tagged package version can never suppress a shippin
 
 Retry failed jobs after repairing their cause. If an existing published archive differs from a
 rebuilt archive/checksum, publication refuses to overwrite it: recover the original checked artifact
-or release the current main commit. Preserve the rules environment's required reviewer, preview
-separation, privacy gate, and physical-phone/live-update acceptance checks.
+or release the current main commit. Preserve the rules environment's branch restriction (no manual reviewer: the merge is the
+approval), preview separation, privacy gate, and physical-phone/live-update acceptance checks.
 
 ## Portfolio receiver pattern
 

@@ -231,9 +231,9 @@ resumes the release; it never silently skips shipping changes. The guard verifie
 numeric milestone line, main first-parent history and increasing version precedence. The build passes `RELEASE_TAG` through Turbo into Vite to
 stamp the runtime and `version.json`, independently of package.json. It builds with the production
 public config and privacy gate, packs `galaxy-dist-<tag>.tar.gz`, and attaches `version.json` and
-`SHA256SUMS`. The `little-galaxy-rules` environment retains required operator review before deploying rules and indexes
-with the current galaxy migration and season restoration. Keep the operator configured as its required
-reviewer. No PR tests run again during release.
+`SHA256SUMS`. The `little-galaxy-rules` environment deploys rules and indexes with the current galaxy migration and season
+restoration directly after the merge: it only restricts deployment to `main` and `v*` tags and has no manual
+reviewer (owner decision 2026-10-27). No PR tests run again during release.
 
 After the rules are live, publication verifies existing assets on retry and dispatches `galaxy-release`
 with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`. The final release step polls
