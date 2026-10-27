@@ -18,3 +18,6 @@ It preserves the numeric B1 admission/rules contract and requires deployed-previ
 
 `alpha9.5-a-open.md` records the approved A-open implementation and acceptance limits for transfer
 to the portfolio plan and its CHANGELOG. It is staged here; no external plan checkout was edited.
+
+`alpha9-show.patch` records the operator-directed recruiter-facing presentation audit and emulator
+geometry checks. It is staged here because A-show explicitly forbids editing other worktrees.

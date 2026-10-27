@@ -118,30 +118,41 @@
       <svg aria-hidden="true"><use href="#i-recenter"/></svg> <span data-i18n="home.recenter">Ver toda la galaxia</span>
     </button>
 
-    <div class="focus glass" id="focusCard" role="status" hidden>
-      <button class="x-btn" id="focusClose" aria-label="Cerrar" data-i18n-aria="focus.close"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
-      <span class="focus-kind" id="focusKind">planeta</span>
-      <b class="focus-name" id="focusName">—</b>
-      <span class="focus-by" id="focusBy">—</span>
-      <span class="focus-orbit num" id="focusOrbit"></span>
+    <div class="home-footer">
+      <div class="focus glass" id="focusCard" role="status" hidden>
+        <button class="x-btn" id="focusClose" aria-label="Cerrar" data-i18n-aria="focus.close"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+        <span class="focus-kind" id="focusKind">planeta</span>
+        <b class="focus-name" id="focusName">—</b>
+        <span class="focus-by" id="focusBy">—</span>
+        <span class="focus-orbit num" id="focusOrbit"></span>
+      </div>
+      <div class="credits glass" id="credits" role="dialog" aria-modal="false" aria-labelledby="creditsT" hidden>
+        <button class="x-btn" id="creditsClose" aria-label="Cerrar la ficha del autor" data-i18n-aria="author.close"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+        <b id="creditsT" data-i18n="author.title">Autor</b>
+        <span class="credits-who" data-i18n="author.who">Alexander Kholodov · USFQ</span>
+        <span class="credits-tech" data-i18n="author.tech">3D con three.js · sonido y gravedad generados en tu navegador · tipografías Unbounded y Figtree</span>
+        <nav class="credits-links" aria-label="Alexander Kholodov">
+          <a class="pill" href="https://www.linkedin.com/in/alexanderkholodov1/" target="_blank" rel="noopener">LinkedIn</a>
+          <a class="pill" href="https://www.instagram.com/alexanderkholodov1/" target="_blank" rel="noopener">Instagram</a>
+        </nav>
+      </div>
+      <p class="gesture-hint" id="homeHint"><svg aria-hidden="true"><use href="#i-rotate"/></svg><span data-i18n="home.hint">Arrastra para girar · pellizca para acercar · toca un astro</span></p>
+
+      <div class="dock">
+        <button class="round glass toss" id="btnToss" aria-label="Lanzar por lanzar: cometas, piedras y lluvias de estrellas, sin pasar por el taller" data-i18n-aria="home.tossAria">
+          <svg class="ico" aria-hidden="true"><use href="#t-comet"/></svg>
+          <span class="round-label" data-i18n="home.toss">Lanzar</span>
+        </button>
+        <button class="cta" id="btnCreate"><span class="cta-orb" aria-hidden="true"><svg><use href="#i-go"/></svg></span><span class="cta-txt" data-i18n="home.create">Crear mi astro</span></button>
+        <button class="round glass" id="btnAurora" aria-label="Aurora: una ola de luz cruza la galaxia" data-i18n-aria="home.auroraAria">
+          <svg class="ring" viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="27" pathLength="100"/></svg>
+          <svg class="ico" aria-hidden="true"><use href="#i-aurora"/></svg>
+          <span class="round-label" data-i18n="home.aurora">Aurora</span>
+        </button>
+      </div>
+
+      <button class="credits-link" id="btnCredits" aria-haspopup="dialog" data-i18n="author.btn">Autor</button>
     </div>
-
-    <p class="gesture-hint" id="homeHint"><svg aria-hidden="true"><use href="#i-rotate"/></svg><span data-i18n="home.hint">Arrastra para girar · pellizca para acercar · toca un astro</span></p>
-
-    <div class="dock">
-      <button class="round glass toss" id="btnToss" aria-label="Lanzar por lanzar: cometas, piedras y lluvias de estrellas, sin pasar por el taller" data-i18n-aria="home.tossAria">
-        <svg class="ico" aria-hidden="true"><use href="#t-comet"/></svg>
-        <span class="round-label" data-i18n="home.toss">Lanzar</span>
-      </button>
-      <button class="cta" id="btnCreate"><span class="cta-orb" aria-hidden="true"><svg><use href="#i-go"/></svg></span><span class="cta-txt" data-i18n="home.create">Crear mi astro</span></button>
-      <button class="round glass" id="btnAurora" aria-label="Aurora: una ola de luz cruza la galaxia" data-i18n-aria="home.auroraAria">
-        <svg class="ring" viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="27" pathLength="100"/></svg>
-        <svg class="ico" aria-hidden="true"><use href="#i-aurora"/></svg>
-        <span class="round-label" data-i18n="home.aurora">Aurora</span>
-      </button>
-    </div>
-
-    <button class="credits-link" id="btnCredits" aria-haspopup="dialog" data-i18n="author.btn">Autor</button>
   </section>
 
   <!-- ======================================================== taller -->
@@ -196,16 +207,7 @@
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <div class="credits glass" id="credits" role="dialog" aria-modal="false" aria-labelledby="creditsT" hidden>
-    <button class="x-btn" id="creditsClose" aria-label="Cerrar la ficha del autor" data-i18n-aria="author.close"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
-    <b id="creditsT" data-i18n="author.title">Autor</b>
-    <span class="credits-who" data-i18n="author.who">Alexander Kholodov · USFQ</span>
-    <span class="credits-tech" data-i18n="author.tech">3D con three.js · sonido y gravedad generados en tu navegador · tipografías Unbounded y Figtree</span>
-    <nav class="credits-links" aria-label="Alexander Kholodov">
-      <a class="pill" href="https://www.linkedin.com/in/alexanderkholodov1/" target="_blank" rel="noopener">LinkedIn</a>
-      <a class="pill" href="https://www.instagram.com/alexanderkholodov1/" target="_blank" rel="noopener">Instagram</a>
-    </nav>
-  </div>
+
 </div>
 
 <div class="veil" id="veil" aria-hidden="true">
@@ -214,7 +216,7 @@
 </div>
 <div class="load-err" id="loadErr" role="alert" hidden>
   <b data-i18n="err.title">El cielo no pudo encenderse</b>
-  <span id="loadErrTxt" data-i18n="err.cdn">El 3D y las tipografías llegan desde jsDelivr. Revisa la conexión y recarga.</span>
+  <span id="loadErrTxt" data-i18n="err.cdn">No se pudieron cargar los recursos del cielo. Revisa la conexión y recarga.</span>
 </div>
 
 <script>

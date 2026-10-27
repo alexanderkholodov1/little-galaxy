@@ -45,15 +45,17 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     world.readOnly=frozen||store.readOnly;S.frozen=frozen;
     for(const id of ['btnCreate','btnToss','btnToPad']){
       const button=document.getElementById(id);button.disabled=world.readOnly;
-      button.title=frozen?'This galaxy is resting: you can visit, but no more stars can launch here.':'';
+      button.title=frozen?(document.documentElement.lang==='es'?'Esta galaxia está descansando. Puedes mirar, pero no lanzar.':'This galaxy is resting: you can visit, but no more stars can launch here.'):'';
     }
     let note=document.getElementById('sharedStatus');
-    if(!note){note=document.createElement('p');note.id='sharedStatus';note.className='glass';note.setAttribute('role','status');document.getElementById('hud').append(note);}
-    note.style.cssText='position:fixed;left:24px;bottom:115px;max-width:320px;padding:12px;pointer-events:auto';
+    if(!note){note=document.createElement('p');note.id='sharedStatus';note.className='glass';note.setAttribute('role','status');(document.querySelector('.home-footer')||document.getElementById('hud')).prepend(note);}
     note.hidden=!frozen||replayMode;note.textContent=document.documentElement.lang==='es'?'Esta galaxia está descansando. Puedes mirar, pero no lanzar.':'This galaxy is resting. You can visit, but no more stars can launch here.';
-    if(frozen&&!replayMode){const link=document.createElement('a');link.id='openTimelapse';link.textContent=document.documentElement.lang==='es'?'Ver el timelapse':'Watch the timelapse';link.href=`${import.meta.env.BASE_URL}timelapse?g=${encodeURIComponent(store.galaxyId)}`;link.style.display='block';note.append(link);}
+    if(frozen&&!replayMode){const link=document.createElement('a');link.id='openTimelapse';link.textContent=document.documentElement.lang==='es'?'Ver el timelapse':'Watch the timelapse';link.href=`${import.meta.env.BASE_URL}timelapse?g=${encodeURIComponent(store.galaxyId)}`;note.append(link);}
   }
   readonly();
+  const onLanguage=()=>readonly();
+  const languageObserver=new MutationObserver(onLanguage);
+  languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
   if(replayMode)playback=setupTimelapse({loaded,now:store.now,request:tick=>worker.postMessage({tick})});
   worker.onmessage=({data})=>{
     if(data.loadKey!==undefined && data.loadKey!==loadKey)return;
@@ -99,7 +101,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   };
   const onActions=({detail})=>{worker.postMessage({actions:detail,tick:target()});};
   const onManifest=({detail})=>{saveDraft();S.galaxy=detail;readonly();worker.postMessage({tick:target()});};
-  const onError=({detail})=>toast(`The sky cannot hear you. Your draft is safe. ${detail.message}`);
+  const onError=({detail})=>toast(document.documentElement.lang==='es'?`El cielo no puede oírte. Tu diseño está guardado. ${detail.message}`:`The sky cannot hear you. Your draft is safe. ${detail.message}`);
   const onNotice=({detail})=>toast(detail);
   const onSelection=()=>{saveDraft();location.reload();};
   addEventListener('galaxy:actions',onActions);addEventListener('galaxy:manifest',onManifest);
@@ -123,7 +125,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   document.addEventListener('visibilitychange',visibility);
   const stopVersion=watchVersion(saveDraft);
   return ()=>{
-    clearInterval(timer);clearInterval(touch);clearInterval(snapshotTimer);clearTimeout(verificationTimer);loadKey++;stopVersion();worker.terminate();store.stop();
+    clearInterval(timer);clearInterval(touch);clearInterval(snapshotTimer);clearTimeout(verificationTimer);loadKey++;languageObserver.disconnect();stopVersion();worker.terminate();store.stop();
     document.removeEventListener('visibilitychange',visibility);
     removeEventListener('galaxy:actions',onActions);removeEventListener('galaxy:manifest',onManifest);
     removeEventListener('galaxy:error',onError);removeEventListener('galaxy:selection',onSelection);removeEventListener('galaxy:notice',onNotice);

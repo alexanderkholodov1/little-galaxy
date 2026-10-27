@@ -1,0 +1,18 @@
+--- a/docs/plan/CHANGELOG.md
++++ b/docs/plan/CHANGELOG.md
+@@ -2,6 +2,15 @@
+ 
+ Every change to `docs/plan/` after it was written. Newest first.
+ Format: `YYYY-MM-DD — <what changed> — <why> — decided by <operator | agent>`.
++
++- 2026-10-26 — A-show presentation repair: put resting status, timelapse action and
++  visibly disabled launch controls in a measured home layout; isolate intro and
++  sheets from the HUD, preserve the current typefaces/palette/glow, and correct
++  phone touch targets, long labels and light-panel contrast. Audit six viewport
++  sizes in EN/ES, both themes and reduced motion; add emulator geometry journeys
++  at 360/1280px. Commit and rehearse through the operator's relay without pushes,
++  PRs or deployments. Physical-phone/hosted-preview acceptance remains separate
++  — recruiter-facing polish instructed by operator; implementation decided by agent.
+ 
+ - 2026-10-22 — Recorded the operator's decisions of 2026-10-22 in `08-decisions.md` with his
+   words: objective "todo el juego y todo lo planificado listo" for 2026-10-23; the assistant is out
