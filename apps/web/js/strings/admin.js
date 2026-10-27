@@ -36,7 +36,9 @@ Object.assign(en, {
     'admin.warning':'An export is verified and downloaded before this operation. Keep it on your own media. The accepted history is retained.',
     'admin.deleteExplain':'Remove {count} bodies from “{name}” ({id}). The accepted log and a downloaded export retain their history. Hosts with companions cannot be removed.',
     'admin.metricNote':'Memberships, not unique people. Activity is sampled over five minutes. Visits and cosmetic throws are not collected. The charts cover accepted launches; imported bodies have no launch-time history.',
-    'admin.backup':'Export history', 'admin.backupId':'Export / result', 'admin.removed':'Removal recorded; history retained.'
+    'admin.backup':'Export history', 'admin.backupId':'Export / result', 'admin.removed':'Removal recorded; history retained.',
+    'admin.status.verifiedSaved':'Verified sky saved', 'admin.status.verifiedCurrent':'Verified sky already current',
+    'admin.status.frozenCertified':'Frozen and certified', 'admin.status.historyRetained':'History retained'
   });
   Object.assign(es, {
     'admin.certify':'Guardar cielo verificado', 'admin.google':'Entrar con Google', 'admin.subtitle':'Observatorio · registro del guardián',
@@ -45,7 +47,9 @@ Object.assign(en, {
     'admin.warning':'Antes de cambiarla se verifica y descarga una exportación. Guárdala en tus propios medios. El historial se conserva.',
     'admin.deleteExplain':'Retirar {count} cuerpos de “{name}” ({id}). El registro y la exportación conservan su historia. No se pueden retirar anfitriones con compañeros.',
     'admin.metricNote':'Membresías, no personas únicas. Actividad muestreada cada cinco minutos. No se registran visitas ni juegos efímeros. Los gráficos cuentan lanzamientos aceptados; los cuerpos importados no tienen ese historial.',
-    'admin.backup':'Exportar historial', 'admin.backupId':'Exportación / resultado', 'admin.removed':'Retiro registrado; historial conservado.'
+    'admin.backup':'Exportar historial', 'admin.backupId':'Exportación / resultado', 'admin.removed':'Retiro registrado; historial conservado.',
+    'admin.status.verifiedSaved':'Cielo verificado guardado', 'admin.status.verifiedCurrent':'El cielo verificado ya estaba al día',
+    'admin.status.frozenCertified':'Congelada y certificada', 'admin.status.historyRetained':'Historial conservado'
   });
 Object.assign(en, {
     'admin.activeTitle':'Open “{name}” to the public?',

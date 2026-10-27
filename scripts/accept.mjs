@@ -9,6 +9,8 @@ import {deployedWebConfig} from './accept/web-config.mjs';
 import {canonicalHash} from '../packages/shared/src/index.ts';
 import {publicExport} from './accept/public-data.mjs';
 import {seedAcceptance} from './accept/seed.mjs';
+import {assertCopyParity} from './accept/presentation.mjs';
+assertCopyParity();
 const baseline=process.argv.find(arg=>arg.startsWith('--baseline='));
 if(baseline){await acceptBaseline(baseline.slice('--baseline='.length));process.exit(1);}
 const sha=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),reportPath=`.tmp/accept-${sha}.json`;

@@ -66,10 +66,10 @@ export function createAdminStore(){
     async createGalaxy({name}){
       const id='g-'+crypto.randomUUID();await backend.store.admin.create(initialGalaxy(id,auth.currentUser.uid,name,backend.clock.now(),KERNEL));clear();return id;
     },
-    async certify(id){return await certify(id)?'Verified sky saved':'Verified sky already current';},
-    async freeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'frozen'});clear();await certify(id);return 'Frozen and certified';},
+    async certify(id){return await certify(id)?'status.verifiedSaved':'status.verifiedCurrent';},
+    async freeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'frozen'});clear();await certify(id);return 'status.frozenCertified';},
     async unfreeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'active',writePolicy:'public'});clear();},
-    async archive(id){const g=(await full(id)).galaxy;await S.backup(id);await backend.store.admin.update(id,g.generation,{status:'archived'});clear();return 'History retained';},
+    async archive(id){const g=(await full(id)).galaxy;await S.backup(id);await backend.store.admin.update(id,g.generation,{status:'archived'});clear();return 'status.historyRetained';},
     admin:{async select(id,target){await backend.store.admin.select(id,target);backend.selection={...backend.selection,[target]:id};}},
     async backup(id){
       const payload=await full(id),sha256=await canonicalHash(payload);

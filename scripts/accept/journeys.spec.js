@@ -1,4 +1,6 @@
+/* global document, getComputedStyle, requestAnimationFrame */
 import {expectLayout} from '../../tests/ui/layout-geometry.js';
+import {assertHeaderIcons, assertShotSize} from './presentation.mjs';
 import {expect,test} from '@playwright/test';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {enter} from '../../tests/ui/galaxy-fixture.js';
@@ -21,11 +23,17 @@ async function contextFor(browser,profile,lang){
  const page=await context.newPage();page.on('pageerror',e=>{(evidence.errors??=[]).push(e.message);});const cdp=await context.newCDPSession(page);await cdp.send('Emulation.setCPUThrottlingRate',{rate:profile.rate});
  return {context,page};
 }
-async function screenshot(page,name){await mkdir('.tmp/accept-screenshots',{recursive:true});const path=`.tmp/accept-screenshots/${name}.png`;await expectLayout(page,name);await page.screenshot({path});evidence.screenshots.push(path);}
+async function screenshot(page,name){
+ await mkdir('.tmp/accept-screenshots',{recursive:true});const path=`.tmp/accept-screenshots/${name}.png`;
+ if(name.startsWith('sandbox-home')){await expect(page.locator('#brand')).toBeVisible();await page.waitForFunction(()=>getComputedStyle(document.querySelector('#brand')).opacity==='1');}
+ await expectLayout(page,name);
+ if(await page.locator('.top-actions .icon-btn:visible, #panelTheme:visible').count())await assertHeaderIcons(page,name);
+ const buffer=await page.screenshot({path});assertShotSize(name,buffer);evidence.screenshots.push(path);
+}
 async function clean(page){await expect(page.locator('#toasts')).toHaveText('');await expect(page.locator('body')).not.toContainText('Unsupported simulation kernel');}
 for(const profile of profiles)for(const lang of ['en','es']){
  test(`1 sandbox launches and a second browser receives it (${profile.name}, ${lang})`,async({browser})=>{
-  const {context,page}=await contextFor(browser,profile,lang),observer=await browser.newContext({viewport:{width:1440,height:900}});
+  const {context,page}=await contextFor(browser,profile,lang),observer=await browser.newContext({viewport:{width:profile.width,height:profile.height},hasTouch:profile.name==='phone',isMobile:profile.name==='phone'});
   try{
    await localOnly(context);await localOnly(observer);
    const at=performance.now();await page.goto(`/galaxy/?emulators=1&lang=${lang}`);
@@ -33,7 +41,9 @@ for(const profile of profiles)for(const lang of ['en','es']){
    await screenshot(page,`sandbox-home-${profile.name}-${lang}`);await expect(page.locator('#btnCreate')).toBeEnabled();await expect(page.locator('#sharedStatus')).toHaveCount(0);
    const before=Number(await page.locator('body').getAttribute('data-sequence'));
    const second=await observer.newPage();second.on('pageerror',e=>{(evidence.errors??=[]).push(e.message);});await second.goto(`/galaxy/?emulators=1&lang=${lang}`);await expect(second.locator('body')).toHaveAttribute('data-sky-ready','true');await enter(second);
-   await page.locator('#btnCreate').click();await screenshot(page,`workshop-${profile.name}-${lang}`);await page.locator('#btnToPad').click();await page.locator('.pu-sec').click();
+   await page.locator('#btnCreate').click();await expect(page.locator('body')).toHaveAttribute('data-workshop-focus','near');
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   await screenshot(page,`workshop-${profile.name}-${lang}`);await page.locator('#btnToPad').click();await page.locator('.pu-sec').click();
    await expect(page.locator('body')).toHaveAttribute('data-bench-state','pad');
    const canvas=page.locator('canvas').first(),box=await canvas.boundingBox();
    // The pad follows the viewport; use its centre and a downward release, as a visitor does.
@@ -42,7 +52,7 @@ for(const profile of profiles)for(const lang of ['en','es']){
    await expect(page.locator('body')).toHaveAttribute('data-sequence',String(before+1));
    await expect(second.locator('body')).toHaveAttribute('data-sequence',String(before+1));
    await expect(page.locator('#countN')).toHaveText(String(before+1));await clean(page);await clean(second);
-   await expect(second.locator('#galaxyVisits a')).toContainText([lang==='es'?'Visita la galaxia de Be A Dragon 2026 (feria USFQ)':'Visit the Be A Dragon 2026 galaxy (USFQ fair)']);
+   await expect(second.locator('#galaxyVisits a')).toContainText([lang==='es'?'Visita la feria Be A Dragon 2026 en la Universidad San Francisco de Quito':'Visit the Be A Dragon 2026 fair at Universidad San Francisco de Quito']);
    await screenshot(second,`observer-from-${profile.name}-${lang}`);
   }finally{await context.close();await observer.close();}
  });
@@ -59,7 +69,7 @@ for(const profile of profiles)for(const lang of ['en','es']){
    await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true');evidence.timings.navigationMs=performance.now()-at;
    at=performance.now();await enter(page);await expect(page.locator('#countN')).toHaveText('21',{timeout:2000});evidence.timings.enterMs=performance.now()-at;
    await clean(page);await page.locator('#aboutRecordedGalaxy').click();await expect(page.locator('#recordInformation')).toBeVisible();await screenshot(page,`fair-info-${profile.name}-${lang}`);await page.keyboard.press('Escape');await expect(page.locator('#recordInformation')).not.toBeVisible();await screenshot(page,`fair-${profile.name}-${lang}`);
-   await expect(page.locator('#galaxyVisits a').first()).toHaveText(lang==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
+   await expect(page.locator('#backToSandbox')).toHaveText(lang==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
    await page.locator('#openTimelapse').click();await expect(page.locator('body')).toHaveAttribute('data-replay','true');await enter(page);
    await expect(page.locator('#countN')).toHaveText('21');const scrub=page.locator('#replayScrub');
    at=performance.now();await scrub.focus();await page.keyboard.press('Home');await expect(page.locator('body')).toHaveAttribute('data-tick','0');evidence.timings.homeSeekMs=performance.now()-at;
@@ -76,8 +86,8 @@ for(const profile of profiles)for(const lang of ['en','es']){
     await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-sequence')),{timeout:2000}).toBeGreaterThanOrEqual(1);
     await page.locator('#replayPlay').click();
    }
-   await clean(page);await screenshot(page,`timelapse-${profile.name}-${lang}`);
-   await page.locator('#galaxyVisits a').first().click();await expect(page).not.toHaveURL(/g=bad-2026/u);
+   await clean(page);await expect(page.locator('#backToFair')).toBeVisible();await screenshot(page,`timelapse-${profile.name}-${lang}`);
+   await page.locator('#backToSandbox').click();await expect(page).not.toHaveURL(/g=bad-2026/u);
   }finally{await context.close();}
  });
 }

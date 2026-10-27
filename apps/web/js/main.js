@@ -45,7 +45,12 @@ const ADJS = [['Tímido','Tímida'],['Dormido','Dormida'],['Risueño','Risueña'
   ['Valiente','Valiente'],['Curioso','Curiosa'],['Pequeño','Pequeña'],['Callado','Callada'],['Soñador','Soñadora'],
   ['Tierno','Tierna'],['Despistado','Despistada'],['Bailarín','Bailarina'],['Viajero','Viajera'],['Dulce','Dulce'],
   ['Lento','Lenta'],['Feliz','Feliz'],['Brillante','Brillante']];
+const EN_NOUNS = ['Ember','Honey','Lantern','Cinnamon','Candle','Pebble','Amber','Lilac','Bubble','Bell','Spark','Cloud','Button','Feather','Mist'];
+const EN_ADJS = ['Shy','Sleeping','Laughing','Warm','Distant','Brave','Curious','Little','Quiet','Dreaming','Gentle','Wandering','Sweet','Slow','Happy','Bright'];
 function randomName(){
+  if(getLang() === 'en'){
+    return EN_ADJS[(Math.random()*EN_ADJS.length)|0] + ' ' + EN_NOUNS[(Math.random()*EN_NOUNS.length)|0];
+  }
   const n = NOUNS[(Math.random()*NOUNS.length)|0], a = ADJS[(Math.random()*ADJS.length)|0];
   return n[0] + ' ' + (n[1] === 'f' ? a[1] : a[0]);
 }
@@ -164,6 +169,9 @@ async function boot(){
   const unlock = () => audio.unlock();
   for(const g of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(g, unlock, {capture:true, passive:true});
   setupTheme();
+  const langSwitch = document.querySelector('#langSwitch');
+  const paintLang = () => { langSwitch.textContent = getLang() === 'es' ? 'EN' : 'ES'; langSwitch.setAttribute('aria-label', getLang() === 'es' ? 'English' : 'Español'); };
+  paintLang(); langSwitch.onclick = () => setLang(getLang() === 'es' ? 'en' : 'es'); onLang(paintLang);
   setupShake();
   setupScreen({world,labels});
 

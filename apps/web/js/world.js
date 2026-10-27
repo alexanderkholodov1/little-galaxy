@@ -1414,8 +1414,13 @@ export function createWorld(canvas, opts = {}){
     W.mode = mode;if(mode==='home'&&!keep)homeAuto=true;
     const v = mode === 'home' && prev === 'workshop' && galaxyView ? views().launch : views()[mode];
     if(mode === 'workshop') benchZoom = 1;
+    // The bench is the thing being designed. A flight left the first frames on the far galaxy.
+    if(typeof document !== 'undefined'){
+      if(mode === 'workshop') document.body.dataset.workshopFocus = 'near';
+      else delete document.body.dataset.workshopFocus;
+    }
     if(keep){ rig.flight = null; rig.shiftGoal = {...views().home.shift}; }
-    else if(instant) snapTo(v); else flyTo(v, dur ?? (mode === 'workshop' ? 2.4 : 2.2));
+    else if(instant || mode === 'workshop') snapTo(v); else flyTo(v, dur ?? 2.2);
     if(mode !== 'launch'){ aimCancel(); }
     rig.idle = 0;
   }
