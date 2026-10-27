@@ -24,3 +24,5 @@ geometry checks. It is staged here because A-show explicitly forbids editing oth
 
 `alpha9.7-showcase.md` records the operator-directed frozen opening/seeking and fire-centred
 current-kernel changes, measurements and the owner options for preserving the fair record.
+
+- [alpha.10.0-rc1: the complete shared-game candidate](../prototype/RELEASE-CANDIDATE.md): open sandbox provisioning, public frozen release moments, reliable Google redirect, plain-language record navigation, local acceptance and one CI check job.

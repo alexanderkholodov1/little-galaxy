@@ -1,0 +1,2 @@
+import {defineConfig} from '@playwright/test';
+export default defineConfig({testDir:'.',testMatch:'journeys.spec.js',workers:1,retries:0,timeout:180000,expect:{timeout:20000},reporter:'line',outputDir:'../../.tmp/accept-browser',use:{baseURL:process.env.ACCEPT_URL,browserName:'chromium',actionTimeout:10000,viewport:{width:1440,height:900},trace:'off',screenshot:'off',launchOptions:{args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']}}});

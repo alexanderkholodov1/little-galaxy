@@ -1,0 +1,97 @@
+import {expectLayout} from '../../tests/ui/layout-geometry.js';
+import {expect,test} from '@playwright/test';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {enter} from '../../tests/ui/galaxy-fixture.js';
+import {googleSignIn,localOnly} from '../../tests/ui/admin-helper.js';
+const docs=new Map(JSON.parse(await readFile(process.env.GALAXY_PUBLIC_EXPORT??'.tmp/production-export.json','utf8')));
+const fair=docs.get('galaxies/bad-2026'),head=docs.get('galaxies/bad-2026/control/head');
+const launches=[...docs].filter(([p])=>p.startsWith('galaxies/bad-2026/logPages/')).flatMap(([,v])=>v.entries).map(a=>({tick:a.intent.effectiveTick,sequence:a.sequence})).sort((a,b)=>a.sequence-b.sequence);
+const end=Math.max(head.effectiveTick,Math.ceil((fair.frozenAt-fair.epoch)*.12));
+const profiles=[{name:'phone',width:390,height:844,rate:4},{name:'laptop',width:1440,height:900,rate:1}];
+let evidence;
+test.beforeEach(async({page},info)=>{void page;evidence={name:info.title,pass:false,timings:{},screenshots:[]};});
+test.afterEach(async({page},info)=>{
+ void page;evidence.pass=info.status==='passed';let report={journeys:[]};try{report=JSON.parse(await readFile(process.env.ACCEPT_REPORT,'utf8'));}catch{/* First journey. */}
+ (report.journeys??=[]).push(evidence);await writeFile(process.env.ACCEPT_REPORT,JSON.stringify(report,null,2));
+ console.log(`${evidence.pass?'PASS':'FAIL'} ${info.title}`);
+});
+async function contextFor(browser,profile,lang){
+ const context=await browser.newContext({viewport:{width:profile.width,height:profile.height},hasTouch:profile.name==='phone',isMobile:profile.name==='phone'});
+ await context.addInitScript(({lang})=>{localStorage.setItem('fogata.prefs.v2',JSON.stringify({names:'none',music:false,sfx:false,motion:'reduce',lang}));localStorage.setItem('little-galaxy.ui-theme',lang==='es'?'light':'dark');},{lang});
+ const page=await context.newPage();page.on('pageerror',e=>{(evidence.errors??=[]).push(e.message);});const cdp=await context.newCDPSession(page);await cdp.send('Emulation.setCPUThrottlingRate',{rate:profile.rate});
+ return {context,page};
+}
+async function screenshot(page,name){await mkdir('.tmp/accept-screenshots',{recursive:true});const path=`.tmp/accept-screenshots/${name}.png`;await expectLayout(page,name);await page.screenshot({path});evidence.screenshots.push(path);}
+async function clean(page){await expect(page.locator('#toasts')).toHaveText('');await expect(page.locator('body')).not.toContainText('Unsupported simulation kernel');}
+for(const profile of profiles)for(const lang of ['en','es']){
+ test(`1 sandbox launches and a second browser receives it (${profile.name}, ${lang})`,async({browser})=>{
+  const {context,page}=await contextFor(browser,profile,lang),observer=await browser.newContext({viewport:{width:1440,height:900}});
+  try{
+   await localOnly(context);await localOnly(observer);
+   const at=performance.now();await page.goto(`/galaxy/?emulators=1&lang=${lang}`);
+   await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true');evidence.timings.navigationMs=performance.now()-at;const entering=performance.now();await enter(page);evidence.timings.enterMs=performance.now()-entering;evidence.timings.openMs=performance.now()-at;
+   await screenshot(page,`sandbox-home-${profile.name}-${lang}`);await expect(page.locator('#btnCreate')).toBeEnabled();await expect(page.locator('#sharedStatus')).toHaveCount(0);
+   const before=Number(await page.locator('body').getAttribute('data-sequence'));
+   const second=await observer.newPage();second.on('pageerror',e=>{(evidence.errors??=[]).push(e.message);});await second.goto(`/galaxy/?emulators=1&lang=${lang}`);await expect(second.locator('body')).toHaveAttribute('data-sky-ready','true');await enter(second);
+   await page.locator('#btnCreate').click();await page.locator('#btnToPad').click();await page.locator('.pu-sec').click();
+   await expect(page.locator('body')).toHaveAttribute('data-bench-state','pad');
+   const canvas=page.locator('canvas').first(),box=await canvas.boundingBox();
+   // The pad follows the viewport; use its centre and a downward release, as a visitor does.
+   const x=box.x+box.width*.5,y=box.y+box.height*.635;
+   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+box.width*.23,y+box.height*.13,{steps:8});await page.mouse.up();
+   await expect(page.locator('body')).toHaveAttribute('data-sequence',String(before+1));
+   await expect(second.locator('body')).toHaveAttribute('data-sequence',String(before+1));
+   await expect(page.locator('#countN')).toHaveText(String(before+1));await clean(page);await clean(second);
+   await expect(second.locator('#galaxyVisits a')).toContainText([lang==='es'?'Visita la galaxia de Be A Dragon 2026 (feria USFQ)':'Visit the Be A Dragon 2026 galaxy (USFQ fair)']);
+   await screenshot(second,`observer-from-${profile.name}-${lang}`);
+  }finally{await context.close();await observer.close();}
+ });
+ test(`2 production record opens, plays every launch and seeks (${profile.name}, ${lang})`,async({browser})=>{
+  const {context,page}=await contextFor(browser,profile,lang);
+  try{
+   // Anonymous public reads only. No Auth endpoint, commit or write stream can leave this browser.
+   await context.route('**/*',route=>{
+    const r=route.request(),u=new URL(r.url()),local=['localhost','127.0.0.1'].includes(u.hostname);
+    const read=u.hostname==='firestore.googleapis.com'&&(r.method()==='GET'||r.method()==='OPTIONS'||(r.method()==='POST'&&/Listen\/channel|:batchGet$|:runQuery$/u.test(u.pathname)));
+    return local||read?route.continue():route.abort();
+   });
+   let at=performance.now();await page.goto(`/galaxy/?g=bad-2026&view=recorded&smoke=readonly&lang=${lang}`);
+   await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true');evidence.timings.navigationMs=performance.now()-at;
+   at=performance.now();await enter(page);await expect(page.locator('#countN')).toHaveText('21',{timeout:2000});evidence.timings.enterMs=performance.now()-at;
+   await clean(page);await page.locator('#aboutRecordedGalaxy').click();await expect(page.locator('#recordInformation')).toBeVisible();await page.keyboard.press('Escape');await expect(page.locator('#recordInformation')).not.toBeVisible();await screenshot(page,`fair-${profile.name}-${lang}`);
+   await expect(page.locator('#galaxyVisits a').first()).toHaveText(lang==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
+   await page.locator('#openTimelapse').click();await expect(page.locator('body')).toHaveAttribute('data-replay','true');await enter(page);
+   await expect(page.locator('#countN')).toHaveText('21');const scrub=page.locator('#replayScrub');
+   at=performance.now();await scrub.focus();await page.keyboard.press('Home');await expect(page.locator('body')).toHaveAttribute('data-tick','0');evidence.timings.homeSeekMs=performance.now()-at;
+   await page.keyboard.press('ArrowRight');await expect(page.locator('body')).toHaveAttribute('data-tick','120');
+   await page.keyboard.press('End');await expect(page.locator('body')).toHaveAttribute('data-tick',String(end));
+   const b=await scrub.boundingBox();await page.mouse.click(b.x+b.width*.5,b.y+b.height*.5);await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-tick'))).toBeGreaterThan(end*.45);
+   const seeks=[];
+   for(const launch of launches){at=performance.now();await scrub.evaluate((el,t)=>{el.value=String(t);el.dispatchEvent(new Event('input',{bubbles:true}));},launch.tick);await expect(page.locator('body')).toHaveAttribute('data-tick',String(launch.tick));await expect(page.locator('body')).toHaveAttribute('data-sequence',String(launch.sequence));seeks.push(performance.now()-at);}
+   evidence.timings.maxLaunchSeekMs=Math.max(...seeks);
+   for(const speed of ['0.25','1','4','16','60']){
+    const first=launches[0].tick;await scrub.evaluate((el,t)=>{el.value=String(t);el.dispatchEvent(new Event('input',{bubbles:true}));},first-12);
+    await expect(page.locator('body')).toHaveAttribute('data-tick',String(first-12));await expect(page.locator('#timeRuler')).not.toHaveAttribute('aria-busy','true');
+    await page.locator('#replaySpeed').selectOption(speed);await page.locator('#replayPlay').click();
+    await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-sequence')),{timeout:2000}).toBeGreaterThanOrEqual(1);
+    await page.locator('#replayPlay').click();
+   }
+   await clean(page);await screenshot(page,`timelapse-${profile.name}-${lang}`);
+   await page.locator('#galaxyVisits a').first().click();await expect(page).not.toHaveURL(/g=bad-2026/u);
+  }finally{await context.close();}
+ });
+}
+for(const profile of profiles)for(const lang of ['en','es'])test(`4 keeper redirect, list, create, activate and freeze (${profile.name}, ${lang})`,async({browser})=>{
+ const {context,page}=await contextFor(browser,profile,lang);
+ try{
+  await localOnly(context,{googleRedirect:true});let popups=0;page.on('popup',()=>popups++);
+  await page.goto(`/little-galaxy/admin?emulators=1&lang=${lang}`);await expect(page.locator('html')).toHaveAttribute('lang',lang);await googleSignIn(page,`captain-${profile.name}-${lang}@example.test`);
+  await expect(page.locator('#ad-create')).toBeVisible();expect(popups).toBe(0);
+  await expect(page.locator('html')).toHaveAttribute('lang',lang);
+  await page.locator('#ad-create').click();await page.locator('#ad-new input[name="name"]').fill(`Acceptance ${profile.name} ${lang}`);await page.locator('#ad-new button[type="submit"],#ad-new button.ad-primary').click();
+  const card=page.locator('.ad-galaxy').filter({hasText:`Acceptance ${profile.name} ${lang}`});await expect(card).toBeVisible();
+  await card.locator('[data-action="active"]').click();await page.locator('#ad-confirm').click();await expect(card.locator('[data-action="active"]')).toBeDisabled();
+  await card.locator('[data-action="freeze"]').click();await page.locator('#ad-confirm').click();await expect(card.locator('[data-action="unfreeze"]')).toBeVisible();
+  await screenshot(page,`keeper-${profile.name}-${lang}`);
+ }finally{await context.close();}
+});

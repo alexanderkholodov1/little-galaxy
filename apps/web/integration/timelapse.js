@@ -1,4 +1,5 @@
 import './timelapse.css';
+import {recordedStories} from './recorded-stories.js';
 export class Playback {
   constructor(duration,now=()=>performance.now()) {this.duration=duration;this.now=now;this.position=0;this.anchor=now();this.speed=1;this.playing=false;}
   tick(){
@@ -16,11 +17,11 @@ export function setupTimelapse({loaded,request,now}){
   const g=loaded.galaxy,duration=Math.max(0,loaded.head.effectiveTick,Math.ceil(((g.frozenAt??now())-g.epoch)*.12));
   const playback=new Playback(duration);playback.seek(duration);playback.speed=60;
   const firstLaunch=loaded.actions.find(a=>a.intent.type==='launch')?.intent.effectiveTick??0;
-  const es=document.documentElement.lang==='es';
+  const es=document.documentElement.lang==='es',story=recordedStories[g.id]?.[es?'es':'en'];
   document.body.dataset.replay='true';
   const footer=document.createElement('footer');footer.id='timeRuler';
-  const name=document.createElement('h1');name.textContent=g.name;footer.append(name);
-  const record=document.createElement('p');record.textContent=`${new Date(g.epoch).toISOString().slice(0,10)} · ${es?'Cielo registrado · solo mirar':'Recorded sky · read only'}`;footer.append(record);
+  const name=document.createElement('h1');name.textContent=story?.shortTitle??g.name;footer.append(name);
+  const record=document.createElement('p');record.textContent=`${new Date(g.epoch).toISOString().slice(0,10)} · ${story?.timeline??(es?'Cielo registrado · solo mirar':'Recorded sky · read only')}`;footer.append(record);
   const controls=document.createElement('div');controls.className='timeControls';
   controls.innerHTML=`<button id="replayPlay" type="button">${es?'Reproducir':'Play'}</button><label>${es?'Velocidad':'Speed'} <select id="replaySpeed">${[.25,1,4,16,60].map(n=>`<option value="${n}" ${n===60?'selected':''}>${n}×</option>`).join('')}</select></label><output id="replayTime">0:00:00</output>`;
   const scrub=document.createElement('input');scrub.type='range';scrub.min='0';scrub.max=String(duration);scrub.value='0';scrub.step='1';scrub.id='replayScrub';scrub.setAttribute('aria-label',es?'Momento de la galaxia':'Galaxy moment');

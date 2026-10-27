@@ -8,13 +8,14 @@ is needed. Package versions remain development/workspace metadata.
 
 ## Allocation rules
 
-The active line is `v1.0.0-alpha.N[.M...]`, with numeric identifiers and no leading zeros.
+The active line is `v1.0.0-alpha.N[.M...][-rcN]`, with numeric identifiers and no leading zeros.
 The allocator reads the **PR head branch first**, then the PR title if the branch has no valid
 leading version. A descriptive suffix is allowed: `v1.0.0-alpha.9-close` requests
 `v1.0.0-alpha.9`; `v1.0.0-alpha.9.4: Finish tests` requests `v1.0.0-alpha.9.4`.
 
 | Request and existing tags | Allocated release |
 | --- | --- |
+| Branch `v1.0.0-alpha.10.0-rc1`, newest alpha.9 | `v1.0.0-alpha.10.0-rc1` (exact requested candidate) |
 | Branch `v1.0.0-alpha.9-close`, newest alpha.8 | `v1.0.0-alpha.9` (exact requested tag is free) |
 | Unversioned branch, title `v1.0.0-alpha.9: Close`, newest alpha.8 | `v1.0.0-alpha.9` |
 | Branch alpha.9, alpha.9 already exists | `v1.0.0-alpha.9.1` |
@@ -41,13 +42,10 @@ the first release is v1.0.0-alpha.1.
 
 ## What a PR shows
 
-The **This merge can reach production** check writes **Forecast: <allocated-tag>** and the reason
-in its GitHub Actions summary, or an explicit no-shipped-paths result. It explains older-prefix
-fallbacks. PR title edits also rerun the forecast. The forecast uses current fetched tags; another
-release or a branch/title edit can change the allocation before merge. Main resolves the merged
-PR again and refreshes tags before reserving the final version. Require this check and the three
-parallel test jobs in branch protection. Checked previews remain development builds; the production
-release rebuild stamps the final allocated tag. No package version edit is needed.
+One job runs the same `pnpm check` as local verification. Rehearsal pushes record a verdict artifact.
+The captain runs `pnpm accept` locally before merge; GitHub has no preview or slow browser/emulator
+jobs. Main resolves the merged PR and refreshes tags before reserving the final version, including
+an exact `-rcN` request. The production rebuild stamps that allocated tag without a package edit.
 
 ## Merged PR metadata and tag reservation
 
@@ -100,8 +98,8 @@ PR #13 failure: a previously tagged package version can never suppress a shippin
    the runtime version constants. Release builds reject malformed tags and missing commit IDs.
    The package version remains a fallback for development builds. Build caching remains disabled.
 3. Build/privacy runs once. The artifact is `galaxy-dist-<tag>.tar.gz`, plus `version.json` and
-   `SHA256SUMS`. The existing `little-galaxy-rules` environment still requires operator review for
-   rules/index deployment and migration with season restoration. No PR suite is repeated here.
+   `SHA256SUMS`. The `little-galaxy-rules` environment then deploys rules/indexes and the migration with
+   season restoration without manual review: the merge is the approval. No PR suite is repeated here.
 4. Fresh-main guards before deployment, publication and dispatch reject a superseded shipping
    commit. Later docs-only merges do not block a release. Distinct merges have distinct orchestration
    groups and cannot silently replace one another there; the shared data-deploy concurrency group
@@ -109,7 +107,7 @@ PR #13 failure: a previously tagged package version can never suppress a shippin
    release, rather than deploying an old commit over it. Rapid merges can supersede an older release
    before production; the latest shipping merge must finish green.
 5. Publication verifies existing checksummed assets on retry and dispatches `galaxy-release` with
-   the exact tag to portfolio. Only portfolio deploys production Hosting. Its approval, secrets,
+   the exact tag to portfolio. Only portfolio deploys production Hosting. Its secrets,
    receiver validation and availability remain prerequisites; automatic numbering bypasses none.
 6. The final step polls production `little-galaxy/version.json`, bypassing caches every five seconds
    for up to eight minutes. Both the exact released commit and stamped version must match. HTTP
@@ -118,8 +116,8 @@ PR #13 failure: a previously tagged package version can never suppress a shippin
 
 Retry failed jobs after repairing their cause. If an existing published archive differs from a
 rebuilt archive/checksum, publication refuses to overwrite it: recover the original checked artifact
-or release the current main commit. Preserve the rules environment's required reviewer, preview
-separation, privacy gate, and physical-phone/live-update acceptance checks.
+or release the current main commit. Preserve the rules environment's branch restriction (no manual reviewer: the merge is the
+approval), privacy gate, and local phone/live-update acceptance checks.
 
 ## Portfolio receiver pattern
 
@@ -148,3 +146,16 @@ versus docs-only main, version stamping and production polling. Process fixtures
 success/failure/signal cleanup. These do not certify native Windows Java teardown, deployed previews
 or physical phones; the coordinator runs rules/UI twice in succession on Windows and verifies the
 preview on real phones before live acceptance.
+
+## RC1 verification and live safety
+
+The current CI has one job running `pnpm check` (lint, typecheck, unit, physics, build/privacy).
+Preview, browser and emulator jobs have been removed from GitHub. `pnpm accept` runs built-client
+journeys locally against public production reads and isolated emulators; its SHA report is the
+acceptance record. Rehearsal pushes retain their one-job verdict artifact.
+
+The release builds verified frozen-record assets from anonymous public reads. After rules/indexes
+and the exact client are released and the client is confirmed live, `open-sandbox` idempotently
+creates/selects an open current-kernel galaxy. Activation is deliberately after client publication
+so an older browser never receives a newly selected incompatible kernel before it can reload.
+The original frozen generation is never relabelled, unfrozen or edited by this setup.

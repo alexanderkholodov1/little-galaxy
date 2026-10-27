@@ -20,7 +20,10 @@
     "test:live-safety": "node scripts/test-live-safety.mjs",
     "test:ui": "node scripts/test-ui.mjs",
     "test:unit": "turbo run test --concurrency=2 && vitest run",
-    "test:physics": "node tests/prototype/physics.mjs"
+    "test:physics": "node tests/prototype/physics.mjs",
+    "prepare:records": "node scripts/run-tsx.mjs scripts/prepare-records.mjs",
+    "accept": "node scripts/run-tsx.mjs scripts/accept.mjs",
+    "check": "node scripts/check.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

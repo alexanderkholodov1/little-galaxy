@@ -1,4 +1,7 @@
-# Showcase hito alpha.9.7
+# Showcase physics and replay foundation (included in alpha.10.0-rc1)
+
+See [the release-candidate journey contract](RELEASE-CANDIDATE.md) for automatic release setup,
+local acceptance and the current visitor flows. The measurements below describe the replay foundation.
 
 This hito combines A-open with the separately shipped alpha.9.6 presentation hotfix and the
 operator's frozen-opening, seeking and fire-centred galaxy requirements. No production data is
@@ -53,11 +56,9 @@ frames; playback finishes a fixed frame and stops on each accepted action bounda
 clock requests have arrived. Paused/seek display positions do not coast on the live clock.
 
 After this hito is released, the owner must open
-`https://alexanderkholodov.web.app/little-galaxy/admin`, sign in and click **Save verified sky**
-on **BAD 2026**. Wait for the completion notice before checking the public home and timelapse.
-This is the only one-time production action needed for fast historical opening. It saves caches,
-not a new galaxy or a rewritten history. Preparation took 43.506 s locally; network writes add time.
-For this record it saves 412 moments; the endpoint is 7,027 bytes and the index 45,037 bytes.
+The release now builds these same verified recorded moments as public assets automatically;
+no keeper action is needed for the fair to open. The existing **Save verified sky** action remains
+available for newly frozen records between releases. See `RELEASE-CANDIDATE.md`.
 
 ## Current-kernel galaxy design
 

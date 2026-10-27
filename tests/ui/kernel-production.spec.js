@@ -50,7 +50,7 @@ test('an admin-created active galaxy uses the new kernel and serves a fresh visi
  const keeperContext=await browser.newContext(),phoneContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
  const joinContext=await browser.newContext();
  try{
-  await localOnly(keeperContext,{googlePopup:true});await localOnly(phoneContext);await localOnly(joinContext);
+  await localOnly(keeperContext,{googleRedirect:true});await localOnly(phoneContext);await localOnly(joinContext);
   const keeper=await keeperContext.newPage();await keeper.goto('/little-galaxy/admin');await googleSignIn(keeper,'captain@example.test');
   const recorded=keeper.locator(`[data-galaxy="${fairId}"]`);await expect(recorded).toBeVisible();
   await recorded.locator('[data-action="certify"]').click();

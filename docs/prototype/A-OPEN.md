@@ -1,5 +1,10 @@
 # A-open: opening at the live present
 
+The complete alpha.10.0-rc1 delivery now provisions and selects its new sandbox automatically,
+**after** the compatible production client is verified live. No keeper create/select step is
+needed, and no historical generation is relabelled. Frozen-record release assets also remove
+the one-time keeper certification requirement. See [the current journey and release contract](RELEASE-CANDIDATE.md).
+
 Work package `v1.0.0-alpha.9.5`, on top of integrated hito A (`3a1099e`).
 This implements the operator-approved formula-orbit / client-leader snapshot design.
 Local Node results are evidence about replay, not deployed-preview or real-phone acceptance.

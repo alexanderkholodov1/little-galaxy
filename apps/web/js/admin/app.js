@@ -4,7 +4,9 @@ import {setupTheme} from '../../integration/theme.js';
 setupTheme();
 import store from './store.js';
 import {es,en} from '../strings/admin.js';
-let lang='en', unlocked=false, tab='galaxies', galaxyId='', query='', offset=0, selected=new Set(), filters={}, toastTimer;
+let initialLanguage='en';
+try{const requested=new URLSearchParams(location.search).get('lang')||localStorage.getItem('little-galaxy.admin-language');if(['en','es'].includes(requested))initialLanguage=requested;localStorage.setItem('little-galaxy.admin-language',initialLanguage);}catch{ /* English remains available without storage. */ }
+let lang=initialLanguage, unlocked=false, tab='galaxies', galaxyId='', query='', offset=0, selected=new Set(), filters={}, toastTimer;
 const root=document.querySelector('#ad-root'), dialog=document.querySelector('#ad-dialog'), toast=document.querySelector('#ad-toast');
 const t=(key,vars={})=>Object.entries(vars).reduce((s,[k,v])=>s.replaceAll('{'+k+'}',String(v)),(lang==='es'?es:en)['admin.'+key]||key);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -17,11 +19,11 @@ function notify(message,error=false,undo=null){
  else toastTimer=setTimeout(()=>toast.hidden=true,20000);
 }
 function chrome(){document.documentElement.lang=lang;document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));document.querySelector('#ad-lang').textContent=lang==='es'?'EN':'ES';document.querySelector('#ad-lang').setAttribute('aria-label',lang==='es'?'English':'Español');document.querySelector('#ad-logout').hidden=!unlocked;}
-document.querySelector('#ad-lang').onclick=safe(async()=>{if(dialog.open)dialog.close();lang=lang==='es'?'en':'es';await render();});
+document.querySelector('#ad-lang').onclick=safe(async()=>{if(dialog.open)dialog.close();lang=lang==='es'?'en':'es';try{localStorage.setItem('little-galaxy.admin-language',lang);}catch{ /* Keep the current page usable. */ }await render();});
 document.querySelector('#ad-logout').onclick=async()=>{await store.signOut();unlocked=false;dialog.close();toast.hidden=true;render();};
 function gate(){
       root.innerHTML=`<section class="ad-gate glass"><h1>${t('gate')}</h1><button id="ad-google" class="ad-primary">${t('google')}</button><p class="ad-note">${t('local')}</p></section>`;
-      document.querySelector('#ad-google').onclick=safe(async()=>{await store.signIn();unlocked=true;await render();});
+      document.querySelector('#ad-google').onclick=safe(async()=>{await store.signIn();});
     }
 async function render(){clearInterval(activityTimer);chrome();if(!unlocked){gate();return;}root.innerHTML=`<nav class="ad-tabs" role="tablist">${['galaxies','bodies','metrics'].map(k=>btn(k,`role="tab" id="ad-tab-${k}" aria-controls="ad-panel" aria-selected="${tab===k}" data-tab="${k}"`)).join('')}</nav><section id="ad-panel" role="tabpanel" aria-labelledby="ad-tab-${tab}"></section>`;root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=safe(async()=>{tab=b.dataset.tab;await render();}));const tabs=[...root.querySelectorAll('[data-tab]')];tabs.forEach(b=>b.disabled=true);try{await ({galaxies:renderGalaxies,bodies:renderBodies,metrics:renderMetrics}[tab])();}finally{tabs.forEach(b=>b.disabled=false);}}
 async function renderGalaxies(){const galaxies=await store.listGalaxies(), selection=await store.getSelection(),canCreate=await store.canCreate();document.querySelector('#ad-panel').innerHTML=`<div class="ad-intro"><div><h1>${t('intro')}</h1><p>${t('introText')}</p></div>${btn('create','id="ad-create" class="ad-primary" '+(!canCreate?'disabled':''))}</div><p class="ad-note">${t('limit')}</p><div class="ad-galaxies">${galaxies.map(g=>`<article class="ad-galaxy glass" data-galaxy="${esc(g.id)}"><div><div class="ad-state">${t(g.state)}</div><h2>${esc(g.name)}</h2><p>${esc(g.lore)}</p></div><div class="ad-selections">${selection.activePublicGalaxyId===g.id?`<span>● ${t('active')}</span>`:''}${selection.boothGalaxyId===g.id?`<span>● ${t('booth')}</span>`:''}</div><div class="ad-counts"><div class="ad-count">${g.bodies}<small>${t('bodies')}</small></div><div class="ad-count">${g.players}<small>${t('players')}</small></div></div><div class="ad-actions">${g.state==='open'?btn('setActive','data-action="active" '+(selection.activePublicGalaxyId===g.id?'disabled':'')):''}${g.state!=='archived'?btn('setBooth','data-action="booth" '+(selection.boothGalaxyId===g.id?'disabled':'')):''}${g.state!=='archived'?btn(g.state==='open'?'freeze':'unfreeze',`data-action="${g.state==='open'?'freeze':'unfreeze'}"`):''}${g.state!=='archived'?btn('certify','data-action="certify"'):''}${btn('backup','data-action="backup"')}${g.state!=='archived'?btn('archive','data-action="archive" '+([selection.activePublicGalaxyId,selection.boothGalaxyId].includes(g.id)?'disabled':'')):''}</div></article>`).join('')}</div>`;

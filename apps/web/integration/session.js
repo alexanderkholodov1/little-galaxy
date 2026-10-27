@@ -1,4 +1,5 @@
 import './uuid.js';
+import {publishedRecords} from './published-records.js';
 import {createGalaxyStore} from '@little-galaxy/shared';
 import {firestoreGalaxyDriver,ServerClock} from '@little-galaxy/shared/firestore';
 import {auth,firestore,startAnonymousSession} from '../src/firebase.ts';
@@ -11,8 +12,8 @@ export async function openSession({readOnly=false,admin=false,history=false}={})
   if(admin&&!auth.currentUser)throw new Error('Sign in with Google to open the keeper’s ledger.');
   const clock=new ServerClock();
   const emulator=firestore.app.options.projectId==='demo-little-galaxy' && (import.meta.env.DEV || ['localhost','127.0.0.1'].includes(location.hostname));
-  const transport=firestoreGalaxyDriver(firestore,{clock,getToken:()=>auth.currentUser?.getIdToken()??Promise.resolve(''),
-    ...(emulator?{emulatorOrigin:`http://${location.hostname}:8080`}:{})});
+  const transport=publishedRecords(firestoreGalaxyDriver(firestore,{clock,getToken:()=>auth.currentUser?.getIdToken()??Promise.resolve(''),
+    ...(emulator?{emulatorOrigin:`http://${location.hostname}:8080`}:{})}));
   // Public viewers do not bootstrap private membership or create an Auth account.
   const driver=readOnly?{...transport,get:path=>path.includes('/members/')?Promise.resolve(null):transport.get(path)}:transport;
   const selection=await driver.get('config/live');

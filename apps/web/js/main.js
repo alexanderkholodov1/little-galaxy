@@ -53,7 +53,7 @@ function randomName(){
 /* ------------------------------------------------------------------ estado */
 const QS = new URLSearchParams(location.search);
 const ROUTE = location.pathname.replace(/\/$/, '');
-const store = createLocalStore({galaxyId: QS.get('g') || QS.get('galaxy') || null, booth: QS.has('booth') || ROUTE.endsWith('/screen'), replay: ROUTE.endsWith('/timelapse'), readOnly: ROUTE.endsWith('/timelapse') || ROUTE.endsWith('/screen') || QS.get('smoke') === 'readonly'});
+const store = createLocalStore({galaxyId: QS.get('g') || QS.get('galaxy') || null, booth: QS.has('booth') || ROUTE.endsWith('/screen'), replay: ROUTE.endsWith('/timelapse'), readOnly: ROUTE.endsWith('/timelapse') || ROUTE.endsWith('/screen') || QS.get('smoke') === 'readonly' || QS.get('view') === 'recorded'});
 // R14: métricas locales por galaxia (js/metrics.js). Nunca rompen el juego: un fallo se ignora.
 function metric(ev, extra){
   try{ track(ev, {galaxyId:store.galaxyId, memberId:store.owner(), displayName:S.player && !S.player.anonymous ? S.player.displayName : '', ...extra}); }catch(_){}
@@ -176,7 +176,7 @@ async function boot(){
   requestAnimationFrame(() => $('#veil').classList.add('is-done'));
   // pantalla de título: el nombre del juego aparece grande y se retira a la esquina
   document.body.classList.add('splashing');
-  if(!welcome()) setTimeout(() => { $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }, RM ? 1200 : 3000);
+  if(!welcome()){ $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }
   setInterval(saveSky, 8000);
 
   addEventListener('pagehide', () => { saveSky(); flush(); });
@@ -1081,18 +1081,6 @@ function onFrame(dt){
   }
   if(S.focus && (focusTick += dt) > .5){ focusTick = 0; updateFocusOrbit(); }
   if((sysTick += dt) > 3){ sysTick = 0; if(S.mode === 'home') updateSystems(); }
-}
-
-/* una galaxia congelada (admin, R13/R20) se visita pero no se toca: sin crear, sin lanzar, sin guardar */
-function freezeUi(){
-  document.body.classList.add('frozen');
-  for(const id of ['btnCreate', 'btnToss']) $('#' + id).hidden = true;
-  const chip = document.createElement('p');
-  chip.className = 'frozen-note glass'; chip.id = 'frozenNote'; chip.setAttribute('role', 'status');
-  const paint = () => { chip.textContent = t('galaxy.frozen', {name:S.galaxy.name || ''}); };
-  paint(); onLang(paint);
-  $('.layer[data-layer="home"] .dock').prepend(chip);
-  glass.scan();
 }
 
 /* ================================================================== guardar la galaxia (detrás de js/store.js) */

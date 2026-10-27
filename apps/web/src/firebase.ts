@@ -1,15 +1,19 @@
 import { initializeApp } from 'firebase/app';
-import { connectAuthEmulator, getAuth, signInAnonymously } from 'firebase/auth';
+import { connectAuthEmulator, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, signInAnonymously } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { resolveFirebaseConfig } from './firebase-config';
 
-const { config, emulators } = resolveFirebaseConfig(import.meta.env);
+const browserLocation = typeof window === 'undefined' ? undefined : window.location;
+const loopback = ['127.0.0.1', 'localhost'].includes(browserLocation?.hostname ?? '');
+const localEmulator = loopback && new URLSearchParams(browserLocation?.search).get('emulators') === '1';
+const resolved = resolveFirebaseConfig(localEmulator ? {...import.meta.env, DEV:true, VITE_USE_EMULATORS:'1'} : import.meta.env);
+const config = resolved.config;
+const emulators = resolved.emulators;
 export const sessionConfigured = config !== null;
 const app = config ? initializeApp(config) : null;
-export const auth = app ? getAuth(app) : null;
+export const auth = app ? initializeAuth(app, {persistence:[indexedDBLocalPersistence,browserLocalPersistence,browserSessionPersistence]}) : null;
 export const firestore = app ? getFirestore(app) : null;
 
-const browserLocation = typeof window === 'undefined' ? undefined : window.location;
 const demoLoopback = config?.projectId === 'demo-little-galaxy' && ['127.0.0.1', 'localhost'].includes(browserLocation?.hostname ?? '') && new URLSearchParams(browserLocation?.search).get('emulators') === '1';
 export const isReadOnlySmoke = new URLSearchParams(browserLocation?.search).get('smoke') === 'readonly';
 

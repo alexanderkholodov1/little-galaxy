@@ -1,29 +1,30 @@
 import { execFileSync } from 'node:child_process';
 
 // Existing stable/beta tags remain valid; alpha identifiers may have dotted numeric levels.
-export const releaseTagPattern = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:alpha|beta)\.[1-9]\d*(?:\.(?:0|[1-9]\d*))*)?$(?![\s\S])/u;
+export const releaseTagPattern = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:alpha|beta)\.[1-9]\d*(?:\.(?:0|[1-9]\d*))*(?:-rc[1-9]\d*)?)?$(?![\s\S])/u;
 
 export function validateReleaseTag(tag) {
-  if (!releaseTagPattern.test(tag || '')) throw new Error('Release tag must be vX.Y.Z with optional alpha/beta dotted numeric levels.');
+  if (!releaseTagPattern.test(tag || '')) throw new Error('Release tag must be vX.Y.Z with optional alpha/beta dotted numeric levels and -rcN.');
   return tag;
 }
 
 export const isAlphaTag = tag => releaseTagPattern.test(tag) && tag.startsWith('v1.0.0-alpha.');
 
 export function versionPrefix(text = '') {
-  return text.match(/^(v1\.0\.0-alpha\.[1-9]\d*(?:\.(?:0|[1-9]\d*))*)(?=$|[-/:\s])/u)?.[1];
+  return text.match(/^(v1\.0\.0-alpha\.[1-9]\d*(?:\.(?:0|[1-9]\d*))*(?:-rc[1-9]\d*)?)(?=$|[-/:\s])/u)?.[1];
 }
 
 // All active tags have the same core and prerelease label. Compare numeric identifiers
 // exactly (including arbitrarily large values); a longer equal-prefix prerelease sorts later.
 export function compareAlphaTags(a, b) {
   if (!isAlphaTag(a) || !isAlphaTag(b)) throw new Error('Only v1.0.0-alpha numeric tags can be compared.');
-  const left = a.slice('v1.0.0-alpha.'.length).split('.').map(BigInt);
-  const right = b.slice('v1.0.0-alpha.'.length).split('.').map(BigInt);
+  const [aa, ar] = a.split('-rc'), [bb, br] = b.split('-rc');
+  const left = aa.slice('v1.0.0-alpha.'.length).split('.').map(BigInt);
+  const right = bb.slice('v1.0.0-alpha.'.length).split('.').map(BigInt);
   for (let i = 0; i < Math.min(left.length, right.length); i++) {
     if (left[i] !== right[i]) return left[i] < right[i] ? -1 : 1;
   }
-  return Math.sign(left.length - right.length);
+  return Math.sign(left.length - right.length) || (BigInt(ar || 0) < BigInt(br || 0) ? -1 : BigInt(ar || 0) > BigInt(br || 0) ? 1 : 0);
 }
 
 export function newestAlphaTag(tags) {
@@ -31,10 +32,16 @@ export function newestAlphaTag(tags) {
 }
 
 function nextChild(base, tags) {
+  if (base.includes('-rc')) {
+    const parent = base.replace(/-rc\d+$/u, '');
+    let rc = BigInt(base.split('-rc')[1]) + 1n;
+    while (tags.includes(`${parent}-rc${rc}`)) rc++;
+    return `${parent}-rc${rc}`;
+  }
   let next = 1n;
   for (const tag of tags.filter(isAlphaTag)) {
     if (!tag.startsWith(base + '.')) continue;
-    const sibling = BigInt(tag.slice(base.length + 1).split('.')[0]) + 1n;
+    const sibling = BigInt(tag.slice(base.length + 1).split('.')[0].split('-rc')[0]) + 1n;
     if (sibling > next) next = sibling;
   }
   return `${base}.${next}`;

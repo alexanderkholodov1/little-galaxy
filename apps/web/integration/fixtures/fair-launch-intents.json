@@ -100,7 +100,7 @@
       "glow": 9
     },
     "effectiveTick": 666331,
-    "parent": "d8171f6e-beeb-4f0e-a143-54773318529f"
+    "parent": "fair-copy-1"
   },
   {
     "id": "fair-copy-5",
@@ -222,7 +222,7 @@
       "glow": 490
     },
     "effectiveTick": 1860900,
-    "parent": "d8171f6e-beeb-4f0e-a143-54773318529f"
+    "parent": "fair-copy-1"
   },
   {
     "id": "fair-copy-10",
@@ -247,7 +247,7 @@
       "glow": 104
     },
     "effectiveTick": 1926965,
-    "parent": "c2de1793-dfe4-4d82-a34e-3ac9eb695d21"
+    "parent": "fair-copy-7"
   },
   {
     "id": "fair-copy-11",

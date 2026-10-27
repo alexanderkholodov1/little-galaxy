@@ -5,11 +5,11 @@ import {startSharedWorld} from './shared-world.js';
 let stop;
 beforeEach(()=>{vi.useFakeTimers();document.body.innerHTML='<div id="hud"></div><button id="btnCreate"></button><button id="btnToss"></button><button id="btnToPad"></button><div id="focusCard"></div>';vi.spyOn(document,'hidden','get').mockReturnValue(false);});
 afterEach(()=>{stop?.();stop=null;vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals();});
-function fixture({provisional=false}={}){
+function fixture({provisional=false,checkpoint=null}={}){
  let now=10000;const workers=[];
  vi.stubGlobal('Worker',class{constructor(){workers.push(this);}postMessage=vi.fn();terminate=vi.fn();});
  const galaxy={status:'active',writePolicy:'public',epoch:0};
- const loaded={galaxy,head:initialHead(0),checkpoint:null,provisional};
+ const loaded={galaxy,head:initialHead(0),checkpoint,provisional};
  const store={history:vi.fn(async()=>loaded),claimSnapshot:vi.fn(async()=>true),publishSnapshot:vi.fn(async()=>true),now:()=>now,readOnly:false,galaxyId:'g',owner:()=> 'm',touch:vi.fn(),stop:vi.fn(),loadGalaxy:vi.fn(async()=>loaded),backend:()=>({driver:{get:async()=>({})}})};
  const world={frame:vi.fn(),sharedHomes:new Map([['0','0']]),failSharedLaunch:vi.fn(),sim:{bodies:[],systems:[{id:'0',prim:[0],p:[0,0,0],v:[0,0,0]}],emit:vi.fn()},entries:[],applySharedState:vi.fn(()=>[])};
  store.loaded=()=>loaded;store.launch=vi.fn(async(_id,launch)=>({intent:{...launch,id:'accepted'}}));
@@ -99,4 +99,12 @@ it('starts independent history immediately if a provisional state fails before t
  expect(f.store.history).toHaveBeenCalledOnce();
  expect(f.worker.postMessage.mock.calls.some(([m])=>m.verify && m.loadKey===1)).toBe(true);
  expect(f.world.applySharedState).not.toHaveBeenCalled();
+});
+
+it('renders the available snapshot before the first worker turn so opening never shows an empty prefix',()=>{
+ const state={sequence:2,sim:{steps:960,bodies:[{id:0},{id:1},{id:2}]},entries:[]};
+ const f=fixture({checkpoint:{state:JSON.stringify(state)}});
+ expect(f.world.applySharedState).toHaveBeenCalledWith(state,expect.any(Function),'m');
+ expect(document.body.dataset.openingFrame).toBe('snapshot');
+ expect(f.worker.postMessage.mock.calls[0][0].load.checkpoint.state).toBe(JSON.stringify(state));
 });

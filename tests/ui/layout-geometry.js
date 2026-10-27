@@ -34,7 +34,8 @@ export async function measureLayout(page) {
       }
       return box.right > box.left && box.bottom > box.top ? box : null;
     }
-    const controls = [...document.querySelectorAll('button, a[href], input, select, textarea, [tabindex="0"]')]
+    const controlRoot=document.querySelector('dialog[open]')||document;
+    const controls = [...controlRoot.querySelectorAll('button, a[href], input, select, textarea, [tabindex="0"]')]
       .map(el => ({el, box: visibleBox(el)})).filter(item => item.box);
     const name = el => el.id || el.getAttribute('aria-label') || el.textContent.trim().slice(0, 60);
     const overlaps = [];

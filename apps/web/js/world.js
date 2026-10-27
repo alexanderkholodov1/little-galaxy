@@ -1432,6 +1432,7 @@ export function createWorld(canvas, opts = {}){
   const ctxBody = {dt:0, light:new THREE.Vector3(), sun:SUN, mode:'galaxy', rm:RM, aurora:0, px:1};
   let frames = 0, slowAcc = 0, slowN = 0;
   function frame(dtRaw){
+    document.body.dataset.benchState=W.benchState;
     const dt = Math.min(dtRaw, 0.05);
     W.t += dt; timeU.value = W.t;
     if(W.shared) toySim.advance(dt); else sim.advance(dt);

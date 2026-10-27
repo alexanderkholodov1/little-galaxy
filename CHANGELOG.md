@@ -1,11 +1,11 @@
 # Changelog
 
-## 1.0.0-alpha.9.7 — recorded skies open at once and new galaxies gather around the fire, 2026-10-27
+## 1.0.0-alpha.10.0-rc1 — an open shared sandbox and the original fair, ready to visit, 2026-10-27
 
 - Open active galaxies from canonical leased snapshots, verify history in the background and fall
   back on mismatch; evaluate mature orbits directly and share deterministic contact grids.
-- Keep the original fair kernel and record intact. Extend “Save verified sky” with immutable
-  endpoint and indexed timeline states so frozen visits and seeks avoid replaying hours.
+- Keep the original fair kernel and history intact. Build verified endpoint and indexed timeline
+  assets into every release; frozen visits and seeks avoid replaying hours without an admin step.
 - Open timelapse at the recorded endpoint, play from its first launch, support pointer and
   Home/End/arrow seeking, and display completed frames and each launch at every playback speed.
 - Preserve checkpoint coordinates at compact-launch frame changes and frame every body with the
@@ -16,6 +16,15 @@
 - Preserve the physical launch minute, deterministic snapshots/replay and finite settling bridges.
   Add no player cooldown, cap or budget. Record before/after timings and fair-intent end states.
 - Integrate the separately shipped alpha.9.6 welcome-title and timelapse mask-icon hotfix.
+- Create and activate an open sandbox idempotently during release; preserve all frozen generations.
+- Explain Be A Dragon 2026, visitor nicknames and timelapse in English and Spanish; add clear
+  navigation between the shared sandbox, fair and timelapse, with a phone-sized information panel.
+- Replace blocked cross-site Google popups with a first-party return from top-level Google OIDC,
+  checking state, nonce and audience before Firebase verifies the credential and keeper allowlist.
+- Honour exact release-candidate requests. Run the same local `pnpm check` in one CI job;
+  remove preview, rules and browser jobs from GitHub. Prove built-client journeys with local
+  `pnpm accept`, production public reads and an isolated emulator seeded from an ignored export.
+- Publish rules, indexes and client automatically on merge without manual approval.
 
 ## A-show presentation — 2026-10-26
 

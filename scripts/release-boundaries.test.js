@@ -135,7 +135,10 @@ it.each([0, 1])('always-run recovery propagates exit=%s and leaves credential re
     const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', command], { env: { ...process.env, GITHUB_STEP_SUMMARY: summary, PATH: `${root}:${process.env.PATH}` }, encoding: 'utf8' });
     expect(result.status).toBe(code);
     if (code) expect(result.stdout).toContain('Operate the sky');
-    expect(workflow.indexOf('src/index.ts restore-season')).toBeLessThan(workflow.indexOf('rm -f'));
+    const deployment=workflow.split('\n  deploy-rules:')[1];
+    expect(deployment.indexOf('src/index.ts restore-season')).toBeLessThan(deployment.indexOf('rm -f'));
+    const publication=workflow.split('\n  publish:')[1].split('\n  deploy-rules:')[0];
+    expect(publication.indexOf('src/index.ts open-sandbox')).toBeLessThan(publication.indexOf('rm -f'));
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

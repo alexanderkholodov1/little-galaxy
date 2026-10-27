@@ -1,3 +1,4 @@
+import {galaxyVisits} from './galaxy-visits.js';
 import {launchVoice} from './voice.js';
 import {routeLaunch} from './launch-routing.js';
 import {setupTimelapse} from './timelapse.js';
@@ -31,6 +32,12 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     finally{snapshotBusy=false;}
   }
   world.shared=true;world.replay=replayMode;
+  // The verified opening prefix is already in memory. Paint it before starting any worker
+  // turn, rather than exposing an empty fire while the worker module loads.
+  if(loaded.checkpoint){
+    try{const state=JSON.parse(loaded.checkpoint.state);world.applySharedState(state,normDesign,store.owner());updateCount();document.body.dataset.openingFrame='snapshot';}
+    catch{ /* The worker's verified replay/fallback remains authoritative. */ }
+  }
   function target(){
     if(playback)return playback.tick();
     if(replayMode)return 0;
@@ -43,18 +50,15 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   }
   function readonly(){
     const frozen=S.galaxy.status!=='active'||S.galaxy.writePolicy==='frozen';
-    world.readOnly=frozen||store.readOnly;S.frozen=frozen;
+    world.readOnly=frozen||store.readOnly;S.frozen=frozen;document.body.dataset.recorded=String(frozen);
     for(const id of ['btnCreate','btnToss','btnToPad']){
       const button=document.getElementById(id);button.disabled=world.readOnly;
       button.title=frozen?(document.documentElement.lang==='es'?'Esta galaxia está descansando. Puedes mirar, pero no lanzar.':'This galaxy is resting: you can visit, but no more stars can launch here.'):'';
     }
-    let note=document.getElementById('sharedStatus');
-    if(!note){note=document.createElement('p');note.id='sharedStatus';note.className='glass';note.setAttribute('role','status');(document.querySelector('.home-footer')||document.getElementById('hud')).prepend(note);}
-    note.hidden=!frozen||replayMode;note.textContent=document.documentElement.lang==='es'?'Esta galaxia está descansando. Puedes mirar, pero no lanzar.':'This galaxy is resting. You can visit, but no more stars can launch here.';
-    if(frozen&&!replayMode){const link=document.createElement('a');link.id='openTimelapse';link.textContent=document.documentElement.lang==='es'?'Ver el timelapse':'Watch the timelapse';link.href=`${import.meta.env.BASE_URL}timelapse?g=${encodeURIComponent(store.galaxyId)}`;note.append(link);}
+    document.getElementById('sharedStatus')?.remove();
   }
-  readonly();
-  const onLanguage=()=>readonly();
+  readonly();const visits=galaxyVisits({store,replayMode});
+  const onLanguage=()=>{readonly();visits.render();};
   const languageObserver=new MutationObserver(onLanguage);
   languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
   async function requestTick(tick,{seek=false}={}){
@@ -65,6 +69,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
         const entry=loaded.timeline?timelineEntry(loaded.timeline,tick):null;
         const checkpoint=entry?await store.recordedMoment(entry):null;
         if(key!==seekKey||boundary!==loadKey)return;
+        lastTarget=tick;
         worker.postMessage({seek:{checkpoint,tick},seekKey:key,loadKey});
       }catch{
         if(key===seekKey&&boundary===loadKey)worker.postMessage({seek:{checkpoint:null,tick},seekKey:key,loadKey});
@@ -141,7 +146,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   document.addEventListener('visibilitychange',visibility);
   const stopVersion=watchVersion(saveDraft);
   return ()=>{
-    clearInterval(timer);clearInterval(touch);clearInterval(snapshotTimer);clearTimeout(verificationTimer);loadKey++;seekKey++;playback?.dispose();languageObserver.disconnect();stopVersion();worker.terminate();store.stop();
+    visits.dispose();clearInterval(timer);clearInterval(touch);clearInterval(snapshotTimer);clearTimeout(verificationTimer);loadKey++;seekKey++;playback?.dispose();languageObserver.disconnect();stopVersion();worker.terminate();store.stop();
     document.removeEventListener('visibilitychange',visibility);
     removeEventListener('galaxy:actions',onActions);removeEventListener('galaxy:manifest',onManifest);
     removeEventListener('galaxy:error',onError);removeEventListener('galaxy:selection',onSelection);removeEventListener('galaxy:notice',onNotice);
