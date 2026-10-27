@@ -47,7 +47,8 @@ body[data-recorded="true"]:not([data-replay="true"]) .sky-primary{
 }
 #recordScrim{position:fixed;inset:0;z-index:80;background:rgba(5,7,12,.78)}
 body:has(#recordInformation[open]) #btnSystems,
-body:has(#recordInformation[open]) #sysList{display:none !important}
+body:has(#recordInformation[open]) #sysList,
+body:has(#recordInformation[open]) .top-actions{display:none !important}
 #recordInformation{
   position:fixed;z-index:81;top:88px;left:16px;right:16px;margin:0 auto;
   width:min(520px, calc(100% - 32px));max-height:calc(100dvh - 112px);overflow:auto;box-sizing:border-box;

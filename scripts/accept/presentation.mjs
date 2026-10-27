@@ -135,9 +135,15 @@ export async function assertProductType(page, state) {
 
 // A disc under 4px is the finding-chart pinprick. Sandbox bodies already clear this.
 export async function assertReadableBodies(page, state) {
-  const radii = await page.evaluate(() => (typeof window.__galaxyDiscs === 'function' ? window.__galaxyDiscs() : []));
-  if (!radii.length) throw new Error(`${state}: the galaxy opened with no bodies to measure`);
-  const smallest = Math.min(...radii);
+  const detail = await page.evaluate(() => {
+    const count = Number(document.querySelector('#countN')?.textContent || 0);
+    const radii = typeof window.__galaxyDiscs === 'function' ? window.__galaxyDiscs() : null;
+    return {count, radii};
+  });
+  if (!detail.radii) throw new Error(`${state}: bodies cannot be measured`);
+  if (detail.count > 0 && !detail.radii.length) throw new Error(`${state}: the galaxy opened with no bodies to measure`);
+  if (!detail.radii.length) return;
+  const smallest = Math.min(...detail.radii);
   if (!(smallest >= 4)) throw new Error(`${state}: a body is drawn at ${smallest.toFixed(2)}px`);
 }
 

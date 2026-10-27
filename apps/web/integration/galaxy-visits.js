@@ -20,7 +20,7 @@ export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
   const es=document.documentElement.lang==='es',g=store.loaded().galaxy,story=recordedStories[g.id]?.[es?'es':'en'];
   const title=document.createElement('h2');title.id='recordInformationTitle';title.textContent=story?.title??g.name;dialog.append(title);
   for(const text of story?.paragraphs??[say('record.fallback')]){const p=document.createElement('p');p.textContent=text;dialog.append(p);}
-  const close=document.createElement('button');close.type='button';close.id='recordInformationClose';close.className='pill';close.textContent=say('record.close');close.onclick=()=>dialog.close();dialog.append(close);
+  const close=document.createElement('button');close.type='button';close.id='recordInformationClose';close.className='pill glass';close.textContent=say('record.close');close.onclick=()=>dialog.close();dialog.append(close);
   const shut=()=>{scrim?.remove();nav.hidden=false;};
   dialog.addEventListener('close',shut);scrim.onclick=()=>dialog.close();
   nav.hidden=true;document.body.append(scrim,dialog);dialog.showModal();
