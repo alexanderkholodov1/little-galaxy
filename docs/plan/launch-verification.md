@@ -83,3 +83,12 @@ client does not exercise the hypothesized named first-launch member creation. Th
 from these reproductions and is not changed speculatively. The owner’s failed request
 or whether the tab still ran an older release remains needed to identify that denial.
 Four returning-state cases now extend the long-gap acceptance proof.
+
+## 0.25x playback assertion
+
+The 2e9e73c failure was a wall-clock observation race: its two-second sequence
+predicate timed out, then the captured diagnostic already showed tick 18538 and
+sequence 1 (the first launch is at tick 18536). The replay crossed the event. The
+check now waits for the rendered replay tick to reach the first launch, then still
+requires sequence >= 1, using the suite's existing assertion policy. All five speeds
+remain covered. No playback, physics, animation or latency threshold is changed.

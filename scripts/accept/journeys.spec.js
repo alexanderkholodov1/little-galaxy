@@ -160,7 +160,11 @@ for(const profile of profiles)for(const lang of ['en','es']){
     const first=launches[0].tick;await scrub.evaluate((el,t)=>{el.value=String(t);el.dispatchEvent(new Event('input',{bubbles:true}));},first-12);
     await expect(page.locator('body')).toHaveAttribute('data-tick',String(first-12));await expect(page.locator('#timeRuler')).not.toHaveAttribute('aria-busy','true');
     await page.locator(`#replaySpeed [data-speed="${speed}"]`).click();await page.locator('#replayPlay').click();
-    try{await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-sequence')),{timeout:2000}).toBeGreaterThanOrEqual(1);}
+    try{
+     // Wait for a rendered playback frame at the event, then require its accepted launch.
+     await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-tick'))).toBeGreaterThanOrEqual(first);
+     await expect.poll(async()=>Number(await page.locator('body').getAttribute('data-sequence'))).toBeGreaterThanOrEqual(1);
+    }
     catch(error){
      try{evidence.playbackFailure=await page.evaluate(()=>({tick:document.body.dataset.tick,sequence:document.body.dataset.sequence,play:document.querySelector('#replayPlay').textContent,pressed:document.querySelector('#replayPlay').getAttribute('aria-pressed'),clock:document.querySelector('#replayTime').value,busy:document.querySelector('#timeRuler').getAttribute('aria-busy'),visibility:document.visibilityState,speed:document.querySelector('#replaySpeed [aria-checked="true"]').dataset.speed}));}
      catch{/* Keep the original assertion if the page ended during diagnostics. */}
