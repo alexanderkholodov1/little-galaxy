@@ -31,7 +31,7 @@ Both visitors and the admin use the same Firebase Authentication of project `lit
 users, the admin as a Google user. The admin rights requirement is already enforced on the server.
 
 "The account system we agreed" is the owner's requirements of 2026-10-24 (`~/bad/spec/r3-operator-review.md`,
-lines 75-89). R18: admin sign-in with his Google account. R19: players may sign in. R23: one account shared by the game
+lines 74-90). R18: admin sign-in with his Google account. R19: players may sign in. R23: one account shared by the game
 and the portfolio. Order: "admin panel first, then player sign-in". The plan branch has none of this. The repository
 records R23 as **not built** and R19 as only partly built (planet surfaces; no player sign-in)
 (`docs/prototype/NOTES.md:37,41`). This decision covers R18. Player accounts (R19, R23) are a later hito in
