@@ -429,6 +429,8 @@ body.tossing .result{display:none !important}
   .dock .round .ring{width:64px;height:64px}
   .dock .round .ico{width:28px;height:28px}
   .dock .cta{gap:12px;padding-right:22px}
+  /* on the pad, notices sit below the aim reading instead of over it */
+  body[data-mode="launch"] .toasts{top:calc(160px + var(--st))}
 }
 @media (max-width:370px){
   .dock{gap:8px}
