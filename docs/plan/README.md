@@ -51,24 +51,25 @@ The owner's decisions that still define it:
 
 ## Versions
 
-The owner's maturity scheme (2026-10-28):
+The owner's maturity scheme (2026-10-28) applies to new projects. Little Galaxy already released a `v1.0.0` line, so
+its tags stay as they are and its own final goal is `v1.1.0` (owner, 2026-10-28: "dejalos asi ... tecnicamente los
+alphas de v1.0.0 si eran la produccion ... lo que queremos alcanzar como meta final es v1.1.0"):
 
 | Stage | Version | Meaning |
 | --- | --- | --- |
-| Before the first complete version | `v0.X.Y` | Intermediate hitos; not used for real |
-| Complete and in use, not yet perfect | `v1.0.0-alpha.X.Y.Z` | Hito `alpha.X`, work package `alpha.X.Y`, commit `1.0.0-alpha.X.Y.Z` |
-| Reviewed by the owner and called perfect | `v1.0.0` | Only the owner names it |
+| Complete and in use, still gaining features | `v1.0.0-alpha.X.Y.Z` | Hito `alpha.X`, work package `alpha.X.Y`, commit `1.0.0-alpha.X.Y.Z` |
+| Feature-complete, only fixes and polish | `v1.0.0-beta.X.Y.Z` | Same levels as alpha; the first beta hito extends the release tooling, which today compares only alpha tags (`scripts/release-version.js`) |
+| Reviewed by the owner and called perfect | `v1.1.0` | Only the owner names it |
 
-Little Galaxy is in the `v1.0.0-alpha` stage: it is complete and in use. A release-candidate suffix (`-rc1`) is used
-by the current hito. The owner has not yet decided between `-rc` and `-release` for future hitos (2026-10-28).
+Little Galaxy is in the alpha stage: it is complete and in use. A release-candidate suffix (`-rc1`) is used by the
+current hito. The owner has not yet decided between `-rc` and `-release` for future hitos (2026-10-28).
 Versions are allocated automatically from the PR head branch (`docs/automatic-releases.md`). Nobody edits a version by
 hand, and nothing requires a PR title to repeat a version written elsewhere (owner, 2026-10-28: manual version updates
 "must be purged").
 
-Historical exception: tags `v1.0.0` (2026-10-23, PR #9 "Fair-ready") and `v1.0.1` (PR #10) were created before this
-scheme was stated. The line was renumbered to `v1.0.0-alpha.1` on 2026-10-24 (PR #11). *Proposed, the owner decides:*
-before the real `v1.0.0`, rename those two GitHub releases and tags to `v0.8.0` and `v0.8.1`, so that `v1.0.0` can
-mean "perfect". Otherwise the final version needs another name.
+History: tags `v1.0.0` (2026-10-23, PR #9 "Fair-ready") and `v1.0.1` (PR #10) were created before this scheme was
+stated, and the line was renumbered to `v1.0.0-alpha.1` on 2026-10-24 (PR #11). They are production history and are
+not renamed (owner, 2026-10-28).
 
 ## Release policy
 

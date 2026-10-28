@@ -28,7 +28,8 @@ commits are on `main`.
 | H17 | Planet surfaces for everyone (R19) | `v1.0.0-alpha.12` | future | same |
 | H18 | Player accounts shared with the portfolio (R19 sign-in, R23) | `v1.0.0-alpha.13` | future | same; `r3-operator-review.md:67-90` |
 | H19 | Player galaxies with invites and limits (R24, R27) | `v1.0.0-alpha.14` | future | same; `r3-operator-review.md:92-113` |
-| H20 | Perfect: the owner's review | `v1.0.0` | future | owner's version scheme (README) |
+| H20 | Feature-complete: fixes and polish only | `v1.0.0-beta.1` onwards | future | owner, 2026-10-28 (README, Versions) |
+| H21 | Perfect: the owner's review, the final goal | `v1.1.0` | future | owner, 2026-10-28 (README, Versions) |
 
 Order and dependencies: H0 → H1 → … → H15 strictly in sequence (each consumed the previous `main`). After H15:
 H16 → H17 → H18 → H19 → H20. This is the owner's order for C, "destructive mode first" (2026-10-25). Hard dependencies
@@ -261,11 +262,18 @@ design package whose result the owner approves before building, following his de
 - **Acceptance:** a signed-in player creates an invite-only destructive galaxy, invites a second account that can play,
   a third account cannot write, and the limits refuse one more galaxy than allowed.
 
-### H20. `v1.0.0` Perfect
+### H20. `v1.0.0-beta.1` Feature-complete: fixes and polish only
 
-- **Owner's words:** `v1.0.0` only when it is "perfecta e impecable, revisada por mí, amada en todo" (2026-10-28).
-- **Packages:** the owner's review list, each item fixed in `v1.0.0-alpha.X` hitos. If the owner accepts the proposal
-  in README (Versions), first rename the historical `v1.0.0`/`v1.0.1` tags.
+- **Scope:** no new features. The owner plays the whole game on his phone and desktop; every finding becomes a fix
+  package in `v1.0.0-beta.X` hitos until his list is empty.
+- **Packages:** first, extend `scripts/release-version.js` (allocation and comparison) and its tests to beta tags, which
+  the tag pattern already accepts; then one package per finding.
+- **Acceptance:** the owner's list is empty and every journey of `pnpm accept` passes in production.
+
+### H21. `v1.1.0` Perfect: the final goal
+
+- **Owner's words:** the final goal is `v1.1.0` (2026-10-28), the version that is "perfecta e impecable, revisada por
+  mí, amada en todo" (2026-10-28). The historical `v1.0.0`/`v1.0.1` tags stay as they are.
 - **Acceptance:** the owner says so. Nobody else can declare it.
 
 ## Not scheduled
