@@ -1,4 +1,4 @@
-/* global document, getComputedStyle, requestAnimationFrame */
+/* global CSSTransition, document, getComputedStyle, requestAnimationFrame */
 import {expectLayout} from '../../tests/ui/layout-geometry.js';
 import {assertFairReturn, assertHeaderIcons, assertProductType, assertReadableBodies, assertScrubTracksThumb, assertShotSize} from './presentation.mjs';
 import {expect,test} from '@playwright/test';
@@ -45,6 +45,9 @@ async function screenshotThemes(page,name){
  const other=original==='light'?'dark':'light';
  try{
   await page.locator('html').evaluate((el,theme)=>{el.dataset.uiTheme=theme;},other);
+  // Buttons fade colour for .25s on a theme change; measure the settled theme, not a frame of the fade.
+  // Only transitions (looping animations never finish); a cancelled one counts as settled.
+  await page.evaluate(()=>Promise.allSettled(document.getAnimations().filter(a=>a instanceof CSSTransition).map(a=>a.finished)));
   if(await page.locator('.top-actions .icon-btn:visible, #panelTheme:visible').count())await assertHeaderIcons(page,`${name}-${other}`);
  }finally{
   await page.locator('html').evaluate((el,theme)=>{el.dataset.uiTheme=theme;},original);
