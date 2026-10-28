@@ -29,6 +29,10 @@
   Require the exact release candidate to pass the real launch and cleanup proof before
   rules deployment or live portfolio dispatch; use existing credentials only.
 
+- Count visitor bodies in admin cards, metrics and backup summaries, excluding generated
+  hosts (BAD: 21). Remove fair-display selection; the screen follows the active galaxy.
+  Use the approved Open Galaxy / Galaxia abierta name without changing layout or styles.
+
 ## 1.0.0-alpha.10.0-rc1 — an open shared sandbox and the original fair, ready to visit, 2026-10-27
 
 - Open active galaxies from canonical leased snapshots, verify history in the background and fall

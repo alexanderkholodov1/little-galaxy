@@ -63,3 +63,15 @@ it('submits an unscheduled draft and accepts a tick assigned after a delayed tra
  const accepted=await adapter.launch('g',raw);
  expect(accepted.intent.effectiveTick).toBe(1488);expect((await driver.get('galaxies/g/control/head')).sequence).toBe(1);adapter.stop();
 });
+
+it('makes the screen follow the active galaxy even when the legacy booth selection differs',async()=>{
+ const {adapter,backend,driver}=await fixture();adapter.stop();
+ backend.selection={...backend.selection,boothGalaxyId:'retired-fair'};
+ const screen=createSharedStore({booth:true,readOnly:true,session:async()=>backend});
+ const selected=[];const listen=({detail})=>selected.push(detail);addEventListener('galaxy:selection',listen);
+ try{
+  await screen.loadGalaxy();expect(screen.galaxyId).toBe('g');
+  await driver.transaction(async tx=>tx.set('config/live',{...backend.selection,activePublicGalaxyId:'next-open'}));
+  expect(selected).toContain('next-open');
+ }finally{screen.stop();removeEventListener('galaxy:selection',listen);}
+});

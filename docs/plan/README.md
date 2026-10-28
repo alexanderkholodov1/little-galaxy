@@ -140,3 +140,6 @@ Rules for every hito:
   Add four returning-visitor regressions; their real-client reproductions do not
   reach the proposed named-first-member denial. Correct the playback assertion to
   wait for its event before requiring the same sequence.
+- 2026-10-28, lead-approved logic: admin counts exclude generated hosts; retire booth
+  selection and make the screen follow the active galaxy. Rename the visible default
+  to Open Galaxy / Galaxia abierta. Keep layout, styles, physics and animations unchanged.

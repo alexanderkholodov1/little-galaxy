@@ -104,3 +104,20 @@ sequence 1 (the first launch is at tick 18536). The replay crossed the event. Th
 check now waits for the rendered replay tick to reach the first launch, then still
 requires sequence >= 1, using the suite's existing assertion policy. All five speeds
 remain covered. No playback, physics, animation or latency threshold is changed.
+
+## Approved administration logic and naming
+
+The lead approved three visible changes on 2026-10-28: count visitor-launched bodies,
+remove fair/booth selection, and present the shared sky as Open Galaxy / Galaxia abierta.
+Administration counts now derive from genesis and accepted launch/removal records,
+including both members of binary pairs, instead of the head's count of generated
+central/nursery hosts. Cards, metrics and backup summaries use this count; exported
+history and its raw head remain intact. BAD therefore shows 21 rather than 22; an
+empty open galaxy shows zero. No physics or animation changes are involved.
+
+The admin exposes only activation of the public galaxy. The read-only screen follows
+that same active selection, including later selection changes, and retains its join QR.
+The old database field remains for compatibility with older clients and unchanged
+rules, but current screen selection and periodic certification ignore it. Provisioning
+renames only the legacy default of an active open galaxy; custom names and frozen
+histories stay intact. Presentation also localizes old default names before release.

@@ -122,10 +122,10 @@ test('an allowlisted keeper sees the galaxy and membership dashboard', async ({ 
   await expect(page.locator('.keeper-note').filter({ hasText: 'Visits and cosmetic throws are not collected' })).toBeVisible();
 });
 
-test('the booth renders the selected galaxy, follows a new selection and shows its join QR', async ({ page, context }) => {
+test('the screen renders the active public galaxy, follows a new selection and shows its join QR', async ({ page, context }) => {
   const first = await seedGalaxy();
   const second = await seedGalaxy();
-  await withDatabase(db => db.doc('config/live').update({ boothGalaxyId: first }));
+  await withDatabase(db => db.doc('config/live').update({ activePublicGalaxyId: first, boothGalaxyId: second }));
   await localOnly(context);
   const writes = [];
   page.on('request', request => {
@@ -137,7 +137,7 @@ test('the booth renders the selected galaxy, follows a new selection and shows i
   await expect(page.locator('#boothJoin')).toHaveAttribute('href', /\/little-galaxy\/$/u);
   await expect(page.locator('#boothJoin svg')).toBeVisible();
   await expect(page.locator('#boothJoin svg path')).toHaveAttribute('d', /M/u);
-  await withDatabase(db => db.doc('config/live').update({ boothGalaxyId: second }));
+  await withDatabase(db => db.doc('config/live').update({ activePublicGalaxyId: second }));
   await expect(page.locator('body')).toHaveAttribute('data-galaxy', second);
   await expect(page.locator('body')).toHaveAttribute('data-sky-ready', 'true');
   await expect(page.locator('#boothJoin svg')).toBeVisible();

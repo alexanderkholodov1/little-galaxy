@@ -71,13 +71,13 @@ it('keeps a 600-body certification far below the 1 MiB Firestore document limit'
   expect(JSON.parse((await unpackLoaded({checkpoint:doc})).checkpoint.state).entries.length).toBeGreaterThanOrEqual(600);
   expect(bytes).toBeLessThan(256*1024);
 });
-it('certifies the active and booth galaxies every ten minutes while the keeper page is open',async()=>{
+it('certifies the active galaxy, ignoring the retired booth selection every ten minutes while the keeper page is open',async()=>{
   vi.useFakeTimers();
   const certify=vi.fn(async()=>null),selection={activePublicGalaxyId:'fair',boothGalaxyId:'fair'};
   const stop=scheduleCertification({certify,selection:()=>selection,onError:()=>{}});
   await vi.advanceTimersByTimeAsync(CERTIFY_EVERY-1);expect(certify).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(1);expect(certify.mock.calls).toEqual([['fair']]);
-  selection.boothGalaxyId='booth';await vi.advanceTimersByTimeAsync(CERTIFY_EVERY);
-  expect(certify.mock.calls.slice(1)).toEqual([['fair'],['booth']]);
-  stop();await vi.advanceTimersByTimeAsync(CERTIFY_EVERY*3);expect(certify).toHaveBeenCalledTimes(3);
+  selection.boothGalaxyId='booth';selection.activePublicGalaxyId='open';await vi.advanceTimersByTimeAsync(CERTIFY_EVERY);
+  expect(certify.mock.calls.slice(1)).toEqual([['open']]);
+  stop();await vi.advanceTimersByTimeAsync(CERTIFY_EVERY*3);expect(certify).toHaveBeenCalledTimes(2);
 });

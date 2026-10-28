@@ -141,11 +141,11 @@ for(const profile of profiles)for(const lang of ['en','es']){
     const other=lang==='es'?'en':'es';await page.locator('#langSwitch').click();
     await expect(page.locator('html')).toHaveAttribute('lang',other);
     await expect(page.locator('#openTimelapse')).toHaveAttribute('href',new RegExp(`lang=${other}(?:&|$)`,'u'));
-    await expect(page.locator('#backToSandbox')).toHaveAccessibleName(other==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
+    await expect(page.locator('#backToSandbox')).toHaveAccessibleName(other==='es'?'Volver a la Galaxia abierta para crear un astro':'Back to the Open Galaxy to create a body');
     await page.locator('#langSwitch').click();await expect(page.locator('html')).toHaveAttribute('lang',lang);
     await expect(page.locator('#openTimelapse')).toHaveAttribute('href',new RegExp(`lang=${lang}(?:&|$)`,'u'));
    });
-   await expect(page.locator('#backToSandbox')).toHaveAttribute('aria-label', lang==='es'?'Volver al sandbox para crear un astro':'Back to the sandbox to create a body');
+   await expect(page.locator('#backToSandbox')).toHaveAttribute('aria-label', lang==='es'?'Volver a la Galaxia abierta para crear un astro':'Back to the Open Galaxy to create a body');
    await page.locator('#openTimelapse').click();await expect(page.locator('body')).toHaveAttribute('data-replay','true');await enter(page);
    await expect(page.locator('#countN')).toHaveText('21');await screenshotThemes(page,`timelapse-end-${profile.name}-${lang}`);const scrub=page.locator('#replayScrub');
    at=performance.now();await scrub.focus();await page.keyboard.press('Home');await expect(page.locator('body')).toHaveAttribute('data-tick','0');evidence.timings.homeSeekMs=performance.now()-at;
@@ -189,9 +189,23 @@ for(const profile of profiles)for(const lang of ['en','es'])test(`4 keeper popup
   await page.goto(`/little-galaxy/admin?emulators=1&lang=${lang}`);await expect(page.locator('html')).toHaveAttribute('lang',lang);await googleSignIn(page,`captain-${profile.name}-${lang}@example.test`);
   await expect(page.locator('#keeper-create')).toBeVisible();expect(await blockerMatches(page)).toEqual([]);expect(popups).toBe(1);
   await expect(page.locator('html')).toHaveAttribute('lang',lang);
+  await check('BAD visitor body count excludes the central fire',()=>expect(page.locator('[data-galaxy="bad-2026"] .keeper-count').first()).toHaveText(/^21\s*(Bodies|Cuerpos)$/u));
+  await expect(page.locator('[data-action="booth"]')).toHaveCount(0);
+  await expect(page.locator(`[data-galaxy="${process.env.ACCEPT_SANDBOX}"] h2`)).toHaveText(lang==='es'?'Galaxia abierta':'Open Galaxy');
+  await page.locator('#keeper-tab-metrics').click();
+  await expect(page.locator('.keeper-chart li').filter({hasText:'BAD 2026'}).locator('b')).toHaveText('21');
+  await page.locator('#keeper-tab-galaxies').click();
   await page.locator('#keeper-create').click();await page.locator('#keeper-new input[name="name"]').fill(`Acceptance ${profile.name} ${lang}`);await page.locator('#keeper-new button[type="submit"],#keeper-new button.keeper-primary').click();
   const card=page.locator('.keeper-galaxy').filter({hasText:`Acceptance ${profile.name} ${lang}`});await expect(card).toBeVisible();
+  await expect(card.locator('.keeper-count').first()).toHaveText(/^0\s*(Bodies|Cuerpos)$/u);
   await card.locator('[data-action="active"]').click();await page.locator('#keeper-confirm').click();await expect(card.locator('[data-action="active"]')).toBeDisabled();
+  const screen=await context.newPage();
+  try{
+   await screen.goto(`/little-galaxy/screen?emulators=1&lang=${lang}`);
+   await expect(screen.locator('body')).toHaveAttribute('data-galaxy',await card.getAttribute('data-galaxy'));
+   await expect(screen.locator('body')).toHaveAttribute('data-sky-ready','true');
+   await expect(screen.locator('#boothJoin svg')).toBeVisible();
+  }finally{await screen.close();}
   await card.locator('[data-action="freeze"]').click();await page.locator('#keeper-confirm').click();await expect(card.locator('[data-action="unfreeze"]')).toBeVisible();
   await screenshot(page,`keeper-${profile.name}-${lang}`);
   await page.locator('#keeper-logout').click();await expect(page.locator('#keeper-google')).toBeVisible();

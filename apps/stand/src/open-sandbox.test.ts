@@ -8,7 +8,9 @@ it('provisions one open current-kernel sandbox, preserves the frozen original an
  const set=(p:string,v:Record<string,unknown>)=>docs.set(p,v);
  const db={doc:(p:string)=>p,runTransaction:(run:(tx:unknown)=>Promise<unknown>)=>run({get:async(p:string)=>({data:()=>docs.get(p)}),create:set,update:(p:string,v:object)=>set(p,{...docs.get(p),...v})})} as unknown as Firestore;
  const id=await ensureOpenSandbox(db,1000);expect(await ensureOpenSandbox(db,2000)).toBe(id);
- expect(await memory.get('galaxies/'+id)).toMatchObject({kernel:PROTOTYPE_KERNEL,generation:1,status:'active',writePolicy:'public',epoch:1000});
+ expect(await memory.get('galaxies/'+id)).toMatchObject({name:'Open Galaxy',kernel:PROTOTYPE_KERNEL,generation:1,status:'active',writePolicy:'public',epoch:1000});
  expect(await memory.get('config/live')).toMatchObject({activePublicGalaxyId:id,boothGalaxyId:'fair',seasonOpen:true,launches:true});
+ await memory.seed('galaxies/'+id,{...await memory.get('galaxies/'+id),name:'Sandbox'});
+ expect(await ensureOpenSandbox(db,3000)).toBe(id);expect((await memory.get('galaxies/'+id))?.name).toBe('Open Galaxy');
  expect(await memory.get('galaxies/fair')).toEqual(fair);
 });

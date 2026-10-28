@@ -8,10 +8,11 @@ export async function ensureOpenSandbox(db:Firestore,now=Date.now()){
   if(!live)throw new Error('Missing live selection');
   const old=live.activePublicGalaxyId ? (await tx.get(db.doc(`galaxies/${live.activePublicGalaxyId}`))).data() : null;
   if(old?.status==='active'&&old.writePolicy==='public'&&old.visibility==='public'&&old.kernel===PROTOTYPE_KERNEL){
+   if(old.name==='Sandbox')tx.update(db.doc(`galaxies/${old.id}`),{name:'Open Galaxy'});
    if(!live.seasonOpen||!live.launches)tx.update(ref,{seasonOpen:true,launches:true});
    return old.id as string;
   }
-  const id='g-'+randomUUID(),galaxy=initialGalaxy(id,'operator','Sandbox',now,PROTOTYPE_KERNEL);
+  const id='g-'+randomUUID(),galaxy=initialGalaxy(id,'operator','Open Galaxy',now,PROTOTYPE_KERNEL);
   tx.create(db.doc(`galaxies/${id}`),galaxy);
   tx.create(db.doc(`galaxies/${id}/control/head`),initialHead(now));
   tx.update(ref,{activePublicGalaxyId:id,seasonOpen:true,launches:true});

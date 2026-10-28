@@ -1,3 +1,4 @@
+import {displayGalaxyName} from './galaxy-name.js';
 import './timelapse.css';
 import {recordedStory} from './recorded-stories.js';
 import {getLang, register, setLang, t} from '../js/i18n.js';
@@ -69,7 +70,7 @@ export function setupTimelapse({loaded,request,now}){
   };
   function render(){
     const story=recordedStory(g.id,say);
-    const title=story?.shortTitle??g.name;
+    const title=story?.shortTitle??displayGalaxyName(g.name,getLang());
     if(name.textContent!==title){
       name.replaceChildren(...title.split(/(\s+)/u).map(word=>{
         if(/^\s+$/u.test(word))return document.createTextNode(word);

@@ -1,3 +1,4 @@
+import {displayGalaxyName} from './galaxy-name.js';
 import {recordedStory} from './recorded-stories.js';
 import {getLang, register, setLang, t} from '../js/i18n.js';
 import galaxyStrings from '../js/strings/galaxy.js';
@@ -18,7 +19,7 @@ export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
   scrim=document.createElement('div');scrim.id='recordScrim';
   dialog=document.createElement('dialog');dialog.id='recordInformation';dialog.setAttribute('aria-labelledby','recordInformationTitle');
   const g=store.loaded().galaxy,story=recordedStory(g.id,say);
-  const title=document.createElement('h2');title.id='recordInformationTitle';title.textContent=story?.title??g.name;dialog.append(title);
+  const title=document.createElement('h2');title.id='recordInformationTitle';title.textContent=story?.title??displayGalaxyName(g.name,getLang());dialog.append(title);
   for(const text of story?.paragraphs??[say('record.fallback')]){const p=document.createElement('p');p.textContent=text;dialog.append(p);}
   const close=document.createElement('button');close.type='button';close.id='recordInformationClose';close.className='pill glass';close.textContent=say('record.close');close.onclick=()=>dialog.close();dialog.append(close);
   const shut=()=>{scrim?.remove();nav.hidden=false;};
@@ -54,7 +55,7 @@ export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
    if(author)document.querySelector('.home-footer')?.append(author);
    for(const g of recordings){
     const a=document.createElement('a');a.className='galaxyVisit';a.href=url('',{g:g.id,view:'recorded'});
-    a.textContent=recordedStory(g.id,say)?.visit??say('record.visit',{name:g.name});
+    a.textContent=recordedStory(g.id,say)?.visit??say('record.visit',{name:displayGalaxyName(g.name,getLang())});
     nav.append(a);
    }
   }

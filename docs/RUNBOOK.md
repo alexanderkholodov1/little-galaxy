@@ -764,8 +764,7 @@ Google account; Firestore's unchanged `bAdmin()` is the authority. EasyList prev
 hid the `ad-` controls after first paint; the `keeper-` namespace and `pnpm check`
 blocker gate prevent that regression. The rc1 domain move is reverted. The admin retains
 the prototype's ledger layout, with Google identity checked independently by Firestore rules.
-Start fresh by creating another galaxy, then select **Open to public** and **Show at fair**
-independently. **Open to public** and **Freeze** first show a sheet saying what happens (every
+Start fresh by creating another galaxy, then select **Open to public**. **Open to public** and **Freeze** first show a sheet saying what happens (every
 playing phone reloads into the newly opened galaxy; a frozen galaxy becomes read-only); one tap
 confirms, Esc cancels. Only allowlisted keepers can create galaxies; the account limit is three.
 Freeze retains accepted future launches, closes writes and publishes a verified, pinned-kernel
@@ -801,7 +800,7 @@ cosmetic throws display an unavailable value because they are not collected. Imp
 have no accepted launch-time history. **Refresh** explicitly rereads bounded data; the dashboard
 does not poll private members or add per-visit writes. Large repeated refreshes consume quota.
 
-Booth: `/little-galaxy/screen` follows `config/live.boothGalaxyId` independently of public play.
+Screen: `/little-galaxy/screen` follows `config/live.activePublicGalaxyId`, the same active galaxy as public play. The retired booth selection is ignored.
 Its QR always points to `/little-galaxy/`. Press **F** or the fullscreen button after loading.
 The camera survives reloads. Names use the prototype's bounded label overlay. This public viewer
 creates no Auth identity and performs no Firestore writes; `config/live` is public read-only.

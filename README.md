@@ -14,7 +14,7 @@ Collective Galaxy (Galaxia Colectiva) is a shared 3D galaxy that visitors build 
 3. Find your object on the shared screen. Edit it live, try the aurora/comet/shooting-star controls when enabled, and tap **Enable sound** to hear it.
 4. Open your object record and create a postcard to keep its return link. The hangar retains your earlier objects for relaunch.
 
-Visitors land in an open shared sandbox: design a body, pull back and release it, and everyone sees it join the sky. A separate link explains and opens the original Be A Dragon 2026 fair galaxy and its timelapse. A normal browser tab preserves your workshop draft when storage is available.
+Visitors land in the shared Open Galaxy: design a body, pull back and release it, and everyone sees it join the sky. A separate link explains and opens the original Be A Dragon 2026 fair galaxy and its timelapse. A normal browser tab preserves your workshop draft when storage is available.
 
 ## Views from the application
 
@@ -244,8 +244,8 @@ with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`. Publicatio
 `https://alexanderkholodov.web.app/little-galaxy/version.json` with cache bypass, every five seconds
 for at most eight minutes. Only the exact released commit and stamped version succeed; HTTP errors,
 stale metadata and missing dispatch/deployment fail with **RELEASE NOT LIVE** and a recovery message.
-After that client is verified live, the release idempotently creates/selects an open current-kernel
-sandbox. Frozen histories and identities remain unchanged. Only the portfolio deploys the public production Hosting and performs Hosting rollback; see the
+After that client is verified live, the release idempotently creates/selects a current-kernel
+Open Galaxy. Frozen histories and identities remain unchanged. Only the portfolio deploys the public production Hosting and performs Hosting rollback; see the
 [release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure).
 
 The privacy gate is part of `pnpm run build`. It scans every output file, gunzips `.gz` output, decodes

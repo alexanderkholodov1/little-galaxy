@@ -23,11 +23,11 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       selection=backend.selection;
       stops.push(backend.store.subscribeToSelection(next=>{
         if(stopped||!next)return;selection=next;
-        const id=galaxyId||(booth?next.boothGalaxyId:next.activePublicGalaxyId);
+        const id=galaxyId||next.activePublicGalaxyId;
         if(S.galaxyId&&id!==S.galaxyId)emit('selection',id);
         emit('selection-state',next);
       },error=>emit('error',error)));
-      S.galaxyId=galaxyId||(booth?selection.boothGalaxyId:selection.activePublicGalaxyId);
+      S.galaxyId=galaxyId||selection.activePublicGalaxyId;
       if(!S.galaxyId)throw new Error('The keeper is preparing this sky. Please come back soon.');
       stops.push(backend.store.subscribeToGalaxy(S.galaxyId,next=>{
         if(next&&loaded?.galaxy.id===next.id){loaded.galaxy=next;emit('manifest',next);}
