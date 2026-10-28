@@ -14,6 +14,15 @@
 - Exercise real Auth emulator popups and keeper/outsider journeys under EasyList styles.
   Replace redirect and Hosting-deploy assertions with popup and content-retirement checks.
 
+- Provision the acceptance sandbox 36 hours before its first real-client launch, across
+  a quota-window boundary. Verify second-browser visibility and ownership-checked,
+  history-preserving administrative removal of the test body.
+- Add `pnpm accept:live <url>` and a post-publication release launch proof with cleanup
+  and a receipt. The visitor remains anonymous; the admin credential stays server-side.
+- Keep the reported production launch denial under investigation: the captured sequence-0
+  documents accepted original-age and 36-hour-gap launches against the checked-in rules.
+  No unsupported cause or rules relaxation is claimed.
+
 ## 1.0.0-alpha.10.0-rc1 — an open shared sandbox and the original fair, ready to visit, 2026-10-27
 
 - Open active galaxies from canonical leased snapshots, verify history in the background and fall

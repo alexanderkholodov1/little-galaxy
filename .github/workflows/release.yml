@@ -196,6 +196,28 @@ jobs:
         run: |
           node scripts/verify-live-version.js
           pnpm --filter @little-galaxy/stand exec tsx src/index.ts open-sandbox
+      - name: Install Chromium for the anonymous production launch proof
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Require an anonymous production launch, second-browser visibility and admin cleanup
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-bootstrap.json
+          FIREBASE_PROJECT_ID: little-galaxy
+          LIVE_PROBE_REPORT: .tmp/release-launch.json
+        run: pnpm accept:live https://alexanderkholodov.web.app/little-galaxy/
+      - name: Remove any probe left by a failed or interrupted browser proof
+        if: always()
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-bootstrap.json
+          FIREBASE_PROJECT_ID: little-galaxy
+        run: node scripts/run-tsx.mjs scripts/cleanup-live-probe.mjs
+      - name: Preserve the production launch receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: production-launch-proof
+          include-hidden-files: true
+          path: .tmp/release-launch.json
+          if-no-files-found: ignore
       - name: Remove sandbox credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/little-galaxy-bootstrap.json"

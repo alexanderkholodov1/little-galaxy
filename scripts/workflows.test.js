@@ -81,3 +81,14 @@ it('selects a new-kernel sandbox only after its matching production client is li
  expect(publish).toContain('Remove sandbox credentials');
  expect(workflow.split('\n  deploy-rules:')[1]).not.toContain('open-sandbox');
 });
+
+it('proves a real anonymous launch only after publication and always cleans the probe before removing its credential',async()=>{
+ const workflow=await read('.github/workflows/release.yml');
+ const publish=workflow.split('\n  publish:')[1].split('\n  deploy-rules:')[0];
+ expect(publish.indexOf('pnpm accept:live')).toBeGreaterThan(publish.indexOf('src/index.ts open-sandbox'));
+ expect(publish).toContain('pnpm accept:live https://alexanderkholodov.web.app/little-galaxy/');
+ expect(publish).toContain('LIVE_PROBE_REPORT: .tmp/release-launch.json');
+ expect(publish).toContain('Remove any probe left by a failed or interrupted browser proof\n        if: always()');
+ expect(publish.indexOf('scripts/cleanup-live-probe.mjs')).toBeLessThan(publish.indexOf('Remove sandbox credentials'));
+ expect(publish).not.toContain('path: .tmp/live-launch-private.json');
+});

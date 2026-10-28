@@ -1,3 +1,6 @@
+import {launchAcrossBrowsers} from './launch-probe.mjs';
+import {removeProbeBody} from '../../apps/stand/src/probe-cleanup.ts';
+import {withDatabase} from '../../tests/ui/galaxy-fixture.js';
 import {applyEasyList,blockerMatches} from '../../tests/ui/blockers.js';
 /* global CSSTransition, document, getComputedStyle, requestAnimationFrame */
 import {expectLayout} from '../../tests/ui/layout-geometry.js';
@@ -60,6 +63,21 @@ async function authorReachable(page,name){
  await screenshot(page,name);
  await page.locator('#creditsClose').click();await expect(page.locator('#credits')).toBeHidden();
 }
+test('0 a sandbox provisioned 36 hours ago accepts its first launch across a new quota window',async({browser})=>{
+ let uid;
+ const receipt=await launchAcrossBrowsers(browser,process.env.ACCEPT_URL+'/little-galaxy/?emulators=1',{
+  onIdentity:async value=>{uid=value;},
+  afterLaunch:receipt=>withDatabase(async db=>{
+   await expect(removeProbeBody(db,{...receipt,uid:'another-account'})).rejects.toThrow('not owned');
+   const removed=await removeProbeBody(db,{...receipt,uid});
+   expect((await db.doc(`galaxies/${receipt.galaxyId}/objects/${receipt.bodyId}`).get()).data().tombstone).toBe(true);
+   expect((await db.doc(`galaxies/${receipt.galaxyId}/actions/${receipt.bodyId}`).get()).exists).toBe(true);
+   expect(await removeProbeBody(db,{...receipt,uid})).toEqual({status:'already-removed'});
+   return removed;
+  }),
+ });
+ evidence.checks.push({name:'real client launch into an aged provisioner galaxy is seen by a second browser',pass:true,...receipt});
+});
 for(const profile of profiles)for(const lang of ['en','es']){
  test(`1 sandbox launches and a second browser receives it (${profile.name}, ${lang})`,async({browser})=>{
   const {context,page}=await contextFor(browser,profile,lang),observer=await browser.newContext({viewport:{width:profile.width,height:profile.height},hasTouch:profile.name==='phone',isMobile:profile.name==='phone'});
@@ -68,7 +86,7 @@ for(const profile of profiles)for(const lang of ['en','es']){
    const at=performance.now();await page.goto(`/galaxy/?emulators=1&lang=${lang}`);
    await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true');evidence.timings.navigationMs=performance.now()-at;const entering=performance.now();await enter(page);evidence.timings.enterMs=performance.now()-entering;evidence.timings.openMs=performance.now()-at;
    await screenshot(page,`sandbox-home-${profile.name}-${lang}`);await expect(page.locator('#btnCreate')).toBeEnabled();await expect(page.locator('#sharedStatus')).toHaveCount(0);
-   const before=Number(await page.locator('body').getAttribute('data-sequence'));
+   const before=Number(await page.locator('body').getAttribute('data-sequence')),visibleBefore=Number(await page.locator('#countN').innerText());
    const second=await observer.newPage();second.on('pageerror',e=>{(evidence.errors??=[]).push(e.message);});await second.goto(`/galaxy/?emulators=1&lang=${lang}`);await expect(second.locator('body')).toHaveAttribute('data-sky-ready','true');await enter(second);
    await page.locator('#btnCreate').click();await expect(page.locator('body')).toHaveAttribute('data-workshop-focus','near');
    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
@@ -80,7 +98,7 @@ for(const profile of profiles)for(const lang of ['en','es']){
    await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+box.width*.23,y+box.height*.13,{steps:8});await page.mouse.up();
    await expect(page.locator('body')).toHaveAttribute('data-sequence',String(before+1));
    await expect(second.locator('body')).toHaveAttribute('data-sequence',String(before+1));
-   await expect(page.locator('#countN')).toHaveText(String(before+1));await clean(page);await clean(second);
+   await expect(page.locator('#countN')).toHaveText(String(visibleBefore+1));await clean(page);await clean(second);
    await expect(second.locator('#galaxyVisits a')).toContainText([lang==='es'?'Visita la feria Be A Dragon 2026 en la Universidad San Francisco de Quito':'Visit the Be A Dragon 2026 fair at Universidad San Francisco de Quito']);
    await screenshot(second,`observer-from-${profile.name}-${lang}`);
   }finally{await context.close();await observer.close();}

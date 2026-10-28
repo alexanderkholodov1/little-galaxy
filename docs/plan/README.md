@@ -126,3 +126,9 @@ Rules for every hito:
   EasyList was the empty-page cause; replace its matching namespace and add a blocker gate. Revert the
   rc1 domain move, use synchronous Firebase Google popups and disable data Hosting content while
   preserving the reserved auth helper. Update the release probes and keeper/outsider acceptance.
+- 2026-10-28, rc2 extension (operator, 16:05Z): require a first launch into a sandbox
+  provisioned hours earlier across a quota-window boundary; add the same real-client
+  two-browser journey for deployed addresses, with credentialed administrative cleanup
+  after a release probe. Restore PR preview delivery through portfolio, pending its
+  cross-repository artifact/comment token. Visitor-facing wording and visuals are
+  reserved for the separate Opus pass; this extension changes no such content.

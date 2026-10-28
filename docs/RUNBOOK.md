@@ -817,3 +817,31 @@ This reader loads the full accepted history from genesis so earlier times remain
 when a certified checkpoint exists. It never authenticates a new player or writes to Firestore.
 Long, interacting histories rebuild in bounded worker batches; do not claim a cold-replay latency
 or device-to-device exact floating-point agreement without the phone rehearsal.
+
+## Anonymous launch proof on a deployed client
+
+The release now requires one anonymous visitor to drag a planet from the workshop,
+receive an accepted action, and see that exact logical body in a second browser's
+rendered replay. The stand then appends an administrative removal through the shared
+store, preserving the launch and hash chain. Both browsers must observe the body’s
+removal. An `always()` cleanup step also handles an interrupted browser proof. The
+cleanup checks the body belongs to the fresh anonymous probe account and refuses
+other visitors' bodies or host objects. Firebase credentials stay in the Node stand
+process and are never passed into a page. The uploaded receipt excludes Auth UIDs.
+
+The captain can run the same journey against a PR preview or production:
+
+```sh
+# This writes one real anonymous launch into the production active galaxy,
+# then removes the probe through the admin path. Use only when authorized.
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/the/server-side/data-project-key.json
+export FIREBASE_PROJECT_ID=little-galaxy
+pnpm accept:live https://approved-preview.web.app/little-galaxy/
+```
+
+The preview uses the production database. The command refuses to open a browser
+without the cleanup credential. A local rehearsal uses only the demo Auth and
+Firestore emulators instead. `pnpm accept` provisions its sandbox 36 hours before
+the launch, across a quota-window boundary; it verifies real-client first admission,
+second-browser visibility, foreign-body cleanup refusal, history retention and
+idempotent removal. No production launch proof was run during implementation.
