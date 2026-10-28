@@ -1,8 +1,9 @@
 import {launchAcrossBrowsers} from './launch-probe.mjs';
 import {removeProbeBody} from '../../apps/stand/src/probe-cleanup.ts';
 import {withDatabase} from '../../tests/ui/galaxy-fixture.js';
+import {initialMember} from '../../packages/shared/src/index.ts';
 import {applyEasyList,blockerMatches} from '../../tests/ui/blockers.js';
-/* global CSSTransition, document, getComputedStyle, requestAnimationFrame */
+/* global CSSTransition, document, getComputedStyle, requestAnimationFrame, window */
 import {expectLayout} from '../../tests/ui/layout-geometry.js';
 import {assertFairReturn, assertHeaderIcons, assertProductType, assertReadableBodies, assertScrubTracksThumb, assertShotSize} from './presentation.mjs';
 import {expect,test} from '@playwright/test';
@@ -63,11 +64,30 @@ async function authorReachable(page,name){
  await screenshot(page,name);
  await page.locator('#creditsClose').click();await expect(page.locator('#credits')).toBeHidden();
 }
-test('0 a sandbox provisioned 36 hours ago accepts its first launch across a new quota window',async({browser})=>{
+for(const returning of ['saved-name','older-membership','legacy-global','legacy-scoped'])test(`0 returning visitor ${returning} launches into a sandbox provisioned 36 hours ago`,async({browser})=>{
  let uid;
  const receipt=await launchAcrossBrowsers(browser,process.env.ACCEPT_URL+'/little-galaxy/?emulators=1',{
   onIdentity:async value=>{uid=value;},
+  profileName:returning.startsWith('legacy')?'Returning visitor':undefined,
+  prepareVisitor:async({context,page})=>{
+   await withDatabase(async db=>{
+    expect((await db.doc(`galaxies/${process.env.ACCEPT_SANDBOX}/members/${uid}`).get()).exists).toBe(false);
+    if(returning!=='saved-name')await db.doc(`galaxies/bad-2026/members/${uid}`).set({...initialMember('older-fair-member',Date.now()-48*3600000),displayName:'Returning visitor'});
+   });
+   const storage={};
+   if(returning.startsWith('legacy'))storage['fogata.player.v1']=JSON.stringify({id:'older-browser-player',name:'Returning visitor',anonymous:false,createdAt:Date.now()-48*3600000});
+   else storage['little-galaxy.player:'+process.env.ACCEPT_SANDBOX]=JSON.stringify({displayName:'Returning visitor',anonymous:false});
+   if(returning==='legacy-scoped')storage['little-galaxy.player:bad-2026']=JSON.stringify({displayName:'Returning visitor',anonymous:false});
+   await page.evaluate(storage=>Object.entries(storage).forEach(([key,value])=>localStorage.setItem(key,value)),storage);
+   if(!returning.startsWith('legacy'))await context.addInitScript(()=>{
+    // Model delayed profile synchronization: admission must work before its 1.5-second callback.
+    const timeout=window.setTimeout;window.setTimeout=(fn,ms,...args)=>timeout(fn,ms===1500?60000:ms,...args);
+   });
+  },
   afterLaunch:receipt=>withDatabase(async db=>{
+   const member=(await db.doc(`galaxies/${receipt.galaxyId}/members/${uid}`).get()).data();
+   expect(member.displayName).toBe(returning.startsWith('legacy')?'Returning visitor':'Anonymous');
+   if(returning!=='saved-name')expect((await db.doc(`galaxies/bad-2026/members/${uid}`).get()).exists).toBe(true);
    await expect(removeProbeBody(db,{...receipt,uid:'another-account'})).rejects.toThrow('not owned');
    const removed=await removeProbeBody(db,{...receipt,uid});
    expect((await db.doc(`galaxies/${receipt.galaxyId}/objects/${receipt.bodyId}`).get()).data().tombstone).toBe(true);
@@ -76,7 +96,7 @@ test('0 a sandbox provisioned 36 hours ago accepts its first launch across a new
    return removed;
   }),
  });
- evidence.checks.push({name:'real client launch into an aged provisioner galaxy is seen by a second browser',pass:true,...receipt});
+ evidence.checks.push({name:'returning identity first admission, second-browser visibility and cleanup',returning,pass:true,...receipt});
 });
 for(const profile of profiles)for(const lang of ['en','es']){
  test(`1 sandbox launches and a second browser receives it (${profile.name}, ${lang})`,async({browser})=>{

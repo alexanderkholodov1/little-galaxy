@@ -28,7 +28,7 @@ export async function observeLaunches(context,onDraft=async()=>{}){
   window.addEventListener('galaxy:actions',({detail})=>window.__lgLaunchProbe.actions.push(...detail));
  });
 }
-export async function launchAcrossBrowsers(browser,url,{onDraft,onIdentity,afterLaunch}={}){
+export async function launchAcrossBrowsers(browser,url,{onDraft,onIdentity,prepareVisitor,profileName,afterLaunch}={}){
  const visitor=await browser.newContext({viewport:{width:390,height:844}}),observer=await browser.newContext({viewport:{width:390,height:844}});
  let receipt;
  try{
@@ -52,11 +52,21 @@ export async function launchAcrossBrowsers(browser,url,{onDraft,onIdentity,after
    if(await tab.locator('#welcome button').isVisible())await tab.locator('#welcome button').click();
   }
   await Promise.all(identities);
+  if(prepareVisitor){
+   await prepareVisitor({context:visitor,page});
+   await page.reload();
+   await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true',{timeout:20000});
+   if(await page.locator('#welcome button').isVisible())await page.locator('#welcome button').click();
+  }
   if(onIdentity&&identities.length!==1)throw new Error('A fresh anonymous Auth identity was not observed; no launch was attempted');
   const galaxyId=await page.locator('body').getAttribute('data-galaxy');
   expect(await second.locator('body').getAttribute('data-galaxy')).toBe(galaxyId);
   await page.locator('#btnCreate').click();await page.locator('#types [data-type="planet"]').click();
-  await page.locator('#btnToPad').click();await page.locator('.pu-sec').click();
+  await page.locator('#btnToPad').click();
+  if(await page.locator('.pu-card').isVisible()){
+   if(profileName){await expect(page.locator('.pu-in')).toHaveValue(profileName);await page.locator('.pu-cta').click();}
+   else await page.locator('.pu-sec').click();
+  }
   await expect(page.locator('body')).toHaveAttribute('data-bench-state','pad',{timeout:20000});
   const box=await page.locator('canvas').first().boundingBox(),x=box.x+box.width*.5,y=box.y+box.height*.635;
   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+box.width*.23,y+box.height*.13,{steps:8});await page.mouse.up();

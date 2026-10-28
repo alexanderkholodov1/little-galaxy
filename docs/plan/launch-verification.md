@@ -69,3 +69,17 @@ portfolio branch/commit set cannot be created with the current sandbox permissio
 - 2026-10-28: record the operator's extension, the successful aged production-fixture
   reproductions, the still-unresolved denial, the long-gap/live launch proofs and the
   precise preview credential/workspace blockers. No visitor content or rules changed.
+
+## Returning-visitor investigation (lead steer, 2026-10-28)
+
+The four requested returning states were reproduced through the real browser client:
+per-galaxy saved name with profile synchronization delayed, persisted Auth with only
+an older BAD member, the legacy `fogata.player.v1` name and the legacy scoped name.
+Each target member was absent on entry. All four launches succeeded with no rule
+evaluation denial. The first two created `Anonymous` through `initialMember`; the
+legacy prompt cases created a valid named profile before admission. Thus the current
+client does not exercise the hypothesized named first-launch member creation. The
+`bMemberWrite` Anonymous-only clause cannot honestly be cited as the observed cause
+from these reproductions and is not changed speculatively. The owner’s failed request
+or whether the tab still ran an older release remains needed to identify that denial.
+Four returning-state cases now extend the long-gap acceptance proof.
