@@ -143,3 +143,8 @@ Rules for every hito:
 - 2026-10-28, lead-approved logic: admin counts exclude generated hosts; retire booth
   selection and make the screen follow the active galaxy. Rename the visible default
   to Open Galaxy / Galaxia abierta. Keep layout, styles, physics and animations unchanged.
+- 2026-10-28, returning-session investigation: saved/legacy names, old membership and
+  persisted Google Auth all admitted successfully. A two-hour stale clock anchor
+  reproduced the permissions denial in the emulator. Re-anchor before profile/launch
+  writes and add a fifth long-gap regression; retain all rules and the draft nonce.
+  The original owner's request has no receipt, so historical attribution stays explicit.

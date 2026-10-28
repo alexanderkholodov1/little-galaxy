@@ -44,3 +44,11 @@ and `an open current-kernel sandbox` to `a current-kernel Open Galaxy`.
 
 The PR bot comment adds the preview URL and checked SHA, seven-day expiry, production-database
 warning and the preview-domain Google sign-in limitation. This is workflow output, not product UI.
+
+
+Additional rc2.1 authorization recovery copy in `integration/admin-store.js`:
+
+- Before: “This Google account is not on the keeper’s allowlist.” After: “This Google account is not on the keeper’s allowlist. Sign out and choose an invited Google account.”
+- New network/permission-probe fallback: “Could not check administrator access. Check your connection and try signing in again.”
+
+The session-clock launch fix adds no visible wording.

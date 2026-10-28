@@ -860,3 +860,10 @@ probe's launch/removal history remains, while its body must be absent from both 
 Only a real PR/release run can prove channel IAM and comment permission. Never run
 `accept:live` against a deployed address without authorization: it writes production
 history even when cleanup succeeds.
+
+
+Returning-tab clock regression: the long-gap acceptance now includes a server-time
+anchor two hours old, saved name and older membership. A fresh server read before
+profile/launch writes prevents the previously reproduced timestamp/tick permission
+denial. The regression leaves Date and monotonic time intact and requires accepted
+visibility and cleanup in both browsers. No rule or pacing limit is relaxed.

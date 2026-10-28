@@ -1,9 +1,9 @@
 # rc2 launch verification extension
 
 Operator instruction: 2026-10-28 16:05Z. Visitor-facing content and visuals belong
-to the separate Opus pass. This extension changes no visitor UI, physics or rules.
+to the separate Opus pass. The later lead steer approves the naming and administration logic below; physics and rules remain unchanged.
 
-## Evidence and unresolved production denial
+## Production-fixture and returning-session evidence
 
 The captain captured an active public sandbox with an empty sequence-0 head, an
 old epoch and bucket slot, no genesis and no checkpoint/log page. The earlier
@@ -19,11 +19,11 @@ the epoch, creation time and bucket by 36 hours and crossed the quota-window bou
 probes also succeeded for planet, giant, star, binary, pulsar, blackhole, nebula,
 asteroid and comet. No rule-evaluation denial was emitted by those reproductions.
 
-Age is therefore not an established cause. No failing rule expression can honestly
-be cited from this evidence. No rule or limit has been removed speculatively. The
-production denial remains unresolved pending the failed request/browser receipt or
-an export of the actual deployed rules if they differ from the checked-in rules.
-Local evidence is under `.tmp/rc2-launch/`; production writes were not performed.
+Galaxy age alone is not the cause. The later returning-session probe below establishes
+a clock defect with a real emulator denial; the owner's exact historical request has
+no captured browser/request receipt, so its attribution remains an inference. No rule
+or limit has been removed speculatively. Local fixture evidence is under
+`.tmp/rc2-launch/`; production writes were not performed.
 
 ## Repeatable launch and cleanup proof
 
@@ -94,7 +94,7 @@ client does not exercise the hypothesized named first-launch member creation. Th
 `bMemberWrite` Anonymous-only clause cannot honestly be cited as the observed cause
 from these reproductions and is not changed speculatively. The owner’s failed request
 or whether the tab still ran an older release remains needed to identify that denial.
-Four returning-state cases now extend the long-gap acceptance proof.
+Those four returning-state cases extend the long-gap acceptance proof, with the stale-clock case below added as a fifth.
 
 ## 0.25x playback assertion
 
@@ -121,3 +121,31 @@ The old database field remains for compatibility with older clients and unchange
 rules, but current screen selection and periodic certification ignore it. Provisioning
 renames only the legacy default of an active open galaxy; custom names and frozen
 histories stay intact. Presentation also localizes old default names before release.
+
+## Returning-session clock denial and fix
+
+A persisted Google account with membership only in BAD also launched successfully.
+A session with a two-hour stale server-time anchor then reproduced the exact existing
+permissions message, head sequence zero and no accepted body through the real client.
+The new member was `Anonymous`, ruling out the named-first-member clause in this run.
+The regression injects an old readTime before admission without changing Date or the
+monotonic clock, and allows an actual fresh server read once the draft is submitted.
+It fails on unchanged application commit `72508e8`; receipts and rule logs are under
+`.tmp/rc2-clock/baseline*`. An earlier direct clock-gap probe is retained separately.
+
+The emulator reports denied member create at `firestore.rules:496`, action create at
+`:542` and head update at `:538`. The submitted lastSeen/acceptedAt are two hours behind
+request time: they violate `bMemberSchema` line 455 and `bAccepted` line 372, and the
+scheduled tick also violates line 376. This is a stale session clock, independent of
+the galaxy's epoch age or the saved name. A visibility resume normally re-anchors time,
+but admission previously relied on that event or a reload having happened.
+
+The client now obtains a fresh config readTime before profile writes and before each
+launch, then the existing shared transaction derives the tick after its reads. The
+saved nonce and design survive a synchronization failure. All schema, ownership,
+freeze, allowlist and clock-ordering protections remain unchanged; no rule or limit
+is removed. The fifth long-gap journey requires both the stale opening and a fresh
+admission-time read, exact-body second-browser visibility and admin removal. No
+visitor wording, physics or animation changes accompany this fix. Real-device sleep
+and the owner's original failing request still require their own receipt to confirm
+that historical attribution.

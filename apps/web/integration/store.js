@@ -44,7 +44,7 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
     async setName(id,name){
       if(readOnly||loaded.galaxy.status!=='active'||loaded.galaxy.writePolicy==='frozen')throw new Error(say('sky.resting.title'));
       const current=loaded.player&&loaded.player.displayName!=='Anonymous'?loaded.player.displayName:'';
-      try{await backend.store.setName(id,name);}
+      try{await backend.driver.get('config/live');await backend.store.setName(id,name);}
       catch(error){
         if(/kinder name/.test(error.message))emit('notice',say('name.kinder'));
         else throw error;
@@ -62,6 +62,9 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       if(draft?.signature!==signature)draft={signature,intent:{...launchIntent({...raw,id:crypto.randomUUID()},loaded.galaxy,loaded.galaxy.epoch,-1),effectiveTick:0}};
       localStorage.setItem(key,JSON.stringify(draft));
       try{
+        // Re-anchor a long-lived session before deriving timestamps and the scheduled tick.
+        // Keep the saved nonce if synchronization or admission fails.
+        await backend.driver.get('config/live');
         // The shared transaction assigns the tick on every attempt, after all reads.
         const accepted=await backend.store.launch(id,draft.intent);
         loaded.head.effectiveTick=Math.max(loaded.head.effectiveTick,accepted.intent.effectiveTick);

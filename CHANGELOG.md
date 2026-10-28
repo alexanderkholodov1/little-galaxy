@@ -19,9 +19,11 @@
   history-preserving administrative removal of the test body.
 - Add `pnpm accept:live <url>` and a candidate-channel release launch proof with cleanup
   and a receipt. The visitor remains anonymous; the admin credential stays server-side.
-- Keep the reported production launch denial under investigation: the captured sequence-0
-  documents accepted original-age and 36-hour-gap launches against the checked-in rules.
-  No unsupported cause or rules relaxation is claimed.
+- Fix a reproduced returning-session denial caused by a stale server-time anchor:
+  refresh server time before profile and launch writes. Add a fifth long-gap regression
+  that fails with the stale anchor and requires real admission-time synchronization.
+  Original-age, saved/legacy-name, older-membership and persisted-Google cases pass.
+  Retain all rules; the original historical request still lacks a browser receipt.
 
 - Cover four returning-visitor storage/Auth states in the aged first-launch journey.
   Wait on the first playback event before requiring its sequence at every speed.

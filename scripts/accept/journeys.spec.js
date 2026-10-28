@@ -64,8 +64,8 @@ async function authorReachable(page,name){
  await screenshot(page,name);
  await page.locator('#creditsClose').click();await expect(page.locator('#credits')).toBeHidden();
 }
-for(const returning of ['saved-name','older-membership','legacy-global','legacy-scoped'])test(`0 returning visitor ${returning} launches into a sandbox provisioned 36 hours ago`,async({browser})=>{
- let uid;
+for(const returning of ['saved-name','older-membership','legacy-global','legacy-scoped','stale-clock'])test(`0 returning visitor ${returning} launches into a sandbox provisioned 36 hours ago`,async({browser})=>{
+ let uid;const clockReads={stale:0,fresh:0};
  const receipt=await launchAcrossBrowsers(browser,process.env.ACCEPT_URL+'/little-galaxy/?emulators=1',{
   onIdentity:async value=>{uid=value;},
   profileName:returning.startsWith('legacy')?'Returning visitor':undefined,
@@ -73,6 +73,13 @@ for(const returning of ['saved-name','older-membership','legacy-global','legacy-
    await withDatabase(async db=>{
     expect((await db.doc(`galaxies/${process.env.ACCEPT_SANDBOX}/members/${uid}`).get()).exists).toBe(false);
     if(returning!=='saved-name')await db.doc(`galaxies/bad-2026/members/${uid}`).set({...initialMember('older-fair-member',Date.now()-48*3600000),displayName:'Returning visitor'});
+   });
+   if(returning==='stale-clock')await context.route('**/documents:batchGet',async route=>{
+    const response=await route.fetch(),rows=await response.json();
+    const launching=await route.request().frame().evaluate(()=>window.__lgLaunchProbe.draft!==null);
+    // A suspended session can retain an old anchor; model it without changing monotonic time.
+    for(const row of rows)if(row.readTime&&!launching)row.readTime=new Date(Date.parse(row.readTime)-2*3600000).toISOString();
+    clockReads[launching?'fresh':'stale']++;await route.fulfill({response,json:rows});
    });
    const storage={};
    if(returning.startsWith('legacy'))storage['fogata.player.v1']=JSON.stringify({id:'older-browser-player',name:'Returning visitor',anonymous:false,createdAt:Date.now()-48*3600000});
@@ -85,6 +92,7 @@ for(const returning of ['saved-name','older-membership','legacy-global','legacy-
    });
   },
   afterLaunch:receipt=>withDatabase(async db=>{
+   if(returning==='stale-clock'){expect(clockReads.stale).toBeGreaterThanOrEqual(1);expect(clockReads.fresh).toBeGreaterThanOrEqual(1);}
    const member=(await db.doc(`galaxies/${receipt.galaxyId}/members/${uid}`).get()).data();
    expect(member.displayName).toBe(returning.startsWith('legacy')?'Returning visitor':'Anonymous');
    if(returning!=='saved-name')expect((await db.doc(`galaxies/bad-2026/members/${uid}`).get()).exists).toBe(true);
@@ -96,7 +104,7 @@ for(const returning of ['saved-name','older-membership','legacy-global','legacy-
    return removed;
   }),
  });
- evidence.checks.push({name:'returning identity first admission, second-browser visibility and cleanup',returning,pass:true,...receipt});
+ evidence.checks.push({name:'returning identity first admission, second-browser visibility and cleanup',returning,clockReads,pass:true,...receipt});
 });
 for(const profile of profiles)for(const lang of ['en','es']){
  test(`1 sandbox launches and a second browser receives it (${profile.name}, ${lang})`,async({browser})=>{
