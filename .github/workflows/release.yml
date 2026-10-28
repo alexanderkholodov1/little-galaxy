@@ -237,6 +237,24 @@ jobs:
           umask 177
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY" > "$RUNNER_TEMP/little-galaxy-rules.json"
           chmod 600 "$RUNNER_TEMP/little-galaxy-rules.json"
+      - name: Download the exact release client
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files
+      - name: Publish the admin on the data project's Hosting
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/little-galaxy-rules.json
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
+        shell: bash
+        run: |
+          rm -rf .tmp/admin-hosting
+          mkdir -p .tmp/admin-hosting/little-galaxy
+          tar -xzf "galaxy-dist-${RELEASE_TAG}.tar.gz" -C .tmp/admin-hosting/little-galaxy
+          pnpm exec firebase deploy --only hosting --project "$FIREBASE_PROJECT_ID" --non-interactive
+      - name: Probe the deployed admin page
+        env:
+          RELEASE_TAG: ${{ needs.guard.outputs.tag }}
+        run: node scripts/verify-admin-release.mjs
       - name: Deploy rules and indexes and migrate the sky with flag restoration
         timeout-minutes: 8
         env:

@@ -62,6 +62,14 @@ it('passes the release tag through Turbo to Vite and confirms production with th
 
 });
 
+it('deploys and probes the data project\'s admin Hosting before rules deployment',async()=>{
+ const workflow=await read('.github/workflows/release.yml');
+ const deploy=workflow.split('\n  deploy-rules:')[1];
+ expect(deploy).toContain('firebase deploy --only hosting --project');
+ expect(deploy).toContain('node scripts/verify-admin-release.mjs');
+ expect(deploy.indexOf('firebase deploy --only hosting')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
+ expect(deploy.indexOf('node scripts/verify-admin-release.mjs')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
+});
 it('selects a new-kernel sandbox only after its matching production client is live',async()=>{
  const workflow=await read('.github/workflows/release.yml');
  const publish=workflow.split('\n  publish:')[1].split('\n  deploy-rules:')[0];
