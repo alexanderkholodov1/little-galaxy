@@ -1,3 +1,4 @@
+import {ensureOpenSandbox} from './open-sandbox.js';
 import { releaseGalaxies, restoreGalaxySeason } from './galaxies.js';
 import { githubControlArgs } from './github-control.js';
 import { firebaseDeploy, firebasePreflight } from './firebase-cli.js';
@@ -23,24 +24,27 @@ try {
   const control = process.argv[2] === 'control';
   const release = process.argv[2] === 'release-sky';
   const inspect = process.argv[2] === 'inspect';
+  const openSandbox = process.argv[2] === 'open-sandbox';
   const restore = process.argv[2] === 'restore-season';
-  if ((release || restore || inspect) && process.argv.length !== 3) throw new Error('Release commands accept no arguments.');
+  if ((release || restore || inspect || openSandbox) && process.argv.length !== 3) throw new Error('Release commands accept no arguments.');
   const migrate = process.argv[2] === 'migrate-sky';
   const freeze = process.argv[2] === 'freeze-season';
   if (migrate && process.argv.length !== 3) throw new Error('migrate-sky accepts no arguments.');
   if (freeze) validateFreeze(process.argv.slice(3), process.env);
-  if (process.argv.length > 2 && !control && !freeze && !migrate && !release && !restore && !inspect) throw new Error('Unknown command');
+  if (process.argv.length > 2 && !control && !freeze && !migrate && !release && !restore && !inspect && !openSandbox) throw new Error('Unknown command');
   if (control) controlPatch(process.argv.slice(3));
   console.log(startStand(version));
   if (getApps().length) {
-    if (release || restore || inspect) {
+    if (release || restore || inspect || openSandbox) {
       try {
-        if (restore) { await restoreGalaxySeason(getFirestore()); await restoreSkySeason(getFirestore()); }
+        if (openSandbox) await ensureOpenSandbox(getFirestore());
+        else if (restore) { await restoreGalaxySeason(getFirestore()); await restoreSkySeason(getFirestore()); }
         else if (inspect) console.log(JSON.stringify(await inspectSky(getFirestore()), null, 2));
         else await releaseGalaxies(getFirestore(), () => firebaseDeploy(process.env.FIREBASE_PROJECT_ID!),
           () => firebasePreflight(process.env.FIREBASE_PROJECT_ID!));
       } finally { await getFirestore().terminate(); }
-      if (!inspect) console.log('Release sky controls complete; prior season setting restored.');
+      if (openSandbox) console.log('Open sandbox selected; recorded galaxies unchanged.');
+      else if (!inspect) console.log('Release sky controls complete; prior season setting restored.');
     } else if (migrate) {
       await migrateSky(getFirestore());
       await getFirestore().terminate();
@@ -71,7 +75,7 @@ try {
       process.once('SIGINT', shutdown); process.once('SIGTERM', shutdown);
       }
     }
-  } else if (control || migrate || release || restore || inspect) throw new Error('No admin connection');
+  } else if (control || migrate || release || restore || inspect || openSandbox) throw new Error('No admin connection');
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Stand command failed: ${message}`);

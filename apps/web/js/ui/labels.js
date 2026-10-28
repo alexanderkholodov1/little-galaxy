@@ -1,8 +1,3 @@
-export const strings = {
-  es: {'labels.anon': 'anónimo'},
-  en: {'labels.anon': 'anonymous'},
-};
-
 // Coordinates are CSS pixels relative to root. now is monotonic milliseconds.
 // Pointer contract: isTouch=true means an active sky contact; clear on up/cancel
 // with setPointer(null, null, true). Mouse leave uses null coordinates too.

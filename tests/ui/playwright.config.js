@@ -7,7 +7,7 @@ const isPreview = Boolean(process.env.BASE_URL);
 
 export default defineConfig({
   testDir: '.',
-  testMatch: isPreview ? 'smoke-preview.spec.js' : ['journey.spec.js', 'layout.spec.js'],
+  testMatch: isPreview ? 'smoke-preview.spec.js' : ['journey.spec.js', 'layout.spec.js', 'kernel-production.spec.js', 'recorded-sky.spec.js'],
   workers: 1,
   retries: 0,
   timeout: 90000,

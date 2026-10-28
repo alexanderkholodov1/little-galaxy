@@ -302,6 +302,14 @@ describe('privacy and administration', () => {
       }),
     );
   });
+  it('denies a verified Google account outside the allowlist on every admin probe and audit read', async () => {
+    const outsider = context('operator', { ...provider, email: 'outsider@example.com' }).firestore();
+    for (const path of ['config/admins', 'adminAudit/permission-probe', 'galaxies/g/adminActions/permission-probe']) {
+      await assertFails(getDoc(doc(outsider, path)));
+    }
+    const admin = context('keeper', provider).firestore();
+    await assertSucceeds(getDoc(doc(admin, 'config/admins')));
+  });
   it('allows only allowlisted verified Google admins to freeze, choose booth and read metrics', async () => {
     const admin = store('operator', provider, true);
     await assertSucceeds(admin.admin.update('g', 1, { status: 'frozen', writePolicy: 'frozen' }));
@@ -317,6 +325,21 @@ describe('privacy and administration', () => {
     await seed('galaxies/g/members/alice', initialMember('m-alice', now));
     await assertSucceeds(getDoc(doc(context().firestore(), 'galaxies/g')));
     await assertSucceeds(store().launch('g', intent()));
+  });
+  it('keeps recorded timeline moments and their index public, keeper-only and immutable on frozen skies', async () => {
+    await patch('galaxies/g', {status:'frozen',writePolicy:'frozen'});
+    const admin=context('operator',provider).firestore(),visitor=context().firestore(),publicDb=env.unauthenticatedContext().firestore();
+    for(const name of ['moment-v1-1-0-0','timeline-v1-1-7200']){
+      const path='galaxies/g/certifications/'+name;
+      const value={schemaVersion:1,generation:1,kernel:galaxy.kernel,sequence:0,tick:0,timeline:[]};
+      await assertFails(setDoc(doc(visitor,path),value));
+      await assertFails(setDoc(doc(publicDb,path),value));
+      await assertSucceeds(setDoc(doc(admin,path),value));
+      await assertSucceeds(getDoc(doc(publicDb,path)));
+      await assertFails(updateDoc(doc(admin,path),{sequence:1}));
+      await assertFails(deleteDoc(doc(admin,path)));
+    }
+    expect((await getDoc(doc(publicDb,'galaxies/g'))).data().generation).toBe(1);
   });
   it('denies checkpoint certifications to players, permits immutable admin certification', async () => {
     const path = 'galaxies/g/certifications/0';
@@ -939,4 +962,67 @@ it('does not reset the server launch clock on immediate edits or names', async (
   await assertSucceeds(s.edit('g',{id:'edit',type:'edit',bodyId:'planet',design:{colour:2},effectiveTick:0}));
   await assertSucceeds(s.setName('g','Alice'));
   expect((await getDoc(path)).data().mutationTime.toMillis()).toBe(before);
+});
+
+describe('leased client snapshots',()=>{
+  const lease=(holder='tab-a',memberId='m-alice')=>({holder,memberId,generation:1,kernel:galaxy.kernel,expiresAt:Date.now()+30000});
+  const snapshot=(holder='tab-a',extra={})=>({schemaVersion:1,generation:1,sequence:0,kernel:galaxy.kernel,
+    logHash:'',stateHash:'a'.repeat(64),replayHash:'b'.repeat(64),state:'packed',tick:120,encoding:'gzip-base64',holder,...extra});
+  const put=(uid,path,value)=>setDoc(doc(context(uid).firestore(),'galaxies/g/'+path),value);
+  beforeEach(async()=>{
+    for(const uid of ['alice','bob'])await seed('galaxies/g/members/'+uid,{...initialMember('m-'+uid,now),role:'editor'});
+  });
+  it('lets an anonymous editor save without a launch, admits public reads and denies nonleaders',async()=>{
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot('tab-a',{tick:121})));
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/liveSnapshots/latest')));
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/control/snapshotLease')));
+    await assertFails(deleteDoc(doc(context().firestore(),'galaxies/g/control/snapshotLease')));
+    await assertFails(put('bob','liveSnapshots/latest',snapshot()));
+    await assertFails(put('bob','control/snapshotLease',lease('tab-b','m-bob')));
+    await assertFails(deleteDoc(doc(context().firestore(),'galaxies/g/liveSnapshots/latest')));
+  });
+  it('renews, fails over after expiry and fences the old writer',async()=>{
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await patch('galaxies/g/control/snapshotLease',{expiresAt:Date.now()-1});
+    await assertSucceeds(put('bob','control/snapshotLease',lease('tab-b','m-bob')));
+    await assertFails(put('alice','liveSnapshots/latest',snapshot()));
+    await assertSucceeds(put('bob','liveSnapshots/latest',snapshot('tab-b')));
+  });
+  it('denies stale, future, oversized and malformed writes, viewers, outsiders and frozen skies',async()=>{
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    for(const extra of [{generation:2},{kernel:'old'},{sequence:1},{tick:99999999},{encoding:'raw'},
+      {state:'x'.repeat(900001)},{replayHash:'bad'},{extra:true}])
+      await assertFails(put('alice','liveSnapshots/latest',snapshot('tab-a',extra)));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
+    await assertFails(put('alice','liveSnapshots/latest',snapshot()));
+    await assertFails(put('alice','control/snapshotLease',{...lease(),expiresAt:Date.now()+120000}));
+    await assertFails(put('outsider','control/snapshotLease',lease('other','m-other')));
+    await patch('galaxies/g/members/alice',{role:'viewer'});
+    await assertFails(put('alice','control/snapshotLease',lease()));
+    await patch('galaxies/g',{status:'frozen',writePolicy:'frozen'});
+    await assertFails(put('bob','control/snapshotLease',lease('tab-b','m-bob')));
+    await assertFails(put('alice','liveSnapshots/latest',snapshot('tab-a',{tick:121})));
+  });
+  it('fences the previous generation and lets a new generation restart its snapshot tick',async()=>{
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
+    galaxy={...galaxy,generation:2,kernel:'next-kernel'};
+    await patch('galaxies/g',{generation:2,kernel:galaxy.kernel});
+    await assertSucceeds(put('bob','control/snapshotLease',{...lease('tab-b','m-bob'),generation:2}));
+    await assertFails(put('alice','liveSnapshots/latest',snapshot()));
+    await assertSucceeds(put('bob','liveSnapshots/latest',snapshot('tab-b',{generation:2,tick:0})));
+  });
+  it('keeps private snapshots unreadable outside membership and all lists closed',async()=>{
+    await patch('galaxies/g',{visibility:'invite-only',writePolicy:'members'});
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/liveSnapshots/latest')));
+    await assertSucceeds(put('alice','control/snapshotLease',lease()));
+    await assertSucceeds(put('alice','liveSnapshots/latest',snapshot()));
+    await assertFails(getDocs(collection(context().firestore(),'galaxies/g/liveSnapshots')));
+    await assertFails(put('alice','liveSnapshots/arbitrary',snapshot()));
+    await assertFails(getDoc(doc(context().firestore(),'galaxies/g/liveSnapshots/arbitrary')));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),'galaxies/g/control/snapshotLease')));
+  });
 });

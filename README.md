@@ -4,7 +4,8 @@ Collective Galaxy (Galaxia Colectiva) is a shared 3D galaxy that visitors build 
 
 **[Open the galaxy](https://alexanderkholodov.web.app/galaxy/)** ·
 **[Create an object](https://alexanderkholodov.web.app/galaxy/create)** ·
-**[Booth screen](https://alexanderkholodov.web.app/galaxy/screen)**
+**[Booth screen](https://alexanderkholodov.web.app/galaxy/screen)** ·
+**[Keeper admin](https://little-galaxy.firebaseapp.com/little-galaxy/admin)**
 
 ## Try it at the fair
 
@@ -13,7 +14,7 @@ Collective Galaxy (Galaxia Colectiva) is a shared 3D galaxy that visitors build 
 3. Find your object on the shared screen. Edit it live, try the aurora/comet/shooting-star controls when enabled, and tap **Enable sound** to hear it.
 4. Open your object record and create a postcard to keep its return link. The hangar retains your earlier objects for relaunch.
 
-Launching and shared interactions require a connection and an open season; the booth operator controls availability. If the fair is closed, you can still explore the workshop and its private preview. A normal browser tab preserves your saved draft when storage is available.
+Visitors land in an open shared sandbox: design a body, pull back and release it, and everyone sees it join the sky. A separate link explains and opens the original Be A Dragon 2026 fair galaxy and its timelapse. A normal browser tab preserves your workshop draft when storage is available.
 
 ## Views from the application
 
@@ -37,7 +38,7 @@ flowchart LR
   Portfolio --> Hosting["Firebase Hosting · /galaxy/"]
 ```
 
-The phone and screen share deterministic orbital math and validated schemas. Phones maintain 16 live sky shards atomically with their object writes. Home and Screen listen directly, even with both stands off. A leased stand on Beacon or its laptop backup maintains archives and legacy snapshots without Cloud Functions; the project uses Firebase’s Spark tier. Deny-by-default rules enforce ownership, write budgets and operator switches. Only the portfolio deploys the complete public site.
+The phone and screen share deterministic orbital math and validated schemas. Phones maintain 16 live sky shards atomically with their object writes. Home and Screen listen directly, even with both stands off. A leased stand on Beacon or its laptop backup maintains archives and legacy snapshots without Cloud Functions; the project uses Firebase’s Spark tier. Deny-by-default rules enforce ownership, write budgets and operator switches. Only the portfolio deploys the complete public site; the data project Hosting serves only the keeper admin.
 
 ## Quality evidence
 
@@ -181,11 +182,9 @@ Vite fixes asset URLs to `/little-galaxy/`. Generated `version.json` contains `v
 outside a git checkout), and `builtAt` (UTC ISO timestamp). Build caching is disabled so this metadata
 describes that invocation.
 
-`.github/workflows/checks.yml` runs three independent PR jobs with the pnpm cache: unit tests + lint +
-typecheck + build/privacy, current-model Firestore rules, and one real browser player journey. The emulator
-and Chromium binaries are cached too. The target is about five minutes including a same-repository PR
-preview; cold downloads or runner queues can take longer. Superseded PR runs are cancelled. Merges build
-the exact release commit without repeating the PR test suite.
+`.github/workflows/checks.yml` runs one `pnpm check` job: lint, typecheck, unit, physics and
+build/privacy. Local `pnpm accept` supplies the release-client browser, real-public-data and
+emulator evidence. Merges build the exact release commit without repeating these suites.
 
 `pnpm run test:rules` runs only `galaxies.test.js` and `deny-all.test.js`: ownership, reciprocal
 admission, immutable history, lifecycle/keeper permissions and catch-all denial. `pnpm run test:ui`
@@ -207,40 +206,40 @@ An older milestone falls back below the newest tag and says so in the PR forecas
 allocated version sorts above reserved active alpha releases using numeric semver precedence;
 historical stable tags do not override the current alpha line.
 
-Nobody edits a package version, counter or release label. **This merge can reach production** shows
-the forecast and its reason in the PR check summary. Main resolves the merged PR, refreshes tags and
-recalculates before reserving the exact-commit tag, retrying concurrent collisions. Existing tags on
-the same commit resume the release. Require this check and the three check jobs in branch protection.
-Docs-only merges explicitly skip. The shipping filter covers web/shared/stand code, database
-rules/indexes/config, dependencies and build/release tooling. See
-[automatic releases](docs/automatic-releases.md) for the hierarchy, sibling-fix rules and receiver contract.
+Nobody edits a package version, counter or release label. The allocator honours an exact
+`v1.0.0-alpha.10.0-rc1` branch/title request, including its `-rcN` suffix. Main resolves the
+merged PR, refreshes tags and reserves the exact-commit tag with collision retries. Docs-only
+merges explicitly skip. See [automatic releases](docs/automatic-releases.md).
+
+Run `pnpm check` locally: lint, typecheck, unit, physics and release build/privacy, sequentially.
+GitHub runs this same command in one job, retaining rehearsal verdicts on `rehearsal/**` pushes.
+Run `pnpm accept` for the built-client phone/laptop and EN/ES journeys: public production reads
+for the original fair, isolated emulators for launches, current physics and keeper administration.
+Its private export and screenshots stay in `.tmp/`; results are `.tmp/accept-<sha>.json`.
+CI has no preview, browser or emulator jobs. Local acceptance is the journey evidence.
 
 On Windows the rules, UI and live-safety runners keep an emulator owner alive until the suite ends,
 then stop its full process tree with `taskkill /PID <pid> /T /F`, including after errors or Ctrl+C.
 POSIX keeps Firebase's `emulators:exec` lifecycle. Occupied emulator ports fail before startup;
 Windows also requires the local hub port 4400 to be free.
 
-The checked build is uploaded as `galaxy-dist`. Same-repository PRs pass it to a separate `preview`
-environment job, which never checks out or executes PR code and deploys only the expiring `pr-<number>`
-channel. Missing preview credentials produce a notice; fork PRs never enter that job. For an optional
-read-only hosted smoke, set `BASE_URL` to the deployed origin and run `pnpm run test:ui`; it blocks
-identity creation and writes.
 
 On merge, the automatic version becomes an exact-commit tag. An existing tag on the same commit
 resumes the release; it never silently skips shipping changes. The guard verifies the automatic
 numeric milestone line, main first-parent history and increasing version precedence. The build passes `RELEASE_TAG` through Turbo into Vite to
 stamp the runtime and `version.json`, independently of package.json. It builds with the production
 public config and privacy gate, packs `galaxy-dist-<tag>.tar.gz`, and attaches `version.json` and
-`SHA256SUMS`. The `little-galaxy-rules` environment retains required operator review before deploying rules and indexes
-with the current galaxy migration and season restoration. Keep the operator configured as its required
-reviewer. No PR tests run again during release.
+`SHA256SUMS`. The `little-galaxy-rules` environment deploys rules and indexes with the current galaxy migration and season
+restoration directly after the merge: it only restricts deployment to `main` and `v*` tags and has no manual
+reviewer (owner decision 2026-10-27). No PR tests run again during release.
 
 After the rules are live, publication verifies existing assets on retry and dispatches `galaxy-release`
-with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`. The final release step polls
+with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`. Publication polls
 `https://alexanderkholodov.web.app/little-galaxy/version.json` with cache bypass, every five seconds
 for at most eight minutes. Only the exact released commit and stamped version succeed; HTTP errors,
 stale metadata and missing dispatch/deployment fail with **RELEASE NOT LIVE** and a recovery message.
-Only the portfolio deploys production Hosting and performs Hosting rollback; see the
+After that client is verified live, the release idempotently creates/selects an open current-kernel
+sandbox. Frozen histories and identities remain unchanged. Only the portfolio deploys the public production Hosting and performs Hosting rollback; see the
 [release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure).
 
 The privacy gate is part of `pnpm run build`. It scans every output file, gunzips `.gz` output, decodes

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import { assertProductionEnv, createVersionFile } from './build-config.js';
@@ -26,13 +26,18 @@ export default defineConfig(({ command, mode }) => {
     }, {
       name: 'galaxy-version',
       generateBundle() {
-        // The release payload redistributes the fonts, so it must carry their notices too.
-        for (const name of ['OFL-Spectral.txt', 'OFL-ArchivoNarrow.txt']) {
-          this.emitFile({
-            type: 'asset', fileName: `licenses/${name}`,
-            source: readFileSync(new URL(`./src/assets/fonts/${name}`, import.meta.url), 'utf8'),
-          });
+        // Public frozen records are generated outside the repository before the release build.
+        const recordRoot = fileURLToPath(new URL('../../.tmp/published-records/', import.meta.url));
+        if (existsSync(recordRoot)) {
+          const emitRecords = (dir, prefix = '') => {
+            for (const e of readdirSync(dir, {withFileTypes:true})) {
+              if (e.isDirectory()) emitRecords(dir + '/' + e.name, prefix + e.name + '/');
+              else this.emitFile({type:'asset', fileName:'recorded/' + prefix + e.name, source:readFileSync(dir + '/' + e.name)});
+            }
+          };
+          emitRecords(recordRoot);
         }
+        // The release payload redistributes the fonts, so it must carry their notices too.
         this.emitFile({ type: 'asset', fileName: 'licenses/MIT-qrcode-generator.txt',
           source: readFileSync(new URL('./src/assets/licenses/MIT-qrcode-generator.txt', import.meta.url), 'utf8') });
         for (const family of ['figtree', 'unbounded']) {

@@ -16,5 +16,14 @@ sandbox cannot write there. The implementation docs and migration live in this r
 founder, coherent funded-home fallback frames, nearby moon parents and launch diagnostics.
 It preserves the numeric B1 admission/rules contract and requires deployed-preview/phone acceptance.
 
+`alpha9.5-a-open.md` records the approved A-open implementation and acceptance limits for transfer
+to the portfolio plan and its CHANGELOG. It is staged here; no external plan checkout was edited.
+
 `alpha9-show.patch` records the operator-directed recruiter-facing presentation audit and emulator
 geometry checks. It is staged here because A-show explicitly forbids editing other worktrees.
+
+`alpha9.7-showcase.md` records the operator-directed frozen opening/seeking and fire-centred
+current-kernel changes, measurements and the owner options for preserving the fair record.
+
+- [alpha.10.0-rc1: the complete shared-game candidate](../prototype/RELEASE-CANDIDATE.md): open sandbox provisioning, public frozen release moments, reliable Google redirect, plain-language record navigation, local acceptance and one CI check job.
+- [rc1 presentation / plan changelog transfer](alpha10-rc1-presentation.md): coherent fair and timelapse presentation, centralized copy and local presentation evidence.

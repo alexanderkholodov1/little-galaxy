@@ -3,11 +3,10 @@ import { expect, it } from 'vitest';
 
 const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 
-it('hands the preview credential only to the locked firebase-tools version', async () => {
-  const locked = (await read('pnpm-lock.yaml')).match(/^ {2}firebase-tools@(\d+\.\d+\.\d+):\r?$/mu)?.[1];
-  const pinned = (await read('.github/workflows/ci.yml')).match(/^ +firebaseToolsVersion: (\d+\.\d+\.\d+)\r?$/mu)?.[1];
-  expect(locked).toMatch(/^\d+\.\d+\.\d+$/u);
-  expect(pinned).toBe(locked);
+it('runs the same fast local check in a single CI job, retaining rehearsal verdicts', async () => {
+  const ci=await read('.github/workflows/ci.yml'), checks=await read('.github/workflows/checks.yml');
+  expect(ci).not.toContain('preview:');expect(checks).not.toContain('playwright');expect(checks).not.toContain('test:rules');
+  expect(checks).toContain('run: pnpm check');expect(checks).toContain('verdict.json');expect(ci).toContain("branches: ['rehearsal/**']");
 });
 
 it('publishes alpha releases as prereleases then dispatches the exact tag to portfolio', async () => {
@@ -46,7 +45,7 @@ it('protects reviewed controls and cleans credentials even after failure', async
   expect(controls).toContain('src/index.ts github-control');
 });
 
-it.each([['ci.yml', 'release-version'], ['release-on-merge.yml', 'tag'], ['release.yml', 'guard']])(
+it.each([['release-on-merge.yml', 'tag'], ['release.yml', 'guard']])(
   '%s fetches tags explicitly for its %s job', async (file, job) => {
     const workflow = await read('.github/workflows/' + file);
     const body = workflow.split('\n  ' + job + ':\n')[1].split(/\n {2}[a-z-]+:\n/u)[0];
@@ -60,8 +59,22 @@ it('passes the release tag through Turbo to Vite and confirms production with th
   const release = await read('.github/workflows/release.yml');
   expect(release.match(/RELEASE_TAG: \$\{\{ needs.guard.outputs.tag \}\}/gu).length).toBeGreaterThanOrEqual(7);
   expect(JSON.parse(await read('turbo.json')).tasks.build.env).toContain('RELEASE_TAG');
-  const ci = await read('.github/workflows/ci.yml');
-  expect(ci).toContain('node scripts/check-release-version.js --preview');
-  expect(ci).toContain('RELEASE_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}');
-  expect(ci).toContain('RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}');
+
+});
+
+it('deploys and probes the data project\'s admin Hosting before rules deployment',async()=>{
+ const workflow=await read('.github/workflows/release.yml');
+ const deploy=workflow.split('\n  deploy-rules:')[1];
+ expect(deploy).toContain('firebase deploy --only hosting --project');
+ expect(deploy).toContain('node scripts/verify-admin-release.mjs');
+ expect(deploy.indexOf('firebase deploy --only hosting')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
+ expect(deploy.indexOf('node scripts/verify-admin-release.mjs')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
+});
+it('selects a new-kernel sandbox only after its matching production client is live',async()=>{
+ const workflow=await read('.github/workflows/release.yml');
+ const publish=workflow.split('\n  publish:')[1].split('\n  deploy-rules:')[0];
+ expect(publish.indexOf('Dispatch the exact')).toBeLessThan(publish.indexOf('Confirm the released commit'));
+ expect(publish.indexOf('Confirm the released commit')).toBeLessThan(publish.indexOf('src/index.ts open-sandbox'));
+ expect(publish).toContain('Remove sandbox credentials');
+ expect(workflow.split('\n  deploy-rules:')[1]).not.toContain('open-sandbox');
 });

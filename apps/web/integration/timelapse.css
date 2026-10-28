@@ -1,11 +1,81 @@
-body[data-replay] .dock,body[data-replay] .gesture-hint,body[data-replay] .credits-link,body[data-replay] #splash,body[data-replay] .top-actions{display:none}
-#timeRuler{position:fixed;bottom:0;left:0;right:0;z-index:70;background:#0d1018ed;color:#fff1de;padding:24px 48px;border-top:1px solid #56ccf2;font-family:'Archivo Narrow',sans-serif;font-variant-numeric:tabular-nums}
-#timeRuler h1{font:400 30px Spectral,serif;margin:0 0 8px}#timeRuler p{margin:0 0 24px;color:#56ccf2}
-.timeControls{display:flex;align-items:center;gap:24px}.timeControls button,.timeControls select{background:#182030;color:#fff1de;border:1px solid #56ccf2;padding:8px;font:inherit}
-.timeControls output{margin-left:auto}#replayScrub{display:block;width:100%;margin-top:24px;accent-color:#ff8a5b}
-@media(max-width:600px){#timeRuler{padding:16px 24px}#timeRuler h1{font-size:24px}.timeControls{gap:16px;flex-wrap:wrap}}
+body[data-replay] .dock,
+body[data-recorded="true"] .gesture-hint,
+body[data-replay] .gesture-hint,
+body[data-replay] #splash,
+body[data-replay] #btnMusic,
+body[data-replay] #btnPrefs{display:none}
 
-.timeControls button,.timeControls select{min-width:44px;min-height:44px;border-radius:var(--r-chip)}
-#timeRuler h1{overflow-wrap:anywhere}
-html[data-ui-theme=light] #timeRuler p{color:#176a91}
-html[data-ui-theme=light] .timeControls button,html[data-ui-theme=light] .timeControls select{background:#fff8ec;color:#182030;border-color:#176a91}
+#timeRuler{
+  position:fixed;bottom:0;left:0;right:0;z-index:70;
+  padding:16px 16px calc(12px + var(--sb));
+  border-radius:var(--r-sheet) var(--r-sheet) 0 0;
+  font-variant-numeric:tabular-nums;
+}
+#timeRuler h1{
+  font-family:var(--f-display);font-weight:600;font-size:1.25rem;line-height:1.2;
+  margin:0 0 8px;overflow-wrap:normal;word-break:normal;
+}
+#timeRuler h1 span{display:inline-block;max-width:100%;vertical-align:bottom;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#timeRuler p{margin:0 0 16px;color:var(--celeste)}
+.timeControls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#replaySpeed{display:flex;flex-wrap:wrap;gap:8px}
+#replaySpeed .chip{
+  min-width:44px;padding:0 12px;justify-content:center;
+  background:color-mix(in srgb, currentColor 8%, transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, currentColor 35%, transparent);
+}
+#replaySpeed .chip[aria-checked="true"]{
+  color:var(--crema);
+  background:color-mix(in srgb, var(--brasa) 18%, transparent);
+  box-shadow:inset 0 0 0 1.5px var(--brasa);
+}
+#replayTime{margin-left:auto}
+#replayScrub{display:block;width:100%;margin-top:8px}
+
+#galaxyVisits{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;pointer-events:none}
+#galaxyVisits > *{pointer-events:auto}
+.galaxyVisit{
+  display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 16px;
+  border-radius:999px;color:inherit;font:inherit;text-decoration:none;text-align:center;
+  background:var(--glass, rgba(20,24,40,.75));box-sizing:border-box;
+  overflow-wrap:normal;word-break:normal;
+}
+.sky-back,.sky-primary{text-decoration:none}
+body[data-replay="true"] #backToSandbox{padding-right:14px}
+body[data-recorded="true"] #galaxyVisits,
+body[data-replay="true"] #galaxyVisits{
+  position:fixed;z-index:36;top:calc(88px + var(--st));left:14px;right:14px;justify-content:flex-start;
+}
+body[data-recorded="true"] #galaxyVisits .credits-link,
+body[data-replay="true"] #galaxyVisits .credits-link{position:static;margin:0}
+body[data-recorded="true"] .home-footer .credits,
+body[data-replay="true"] .home-footer .credits{
+  position:fixed;z-index:40;top:calc(144px + var(--st));left:14px;right:auto;bottom:auto;
+  width:min(480px, calc(100% - 28px));margin:0;
+}
+body[data-recorded="true"]:not([data-replay="true"]) .sky-primary{
+  position:fixed;z-index:36;left:50%;bottom:calc(16px + var(--sb));transform:translateX(-50%);
+  max-width:calc(100% - 28px);white-space:nowrap;
+}
+body[data-recorded="true"] #btnSystems,
+body[data-recorded="true"] #sysList,
+body[data-replay="true"] #btnSystems,
+body[data-replay="true"] #sysList{display:none}
+#recordScrim{position:fixed;inset:0;z-index:80;background:rgba(5,7,12,.78)}
+body:has(#recordInformation[open]) #btnSystems,
+body:has(#recordInformation[open]) #sysList,
+body:has(#recordInformation[open]) .top-actions,
+body:has(#recordInformation[open]) #timeRuler{display:none !important}
+#recordInformation{
+  position:fixed;z-index:81;top:88px;left:16px;right:16px;margin:0 auto;
+  width:min(520px, calc(100% - 32px));max-height:calc(100dvh - 112px);overflow:auto;box-sizing:border-box;
+  border:1px solid var(--line, #6c7184);border-radius:var(--r-sheet);padding:24px;
+  background:var(--bg, #131722);color:var(--text, #fff1de);font:inherit;line-height:1.6;
+}
+#recordInformation::backdrop{background:rgba(5,7,12,.78)}
+#recordInformation h2{font-family:var(--f-display);font-weight:600;font-size:1.5rem;line-height:1.2;margin:0 0 24px}
+#recordInformation button{min-height:44px;padding:8px 24px}
+
+body[data-recorded="true"] .layer[data-layer="home"] .dock{display:none}
+html[data-ui-theme="light"] .galaxyVisit{background:#fff1de;color:#182030}
+html[data-ui-theme="light"] #recordInformation{background:#fff1de;color:#182030}

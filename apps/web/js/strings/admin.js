@@ -1,7 +1,7 @@
 export const es = {
  'admin.title':'Little Galaxy', 'admin.subtitle':'Observatorio · administración local', 'admin.local':'Prototipo local · este acceso no protege una base de datos real.',
- 'admin.gate':'La llave del observatorio', 'admin.pass':'Frase de acceso', 'admin.enter':'Abrir observatorio', 'admin.wrong':'La frase no coincide.',
- 'admin.galaxies':'Galaxias', 'admin.bodies':'Cuerpos', 'admin.metrics':'Métricas', 'admin.logout':'Cerrar sesión', 'admin.create':'Nueva galaxia',
+ 'admin.gate':'Administrar las galaxias', 'admin.pass':'Frase de acceso', 'admin.enter':'Abrir observatorio', 'admin.wrong':'La frase no coincide.',
+ 'admin.galaxies':'Galaxias', 'admin.bodies':'Cuerpos', 'admin.metrics':'Métricas', 'admin.logout':'Cerrar sesión', 'admin.lang.en':'EN', 'admin.lang.es':'ES', 'admin.lang.en.aria':'English', 'admin.lang.es.aria':'Español', 'admin.create':'Nueva galaxia',
  'admin.intro':'Cada encuentro, su propia galaxia.', 'admin.introText':'Empieza una galaxia nueva para la feria. La anterior conserva sus astros y su historia.',
  'admin.name':'Nombre', 'admin.lore':'Historia', 'admin.cancel':'Cancelar', 'admin.save':'Crear galaxia', 'admin.active':'Juego público', 'admin.booth':'Pantalla de feria',
  'admin.setActive':'Abrir al público', 'admin.setBooth':'Mostrar en feria', 'admin.freeze':'Congelar', 'admin.unfreeze':'Reabrir', 'admin.archive':'Archivar', 'admin.backup':'Respaldar', 'admin.restore':'Restaurar', 'admin.clear':'Vaciar',
@@ -21,8 +21,8 @@ export const es = {
 };
 export const en = {
  'admin.title':'Little Galaxy', 'admin.subtitle':'Observatory · local administration', 'admin.local':'Local prototype · this gate does not protect a real database.',
- 'admin.gate':'The observatory key', 'admin.pass':'Passphrase', 'admin.enter':'Open observatory', 'admin.wrong':'That passphrase does not match.',
- 'admin.galaxies':'Galaxies', 'admin.bodies':'Bodies', 'admin.metrics':'Metrics', 'admin.logout':'Sign out', 'admin.create':'New galaxy', 'admin.intro':'A galaxy for every gathering.', 'admin.introText':'Start a new galaxy for the fair. The previous one keeps its bodies and its history.',
+ 'admin.gate':'Galaxy administration', 'admin.pass':'Passphrase', 'admin.enter':'Open observatory', 'admin.wrong':'That passphrase does not match.',
+ 'admin.galaxies':'Galaxies', 'admin.bodies':'Bodies', 'admin.metrics':'Metrics', 'admin.logout':'Sign out', 'admin.lang.en':'EN', 'admin.lang.es':'ES', 'admin.lang.en.aria':'English', 'admin.lang.es.aria':'Español', 'admin.create':'New galaxy', 'admin.intro':'A galaxy for every gathering.', 'admin.introText':'Start a new galaxy for the fair. The previous one keeps its bodies and its history.',
  'admin.name':'Name', 'admin.lore':'Story', 'admin.cancel':'Cancel', 'admin.save':'Create galaxy', 'admin.active':'Public play', 'admin.booth':'Fair display', 'admin.setActive':'Open to public', 'admin.setBooth':'Show at fair', 'admin.freeze':'Freeze', 'admin.unfreeze':'Reopen', 'admin.archive':'Archive', 'admin.backup':'Back up', 'admin.restore':'Restore', 'admin.clear':'Empty',
  'admin.open':'Open', 'admin.frozen':'Frozen', 'admin.archived':'Archived', 'admin.players':'Players', 'admin.backups':'Backups', 'admin.noBackups':'No backups', 'admin.search':'Search name, author, type or ID', 'admin.selectGalaxy':'Choose a galaxy', 'admin.delete':'Remove', 'admin.deleteSelected':'Remove selection', 'admin.selected':'selected', 'admin.all':'Select page', 'admin.previous':'Previous', 'admin.next':'Next', 'admin.empty':'No records yet.', 'admin.author':'Author', 'admin.type':'Type', 'admin.anonymous':'Anonymous', 'admin.undo':'Undo', 'admin.removed':'Bodies removed. Undo is available for 30 s.', 'admin.expired':'The undo window has ended.', 'admin.backupId':'Verified backup', 'admin.done':'Done.',
  'admin.danger':'Before changing this galaxy', 'admin.warning':'A local backup will be taken and verified before proceeding. The source is retained; a backup in this browser is not an external copy.', 'admin.clearExplain':'All {count} bodies in “{name}” ({id}) will be removed. The galaxy will be empty. You can create another galaxy to start fresh.', 'admin.restoreExplain':'The {count} current bodies in “{name}” ({id}) will be replaced with backup {backup}. Current lifecycle and selections will be kept.', 'admin.archiveExplain':'“{name}” ({id}), with {count} bodies, will be archived and closed to new launches. Bodies will remain stored.', 'admin.deleteExplain':'{count} bodies in “{name}” ({id}) will receive reversible removal marks. Their data is retained. Undo is available for 30 s.', 'admin.typeName':'Type the exact galaxy name', 'admin.hold':'Hold 3 s and release to confirm', 'admin.holding':'Keep holding…', 'admin.release':'Release to confirm', 'admin.holdHelp':'Mouse or touch: hold and release. Keyboard: hold Space and release. Enter does not confirm.', 'admin.stale':'The galaxy changed. Open confirmation again.',
@@ -31,21 +31,25 @@ export const en = {
 
 Object.assign(en, {
     'admin.certify':'Save verified sky', 'admin.google':'Sign in with Google', 'admin.subtitle':'Observatory · keeper’s ledger',
-    'admin.local':'Verified Google account on the private keeper’s allowlist. Permissions are checked by Firestore.',
+    'admin.local':'Sign in with the Google account invited to manage this observatory. Google will bring you back here.',
     'admin.limit':'Three galaxies per account. Start fresh by creating another galaxy; history is retained.',
     'admin.warning':'An export is verified and downloaded before this operation. Keep it on your own media. The accepted history is retained.',
     'admin.deleteExplain':'Remove {count} bodies from “{name}” ({id}). The accepted log and a downloaded export retain their history. Hosts with companions cannot be removed.',
     'admin.metricNote':'Memberships, not unique people. Activity is sampled over five minutes. Visits and cosmetic throws are not collected. The charts cover accepted launches; imported bodies have no launch-time history.',
-    'admin.backup':'Export history', 'admin.backupId':'Export / result', 'admin.removed':'Removal recorded; history retained.'
+    'admin.backup':'Export history', 'admin.backupId':'Export / result', 'admin.removed':'Removal recorded; history retained.',
+    'admin.status.verifiedSaved':'Verified sky saved', 'admin.status.verifiedCurrent':'Verified sky already current',
+    'admin.status.frozenCertified':'Frozen and certified', 'admin.status.historyRetained':'History retained'
   });
   Object.assign(es, {
     'admin.certify':'Guardar cielo verificado', 'admin.google':'Entrar con Google', 'admin.subtitle':'Observatorio · registro del guardián',
-    'admin.local':'Cuenta de Google verificada en la lista privada del guardián. Firestore comprueba los permisos.',
+    'admin.local':'Entra con la cuenta de Google invitada a administrar este observatorio. Google te traerá de vuelta aquí.',
     'admin.limit':'Tres galaxias por cuenta. Crea otra para empezar de nuevo; el historial se conserva.',
     'admin.warning':'Antes de cambiarla se verifica y descarga una exportación. Guárdala en tus propios medios. El historial se conserva.',
     'admin.deleteExplain':'Retirar {count} cuerpos de “{name}” ({id}). El registro y la exportación conservan su historia. No se pueden retirar anfitriones con compañeros.',
     'admin.metricNote':'Membresías, no personas únicas. Actividad muestreada cada cinco minutos. No se registran visitas ni juegos efímeros. Los gráficos cuentan lanzamientos aceptados; los cuerpos importados no tienen ese historial.',
-    'admin.backup':'Exportar historial', 'admin.backupId':'Exportación / resultado', 'admin.removed':'Retiro registrado; historial conservado.'
+    'admin.backup':'Exportar historial', 'admin.backupId':'Exportación / resultado', 'admin.removed':'Retiro registrado; historial conservado.',
+    'admin.status.verifiedSaved':'Cielo verificado guardado', 'admin.status.verifiedCurrent':'El cielo verificado ya estaba al día',
+    'admin.status.frozenCertified':'Congelada y certificada', 'admin.status.historyRetained':'Historial conservado'
   });
 Object.assign(en, {
     'admin.activeTitle':'Open “{name}” to the public?',

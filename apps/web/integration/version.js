@@ -1,3 +1,4 @@
+import {t} from '../js/i18n.js';
 export const currentVersion = {version: __APP_VERSION__, commit: __APP_COMMIT__};
 export function changed(current, served){
   return Boolean(served?.version && (current.version !== served.version || (current.commit && served.commit && current.commit !== served.commit)));
@@ -19,7 +20,7 @@ export function watchVersion(save){
     const button = document.createElement('button');
     button.className = 'pill glass'; button.id = 'updateAvailable';
     button.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:1000';
-    button.textContent = document.documentElement.lang === 'es' ? 'Nuevo cielo listo · actualizar' : 'New sky ready · update';
+    button.textContent = t('sky.update');
     button.onclick = () => {save(); location.reload();};
     document.body.append(button);
   };

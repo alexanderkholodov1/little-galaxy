@@ -1,5 +1,7 @@
+import {randomBodyName} from './strings/body-names.js';
 import {setupTheme} from '../integration/theme.js';
 import {startSharedWorld} from '../integration/shared-world.js';
+import {simulationFor} from '../integration/kernel-routing.js';
 import {setupScreen} from '../integration/screen.js';
 import {recoverWorkshop} from '../integration/draft.js';
 // main.js — Little Galaxy · "Fogata". Orquesta el mundo 3D, el sonido y el vidrio.
@@ -13,14 +15,12 @@ import {createLocalStore} from './store.js';
 import {track, flush} from '../integration/metrics.js';
 import {getPlayer, askPlayer} from './ui/player.js';
 import {loadPrefs, savePrefs as storePrefs, createPrefsPanel} from './ui/prefs.js';
-import {createLabels, strings as labelStrings} from './ui/labels.js';
+import {createLabels} from './ui/labels.js';
 import core from './strings/core.js';
 import galaxyStrings from './strings/galaxy.js';
 import playerStrings from './strings/player-ui.js';
 register(core);
 register(playerStrings);
-register({es:{'welcome.enter':'Entrar', 'welcome.line':'Una galaxia hecha entre todos. Entra con sonido.'}, en:{'welcome.enter':'Enter', 'welcome.line':'A galaxy everyone builds together. Come in with sound.'}});
-register(labelStrings);
 register(galaxyStrings);
 window.__FOG_T = translateDom;
 
@@ -37,22 +37,12 @@ const DEBUG = import.meta.env.DEV && /[?&]debug\b/.test(location.search);
 window.__FOG_OK = false;
 
 /* ------------------------------------------------------------------ nombres (sin texto libre) */
-const NOUNS = [['Brasa','f'],['Lucero','m'],['Miel','f'],['Farol','m'],['Canela','f'],['Vela','f'],['Duende','m'],
-  ['Mochi','m'],['Ceniza','f'],['Bruma','f'],['Guijarro','m'],['Ámbar','m'],['Lila','f'],['Pompa','f'],['Cascabel','m'],
-  ['Lumbre','f'],['Rescoldo','m'],['Chispa','f'],['Malvavisco','m'],['Nube','f'],['Grillo','m'],['Luciérnaga','f'],['Botón','m'],['Pluma','f']];
-const ADJS = [['Tímido','Tímida'],['Dormido','Dormida'],['Risueño','Risueña'],['Tibio','Tibia'],['Lejano','Lejana'],
-  ['Valiente','Valiente'],['Curioso','Curiosa'],['Pequeño','Pequeña'],['Callado','Callada'],['Soñador','Soñadora'],
-  ['Tierno','Tierna'],['Despistado','Despistada'],['Bailarín','Bailarina'],['Viajero','Viajera'],['Dulce','Dulce'],
-  ['Lento','Lenta'],['Feliz','Feliz'],['Brillante','Brillante']];
-function randomName(){
-  const n = NOUNS[(Math.random()*NOUNS.length)|0], a = ADJS[(Math.random()*ADJS.length)|0];
-  return n[0] + ' ' + (n[1] === 'f' ? a[1] : a[0]);
-}
+const randomName = () => randomBodyName(getLang());
 
 /* ------------------------------------------------------------------ estado */
 const QS = new URLSearchParams(location.search);
 const ROUTE = location.pathname.replace(/\/$/, '');
-const store = createLocalStore({galaxyId: QS.get('g') || QS.get('galaxy') || null, booth: QS.has('booth') || ROUTE.endsWith('/screen'), replay: ROUTE.endsWith('/timelapse'), readOnly: ROUTE.endsWith('/timelapse') || ROUTE.endsWith('/screen') || QS.get('smoke') === 'readonly'});
+const store = createLocalStore({galaxyId: QS.get('g') || QS.get('galaxy') || null, booth: QS.has('booth') || ROUTE.endsWith('/screen'), replay: ROUTE.endsWith('/timelapse'), readOnly: ROUTE.endsWith('/timelapse') || ROUTE.endsWith('/screen') || QS.get('smoke') === 'readonly' || QS.get('view') === 'recorded'});
 // R14: métricas locales por galaxia (js/metrics.js). Nunca rompen el juego: un fallo se ignora.
 function metric(ev, extra){
   try{ track(ev, {galaxyId:store.galaxyId, memberId:store.owner(), displayName:S.player && !S.player.anonymous ? S.player.displayName : '', ...extra}); }catch(_){}
@@ -112,7 +102,8 @@ async function boot(){
   document.documentElement.dataset.motion = RM ? 'reduce' : 'full';
   translateDom();
   const canvas = $('#world');
-  try{ world = createWorld(canvas, {rm:RM}); }
+  const loaded = await store.loadGalaxy();
+  try{ world = createWorld(canvas, {rm:RM,Simulation:simulationFor(loaded.galaxy)}); }
   catch(err){ console.error(err); window.__FOG_FAIL && window.__FOG_FAIL('webgl'); return; }
   world.setQuality(PREFS.quality);
   audio = createAudio();
@@ -122,7 +113,6 @@ async function boot(){
 
   world.owner = store.owner();
   if(import.meta.env.DEV && new URLSearchParams(location.search).has('sandbox')) Object.assign(world.sim.budget, {playerBlackHoles:99, playerStellar:99, blackHoleGapMs:0});
-  const loaded = await store.loadGalaxy();
   world.owner = store.owner();
   S.player = loaded.player || localPlayer();
   S.galaxy = loaded.galaxy || {status:'active'};
@@ -140,8 +130,8 @@ async function boot(){
   world.on('frame', onFrame);
   wireWorldEvents();
   startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});
-  world.on('shared-pending', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Lanzando…' : 'Launching…'); aimStats(() => getLang() === 'es' ? 'Esperando el cielo compartido' : 'Waiting for the shared sky');});
-  world.on('shared-denied', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => getLang() === 'es' ? 'Todavía está en tu mano' : 'Still in your hand'); aimStats(() => getLang() === 'es' ? 'Vuelve a tirar cuando estés listo' : 'Pull again when you are ready');});
+  world.on('shared-pending', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => t('launch.pending.title')); aimStats(() => t('launch.pending.stats'));});
+  world.on('shared-denied', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => t('launch.denied.title')); aimStats(() => t('launch.denied.stats'));});
   indexLayers();
   setMode('home', {instant:true});
   glass.scan();
@@ -163,6 +153,9 @@ async function boot(){
   const unlock = () => audio.unlock();
   for(const g of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(g, unlock, {capture:true, passive:true});
   setupTheme();
+  const langSwitch = document.querySelector('#langSwitch');
+  const paintLang = () => { const to = getLang() === 'es' ? 'en' : 'es'; langSwitch.textContent = t('lang.to.' + to); langSwitch.setAttribute('aria-label', t('lang.to.' + to + '.aria')); };
+  paintLang(); langSwitch.onclick = () => setLang(getLang() === 'es' ? 'en' : 'es'); onLang(paintLang);
   setupShake();
   setupScreen({world,labels});
 
@@ -171,11 +164,12 @@ async function boot(){
   requestAnimationFrame(loop);
 
   window.__FOG_OK = true;
+  window.__galaxyDiscs = () => world.discPixels();
   if(import.meta.env.DEV) window.__fog = {world, S, audio, labels, prefs:prefsPanel, store};
   requestAnimationFrame(() => $('#veil').classList.add('is-done'));
   // pantalla de título: el nombre del juego aparece grande y se retira a la esquina
   document.body.classList.add('splashing');
-  if(!welcome()) setTimeout(() => { $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }, RM ? 1200 : 3000);
+  if(!welcome()){ $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }
   setInterval(saveSky, 8000);
 
   addEventListener('pagehide', () => { saveSky(); flush(); });
@@ -266,7 +260,7 @@ function updateCount(){
   const n = world.entries.filter(e => !e.toy).length;
   updateSystems();
   $('#countN').textContent = n;
-  const l = $('#countLabel'); l.dataset.i18n = n === 1 ? 'home.count.one' : 'home.count.other'; l.textContent = t(l.dataset.i18n);
+  const l = $('#countLabel'),prefix=S.frozen||world.replay?'home.recorded':'home.count'; l.dataset.i18n = prefix+(n===1?'.one':'.other'); l.textContent = t(l.dataset.i18n);
 }
 
 function openFocus(e){
@@ -1080,18 +1074,6 @@ function onFrame(dt){
   }
   if(S.focus && (focusTick += dt) > .5){ focusTick = 0; updateFocusOrbit(); }
   if((sysTick += dt) > 3){ sysTick = 0; if(S.mode === 'home') updateSystems(); }
-}
-
-/* una galaxia congelada (admin, R13/R20) se visita pero no se toca: sin crear, sin lanzar, sin guardar */
-function freezeUi(){
-  document.body.classList.add('frozen');
-  for(const id of ['btnCreate', 'btnToss']) $('#' + id).hidden = true;
-  const chip = document.createElement('p');
-  chip.className = 'frozen-note glass'; chip.id = 'frozenNote'; chip.setAttribute('role', 'status');
-  const paint = () => { chip.textContent = t('galaxy.frozen', {name:S.galaxy.name || ''}); };
-  paint(); onLang(paint);
-  $('.layer[data-layer="home"] .dock').prepend(chip);
-  glass.scan();
 }
 
 /* ================================================================== guardar la galaxia (detrás de js/store.js) */

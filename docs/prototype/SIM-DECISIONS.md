@@ -84,8 +84,9 @@ Decision:
 
 ## Known gaps (for the next run)
 
-- The sim resumes at its saved time when a page reopens. Rails could be evaluated at wall-clock time analytically,
-  but the compact bodies and travellers would need catch-up integration, so I did not mix the two.
+- Shared visitors now resume from a provisional live snapshot and verify history in the background. Mature
+  multi-system populations advance directly to the present; the young cohort retains fixed steps. See
+  [A-OPEN.md](A-OPEN.md) for its kernel identity, trust model, measurements and device-verification limits.
 - Moons do not orbit planets; all light bodies orbit systems.
 - The pair renderer for a real two-component `binary`, low-speed aggregates, the nursery primary.
 - Visual feel of the young cohort, crossings of quiet light rails and the galactic site pattern still need deployed-preview and real-phone play. Node measurements cannot establish browser/device rendering quality.
@@ -384,3 +385,36 @@ shared names source, following that script's SHA-256 recipe. The A2-only identit
 `homes.js` makes the integrated identity `proto3-1abd3a0c4e19d4217695088203b6bb16a8793c13261fd3d1dc798d2581989f37`.
 The frozen fair galaxy must retain its historical kernel identity; the generation migration
 requirements above still apply. No physics or admission behavior was changed by integration.
+
+## A-open — 2026-10-26
+
+The operator-approved client-leader snapshot and formula-orbit opening design is implemented in
+[A-OPEN.md](A-OPEN.md). Mature escape/return metadata freezes at settlement, so fixed-step and
+closed-form sampling have the same canonical state. The kernel identity changes to
+`proto3-81e31788dd7a8eef8ab2a1a738c42055541186f33e3d6b26d9bb1329a0614e05`; historical galaxies
+retain their original identity. No production manifest, rules or Hosting deployment was changed.
+
+### A-open release kernel routing — 2026-10-27
+
+The owner will keep BAD 2026 frozen and create/select a new galaxy after the release. This plan
+needs no generation migration: admin creation already pins the current kernel on a new document
+at generation 1. A-open now ships the final fair release's archived simulation and replay under
+its historical identity for frozen/archived records only. The worker and display use that same
+implementation; the original manifest and accepted history remain unchanged. Live snapshots
+stay on the current kernel; optional historical certifications retain their original identity.
+Unknown identities and active old identities remain rejected. This implements the version
+dispatcher anticipated in the migration notes above; it supersedes their earlier statement that
+no production routing was included. See [A-OPEN.md](A-OPEN.md#production-kernel-decision--2026-10-27)
+for source provenance, compatibility tests and the precise release procedure.
+
+## Showcase hito alpha.9.7 — 2026-10-27
+
+The owner requires a coherent galaxy around the fire, including when black holes arrive.
+The mature galactic site-zero anchor now belongs to the fire's system rather than the mass-weighted
+site mean. Unbound mature light bridges choose that system, genuine bound captures retain their
+satellite hosts, and dense orbit lanes subdivide remaining
+radial gaps. Protected first-minute dynamics, finite C1 bridges and exact mature orbits remain.
+The new fingerprint is `proto3-0c0adef90be59e2accdde89a69900af00642ff2163ba4d7c2b0b70e826a9f01a`.
+Historical source/identity is unchanged. Existing keeper certification now also indexes frozen
+moments for quick opening/seeking. See [SHOWCASE.md](SHOWCASE.md) for the production diagnosis,
+owner action, private-fixture measurements, public intent regression, limits and fair options.

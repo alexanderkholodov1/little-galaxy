@@ -1,6 +1,9 @@
 // world.js — un solo mundo 3D: la galaxia, el banco del taller y la plataforma de lanzamiento
 // viven en la misma escena. Pasar de una pantalla a otra es mover la cámara, nunca cortar.
 import * as THREE from 'three';
+import {distantMarker} from '../integration/distant-marker.js';
+import {galaxyFrame, paintedDistance} from '../integration/galaxy-frame.js';
+import {restoreCoordinates} from '../integration/replay-coordinates.js';
 import {Sim, predict, elements, propagate} from './sim/index.js';
 import {Body, GALAXY_SCALE, TYPE_INFO, glowTex, raysTex, sprite, NOISE, mulberry} from './bodies.js';
 
@@ -36,10 +39,10 @@ export function createWorld(canvas, opts = {}){
   renderer.setClearColor('#0d1018', 1);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 1200);
-  const sim = new Sim({seed: opts.seed ?? 1});
+  const sim = new (opts.Simulation ?? Sim)({seed: opts.seed ?? 1});
   const toySim = new Sim({seed:1});
-  const listeners = {};
-  const emit = (ev, ...a) => (listeners[ev] || []).forEach(fn => fn(...a));
+  const listeners = {};let homeAuto=true;
+  const emit = (ev, ...a) => {if(ev==='camera-user')homeAuto=false;(listeners[ev] || []).forEach(fn => fn(...a));};
   const W = {renderer, scene, camera, sim, entries:[], mode:'home', t:0, px:1, rm:RM, fps:60, owner:'local'};
   sim.budget.galaxyBodies = MAX_BODIES - TOY_MAX - 2;
   let dprCap = Math.min(window.devicePixelRatio || 1, 1.75);
@@ -517,9 +520,9 @@ export function createWorld(canvas, opts = {}){
     return out;
   }
   const vfov = () => camera.fov*Math.PI/180;
-  function fitDist(R, el){
+  function fitDist(R){
     const a = camera.aspect, tv = Math.tan(vfov()/2), th = tv*a;
-    const halfH = R*Math.max(Math.sin(el), 0.35) + 1.5;
+    const halfH = R + 1.5;
     return Math.max(R/th, halfH/tv) * 1.04 + R*0.15;
   }
   function views(){
@@ -539,22 +542,24 @@ export function createWorld(canvas, opts = {}){
   }
   // la última vista de la galaxia que eligió el jugador (al irse al taller se recuerda)
   let galaxyView = null;
-  const homeTarget = new THREE.Vector3();
-  let homeR = r => r;          // M4: el mapa se ensancha cuando la galaxia crece
-  // Fair 2026-10-25 (operator): the home view frames the heart of the galaxy, never thousands of units away;
-  // the player can still zoom out by hand.
-  const HOME_R_MAX = 120, HOME_TARGET_MAX = 60;
-  // the circle around every founded system (each with its own radius of room), centred between them
+  // Include travellers as well as systems; the camera follows the complete visible galaxy.
   function homeFrame(base){
-    const fs = sim.systems.filter(s => s.founded && s.p);
-    if(fs.length < 2) return {target:homeTarget.clone(), R:Math.min(homeR(base), HOME_R_MAX)};
-    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-    for(const s of fs){ x0 = Math.min(x0, s.p[0]); x1 = Math.max(x1, s.p[0]); z0 = Math.min(z0, s.p[2]); z1 = Math.max(z1, s.p[2]); }
-    let cx = (x0 + x1)/2, cz = (z0 + z1)/2;
-    const off = Math.hypot(cx, cz); if(off > HOME_TARGET_MAX){ cx *= HOME_TARGET_MAX/off; cz *= HOME_TARGET_MAX/off; }
-    let R = base;
-    for(const s of fs) R = Math.max(R, Math.hypot(s.p[0] - cx, s.p[2] - cz) + 17.5);
-    return {target:new THREE.Vector3(cx, 0, cz), R:Math.min(R*1.08, HOME_R_MAX)};
+    const frame=galaxyFrame(sim.bodies,base);
+    const disc=base*1.08;
+    return {target:new THREE.Vector3(...frame.centre),R:Math.min(frame.radius,disc)};
+  }
+  // Stored orbits can sit far outside the painted spiral. Draw them inside it; the record stays as it is.
+  function paintSkyPoint(out){
+    const base=camera.aspect<0.9?11:17.5;
+    const frame=galaxyFrame(sim.bodies,base);
+    const disc=base;
+    if(!(frame.radius>disc*1.08))return out;
+    const centre=frame.centre,dx=out[0]-centre[0],dy=out[1]-centre[1],dz=out[2]-centre[2];
+    const distance=Math.hypot(dx,dy,dz);
+    const shown=paintedDistance(distance,frame.radius/1.08,disc);
+    const k=distance>0?shown/distance:1;
+    out[0]=centre[0]+dx*k;out[1]=centre[1]+dy*k;out[2]=centre[2]+dz*k;
+    return out;
   }
   function rememberView(){
     galaxyView = {target:rig.goal.target.clone(), az:rig.goal.az, el:rig.goal.el, dist:rig.goal.dist, shift:{...rig.shiftGoal}};
@@ -624,6 +629,8 @@ export function createWorld(canvas, opts = {}){
     const par = RM ? {x:0,y:0} : W.parallax;
     camFromRig(rig.target, rig.az + par.x*0.035, rig.el + breathe + par.y*0.02, rig.dist, _cam);
     camera.position.copy(_cam);
+    const far=Math.max(1200,rig.dist+galaxyFrame(sim.bodies).radius*2);
+    if(camera.far!==far){camera.far=far;camera.updateProjectionMatrix();}
     camera.lookAt(rig.target);
     const w = W.vw, h = W.vh;
     camera.setViewOffset(w, h, rig.shift.x*w, rig.shift.y*h, w, h);
@@ -645,6 +652,7 @@ export function createWorld(canvas, opts = {}){
     if(sb.comet) body.setComet(true);   // R8: la simulación decide quién puede ser cometa
     body.root.position.set(...sb.p);
     scene.add(body.root);
+    if(!toy){e.marker=sprite(glowTex(),['star','binary','pulsar'].includes(design.type)?'#ffb48c':'#bde7f7',1,1);e.marker.visible=false;scene.add(e.marker);}
     W.entries.push(e);
     return e;
   }
@@ -664,6 +672,7 @@ export function createWorld(canvas, opts = {}){
     return e;
   }
   function removeEntry(e){
+    if(e.marker){scene.remove(e.marker);e.marker.material.dispose();}
     scene.remove(e.body.root); e.body.dispose(); (e.toy && W.shared ? toySim : sim).remove(e.sb);
     W.entries = W.entries.filter(x => x !== e);
     if(W.lastLaunched === e) W.lastLaunched = null;
@@ -776,7 +785,6 @@ export function createWorld(canvas, opts = {}){
       if(s) rig.goal.target.lerp(_kp.set(s.p[0], 0, s.p[2]), 1 - Math.exp(-dt*2)); else followSys = null;
     }
   }
-  homeR = r => r*W.extent/17.5;
   function systemsInfo(){
     return sim.systems.filter(s => s.founded).map(s => {
       const prim = s.prim.map(id => sim.byId(id));
@@ -796,11 +804,11 @@ export function createWorld(canvas, opts = {}){
   const SKY_HZ = 120, SKY_DELAY = 16, SKY_JUMP = 90;
   const skyState = {k:-1, clock:null, r:null, snaps:new Map()}, _sky = [0, 0, 0], _orb = {p:[0, 0, 0], v:[0, 0, 0]};
   const skyNow = () => performance.now()/1000;
-  const skyClock = () => skyState.clock ? skyState.clock.tick + (skyNow() - skyState.clock.at)*SKY_HZ : skyState.k;
+  const skyClock = () => W.replay?skyState.k:skyState.clock ? skyState.clock.tick + (skyNow() - skyState.clock.at)*SKY_HZ : skyState.k;
   function noteSkyState(k){
     // a short rewind (a late launch re-simulated) keeps drawing what was shown until the sky passes it again
-    if(k <= skyState.k && skyState.k - k <= SKY_JUMP) return false;
-    const jump = skyState.k < 0 || Math.abs(k - skyState.k) > SKY_JUMP, want = skyClock();
+    if(!W.replay && k <= skyState.k && skyState.k - k <= SKY_JUMP) return false;
+    const jump = skyState.k < 0 || (W.replay && k<skyState.k) || Math.abs(k - skyState.k) > SKY_JUMP, want = skyClock();
     skyState.clock = jump || Math.abs(k - want) > 60 ? {tick:k, at:skyNow()} : {tick:want + (k - want)*0.1, at:skyNow()};
     if(jump) skyState.r = null;
     skyState.k = k;
@@ -816,27 +824,28 @@ export function createWorld(canvas, opts = {}){
   }
   // the drawn sky time advances with each frame's own (display-paced) step and leans gently toward the sky clock
   function skyTick(dtRaw){
+    if(W.replay){skyState.r=skyState.k;return;}
     const want = skyClock() - SKY_DELAY;
     skyState.r = skyState.r === null || Math.abs(want - skyState.r) > 30 ? want : skyState.r + dtRaw*SKY_HZ + (want - skyState.r)*0.04;
   }
   function skyPos(sb, out){
     const list = W.shared && skyState.r !== null && skyState.snaps.get(sb.id);
-    if(!list || !list.length){ out[0] = sb.p[0]; out[1] = sb.p[1]; out[2] = sb.p[2]; return out; }
+    if(!list || !list.length){ out[0] = sb.p[0]; out[1] = sb.p[1]; out[2] = sb.p[2]; return paintSkyPoint(out); }
     const r = skyState.r;
     let i = list.length - 1;
     while(i > 0 && list[i].k > r) i--;
     const a = list[i], b = list[i + 1];
-    if(r <= a.k){ out[0] = a.p[0]; out[1] = a.p[1]; out[2] = a.p[2]; return out; }
+    if(r <= a.k){ out[0] = a.p[0]; out[1] = a.p[1]; out[2] = a.p[2]; return paintSkyPoint(out); }
     if(!b){
       // past the newest state: coast along its velocity for at most a quarter second
       const t = Math.min(r - a.k, 30)/SKY_HZ;
       for(let j = 0; j < 3; j++) out[j] = a.p[j] + a.v[j]*t;
-      return out;
+      return paintSkyPoint(out);
     }
     const h = (b.k - a.k)/SKY_HZ, u = (r - a.k)/(b.k - a.k), u2 = u*u, u3 = u2*u;
     const h00 = 2*u3 - 3*u2 + 1, h10 = u3 - 2*u2 + u, h01 = -2*u3 + 3*u2, h11 = u3 - u2;
     for(let j = 0; j < 3; j++) out[j] = h00*a.p[j] + h10*h*a.v[j] + h01*b.p[j] + h11*h*b.v[j];
-    return out;
+    return paintSkyPoint(out);
   }
   // a whole trail from the orbit itself: the path this body flew in the last seconds (never before its launch)
   function orbitTrail(e){
@@ -852,14 +861,15 @@ export function createWorld(canvas, opts = {}){
     for(let i = 0; i < n; i++){
       const o = propagate(r0, v0, mu, -(n - 1 - i)*TRAIL_EVERY, _orb);
       if(![...o.p].every(Number.isFinite)){ tr.n = 0; return; }
-      tr.buf[i*3] = hp[0] + o.p[0]; tr.buf[i*3+1] = hp[1] + o.p[1]; tr.buf[i*3+2] = hp[2] + o.p[2];
+      const painted=paintSkyPoint([hp[0]+o.p[0],hp[1]+o.p[1],hp[2]+o.p[2]]);
+      tr.buf[i*3] = painted[0]; tr.buf[i*3+1] = painted[1]; tr.buf[i*3+2] = painted[2];
     }
     tr.head = n % TRAIL_K; tr.n = n;
   }
   function applySharedState(state, norm, owner){
     const ids = new Set(state.entries.map(e=>e.id));
     for(const e of [...W.entries]) if(!e.toy && !ids.has(e.id)) removeEntry(e);
-    sim.restore(state.sim);
+    sim.restore(state.sim);restoreCoordinates(sim,state.sim);
     W.sharedHomes = new Map(state.homes);
     for(const m of state.entries){
       let e = W.entries.find(e=>!e.toy && e.id===m.id);
@@ -872,8 +882,13 @@ export function createWorld(canvas, opts = {}){
       e.logical=m.logical; e.home=m.home;
     }
     const firstSky = skyState.k < 0;
-    if(noteSkyState(state.sim.steps)) for(const e of W.entries) if(!e.toy) orbitTrail(e);
-    if(firstSky && W.mode === 'home' && !rig.follow) flyTo(views().home, RM ? 0.4 : 1.6);
+    const jump=noteSkyState(state.sim.steps);
+    if(jump) for(const e of W.entries) if(!e.toy) orbitTrail(e);
+    if((firstSky || (W.replay && jump && homeAuto)) && W.mode === 'home' && !rig.follow) flyTo(views().home,firstSky?0:(RM?0:0.25));
+    else if(homeAuto && W.mode==='home' && !rig.follow && !rig.keep){
+      const view=views().home;
+      if(view.dist>rig.goal.dist*1.03 || view.target.distanceTo(rig.goal.target)>view.dist*.05)flyTo(view,RM?0:0.25);
+    }
     return W.entries.filter(e=>!e.toy);
   }
   function completeSharedLaunch(entry,res){
@@ -1411,15 +1426,20 @@ export function createWorld(canvas, opts = {}){
     if(mode === 'workshop' && prev !== 'workshop') rememberView();
     // galaxia ↔ lanzamiento es la misma vista; del taller se vuelve a la última vista de la galaxia
     if((mode === 'home' && prev === 'launch') || (mode === 'launch' && prev === 'home')) keep = true;
-    W.mode = mode;
+    W.mode = mode;if(mode==='home'&&!keep)homeAuto=true;
     const v = mode === 'home' && prev === 'workshop' && galaxyView ? views().launch : views()[mode];
     if(mode === 'workshop') benchZoom = 1;
+    // The bench is the thing being designed. A flight left the first frames on the far galaxy.
+    if(typeof document !== 'undefined'){
+      if(mode === 'workshop') document.body.dataset.workshopFocus = 'near';
+      else delete document.body.dataset.workshopFocus;
+    }
     if(keep){ rig.flight = null; rig.shiftGoal = {...views().home.shift}; }
-    else if(instant) snapTo(v); else flyTo(v, dur ?? (mode === 'workshop' ? 2.4 : 2.2));
+    else if(instant || mode === 'workshop') snapTo(v); else flyTo(v, dur ?? 2.2);
     if(mode !== 'launch'){ aimCancel(); }
     rig.idle = 0;
   }
-  function recenter(){ followSys = null; flyTo(views().home, 1.4); }
+  function recenter(){ homeAuto=true;followSys = null; flyTo(views().home, 1.4); }
   // volver a la galaxia después de lanzar: sin vuelo de cámara, solo seguir al astro
   function homeFocus(e){
     W.mode = 'home';
@@ -1435,6 +1455,7 @@ export function createWorld(canvas, opts = {}){
   const ctxBody = {dt:0, light:new THREE.Vector3(), sun:SUN, mode:'galaxy', rm:RM, aurora:0, px:1};
   let frames = 0, slowAcc = 0, slowN = 0;
   function frame(dtRaw){
+    document.body.dataset.benchState=W.benchState;
     const dt = Math.min(dtRaw, 0.05);
     W.t += dt; timeU.value = W.t;
     if(W.shared) toySim.advance(dt); else sim.advance(dt);
@@ -1550,6 +1571,13 @@ export function createWorld(canvas, opts = {}){
 
     writeTrails();
     updateRig(dt);
+    for(const entry of W.entries){
+      if(!entry.marker)continue;
+      const pos=entry.body.root.position,distance=pos.distanceTo(camera.position);
+      const marker=distantMarker(pxRadius(pos,entry.body.visR),distance,W.vh,camera.fov);
+      entry.marker.visible=W.mode==='home'&&marker.visible;
+      if(entry.marker.visible){entry.marker.position.copy(pos);entry.marker.scale.setScalar(marker.scale);entry.marker.material.opacity=marker.opacity;}
+    }
     placeSkyLayers();
     renderer.render(scene, camera);
 
@@ -1624,6 +1652,7 @@ export function createWorld(canvas, opts = {}){
     viewState: () => ({az:rig.goal.az,el:rig.goal.el,dist:rig.goal.dist,target:rig.goal.target.toArray()}),
     restoreView: o => {if([o.az,o.el,o.dist,...(o.target||[])].every(Number.isFinite) && o.target?.length===3) snapTo({...views().home,...o,target:new THREE.Vector3(...o.target)});},
     frame, resize, setMode, recenter, homeFocus, isOffHome, focus, project, pxRadius,
+    discPixels: () => W.entries.filter(e => !e.toy).map(e => pxRadius(e.body.root.position, e.body.visR)),
     applySharedState, completeSharedLaunch, failSharedLaunch,
     addEntry, removeEntry, orbitOf, systemsInfo, flyToSystem, serialize, loadGalaxy, setBenchDesign, moveBenchToPad, moveBenchBack, startAurora, sparks, warm,
     enterToss, exitToss, loadToy,

@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   connectAuth: vi.fn(), connectFirestore: vi.fn(),
 }));
 vi.mock('firebase/app', () => ({ initializeApp: mocks.initialize }));
-vi.mock('firebase/auth', () => ({ getAuth: () => mocks.auth, signInAnonymously: mocks.signIn, connectAuthEmulator: mocks.connectAuth }));
+vi.mock('firebase/auth', () => ({ initializeAuth: () => mocks.auth, indexedDBLocalPersistence:{},browserLocalPersistence:{},browserSessionPersistence:{}, browserPopupRedirectResolver:{}, signInAnonymously: mocks.signIn, connectAuthEmulator: mocks.connectAuth }));
 vi.mock('firebase/firestore', () => ({ getFirestore: () => ({}), connectFirestoreEmulator: mocks.connectFirestore }));
 
 beforeEach(() => {
@@ -66,7 +66,8 @@ it('production rehearsal may connect only the explicit demo project on loopback'
   expect(mocks.connectAuth).toHaveBeenCalled(); expect(mocks.connectFirestore).toHaveBeenCalled();
   vi.resetModules(); vi.clearAllMocks(); vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'real-project');
   await import('./firebase');
-  expect(mocks.connectAuth).not.toHaveBeenCalled(); expect(mocks.connectFirestore).not.toHaveBeenCalled();
+  expect(mocks.initialize).toHaveBeenCalledWith(expect.objectContaining({projectId:'demo-little-galaxy'}));
+  expect(mocks.connectAuth).toHaveBeenCalled(); expect(mocks.connectFirestore).toHaveBeenCalled();
 });
 it('allows production data helpers to import under Node without a browser window', async () => {
   vi.stubGlobal('window', undefined);

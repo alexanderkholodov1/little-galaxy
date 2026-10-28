@@ -1,5 +1,5 @@
 import './uuid.js';
-import {GoogleAuthProvider,signInWithPopup,signOut} from 'firebase/auth';
+import {GoogleAuthProvider,getRedirectResult,signOut,signInWithRedirect} from 'firebase/auth';
 import {auth} from '../src/firebase.ts';
 import {initialGalaxy,canonicalHash,createGalaxyStore} from '@little-galaxy/shared';
 import {openSession} from './session.js';
@@ -22,6 +22,7 @@ export function summarizeMembers(members,now,galaxyId){
   return out;
 }
 export function createAdminStore(){
+  const provider=new GoogleAuthProvider();
   let backend=null,galaxies=null,certifier=null,stopCertifying=()=>{};const worlds=new Map(),exports=new Map();
   const clear=()=>{galaxies=null;worlds.clear();};
   const full=async id=>{
@@ -41,7 +42,7 @@ export function createAdminStore(){
     catch(error){backend=null;throw new Error('This Google account is not on the keeper’s allowlist.',{cause:error});}
     clear();stopCertifying();
     const session=backend;
-    certifier=createCertifier({driver:session.driver,now:session.clock.now,load:id=>session.store.loadGalaxy(id)});
+    certifier=createCertifier({driver:session.driver,now:session.clock.now,load:(id,mode)=>session.store.loadGalaxy(id,mode)});
     stopCertifying=scheduleCertification({certify,selection:()=>session.selection,
       onError:(error,id)=>console.warn(`Automatic sky certification of ${id} failed: ${error.message}`)});
     return true;
@@ -49,8 +50,17 @@ export function createAdminStore(){
   // Saves a verified sky up to the current tick, replaying only the time since the previous save.
   const certify=id=>certifier.certify(id);
   const S={
-    async signIn(){await signInWithPopup(auth,new GoogleAuthProvider());return authorize();},
-    resume:authorize,
+    async signIn(){
+      if(!auth)throw new Error('Connect this observatory to Firebase first.');
+      provider.setCustomParameters({prompt:'select_account'});
+      return signInWithRedirect(auth,provider);
+    },
+    async resume(){
+      if(!auth)throw new Error('Connect this observatory to Firebase first.');
+      const result=await getRedirectResult(auth);
+      if(!result?.user&&!auth.currentUser)return false;
+      await authorize();return true;
+    },
     async signOut(){stopCertifying();backend=null;certifier=null;clear();await signOut(auth);},
     async listGalaxies(){
       if(!backend)throw new Error('Sign in to open the ledger.');
@@ -64,10 +74,10 @@ export function createAdminStore(){
     async createGalaxy({name}){
       const id='g-'+crypto.randomUUID();await backend.store.admin.create(initialGalaxy(id,auth.currentUser.uid,name,backend.clock.now(),KERNEL));clear();return id;
     },
-    async certify(id){return await certify(id)?'Verified sky saved':'Verified sky already current';},
-    async freeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'frozen'});clear();await certify(id);return 'Frozen and certified';},
+    async certify(id){return await certify(id)?'status.verifiedSaved':'status.verifiedCurrent';},
+    async freeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'frozen'});clear();await certify(id);return 'status.frozenCertified';},
     async unfreeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'active',writePolicy:'public'});clear();},
-    async archive(id){const g=(await full(id)).galaxy;await S.backup(id);await backend.store.admin.update(id,g.generation,{status:'archived'});clear();return 'History retained';},
+    async archive(id){const g=(await full(id)).galaxy;await S.backup(id);await backend.store.admin.update(id,g.generation,{status:'archived'});clear();return 'status.historyRetained';},
     admin:{async select(id,target){await backend.store.admin.select(id,target);backend.selection={...backend.selection,[target]:id};}},
     async backup(id){
       const payload=await full(id),sha256=await canonicalHash(payload);

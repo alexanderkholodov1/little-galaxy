@@ -168,6 +168,21 @@ export interface Checkpoint {
   stateHash: string;
   state: Json;
 }
+/** Disposable client acceleration data. Never an authority for accepted actions. */
+export interface ReplaySnapshot extends Checkpoint {
+  tick: number;
+  encoding: 'gzip-base64';
+  replayHash: string;
+  holder: string;
+  state: string;
+}
+export interface SnapshotLease {
+  holder: string;
+  memberId: string;
+  generation: number;
+  kernel: string;
+  expiresAt: number;
+}
 export interface QuotaWindow {
   id: string;
   start: number;
@@ -393,6 +408,8 @@ export interface AdmissionContext {
   body?: Body | null;
   parent?: Body | null;
   admin?: boolean;
+  /** Checks wire integrity/shape only; physics must be verified independently in the background. */
+  verifyLiveSnapshot?: (snapshot: ReplaySnapshot, galaxy: Galaxy) => Promise<boolean>;
 }
 export async function prepareMutation(c: AdmissionContext, intent: Intent) {
   const { galaxy: g, now, window: w } = c,
@@ -598,6 +615,8 @@ export interface StoreOptions {
   memberId: string;
   now: () => number;
   admin?: boolean;
+  /** Checks wire integrity/shape only; physics must be verified independently in the background. */
+  verifyLiveSnapshot?: (snapshot: ReplaySnapshot, galaxy: Galaxy) => Promise<boolean>;
   /** Must replay or validate trusted certification; never just compare a submitted stateHash. */ verifyCheckpoint?: (
     checkpoint: Checkpoint,
     actions: AcceptedAction[],
@@ -611,6 +630,7 @@ export interface LoadedGalaxy {
   actions: AcceptedAction[];
   checkpoint: Checkpoint | null;
   genesis: Json[];
+  provisional?: boolean;
 }
 export interface GalaxySelection {
   seasonOpen: boolean;
@@ -629,7 +649,9 @@ export interface GalaxyStore {
     next: (selection: GalaxySelection | null) => void,
     error: (error: Error) => void,
   ): () => void;
-  loadGalaxy(id?: string): Promise<LoadedGalaxy>;
+  loadGalaxy(id?: string, mode?: { history?: boolean }): Promise<LoadedGalaxy>;
+  claimSnapshotLease(id: string, holder: string): Promise<boolean>;
+  publishSnapshot(id: string, snapshot: ReplaySnapshot): Promise<boolean>;
   subscribeToActions(
     id: string,
     afterSequence: number,
@@ -827,24 +849,42 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
     subscribeToSelection(next, error) {
       return driver.watch<GalaxySelection>('config/live', next, error);
     },
-    async loadGalaxy(id) {
+    async loadGalaxy(id, mode = {}) {
       if (!id) {
         const live = await driver.get<{ activePublicGalaxyId: string }>('config/live');
         check(live, 'Missing live pointer');
         id = live.activePublicGalaxyId;
       }
       const p = base(id),
-        [g, h, cache, player] = await Promise.all([
+        [g, h, cache, player, liveSnapshot] = await Promise.all([
           watchedManifests.get(id) ?? driver.get<Galaxy>(p),
           driver.get<Head>(`${p}/control/head`),
-          options.verifyCheckpoint
+          options.verifyCheckpoint && !mode.history
             ? driver.get<Checkpoint>(`${p}/checkpoints/latest`)
             : Promise.resolve(null),
           driver.get<Member>(pathMember(id)),
+          options.verifyLiveSnapshot && !mode.history
+            ? driver.get<ReplaySnapshot>(`${p}/liveSnapshots/latest`).catch(() => null)
+            : Promise.resolve(null),
         ]);
       check(g && h, 'Missing galaxy/head');
       let checkpoint: Checkpoint | null = null;
-      if (options.verifyCheckpoint) {
+      let provisional = false;
+      if (liveSnapshot && options.verifyLiveSnapshot &&
+        liveSnapshot.schemaVersion === 1 && liveSnapshot.generation === g.generation &&
+        liveSnapshot.kernel === g.kernel && Number.isSafeInteger(liveSnapshot.sequence) &&
+        liveSnapshot.sequence >= 0 && liveSnapshot.sequence <= h.sequence &&
+        Number.isSafeInteger(liveSnapshot.tick) && liveSnapshot.tick >= 0 &&
+        liveSnapshot.tick <= Math.floor((options.now() - g.epoch - 2000) * 120 / 1000) &&
+        (g.status === 'active' || liveSnapshot.tick <= Math.max(h.effectiveTick,
+          Math.ceil(((g.frozenAt ?? g.epoch) - g.epoch) * 120 / 1000)))) {
+        try {
+          if (await options.verifyLiveSnapshot(liveSnapshot, g)) {
+            checkpoint = liveSnapshot; provisional = true;
+          }
+        } catch { /* A bad acceleration document cannot hide accepted history. */ }
+      }
+      if (!checkpoint && !mode.history && options.verifyCheckpoint) {
         const pointer = await driver.get<{ sequence: number; tick?: number }>(
           `${p}/control/certified`,
         );
@@ -889,9 +929,13 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
           actions.every((a) => a.generation === g.generation),
         'Incomplete log',
       );
+      // A late accepted fact must be replayed before this candidate, never skipped by its tick.
+      if (provisional && actions.some(a => a.intent.effectiveTick <= (checkpoint as ReplaySnapshot).tick))
+        return store.loadGalaxy(id, { history: true });
       await verifyTail(actions, covered, checkpoint?.logHash ?? '', false);
       if (
         !checkpoint &&
+        !mode.history &&
         cache &&
         cache.schemaVersion === 1 &&
         cache.generation === g.generation &&
@@ -905,10 +949,49 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
         galaxy: g,
         player,
         head: h,
+        provisional,
         checkpoint,
         genesis,
         actions: checkpoint ? actions.filter((a) => a.sequence > checkpoint.sequence) : actions,
       };
+    },
+    async claimSnapshotLease(id, holder) {
+      check(validId(holder), 'Invalid snapshot holder');
+      const p = base(id);
+      return driver.transaction(async tx => {
+        const [g, m, lease] = await Promise.all([
+          tx.get<Galaxy>(p), tx.get<Member>(pathMember(id)),
+          tx.get<SnapshotLease>(`${p}/control/snapshotLease`),
+        ]);
+        if (!g || g.status !== 'active' || g.writePolicy === 'frozen' ||
+          !m || !['owner', 'editor'].includes(m.role)) return false;
+        const now = options.now();
+        if (lease && lease.generation === g.generation && lease.kernel === g.kernel &&
+          lease.expiresAt > now && (lease.holder !== holder || lease.memberId !== m.memberId)) return false;
+        tx.set(`${p}/control/snapshotLease`, {
+          holder, memberId: m.memberId, generation: g.generation, kernel: g.kernel, expiresAt: now + 30_000,
+        });
+        return true;
+      });
+    },
+    async publishSnapshot(id, snapshot) {
+      const p = base(id);
+      return driver.transaction(async tx => {
+        const [g, h, lease, old] = await Promise.all([
+          tx.get<Galaxy>(p), tx.get<Head>(`${p}/control/head`),
+          tx.get<SnapshotLease>(`${p}/control/snapshotLease`),
+          tx.get<ReplaySnapshot>(`${p}/liveSnapshots/latest`),
+        ]);
+        if (!g || !h || !lease || lease.holder !== snapshot.holder ||
+          lease.expiresAt <= options.now() || snapshot.generation !== g.generation ||
+          snapshot.kernel !== g.kernel || snapshot.sequence > h.sequence ||
+          (old && old.generation === g.generation && old.kernel === g.kernel &&
+            (snapshot.tick <= old.tick || snapshot.sequence < old.sequence))) return false;
+        check(snapshot.state.length <= 900_000 && snapshot.schemaVersion === 1 &&
+          await canonicalHash(snapshot.state) === snapshot.stateHash, 'Invalid live snapshot');
+        tx.set(`${p}/liveSnapshots/latest`, snapshot);
+        return true;
+      });
     },
     subscribeToActions(id, after, next, error) {
       let closed = false,

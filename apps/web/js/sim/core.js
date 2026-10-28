@@ -158,8 +158,11 @@ export class Sim {
     this.moveGalactic();
     this.updateSystems();
     for(const b of this.bodies) if(b.calmStart !== undefined) this.moveLight(b);
-    this.kiss(P);
-    for(const b of this.bodies) if((b.mode === 'active' || b.mode === 'drift') && b.calmStart === undefined) this.guard(b, P);
+    // A direct scan is cheaper for a small primary group; larger groups share one grid.
+    const primaryGrid=P.length>=32
+      ?new ContactGrid(P,Math.max(KISS,...P.map(b=>TYPE_RULES[b.kind].guard))):undefined;
+    this.kiss(P,primaryGrid);
+    for(const b of this.bodies) if((b.mode === 'active' || b.mode === 'drift') && b.calmStart === undefined) this.guard(b, P,primaryGrid);
     if(this.steps % GALAXY_EVERY === 0) this.galaxyTick();
     else this.updateSystems();
   }
@@ -171,6 +174,22 @@ export class Sim {
     this.syncRails();
   }
   run(steps){ for(let i = 0; i < steps; i++) this.step(); this.syncRails(); }
+
+  // Only the mature population has no integration, topology or contact transitions left.
+  // Re-evaluate immutable orbital initial conditions at the requested integer tick.
+  canAdvanceAnalytically(){
+    return this.settling && this.t-this.gCentre.start>=SETTLING.duration &&
+      this.bodies.every(b=>b.settled && (TYPE_RULES[b.kind].primary
+        ? b.gSlot!==undefined : b.mode==='rail' && this.sysById.has(b.host)));
+  }
+  advanceAnalytically(tick){
+    if(!this.canAdvanceAnalytically()) return false;
+    this.steps=tick;this.t=tick*DT;
+    this.moveGalactic();this.updateSystems();this.syncRails();
+    const contactTime=(tick-tick%GALAXY_EVERY)*DT;
+    for(const [key,until] of this.contacts)if(key[0]==='a' && contactTime>until)this.contacts.delete(key);
+    return true;
+  }
 
   galaxyTick(){
     this.foundGalactic();
@@ -380,8 +399,10 @@ export class Sim {
 
   /* ---------------------------------------------------------------- guardas y rebotes */
   // cae en la guarda de un compacto → sale soplado en una órbita alargada (un evento visible: R25)
-  guard(b, P){
-    for(const c of P){
+  guard(b, P, grid){
+    if(!grid && P.length>=32)grid=new ContactGrid(P,Math.max(KISS,...P.map(b=>TYPE_RULES[b.kind].guard)));
+    const candidates=grid?grid.near(b.p).map(index=>P[index]):P;
+    for(const c of candidates){
       const g = TYPE_RULES[c.kind].guard;
       const x = b.p[0]-c.p[0], y = b.p[1]-c.p[1], z = b.p[2]-c.p[2];
       const r = hypot(x, y, z) || 1e-9;
@@ -406,10 +427,16 @@ export class Sim {
   // momento. Ligados (volverían a chocar cada vuelta): el rebote es blando (SNUGGLE en la normal) y el par se
   // acurruca en una binaria estrecha en pocos toques, en vez de rebotar para siempre (feel pass, 2026-10-25).
   // La energía que se va queda en sim.snuggleEnergy. Un roce lento se resuelve sin evento ni sonido.
-  kiss(P){
-    for(let i = 0; i < P.length; i++) for(let j = i + 1; j < P.length; j++){
-      const a = P[i], b = P[j], n = sub(b.p, a.p), d = hypot(...n) || 1e-9;
-      if(a.gSlot !== undefined || b.gSlot !== undefined || d >= KISS) continue;
+  kiss(P,grid){
+    if(P.length<2)return;
+    if(!grid && P.length>=32)grid=new ContactGrid(P,KISS);
+    const order=grid?null:P.map((_,i)=>i);
+    for(let i = 0; i < P.length; i++){
+      const a=P[i];if(a.gSlot!==undefined)continue;
+      for(const j of grid?grid.near(a.p):order){
+      if(j<=i || P[j].gSlot!==undefined)continue;
+      const b=P[j],n=sub(b.p,a.p),d=hypot(...n) || 1e-9;
+      if(d>=KISS)continue;
       for(let k = 0; k < 3; k++) n[k] /= d;
       const rv = sub(b.v, a.v), vn = dot(rv, n);
       if(vn >= 0) continue;
@@ -419,11 +446,12 @@ export class Sim {
       for(let k = 0; k < 3; k++){ a.v[k] -= J/a.m*n[k]; b.v[k] += J/b.m*n[k]; }
       if(bound) this.snuggleEnergy += 0.5*mu*vn*vn*(1 - e*e);
       if(-vn > KISS_QUIET) this.emit('kiss', b, {other: a, snuggle: bound});
-    }
+    }}
   }
 
   /* ---------------------------------------------------------------- lejos y de vuelta */
   watch(b){
+    if(b.settled) return;
     const primary = b.mode === 'n';
     const s = b.mode === 'rail' ? this.sysById.get(b.host) : this.hostAt(b.p, primary ? b : null);
     if(!s || s.id === undefined) return;
@@ -522,19 +550,20 @@ export class Sim {
   foundGalactic(){
     if(!this.settling) return;
     const added=[];
-    let slot=1+Math.max(-1,...this.primaries().map(b=>b.gSlot??-1));
+    let slot=1+Math.max(0,...this.primaries().map(b=>b.gSlot??0));
     for(const s of this.systems){
       const members=s.prim.map(id=>this.byId(id));
       if(members.some(b=>b.gSlot!==undefined || (this.steps-b.bornStep)*DT<SETTLING.grace)) continue;
       const separation=members.length===2?Math.max(3,Math.min(6,hypot(...sub(members[1].p,members[0].p)))):0;
       const phase=members.length===2?atan2(members[1].p[2]-members[0].p[2],members[1].p[0]-members[0].p[0]):0;
       const direction=members.length===2 && ((members[1].p[0]-members[0].p[0])*(members[1].v[2]-members[0].v[2])-(members[1].p[2]-members[0].p[2])*(members[1].v[0]-members[0].v[0]))<0?-1:1;
+      // The fire's system owns site zero; later mass cannot move the galaxy's anchor.
+      const site=members.includes(this.central)?0:slot++;
       for(const b of members){
-        b.gSlot=slot;b.gStart=this.t;b.gFrom=[...b.p];b.gVelocity=[...b.v];
+        b.gSlot=site;b.gStart=this.t;b.gFrom=[...b.p];b.gVelocity=[...b.v];
         b.gPair=members.length===2?members.find(o=>o!==b).id:null;
         b.gRadius=separation;b.gPhase=phase;b.gDirection=direction;b.founded=true;added.push(b);
       }
-      slot++;
     }
     if(added.length){
       this.retargetGalactic();const centre=this.galacticCentre();
@@ -548,9 +577,9 @@ export class Sim {
     orbitBridge(out,c.from,c.velocity,target,this.t-c.start,SETTLING.duration,target);return out;
   }
   retargetGalactic(current=this.galacticCentre()){
-    let M=0,x=0,z=0;
-    for(const b of this.primaries())if(b.gSlot!==undefined){const site=galacticSite(b.gSlot);M+=b.m;x+=site[0]*b.m;z+=site[1]*b.m;}
-    this.gCentre={start:this.t,from:[...current.p],velocity:[...current.v],target:M?[x/M,0,z/M]:[0,0,0]};
+    // The extended galactic halo is anchored on the fire, rather than the most massive
+    // newcomer. Retain the existing finite translation bridge after a frame change.
+    this.gCentre={start:this.t,from:[...current.p],velocity:[...current.v],target:[0,0,0]};
   }
   galacticTarget(b,centre,time=this.t){
     const site=galacticSite(b.gSlot),angle=phase(time,SETTLING.omega),c=cos(angle),s=sin(angle);
@@ -579,24 +608,41 @@ export class Sim {
   beginLight(b){
     if(!this.settling || b.settled || b.calmStart!==undefined || (this.steps-b.bornStep)*DT<=SETTLING.grace) return false;
     let host=null,distance=Infinity;
+    const captured=b.mode==='rail'?this.sysById.get(b.host):null;
     for(const s of this.systems){
-      const max=Math.min(SETTLING.lightRadius,s.railLimit*.8);
-      if(max<s.guard+2)continue;
+      // Keep genuine bound captures as satellite systems within the fire-centred galaxy.
+      // Unbound travellers join the fire instead of choosing the nearest massive newcomer.
+      if(captured?s!==captured:(this.central && !s.prim.includes(this.central.id)))continue;
+      const matureFire=this.central && s.prim.includes(this.central.id) && s.prim.every(id=>this.byId(id).gSlot!==undefined);
+      const max=matureFire?SETTLING.lightRadius:Math.min(SETTLING.lightRadius,s.railLimit*.8);
+      const guard=matureFire?Math.max(...s.prim.map(id=>TYPE_RULES[this.byId(id).kind].guard))+Math.max(...s.prim.map(id=>this.byId(id).gRadius))*.5:s.guard;
+      if(max<guard+2)continue;
       const d=hypot(...sub(b.p,s.p));if(d<distance){host=s;distance=d;}
     }
     if(!host)return false;
     if(b.mode==='rail')this.syncRail(b);
     const rel=sub(b.p,host.p),rv=sub(b.v,host.v);
-    b.calmRadius=Math.max(host.guard+2,Math.min(SETTLING.lightRadius,host.railLimit*.8,distance));
+    // Once the fire is on its galactic site, a passing young compact cannot postpone
+    // everyone else's settling deadline. Its own bridge will take it to a distinct site.
+    const matureFire=this.central && host.prim.includes(this.central.id) && host.prim.every(id=>this.byId(id).gSlot!==undefined);
+    const outer=matureFire?SETTLING.lightRadius:Math.min(SETTLING.lightRadius,host.railLimit*.8);
+    const guard=matureFire?Math.max(...host.prim.map(id=>TYPE_RULES[this.byId(id).kind].guard))+Math.max(...host.prim.map(id=>this.byId(id).gRadius))*.5:host.guard;
+    b.calmRadius=Math.max(guard+2,Math.min(outer,distance));
     // Reserve distinct radii in body-id order. Include bridges as well as finished rails.
-    const lower=host.guard+2,upper=Math.min(SETTLING.lightRadius,host.railLimit*.8);
+    const lower=guard+2,upper=outer;
     const used=this.bodies.filter(o=>o!==b && o.calmHost===host.id && (o.calmStart!==undefined || o.settled)).map(o=>o.calmRadius);
     const preferred=b.calmRadius,spacing=.01;
     let lane=null;
     for(let i=0;i<=1024 && lane===null;i++)for(const r of i===0?[preferred]:[preferred+i*spacing,preferred-i*spacing]){
       if(r>=lower && r<=upper && used.every(x=>Math.abs(x-r)>=spacing-1e-12)){lane=r;break;}
     }
-    if(lane===null)return false; // Full host: never assign an occupied path.
+    if(lane===null){
+      // Subdivide a free radial gap instead of refusing dense galaxies a settled orbit.
+      const edges=[lower,...used.filter(r=>r>=lower&&r<=upper).sort((a,b)=>a-b),upper];
+      let width=0;
+      for(let i=1;i<edges.length;i++)if(edges[i]-edges[i-1]>width){width=edges[i]-edges[i-1];lane=(edges[i]+edges[i-1])/2;}
+      if(!(width>0))return false;
+    }
     b.calmRadius=zero(lane);
     b.calmPhase=atan2(rel[2],rel[0]);b.calmDirection=rel[0]*rv[2]-rel[2]*rv[0]<0?-1:1;
     b.calmHost=host.id;b.calmStart=this.t;b.calmFrom=rel;b.calmVelocity=rv;
@@ -700,8 +746,8 @@ function orbitBridge(body,from,velocity,target,elapsed,duration,start){
 // Mutable broad phase. Cell width covers the largest possible contact diameter; body-id
 // ordering is restored explicitly, including distant contacts that need cooldown cleanup.
 class ContactGrid {
- constructor(bodies){
-  this.bodies=bodies;this.width=2*Math.max(1e-9,...bodies.map(b=>b.r));this.cells=new Map();this.keys=[];
+ constructor(bodies,width=2*Math.max(1e-9,...bodies.map(b=>b.r))){
+  this.bodies=bodies;this.width=width;this.cells=new Map();this.keys=[];
   for(let i=0;i<bodies.length;i++)this.update(i);
  }
  coordinate(b){return b.p.map(x=>Math.floor(x/this.width));}
@@ -709,6 +755,15 @@ class ContactGrid {
   const key=this.coordinate(this.bodies[i]).join(',');if(this.keys[i]===key)return;
   if(this.keys[i]!==undefined)this.cells.get(this.keys[i]).delete(i);
   if(!this.cells.has(key))this.cells.set(key,new Set());this.cells.get(key).add(i);this.keys[i]=key;
+ }
+ // Fixed-width primary queries cover both the kiss separation and every guard radius.
+ // Compact contacts change velocities only; guard puffs move the light query, not grid members.
+ near(p){
+  const [x,y,z]=p.map(v=>Math.floor(v/this.width)),out=[];
+  for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){
+   const cell=this.cells.get([x+dx,y+dy,z+dz].join(','));if(cell)for(const i of cell)out.push(i);
+  }
+  return out.sort((a,b)=>a-b);
  }
  after(i,cursor,linked=[]){
   const out=new Set(linked.filter(j=>j>cursor)),a=this.bodies[i],[x,y,z]=this.coordinate(a);

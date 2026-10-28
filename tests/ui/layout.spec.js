@@ -107,12 +107,12 @@ for (const viewport of [{width: 360, height: 780}, {width: 1280, height: 800}]) 
         await expect(page.locator('#btnToPad')).toBeDisabled();
         await expectLayout(page, 'frozen mid-edit');
         await page.locator('#wsBack').click();
-        await expect(page.locator('#sharedStatus')).toBeVisible();
-        await expect(page.locator('#btnCreate')).toBeDisabled();
+        await expect(page.locator('#sharedStatus')).toHaveCount(0);await expect(page.locator('#galaxyVisits')).toBeVisible();
+        await expect(page.locator('#btnCreate')).not.toBeVisible();
         await expect(page.locator('#btnToss')).toBeDisabled();
-        await expectLayout(page, 'resting galaxy');
+        await expectLayout(page, 'recorded galaxy');
         await page.locator('#btnCredits').click();
-        await expectLayout(page, 'resting galaxy with author sheet');
+        await expectLayout(page, 'recorded galaxy with author sheet');
         await page.locator('#creditsClose').click();
         await expect(page.locator('#credits')).toBeHidden();
         if (viewport.width === 360) {
@@ -120,8 +120,8 @@ for (const viewport of [{width: 360, height: 780}, {width: 1280, height: 800}]) 
           await page.locator(`.pu-chip[data-v="${lang === 'es' ? 'en' : 'es'}"]`).click();
           await page.locator('.pu-panel .x-btn').click();
           await expect(page.locator('.pu-panel')).toBeHidden();
-          await expect(page.locator('#sharedStatus')).toContainText(lang === 'es' ? 'This galaxy is resting' : 'Esta galaxia está descansando');
-          await expectLayout(page, 'resting notice after language change');
+          await expect(page.locator('#backToSandbox')).toHaveAccessibleName(lang === 'es' ? 'Back to the sandbox to create a body' : 'Volver al sandbox para crear un astro');
+          await expectLayout(page, 'record navigation after language change');
           await page.locator('#btnPrefs').click();
           await page.locator(`.pu-chip[data-v="${lang}"]`).click();
           await page.locator('.pu-panel .x-btn').click();

@@ -1,7 +1,7 @@
 # Fair-Day Runbook · Collective Galaxy (G v1.0.0-alpha.1)
 
 **Alpha.1:** the live sky works with both stands stopped. Stand startup below is optional
-enrichment. Section 11 covers the merge/approval release path, one-time console IAM,
+enrichment. Section 11 covers the merge-to-production release path, one-time console IAM,
 GitHub controls and optional Beacon/laptop failover setup.
 
 **Plan of record reference**: `portfolio/docs/plan/05-live-deploys-and-ops.md` § Fair-day runbook.
@@ -395,7 +395,7 @@ Archive/timelapse publication, legacy snapshots and scheduled meteors require on
 leader. Operator controls are independent admin commands and do not need leadership.
 See [live-sky.md](live-sky.md) for quota assumptions and failure boundaries.
 
-### Release path: merge and approve in GitHub
+### Release path: verified local acceptance and automatic production on merge
 
 Merge the reviewed milestone PR. A shipping push to main takes its version from the PR head
 branch's leading `v1.0.0-alpha.N[.M...]`, or the title if the branch has none. A free current request
@@ -409,7 +409,7 @@ to main's first-parent history.
 
 1. Merge the reviewed PR. Follow **Release on merge** in GitHub Actions. All normal
    PR checks have already run; the exact release build and privacy gate run before the data-project job.
-2. Approve the existing **little-galaxy-rules** environment when GitHub requests it.
+2. The **little-galaxy-rules** environment deploys without approval (the merge is the approval).
    The job uses the existing `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY` secret.
    If `config/live` is missing, the release creates the documented defaults below
    transactionally without overwriting any existing document. No prior dispatch is
@@ -426,9 +426,10 @@ to main's first-parent history.
    rerun or later release leaves both config and shards untouched while still
    deploying rules/indexes. The marker is admin-only; clients cannot read or write
    it. Existing objects and seeds remain the source for the first backfill.
-4. After rules/migration succeed, CI publishes the checked artifact as a GitHub
-   Release and dispatches its exact tag to portfolio. Portfolio owns production
-   Hosting. This repository never deploys production Hosting.
+4. Before rules/migration, CI publishes the keeper admin to the data project's own
+   Hosting site and probes it. After rules/migration succeed, CI publishes the
+   checked artifact as a GitHub Release and dispatches its exact tag to portfolio.
+   Portfolio owns the public production Hosting.
 5. Verify the deployed preview and production Home/Screen on real phones before
    accepting the rollout. Old pre-alpha transactions omit reciprocal shards and
    will be rejected after the new rules; their saved drafts and version watcher
@@ -487,7 +488,7 @@ data job: inspect cancelled jobs and retry only if the fresh-main guard permits 
 Known alpha limitations from review:
 - **MINOR-1:** the workflow's main-branch `if` is a convenience, not a security
   boundary. Restrict the **little-galaxy-rules** environment's deployment branches
-  to `main` and retain the operator as required reviewer. If external tag-push
+  to `main`, with no required reviewer. If external tag-push
   releases are needed, explicitly allow `v*` tags too; otherwise they are blocked.
 - **MINOR-2:** no watchdog runs after runner loss or a Firestore outage. Recovery
   state remains in the marker; inspect the red run and use the recovery flow above.
@@ -506,9 +507,8 @@ edits, comets, shake, shooting stars, meteor showers, screen sound, sound alias 
 spotlight enabled; public assistant disabled; idle 60 seconds; meteors 360–900
 seconds; scene `galaxy`. The stand also creates these only if missing on startup.
 An existing document is never overwritten; open the season explicitly when ready.
-IAM grants and environment restrictions/reviewer must be set before the first merge;
-there is no required `init` dispatch. Live IAM and GitHub approval behaviour still
-need the first approved run to verify them.
+IAM grants and the environment branch restriction must be set before the first merge;
+there is no required `init` dispatch.
 
 ### One-time release service-account IAM (Google Cloud Console only)
 
@@ -531,8 +531,9 @@ cover some permissions; the builder has not inspected live IAM.
 | Firebase Rules Admin | `roles/firebaserules.admin` | Compile and publish Firestore rulesets/releases; keep the existing reviewed rules deployment permission. |
 | Firebase Viewer | `roles/firebase.viewer` | Firebase CLI project discovery (`firebase.projects.get`) and read-only API/service checks for the existing Firebase project. |
 | Service Usage Consumer | `roles/serviceusage.serviceUsageConsumer` | Use the data project as the quota project (`serviceusage.services.use`) for the pinned CLI's API checks, which send `x-goog-user-project`. |
+| Firebase Hosting deploy | `firebasehosting.*` (covered by `roles/firebase.sdkAdminServiceAgent`) | Create Hosting releases and deploy the data project's own site, which serves the keeper admin. P0 on 2026-10-28 proved the existing release identity can list sites and deploy a preview channel. |
 
-No Owner, Editor, Hosting Admin, service-agent role or billing upgrade is needed.
+No Owner, Editor, billing upgrade or separate Hosting Admin grant is needed; the existing service-agent grant already covers Hosting deploy.
 The data project's Firestore and Rules APIs/database already exist; deployment
 must not depend on enabling paid services. GitHub tagging/release permissions are
 job-scoped `contents: write`; data jobs use `contents: read`. Portfolio dispatch
@@ -548,7 +549,7 @@ These are project IAM grants, not new credentials or external services.
 ### Operate the sky from GitHub
 
 Open this repository's **Actions → Operate the sky → Run workflow**, select **main**,
-enter the action/key/value, and approve **little-galaxy-rules**. Dispatches from
+enter the action/key/value. The rules environment has no manual reviewer. Dispatches from
 other branches are normally skipped; enforce the environment branch policy above.
 Controls execute independently of release queues. Transactions coordinate config
 and migration recovery: emergency close takes precedence, other flags are preserved,
@@ -719,7 +720,7 @@ Keep at least one working admin account before removing an address.
 Stop existing alpha.1 stand binaries before opening alpha.2; a new alpha.2 daemon exits after
 recognizing data-layer version 2, disabling the obsolete enrichment stream. No new rules, indexes,
 allowlist, credential, public name or production Hosting were deployed by B1 implementation.
-Rules deployment retains the existing required-reviewer release environment.
+Rules deployment runs in the release environment, restricted to `main` and `v*` tags, without manual review.
 
 Before opening: integrate the pinned kernel and legacy genesis reader; anchor the client clock;
 verify the accepted log on the deployed preview and real phones; test a hidden/resumed phone,

@@ -1,10 +1,41 @@
 # Changelog
 
-## Welcome title and timelapse icon fix — 2026-10-27
+## 1.0.0-alpha.10.0-rc1 — an open shared sandbox and the original fair, ready to visit, 2026-10-27
 
-- Keep each word of the welcome title on one line: from 1024px the 420px box split "Galaxy" between its letters.
-- The layout journeys now fail when any title word wraps across lines.
-- Draw the "Watch the timelapse" arrow as an icon instead of the U+2197 character, which showed as an empty box where the visitor's fonts lack it.
+- Open active galaxies from canonical leased snapshots, verify history in the background and fall
+  back on mismatch; evaluate mature orbits directly and share deterministic contact grids.
+- Keep the original fair kernel and history intact. Build verified endpoint and indexed timeline
+  assets into every release; frozen visits and seeks avoid replaying hours without an admin step.
+- Open timelapse at the recorded endpoint, play from its first launch, support pointer and
+  Home/End/arrow seeking, and display completed frames and each launch at every playback speed.
+- Preserve checkpoint coordinates at compact-launch frame changes and frame every body with the
+  camera, including distant travellers; remove the old home-view crop.
+- Anchor the current kernel's mature galaxy on the fire and guide light bodies into its system;
+  preserve genuine satellite captures. Black holes retain their bodies and orbits without shifting
+  the settled galactic anchor.
+- Preserve the physical launch minute, deterministic snapshots/replay and finite settling bridges.
+  Add no player cooldown, cap or budget. Record before/after timings and fair-intent end states.
+- Keep each welcome-title word on one line, and draw the timelapse arrow as an icon so a missing font glyph never shows as a box.
+- Create and activate an open sandbox idempotently during release; preserve all frozen generations.
+- Explain Be A Dragon 2026, visitor nicknames and timelapse in English and Spanish; add clear
+  navigation between the shared sandbox, fair and timelapse, with a phone-sized information panel.
+- Replace blocked cross-site Google popups with Firebase's standard same-tab redirect on the data
+  project's own Hosting address, keeping the server-side verified-Google keeper allowlist.
+- Honour exact release-candidate requests. Run the same local `pnpm check` in one CI job;
+  remove preview, rules and browser jobs from GitHub. Prove built-client journeys with local
+  `pnpm accept`, production public reads and an isolated emulator seeded from an ignored export.
+- A merge to main publishes the keeper admin to the data project Hosting, then deploys rules,
+  indexes and the client directly. The rules environment only allows `main` and `v*` tags and has no manual reviewer.
+- Publish replay moments without visitor nicknames; restore those labels in memory from hash-pinned history.
+- Draw wide recorded orbits inside the painted spiral so the opening shows readable bodies and the
+  fire without changing the stored history. Use the same Unbounded/Figtree typography, glass,
+  pill navigation and speed chips across the fair, timelapse and workshop in both themes.
+- Centralize recorded explanations, navigation and playback copy; correct the Spanish orbit count
+  and give the workshop dice readable contrast. Consolidate component styles at their source.
+- Keep failed acceptance assertions in its JSON report. Check actual timelapse return navigation,
+  visible product typefaces and projected body sizes, with EN/ES phone/laptop screenshots in both themes.
+- Keep the timelapse's running clock and replay requests together, so suspending live-world
+  visibility updates cannot leave Play running without frames. Retain per-speed failure state.
 
 ## A-show presentation — 2026-10-26
 
