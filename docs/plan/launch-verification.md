@@ -81,6 +81,9 @@ receipts. A deployed proof requires separate operator authorization outside rele
   reproductions, the still-unresolved denial, the long-gap/live launch proofs and the
   initial preview credential/workspace blockers, superseded by the lead’s preview-only
   decision above. No visitor content or rules changed.
+- 2026-10-28: widen the action rule's late-tick window from 1.5 s to 10 s and move the
+  keeper's certification lag from 2 s to 12 s, after the production late-commit denial
+  below (lead brief; the owner's principle of few limits and a working launch).
 
 ## Returning-visitor investigation (lead steer, 2026-10-28)
 
@@ -149,3 +152,46 @@ admission-time read, exact-body second-browser visibility and admin removal. No
 visitor wording, physics or animation changes accompany this fix. Real-device sleep
 and the owner's original failing request still require their own receipt to confirm
 that historical attribution.
+
+## Late-commit tick denial and fix
+
+The lead captured a refused and an accepted production launch on the same head
+(`LG-launch-denial-evidence.md`). In the refused one the client stamped `acceptedAt`
+and the effective tick, then sent the commit about 6.5 s later, after publishing a live
+snapshot. The tick leads its stamp by 2.4 s and the action rule (`bAccepted`) allowed it
+at most 1.5 s behind the server, so the whole transaction was refused as a permissions
+error. The emulator never showed it: local work is fast and seeded documents keep the
+snapshot publisher quiet. This is independent of the stale session clock above.
+
+The Firestore web SDK runs one transaction commit at a time per page and holds that
+queue until the commit returns. A launch that stamped while the page's snapshot
+transaction was still reading could therefore wait behind a snapshot upload of up to
+900 KB, and every await after the stamp let a busy phone run other work.
+
+The launch transaction now finishes every read and tick-independent check, then stamps,
+schedules and hashes. It re-reads the synchronized clock right before the writes and
+stamps again when more than 250 ms passed. Snapshot lease claims and publishes yield
+while a launch is pending; a launch starts after a snapshot already sending.
+
+Owner's principle: few limits and a launch that works. The rule now accepts a tick up to
+10 s behind the server (12.4 s from stamp to server), which covers the observed gap, a
+slow mid-range phone and a slow uplink, and still bounds backdating; replay rewinds late
+actions from its once-a-second marks. The keeper certifies 12 s behind its clock, so a
+commit its read missed, whose tick the rule admits no more than 10 s back, is never
+covered. Both numbers live in the shared `TIMING`; emulator rules tests prove 9.6 s is
+accepted, 10.6 s refused and the accepted tick stays ahead of an earlier certification,
+and fail against the 1.5 s rule. Live snapshots keep their 2 s lag: they are provisional
+and loaders already replay full history when a later action falls at or before their tick.
+
+Acceptance journey 3 runs a phone at 6x CPU throttling, holds the launch commit six
+seconds in the browser and requires acceptance with a tick more than 1.5 s behind the
+server. On the unfixed application code of `5fe9e20` it fails there with the emulator's
+"false for 'create' @ L542"; receipts are under `.tmp/rc2-tick/before/`. It then forces
+a permission-denied commit and requires the plain refusal notice for at least eight
+seconds with the body still in hand, and accepts the same body on the next throw.
+
+Other client-stamped time checks: `acceptedAt` and member `lastSeen` keep +/-30 s, which
+the new 12.4 s budget stays inside. A keeper's galaxy creation requires the head
+`bucketSlot` to be the server's current or previous two-second slot, about 2 to 4 s from
+stamp to server; it is a keeper action, not a visitor launch, and is left unchanged for
+the lead's decision. The snapshot lease (expiry at most 35 s ahead) is optional work.
