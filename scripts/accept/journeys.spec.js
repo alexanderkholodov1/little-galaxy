@@ -3,7 +3,7 @@ import {removeProbeBody} from '../../apps/stand/src/probe-cleanup.ts';
 import {withDatabase} from '../../tests/ui/galaxy-fixture.js';
 import {initialMember} from '../../packages/shared/src/index.ts';
 import {applyEasyList,blockerMatches} from '../../tests/ui/blockers.js';
-/* global CSSTransition, document, getComputedStyle, requestAnimationFrame, window */
+/* global CSSTransition, MutationObserver, document, getComputedStyle, requestAnimationFrame, window */
 import {expectLayout} from '../../tests/ui/layout-geometry.js';
 import {assertFairReturn, assertHeaderIcons, assertProductType, assertReadableBodies, assertScrubTracksThumb, assertShotSize} from './presentation.mjs';
 import {expect,test} from '@playwright/test';
@@ -190,6 +190,89 @@ for(const profile of profiles)for(const lang of ['en','es']){
   }finally{await context.close();}
  });
 }
+// A commit body and its response are Firestore REST JSON; read the launch's own stamp and the server's commit time.
+function launchCommit(body,response){
+ const write=JSON.parse(body).writes.find(w=>/\/actions\/[^/]+$/u.test(w.update?.name??'')).update.fields;
+ return {acceptedAt:Number(write.acceptedAt.integerValue),effectiveTick:Number(write.intent.mapValue.fields.effectiveTick.integerValue),commitTime:response.commitTime?Date.parse(response.commitTime):null};
+}
+test('3 a phone at 6× CPU lands a launch whose commit reaches the server six seconds late, and is told when a launch is refused',async({browser})=>{
+ const {context,page}=await contextFor(browser,{name:'phone',width:390,height:844,rate:6},'en');
+ const commits=[];let next='late';
+ try{
+  await localOnly(context);
+  await context.route(url=>url.pathname.endsWith('/documents:commit'),async route=>{
+   const body=route.request().postData()??'';
+   if(!/\/actions\//u.test(body))return route.continue();
+   const mode=next;next='direct';
+   if(mode==='refuse'){
+    commits.push({mode});
+    return route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({error:{code:403,message:'Missing or insufficient permissions.',status:'PERMISSION_DENIED'}})});
+   }
+   // Model a busy phone or a slow uplink: the commit leaves the browser six seconds after it was built.
+   if(mode==='late')await new Promise(resolve=>setTimeout(resolve,6000));
+   const response=await route.fetch(),text=await response.text();let json={};try{json=JSON.parse(text);}catch{/* Keep the raw body. */}
+   commits.push({mode,status:response.status(),...launchCommit(body,json),...(response.ok()?{}:{denial:text.slice(0,4000)})});
+   return route.fulfill({response,body:text});
+  });
+  await page.goto('/galaxy/?emulators=1&lang=en');
+  await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true',{timeout:60000});await enter(page);
+  const galaxyId=await page.locator('body').getAttribute('data-galaxy'),epoch=await withDatabase(async db=>(await db.doc(`galaxies/${galaxyId}`).get()).data().epoch);
+  const before=Number(await page.locator('body').getAttribute('data-sequence'));
+  const toPad=async()=>{
+   await page.locator('#btnCreate').click();await expect(page.locator('body')).toHaveAttribute('data-workshop-focus','near');
+   await page.locator('#btnToPad').click();if(await page.locator('.pu-sec').isVisible({timeout:3000}).catch(()=>false))await page.locator('.pu-sec').click();
+   await expect(page.locator('body')).toHaveAttribute('data-bench-state','pad');
+  };
+  const fling=async()=>{
+   const box=await page.locator('canvas').first().boundingBox(),x=box.x+box.width*.5,y=box.y+box.height*.635;
+   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+box.width*.23,y+box.height*.13,{steps:8});await page.mouse.up();
+  };
+  await toPad();await fling();
+  await check('a commit six seconds behind its stamp is accepted',async()=>{
+   await expect(page.locator('body')).toHaveAttribute('data-sequence',String(before+1),{timeout:45000});
+   const late=commits.find(c=>c.mode==='late');
+   const stampToCommitMs=late.commitTime-late.acceptedAt,tickBehindServerMs=Math.round(late.commitTime-epoch-late.effectiveTick*1000/120);
+   expect(stampToCommitMs).toBeGreaterThanOrEqual(6000);
+   // The previous rule allowed 1.5 s; this commit is beyond it and inside the new window.
+   expect(tickBehindServerMs).toBeGreaterThan(1500);expect(tickBehindServerMs).toBeLessThan(10000);
+   return {stampToCommitMs,tickBehindServerMs};
+  });
+  // A returning visit starts the next body without waiting for this flight's result card.
+  await page.reload();await expect(page.locator('body')).toHaveAttribute('data-sky-ready','true',{timeout:60000});await enter(page);
+  next='refuse';await toPad();
+  await page.evaluate(()=>{
+   // Record when the refusal notice appears and when it starts to fade, in page time.
+   window.__lgNotice={};const toasts=document.getElementById('toasts');
+   new MutationObserver(()=>{
+    const toast=[...toasts.children].find(t=>t.textContent.startsWith('The sky could not take this launch.'));
+    if(toast&&window.__lgNotice.shown===undefined)window.__lgNotice.shown=performance.now();
+    if(toast?.classList.contains('out')&&window.__lgNotice.fading===undefined)window.__lgNotice.fading=performance.now();
+   }).observe(toasts,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+  });
+  await fling();
+  await check('a refused launch is explained and the body stays in hand',async()=>{
+   const notice=page.locator('#toasts .toast:not(.out)',{hasText:'The sky could not take this launch. Your body is still in your hand; throw it again.'});
+   await expect(notice).toBeVisible();
+   await expect(page.locator('body')).toHaveAttribute('data-bench-state','pad');
+   // The layout checks need no slow CPU; measure the notice while it is on screen.
+   const cdp=await context.newCDPSession(page);await cdp.send('Emulation.setCPUThrottlingRate',{rate:1});
+   try{await screenshot(page,'launch-refused-phone-en');}finally{await cdp.send('Emulation.setCPUThrottlingRate',{rate:6});}
+   // Readable long after the ordinary three-second toast would have gone.
+   await page.waitForFunction(()=>window.__lgNotice.fading!==undefined,null,{timeout:20000});
+   const noticeMs=await page.evaluate(()=>window.__lgNotice.fading-window.__lgNotice.shown);
+   expect(noticeMs).toBeGreaterThanOrEqual(8000);return {noticeMs:Math.round(noticeMs)};
+  });
+  await fling();
+  await check('the same body is accepted on the next throw',async()=>{
+   await expect(page.locator('body')).toHaveAttribute('data-sequence',String(before+2),{timeout:45000});
+   expect(commits.map(c=>c.mode)).toEqual(['late','refuse','direct']);
+  });
+ }catch(error){
+  // Keep the emulator's rule evaluation for a refused commit with the journey's evidence.
+  const denial=commits.find(c=>c.denial);if(denial)error.message+=`\nEmulator commit response: ${denial.denial}`;
+  throw error;
+ }finally{evidence.commits=commits;await context.close();}
+});
 for(const profile of profiles)for(const lang of ['en','es'])test(`4 keeper popup, list, create, activate and freeze (${profile.name}, ${lang})`,async({browser})=>{
  const {context,page}=await contextFor(browser,profile,lang);
  try{
