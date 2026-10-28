@@ -14,7 +14,7 @@ const profiles=[{name:'phone',width:390,height:844,rate:4},{name:'laptop',width:
 let evidence;
 test.beforeEach(async({browser},info)=>{void browser;evidence={name:info.title,pass:false,timings:{},screenshots:[],checks:[]};});
 test.afterEach(async({browser},info)=>{
- void browser;evidence=completeJourney(evidence,info);let report={journeys:[]};try{report=JSON.parse(await readFile(process.env.ACCEPT_REPORT,'utf8'));}catch{/* First journey. */}
+ void browser;evidence={...completeJourney(evidence,info),ms:info.duration};let report={journeys:[]};try{report=JSON.parse(await readFile(process.env.ACCEPT_REPORT,'utf8'));}catch{/* First journey. */}
  (report.journeys??=[]).push(evidence);await writeFile(process.env.ACCEPT_REPORT,JSON.stringify(report,null,2));
  console.log(`${evidence.pass?'PASS':'FAIL'} ${info.title}`);
 });
@@ -40,13 +40,15 @@ async function check(name,run){
  catch(error){evidence.checks.push({name,pass:false,reason:error.message});throw error;}
 }
 async function screenshotThemes(page,name){
- const original=await page.locator('html').getAttribute('data-ui-theme');
+ const original=(await page.locator('html').getAttribute('data-ui-theme'))||'dark';
  await screenshot(page,name);
- for(const theme of ['dark','light']){
-  await page.locator('html').evaluate((el,theme)=>{el.dataset.uiTheme=theme;},theme);
-  await screenshot(page,`${name}-${theme}`);
+ const other=original==='light'?'dark':'light';
+ try{
+  await page.locator('html').evaluate((el,theme)=>{el.dataset.uiTheme=theme;},other);
+  if(await page.locator('.top-actions .icon-btn:visible, #panelTheme:visible').count())await assertHeaderIcons(page,`${name}-${other}`);
+ }finally{
+  await page.locator('html').evaluate((el,theme)=>{el.dataset.uiTheme=theme;},original);
  }
- await page.locator('html').evaluate((el,theme)=>{el.dataset.uiTheme=theme;},original);
 }
 async function clean(page){await expect(page.locator('#toasts')).toHaveText('');await expect(page.locator('body')).not.toContainText('Unsupported simulation kernel');}
 async function authorReachable(page,name){

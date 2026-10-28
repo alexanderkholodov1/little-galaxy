@@ -89,7 +89,7 @@ Failed journeys retain their assertion/error messages. Named checks verify that 
 from timelapse opens the same recorded fair, visible text uses the loaded product typefaces,
 and every drawn body has at least a four-pixel projected radius. Body measurements also run on
 the sandbox observer after a launch, so an initially empty sandbox cannot bypass that check.
-Fair, information, timelapse and workshop screenshots cover both themes independently of language,
+Fair, information, timelapse and workshop screenshots cover both themes across languages (en dark, es light),
 at 390×844 and 1440×900; each screenshot's SHA, dimensions, language and theme are recorded.
 `pnpm accept --presentation-baseline=125849d` runs those same presentation assertions independently
 against an archived build, using only a projection observation hook and the verified frozen assets.
