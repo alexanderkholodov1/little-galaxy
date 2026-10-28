@@ -11,7 +11,8 @@ const config = resolved.config;
 const emulators = resolved.emulators;
 export const sessionConfigured = config !== null;
 const app = config ? initializeApp(config) : null;
-export const auth = app ? initializeAuth(app, {persistence:[indexedDBLocalPersistence,browserLocalPersistence,browserSessionPersistence],popupRedirectResolver:browserPopupRedirectResolver}) : null;
+const redirectResolver = typeof browserPopupRedirectResolver === 'function' ? browserPopupRedirectResolver : undefined;
+export const auth = app ? initializeAuth(app, {persistence:[indexedDBLocalPersistence,browserLocalPersistence,browserSessionPersistence],popupRedirectResolver:redirectResolver}) : null;
 export const firestore = app ? getFirestore(app) : null;
 
 const demoLoopback = config?.projectId === 'demo-little-galaxy' && ['127.0.0.1', 'localhost'].includes(browserLocation?.hostname ?? '') && new URLSearchParams(browserLocation?.search).get('emulators') === '1';
