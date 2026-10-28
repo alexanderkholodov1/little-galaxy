@@ -4,7 +4,8 @@ Collective Galaxy (Galaxia Colectiva) is a shared 3D galaxy that visitors build 
 
 **[Open the galaxy](https://alexanderkholodov.web.app/galaxy/)** ·
 **[Create an object](https://alexanderkholodov.web.app/galaxy/create)** ·
-**[Booth screen](https://alexanderkholodov.web.app/galaxy/screen)**
+**[Booth screen](https://alexanderkholodov.web.app/galaxy/screen)** ·
+**[Keeper admin](https://little-galaxy.firebaseapp.com/little-galaxy/admin)**
 
 ## Try it at the fair
 
@@ -37,7 +38,7 @@ flowchart LR
   Portfolio --> Hosting["Firebase Hosting · /galaxy/"]
 ```
 
-The phone and screen share deterministic orbital math and validated schemas. Phones maintain 16 live sky shards atomically with their object writes. Home and Screen listen directly, even with both stands off. A leased stand on Beacon or its laptop backup maintains archives and legacy snapshots without Cloud Functions; the project uses Firebase’s Spark tier. Deny-by-default rules enforce ownership, write budgets and operator switches. Only the portfolio deploys the complete public site.
+The phone and screen share deterministic orbital math and validated schemas. Phones maintain 16 live sky shards atomically with their object writes. Home and Screen listen directly, even with both stands off. A leased stand on Beacon or its laptop backup maintains archives and legacy snapshots without Cloud Functions; the project uses Firebase’s Spark tier. Deny-by-default rules enforce ownership, write budgets and operator switches. Only the portfolio deploys the complete public site; the data project Hosting serves only the keeper admin.
 
 ## Quality evidence
 
@@ -238,7 +239,7 @@ with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`. Publicatio
 for at most eight minutes. Only the exact released commit and stamped version succeed; HTTP errors,
 stale metadata and missing dispatch/deployment fail with **RELEASE NOT LIVE** and a recovery message.
 After that client is verified live, the release idempotently creates/selects an open current-kernel
-sandbox. Frozen histories and identities remain unchanged. Only the portfolio deploys production Hosting and performs Hosting rollback; see the
+sandbox. Frozen histories and identities remain unchanged. Only the portfolio deploys the public production Hosting and performs Hosting rollback; see the
 [release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure).
 
 The privacy gate is part of `pnpm run build`. It scans every output file, gunzips `.gz` output, decodes

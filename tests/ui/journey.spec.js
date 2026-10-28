@@ -103,17 +103,17 @@ test('a phone enters, names and launches twice; another visitor sees both; retur
 
 test('Google sign-in refuses an account outside the keeper allowlist', async ({ page, context }) => {
   await seedGalaxy();
-  await localOnly(context, { googleRedirect: true });
+  await localOnly(context);
   await page.goto('/little-galaxy/admin');
   await googleSignIn(page, 'visitor@example.test');
-  await expect(page.locator('#ad-toast')).toContainText('This Google account is not on the keeper’s allowlist.');
+  await expect(page.locator('.ad-gate [role="alert"]')).toContainText('This Google account is not on the keeper’s allowlist.');
   await expect(page.locator('#ad-google')).toBeVisible();
   await expect(page.locator('#ad-tab-galaxies')).toHaveCount(0);
 });
 
 test('an allowlisted keeper sees the galaxy and membership dashboard', async ({ page, context }) => {
   const id = await seedGalaxy();
-  await localOnly(context, { googleRedirect: true });
+  await localOnly(context);
   await page.goto('/little-galaxy/admin');
   await googleSignIn(page, 'captain@example.test');
   await expect(page.locator('[data-galaxy="' + id + '"]')).toBeVisible();

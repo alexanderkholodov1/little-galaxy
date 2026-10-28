@@ -5,7 +5,7 @@ import {expect,test} from '@playwright/test';
 import {completeJourney} from './report.mjs';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {enter} from '../../tests/ui/galaxy-fixture.js';
-import {googleSignIn,localOnly} from '../../tests/ui/admin-helper.js';
+import {assertAdminProbeDenied,googleSignIn,localOnly} from '../../tests/ui/admin-helper.js';
 const docs=new Map(JSON.parse(await readFile(process.env.GALAXY_PUBLIC_EXPORT??'.tmp/production-export.json','utf8')));
 const fair=docs.get('galaxies/bad-2026'),head=docs.get('galaxies/bad-2026/control/head');
 const launches=[...docs].filter(([p])=>p.startsWith('galaxies/bad-2026/logPages/')).flatMap(([,v])=>v.entries).map(a=>({tick:a.intent.effectiveTick,sequence:a.sequence})).sort((a,b)=>a.sequence-b.sequence);
@@ -142,7 +142,7 @@ for(const profile of profiles)for(const lang of ['en','es']){
 for(const profile of profiles)for(const lang of ['en','es'])test(`4 keeper redirect, list, create, activate and freeze (${profile.name}, ${lang})`,async({browser})=>{
  const {context,page}=await contextFor(browser,profile,lang);
  try{
-  await localOnly(context,{googleRedirect:true});let popups=0;page.on('popup',()=>popups++);
+  await localOnly(context);let popups=0;page.on('popup',()=>popups++);
   await page.goto(`/little-galaxy/admin?emulators=1&lang=${lang}`);await expect(page.locator('html')).toHaveAttribute('lang',lang);await googleSignIn(page,`captain-${profile.name}-${lang}@example.test`);
   await expect(page.locator('#ad-create')).toBeVisible();expect(popups).toBe(0);
   await expect(page.locator('html')).toHaveAttribute('lang',lang);
@@ -151,5 +151,10 @@ for(const profile of profiles)for(const lang of ['en','es'])test(`4 keeper redir
   await card.locator('[data-action="active"]').click();await page.locator('#ad-confirm').click();await expect(card.locator('[data-action="active"]')).toBeDisabled();
   await card.locator('[data-action="freeze"]').click();await page.locator('#ad-confirm').click();await expect(card.locator('[data-action="unfreeze"]')).toBeVisible();
   await screenshot(page,`keeper-${profile.name}-${lang}`);
+  await page.locator('#ad-logout').click();await expect(page.locator('#ad-google')).toBeVisible();
+  await googleSignIn(page,`outsider-${profile.name}-${lang}@example.test`);
+  await expect(page.locator('.ad-gate [role="alert"]')).toContainText('not on the keeper’s allowlist');
+  expect(popups).toBe(0);
+  await check('outsider Firestore admin probe is denied',()=>assertAdminProbeDenied(process.env.ACCEPT_SANDBOX));
  }finally{await context.close();}
 });

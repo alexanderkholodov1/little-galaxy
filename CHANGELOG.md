@@ -19,12 +19,13 @@
 - Create and activate an open sandbox idempotently during release; preserve all frozen generations.
 - Explain Be A Dragon 2026, visitor nicknames and timelapse in English and Spanish; add clear
   navigation between the shared sandbox, fair and timelapse, with a phone-sized information panel.
-- Replace blocked cross-site Google popups with a first-party return from top-level Google OIDC,
-  checking state, nonce and audience before Firebase verifies the credential and keeper allowlist.
+- Replace blocked cross-site Google popups with Firebase's standard same-tab redirect on the data
+  project's own Hosting address, keeping the server-side verified-Google keeper allowlist.
 - Honour exact release-candidate requests. Run the same local `pnpm check` in one CI job;
   remove preview, rules and browser jobs from GitHub. Prove built-client journeys with local
   `pnpm accept`, production public reads and an isolated emulator seeded from an ignored export.
-- A merge to main deploys rules, indexes and the client directly. The rules environment only allows `main` and `v*` tags and has no manual reviewer.
+- A merge to main publishes the keeper admin to the data project Hosting, then deploys rules,
+  indexes and the client directly. The rules environment only allows `main` and `v*` tags and has no manual reviewer.
 - Publish replay moments without visitor nicknames; restore those labels in memory from hash-pinned history.
 - Draw wide recorded orbits inside the painted spiral so the opening shows readable bodies and the
   fire without changing the stored history. Use the same Unbounded/Figtree typography, glass,

@@ -107,7 +107,8 @@ PR #13 failure: a previously tagged package version can never suppress a shippin
    release, rather than deploying an old commit over it. Rapid merges can supersede an older release
    before production; the latest shipping merge must finish green.
 5. Publication verifies existing checksummed assets on retry and dispatches `galaxy-release` with
-   the exact tag to portfolio. Only portfolio deploys production Hosting. Its secrets,
+   the exact tag to portfolio. Only portfolio deploys the public production Hosting; this repository
+   deploys only the data project Hosting site for the keeper admin. Its secrets,
    receiver validation and availability remain prerequisites; automatic numbering bypasses none.
 6. The final step polls production `little-galaxy/version.json`, bypassing caches every five seconds
    for up to eight minutes. Both the exact released commit and stamped version must match. HTTP

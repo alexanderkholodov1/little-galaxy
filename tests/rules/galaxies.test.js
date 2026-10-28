@@ -302,6 +302,14 @@ describe('privacy and administration', () => {
       }),
     );
   });
+  it('denies a verified Google account outside the allowlist on every admin probe and audit read', async () => {
+    const outsider = context('operator', { ...provider, email: 'outsider@example.com' }).firestore();
+    for (const path of ['config/admins', 'adminAudit/permission-probe', 'galaxies/g/adminActions/permission-probe']) {
+      await assertFails(getDoc(doc(outsider, path)));
+    }
+    const admin = context('keeper', provider).firestore();
+    await assertSucceeds(getDoc(doc(admin, 'config/admins')));
+  });
   it('allows only allowlisted verified Google admins to freeze, choose booth and read metrics', async () => {
     const admin = store('operator', provider, true);
     await assertSucceeds(admin.admin.update('g', 1, { status: 'frozen', writePolicy: 'frozen' }));

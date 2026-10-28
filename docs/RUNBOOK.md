@@ -426,9 +426,10 @@ to main's first-parent history.
    rerun or later release leaves both config and shards untouched while still
    deploying rules/indexes. The marker is admin-only; clients cannot read or write
    it. Existing objects and seeds remain the source for the first backfill.
-4. After rules/migration succeed, CI publishes the checked artifact as a GitHub
-   Release and dispatches its exact tag to portfolio. Portfolio owns production
-   Hosting. This repository never deploys production Hosting.
+4. Before rules/migration, CI publishes the keeper admin to the data project's own
+   Hosting site and probes it. After rules/migration succeed, CI publishes the
+   checked artifact as a GitHub Release and dispatches its exact tag to portfolio.
+   Portfolio owns the public production Hosting.
 5. Verify the deployed preview and production Home/Screen on real phones before
    accepting the rollout. Old pre-alpha transactions omit reciprocal shards and
    will be rejected after the new rules; their saved drafts and version watcher
@@ -530,8 +531,9 @@ cover some permissions; the builder has not inspected live IAM.
 | Firebase Rules Admin | `roles/firebaserules.admin` | Compile and publish Firestore rulesets/releases; keep the existing reviewed rules deployment permission. |
 | Firebase Viewer | `roles/firebase.viewer` | Firebase CLI project discovery (`firebase.projects.get`) and read-only API/service checks for the existing Firebase project. |
 | Service Usage Consumer | `roles/serviceusage.serviceUsageConsumer` | Use the data project as the quota project (`serviceusage.services.use`) for the pinned CLI's API checks, which send `x-goog-user-project`. |
+| Firebase Hosting deploy | `firebasehosting.*` (covered by `roles/firebase.sdkAdminServiceAgent`) | Create Hosting releases and deploy the data project's own site, which serves the keeper admin. P0 on 2026-10-28 proved the existing release identity can list sites and deploy a preview channel. |
 
-No Owner, Editor, Hosting Admin, service-agent role or billing upgrade is needed.
+No Owner, Editor, billing upgrade or separate Hosting Admin grant is needed; the existing service-agent grant already covers Hosting deploy.
 The data project's Firestore and Rules APIs/database already exist; deployment
 must not depend on enabling paid services. GitHub tagging/release permissions are
 job-scoped `contents: write`; data jobs use `contents: read`. Portfolio dispatch

@@ -47,30 +47,26 @@ action and time ruler; settings switches, close buttons and author links have pa
 
 ## Admin sign-in
 
-The old `signInWithPopup` depends on a popup and Firebase's cross-site helper at
-`little-galaxy.firebaseapp.com`. A COOP console message alone does not establish the failure.
-The owner's popup-blocking report and the cross-site storage boundary are separate failure modes.
-Changing only `authDomain` to the portfolio host is also insufficient: its Hosting project's Auth
-configuration returns `CONFIGURATION_NOT_FOUND` (public `projects` lookup, 2026-10-27).
+The admin is served from Little Galaxy's own Firebase Hosting site,
+`https://little-galaxy.firebaseapp.com/little-galaxy/admin`, where Firebase's sign-in helper shares the
+page origin. Sign-in uses the SDK's `signInWithRedirect`: the existing tab goes to the Auth request and
+returns to the same admin page. There is no popup and no cross-site Firebase helper.
+The page forwards old admin addresses, including `alexanderkholodov.web.app/little-galaxy/admin`, to
+this address.
 
-The new flow navigates the existing tab to Google's OIDC authorization endpoint, returning an ID
-token in the fragment to the same-origin admin page. Cryptographically random state and nonce
-are saved in first-party session storage. The callback clears its fragment immediately, consumes
-state once, checks age, nonce, issuer, audience and expiry, then calls Firebase
-`signInWithCredential`. Firebase verifies Google's signature and the audience. The existing
-Firestore verified-Google/private-allowlist check remains the authority for administration.
-No client secret, custom token minting, popup or cross-site Firebase iframe is involved.
+Google already accepts `https://little-galaxy.firebaseapp.com/__/auth/handler` and the origin is
+already authorized. P0 proved the existing release credential can deploy the data project's Hosting
+site, so no console, OAuth-client or IAM change remains. The old hand-written OIDC helper and its test
+are deleted. The existing Firestore verified-Google/private-allowlist check remains the authority for
+administration.
 
-Google documents the `id_token` implicit response and required nonce in its
-[OIDC reference](https://developers.google.com/identity/openid-connect/reference).
-Firebase documents the [Google credential exchange](https://firebase.google.com/docs/auth/web/google-signin#advanced_handle_the_sign-in_flow_manually).
-Sign-in discovers the existing public Google client ID through Firebase's provider metadata;
-it does not create an OAuth client or modify an Auth provider.
+Local acceptance uses the Auth emulator's own redirect sign-in page and performs the real top-level
+redirect, callback, Firebase Auth emulator sign-in, allowlist and Firestore admin actions. It asserts
+that no popup opens and that a verified Google account outside the allowlist is refused.
 
-Production sign-in needs the single console change in **Owner's one-time setting** below.
-Everything else in this release is automatic. Local acceptance substitutes only Google's
-identity-provider page and uses the actual application redirect, callback, Firebase Auth emulator
-credential exchange, allowlist and Firestore admin actions.
+The release publishes the admin Hosting site before changing rules, then probes the page, its version
+and Google's acceptance of the redirect URI. The captain's partitioned-browser probe confirms a
+same-tab navigation to `accounts.google.com` with no `redirect_uri_mismatch` after release.
 
 ## Verification and release
 
@@ -84,7 +80,7 @@ localhost. Production access is restricted to anonymous reads. Emulators receive
 export with neutral visitor labels and recanonicalized chains. The same release setup provisions
 the sandbox twice to check idempotence and preservation. Browser journeys cover phone/laptop,
 English/Spanish, launches and a second observer, the real fair, seeking and each speed, and keeper
-redirect/list/create/activate/freeze. Reports go to `.tmp/accept-<sha>.json`; screenshots remain local.
+sign-in/list/create/activate/freeze. Reports go to `.tmp/accept-<sha>.json`; screenshots remain local.
 Failed journeys retain their assertion/error messages. Named checks verify that clicking back
 from timelapse opens the same recorded fair, visible text uses the loaded product typefaces,
 and every drawn body has at least a four-pixel projected radius. Body measurements also run on
@@ -126,20 +122,3 @@ The new one-job check in run40557563336 completed successfully in 128 seconds. I
 was rejected because the combined timing artifact nested the verdict file; the artifact layout
 is now split so the relay receives its original root `verdict.json` contract. This does not count
 as an accepted rehearsal; a new passing receipt is required.
-
-An anonymous Google authorization probe on 2026-10-27 confirmed `redirect_uri_mismatch` for
-the new production admin callback (`.tmp/google-redirect-probe.json`, HTTP 302). The owner's
-one-time setting below is required before production Google sign-in. This was checked without a
-Google password or a production data write.
-
-## Owner's one-time setting
-
-Add one redirect URI on the existing Firebase Google Web client. Keep every URI already listed.
-No other console change is required: Firebase Authorized domains already include
-`alexanderkholodov.web.app`, and the release deploys rules, indexes, the client and the open sandbox.
-
-- **Link:** [Google Auth Platform → Clients → `582862355672-os40u5nj70iok1cbtttjmif2nm9gu2pp.apps.googleusercontent.com`](https://console.cloud.google.com/auth/clients/582862355672-os40u5nj70iok1cbtttjmif2nm9gu2pp.apps.googleusercontent.com?project=little-galaxy) (project `little-galaxy`)
-- **Field:** Authorized redirect URIs
-- **Value:** `https://alexanderkholodov.web.app/little-galaxy/admin`
-
-Save the client. Do not create a new OAuth client and do not change the Firebase auth domain.

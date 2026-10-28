@@ -22,7 +22,7 @@ any production data. Raw outputs are under `~/Workspaces/lg-inputs/design-lead-d
 | Who | How they sign in today | Evidence |
 | --- | --- | --- |
 | Visitors | Firebase **anonymous** sign-in, one identity per device. No Google sign-in for visitors exists in code or plan. | `apps/web/src/firebase.ts:28-37` (`signInAnonymously`); plan `01-product-spec.md:64` ("anonymous identity per device"), `03-data-and-security.md:90` (branch `origin/plan/v0.0.1-galaxy-m0`) |
-| Admin (this branch) | Hand-written OIDC implicit redirect to Google, then `signInWithCredential` | `apps/web/integration/admin-auth.js:9-39` |
+| Admin (superseded by this design) | Hand-written OIDC implicit redirect to Google, then `signInWithCredential`; the helper and its test are deleted in P1 | `apps/web/integration/admin-auth.js:9-39` before P1 |
 | Admin (production, `v1.0.0-alpha.8` after the rollback) | `signInWithPopup(auth, new GoogleAuthProvider())` | `git show v1.0.0-alpha.8:apps/web/integration/admin-store.js` line 52 |
 | Server-side admin check | Firestore rule `bAdmin()`: signed in, `email_verified`, provider `google.com`, email in `config/admins.emails` | `firestore.rules:262-265`, used by every admin path (`firestore.rules:256-641`) |
 | Allowlist content | Provisioned once, only if absent, with `kholodov.alexander1@gmail.com`; clients cannot write it | `apps/stand/src/galaxies.ts:15-16,251`; `docs/RUNBOOK.md:712-716`; `firestore.rules:639` |
@@ -191,8 +191,15 @@ the file. If either returns a permission error (HTTP 403 on `firebasehosting.*`)
 If the default site does not exist, the same job runs `firebase hosting:sites:create little-galaxy` (covered by the same
 role) and repeats.
 
+**P0 result (2026-10-28).** The existing release credential is
+`firebase-adminsdk-fbsvc@little-galaxy.iam.gserviceaccount.com` for project `little-galaxy`. It listed
+the default site `little-galaxy` and deployed a preview channel whose URL served HTTP 200.
+`https://little-galaxy.web.app` is therefore the default site. No permission error occurred, so the
+conditional owner step was removed and no IAM change is needed.
+
 **P1. Admin sign-in and host (apps/web).**
-- `apps/web/src/firebase.ts`: add `popupRedirectResolver: browserPopupRedirectResolver` to `initializeAuth`.
+- `apps/web/src/firebase.ts`: add `popupRedirectResolver: browserPopupRedirectResolver` to `initializeAuth`
+  when the runtime exports the browser class; Node-only test builds omit Firebase's not-available object.
 - `apps/web/integration/admin-store.js`: `signIn()` calls
   `signInWithRedirect(auth, provider)` with `provider.setCustomParameters({prompt: 'select_account'})`. On load, `resume`
   awaits `getRedirectResult(auth)`, then the existing `authorize()`. Errors go to the existing gate message.
@@ -254,13 +261,3 @@ origin for Firebase's own OAuth client (E3). `little-galaxy.firebaseapp.com` is 
 allowlist is already created with only his email (E1). After the release he opens
 `https://little-galaxy.firebaseapp.com/little-galaxy/admin` (the old address forwards there), chooses his Google account,
 and he is in.
-
-**Only if P0 reports a permission error** (the release credential cannot deploy Hosting), one step:
-
-- **What:** Google Cloud console → [IAM for project `little-galaxy`](https://console.cloud.google.com/iam-admin/iam?project=little-galaxy).
-  On the service account named by the P0 error, choose *Edit principal* → *Add another role* → **Firebase Hosting Admin**
-  (`roles/firebasehosting.admin`) → *Save*.
-- **Why:** it allows the existing automatic release to publish the admin page on Little Galaxy's own address. That
-  address is the only one where Google sign-in works without other console changes.
-- **Without it:** the release stops before changing anything in production. Visitors are unaffected, but the admin
-  cannot be published at the new address, so admin sign-in stays unavailable.
