@@ -1,13 +1,13 @@
 // @vitest-environment node
 import {afterEach,expect,it,vi} from 'vitest';
-import {MemoryGalaxyDriver,canonicalHash,createGalaxyStore,initialGalaxy,initialHead} from '@little-galaxy/shared';
+import {MemoryGalaxyDriver,TIMING,canonicalHash,createGalaxyStore,initialGalaxy,initialHead} from '@little-galaxy/shared';
 import {Replay,encodeDesign,KERNEL} from './replay.js';
 import {createCertifier,scheduleCertification,CERTIFY_EVERY} from './certify.js';
 import {unpackLoaded,verifyCertified} from './checkpoint.js';
 const epoch=1_760_000_000_000;
 const action=(sequence,tick,extra={})=>({generation:1,sequence,memberId:'alice',displayName:'Alice',acceptedAt:epoch,hash:'h'+sequence,previousHash:'',
   intent:{id:`body-${sequence}`,type:'launch',kind:'planet',system:'0',effectiveTick:tick,seed:42,origin:[7000000,0],velocity:[0,1463850],design:encodeDesign({type:'planet',size:.5,pal:2,sea:.75}),...extra}});
-const due=ms=>Math.floor((ms-2000)*120/1000);
+const due=ms=>Math.floor((ms-12000)*120/1000);
 async function fixture(actions=[],genesis=[],age=60_000){
   let now=epoch+age;
   const driver=new MemoryGalaxyDriver(()=>now);
@@ -27,6 +27,14 @@ it('certifies up to the current tick, not the last accepted action',async()=>{
   const saved=await f.certifier.certify('g');
   expect(saved).toMatchObject({sequence:1,tick:due(60_000)});
   expect(await f.driver.get('galaxies/g/control/certified')).toEqual({sequence:1,tick:saved.tick});
+});
+it('certifies behind every tick that a late but valid commit can still claim',async()=>{
+  const f=await fixture([action(1,120)]);
+  const saved=await f.certifier.certify('g');
+  // The read happened at f.now(); a commit the read missed reaches the server later, and the rules admit
+  // its tick no further back than the late-commit window.
+  for(const after of [0,1,500,5000])expect(Math.ceil((f.now()+after-epoch-TIMING.lateCommit)*120/1000)).toBeGreaterThan(saved.tick);
+  expect(TIMING.certifyLag-TIMING.lateCommit).toBeGreaterThanOrEqual(2000);
 });
 it('lets a late phone start from a ten-minute-old certification and reach the same sky as a replay from genesis',async()=>{
   const f=await fixture([action(1,120)]);
@@ -64,7 +72,7 @@ it('keeps a 600-body certification far below the 1 MiB Firestore document limit'
   let s=7;const rnd=()=>((s=(s*1103515245+12345)%2147483648)/2147483648);
   const genesis=Array.from({length:600},(_,k)=>({id:'obj'+String(k).padStart(5,'0'),memberId:'m-'+k.toString(16).padStart(24,'0'),displayName:'Anonymous',kind:'planet',system:String(Math.floor(k/30)),
     design:{size:.5,palette:1,oceans:.5},legacy:{nameKey:'quiet-aurora',orbit:{a:3.5+rnd()*16,e:rnd()*.5,inclination:0,omega:rnd()*6-3,meanAnomaly:rnd()*6-3,epoch,direction:1}}}));
-  const f=await fixture([],genesis,3000);
+  const f=await fixture([],genesis,15_000);
   const saved=await f.certifier.certify('g');
   const doc=await f.driver.get(`galaxies/g/certifications/0-${saved.tick}`);
   const bytes=new TextEncoder().encode(JSON.stringify(doc)).length;

@@ -1,4 +1,4 @@
-import {canonicalHash,verifyTail} from '@little-galaxy/shared';
+import {canonicalHash,certifiedTick,verifyTail} from '@little-galaxy/shared';
 import {createReplay} from './kernel-routing.js';
 import {PACKED,packState,unpackLoaded} from './checkpoint.js';
 import {certifyFrozenTimeline} from './frozen-certifier.js';
@@ -23,8 +23,8 @@ export function createCertifier({driver,now,load}){
     }
     if(!skies.has(id))skies.set(id,await open(id));
     const sky=skies.get(id),root=`galaxies/${id}`;
-    // Taken before reading the log. Rules make an action due at least 0.5 s after its commit;
-    // certifying 2 s behind the read also covers a slow commit that the read did not see.
+    // Taken before reading the log. Rules accept a commit up to ten seconds after its tick;
+    // certifying twelve seconds behind the read also covers a late commit that the read did not see.
     const readAt=now();
     const galaxy=await driver.get(root);
     if(!galaxy||galaxy.generation!==sky.replay.galaxy.generation||galaxy.kernel!==sky.replay.galaxy.kernel){
@@ -39,7 +39,7 @@ export function createCertifier({driver,now,load}){
     }
     const last=sky.replay.actions.at(-1)?.intent.effectiveTick??0;
     const tick=galaxy.status==='active'&&galaxy.writePolicy!=='frozen'
-      ?Math.floor((readAt-galaxy.epoch-2000)*120/1000)
+      ?certifiedTick(galaxy,readAt)
       :Math.max(last,Math.ceil(((galaxy.frozenAt??galaxy.epoch)-galaxy.epoch)*120/1000));
     if(tick<=sky.tick)return null;
     while(!sky.replay.advanceTo(tick,480))await pause();

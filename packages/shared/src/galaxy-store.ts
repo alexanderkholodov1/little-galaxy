@@ -12,11 +12,21 @@ export const LIMITS = {
   activity: 300_000,
   page: 64,
 } as const;
-/** Clock budgets for admission. */
+/**
+ * Clock windows shared with `firestore.rules` (`bAccepted`). A commit may reach the server up to
+ * ten seconds after its tick: a slow phone on mobile data. The keeper certifies twelve seconds
+ * behind its clock, so a certification never covers a tick that a late but valid commit can claim.
+ */
 export const TIMING = {
+  lateCommit: 10_000,
+  certifyLag: 12_000,
   /** A stamp older than this when the writes are built is taken again. */
   freshStamp: 250,
 } as const;
+/** The tick the keeper may certify after reading the clock at `readAt`. */
+export function certifiedTick(galaxy: { epoch: number }, readAt: number) {
+  return Math.floor(((readAt - galaxy.epoch - TIMING.certifyLag) * 120) / 1000);
+}
 export const MASSES = {
   planet: 1000,
   giant: 10_000,
@@ -428,7 +438,7 @@ export async function prepareMutation(c: AdmissionContext, intent: Intent) {
   check(validId(intent.id) && Number.isSafeInteger(intent.effectiveTick), 'Invalid identity/tick');
   check(
     intent.effectiveTick > h.effectiveTick &&
-      intent.effectiveTick >= Math.ceil(((now - g.epoch - 1500) * 120) / 1000) &&
+      intent.effectiveTick >= Math.ceil(((now - g.epoch - TIMING.lateCommit) * 120) / 1000) &&
       intent.effectiveTick <= Math.floor(((now - g.epoch + 15000) * 120) / 1000),
     'Resynchronize effective tick',
   );
