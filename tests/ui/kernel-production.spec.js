@@ -54,12 +54,12 @@ test('an admin-created active galaxy uses the new kernel and serves a fresh visi
   const keeper=await keeperContext.newPage();await keeper.goto('/little-galaxy/admin');await googleSignIn(keeper,'captain@example.test');
   const recorded=keeper.locator(`[data-galaxy="${fairId}"]`);await expect(recorded).toBeVisible();
   await recorded.locator('[data-action="certify"]').click();
-  await expect(keeper.locator('#ad-toast')).toContainText('Verified sky saved');
+  await expect(keeper.locator('#keeper-toast')).toContainText('Verified sky saved');
   const certification=await withDatabase(async db=>({pointer:(await db.doc(`galaxies/${fairId}/control/certified`).get()).data(),index:(await db.doc(`galaxies/${fairId}/certifications/timeline-v1-1-3600`).get()).exists}));
   expect(certification).toEqual({pointer:{sequence:2,tick:3600},index:true});
-  await keeper.locator('#ad-create').click();await keeper.locator('#ad-new input[name="name"]').fill('Release sky');await keeper.locator('#ad-new button[type="submit"],#ad-new button.ad-primary').click();
-  const card=keeper.locator('.ad-galaxy').filter({hasText:'Release sky'});await expect(card).toBeVisible();
-  const id=await card.getAttribute('data-galaxy');await card.locator('[data-action="active"]').click();await keeper.locator('#ad-confirm').click();
+  await keeper.locator('#keeper-create').click();await keeper.locator('#keeper-new input[name="name"]').fill('Release sky');await keeper.locator('#keeper-new button[type="submit"],#keeper-new button.keeper-primary').click();
+  const card=keeper.locator('.keeper-galaxy').filter({hasText:'Release sky'});await expect(card).toBeVisible();
+  const id=await card.getAttribute('data-galaxy');await card.locator('[data-action="active"]').click();await keeper.locator('#keeper-confirm').click();
   await expect(card.locator('[data-action="active"]')).toBeDisabled();
   const created=await withDatabase(async db=>(await db.doc(`galaxies/${id}`).get()).data());
   expect(created.kernel).toBe(PROTOTYPE_KERNEL);expect(created.generation).toBe(1);

@@ -1,3 +1,4 @@
+import {applyEasyList,blockerMatches} from '../../tests/ui/blockers.js';
 /* global CSSTransition, document, getComputedStyle, requestAnimationFrame */
 import {expectLayout} from '../../tests/ui/layout-geometry.js';
 import {assertFairReturn, assertHeaderIcons, assertProductType, assertReadableBodies, assertScrubTracksThumb, assertShotSize} from './presentation.mjs';
@@ -139,22 +140,22 @@ for(const profile of profiles)for(const lang of ['en','es']){
   }finally{await context.close();}
  });
 }
-for(const profile of profiles)for(const lang of ['en','es'])test(`4 keeper redirect, list, create, activate and freeze (${profile.name}, ${lang})`,async({browser})=>{
+for(const profile of profiles)for(const lang of ['en','es'])test(`4 keeper popup, list, create, activate and freeze (${profile.name}, ${lang})`,async({browser})=>{
  const {context,page}=await contextFor(browser,profile,lang);
  try{
-  await localOnly(context);let popups=0;page.on('popup',()=>popups++);
+  await localOnly(context);await applyEasyList(context);let popups=0;page.on('popup',()=>popups++);
   await page.goto(`/little-galaxy/admin?emulators=1&lang=${lang}`);await expect(page.locator('html')).toHaveAttribute('lang',lang);await googleSignIn(page,`captain-${profile.name}-${lang}@example.test`);
-  await expect(page.locator('#ad-create')).toBeVisible();expect(popups).toBe(0);
+  await expect(page.locator('#keeper-create')).toBeVisible();expect(await blockerMatches(page)).toEqual([]);expect(popups).toBe(1);
   await expect(page.locator('html')).toHaveAttribute('lang',lang);
-  await page.locator('#ad-create').click();await page.locator('#ad-new input[name="name"]').fill(`Acceptance ${profile.name} ${lang}`);await page.locator('#ad-new button[type="submit"],#ad-new button.ad-primary').click();
-  const card=page.locator('.ad-galaxy').filter({hasText:`Acceptance ${profile.name} ${lang}`});await expect(card).toBeVisible();
-  await card.locator('[data-action="active"]').click();await page.locator('#ad-confirm').click();await expect(card.locator('[data-action="active"]')).toBeDisabled();
-  await card.locator('[data-action="freeze"]').click();await page.locator('#ad-confirm').click();await expect(card.locator('[data-action="unfreeze"]')).toBeVisible();
+  await page.locator('#keeper-create').click();await page.locator('#keeper-new input[name="name"]').fill(`Acceptance ${profile.name} ${lang}`);await page.locator('#keeper-new button[type="submit"],#keeper-new button.keeper-primary').click();
+  const card=page.locator('.keeper-galaxy').filter({hasText:`Acceptance ${profile.name} ${lang}`});await expect(card).toBeVisible();
+  await card.locator('[data-action="active"]').click();await page.locator('#keeper-confirm').click();await expect(card.locator('[data-action="active"]')).toBeDisabled();
+  await card.locator('[data-action="freeze"]').click();await page.locator('#keeper-confirm').click();await expect(card.locator('[data-action="unfreeze"]')).toBeVisible();
   await screenshot(page,`keeper-${profile.name}-${lang}`);
-  await page.locator('#ad-logout').click();await expect(page.locator('#ad-google')).toBeVisible();
+  await page.locator('#keeper-logout').click();await expect(page.locator('#keeper-google')).toBeVisible();
   await googleSignIn(page,`outsider-${profile.name}-${lang}@example.test`);
-  await expect(page.locator('.ad-gate [role="alert"]')).toContainText('not on the keeper’s allowlist');
-  expect(popups).toBe(0);
+  await expect(page.locator('.keeper-gate [role="alert"]')).toContainText('not on the keeper’s allowlist');
+  expect(popups).toBe(2);
   await check('outsider Firestore admin probe is denied',()=>assertAdminProbeDenied(process.env.ACCEPT_SANDBOX));
  }finally{await context.close();}
 });

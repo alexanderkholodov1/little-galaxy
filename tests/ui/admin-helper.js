@@ -2,9 +2,8 @@ import {readFile} from 'node:fs/promises';
 import {initializeTestEnvironment} from '@firebase/rules-unit-testing';
 import {doc,getDoc} from 'firebase/firestore';
 
-// Local journeys keep every request on the emulator. The Firebase Auth SDK's redirect
-// result bridge loads its iframe helper from Google's gapi script; that one public script
-// is the only external request allowed here.
+// Local journeys use the real Auth emulator popup. Only the SDK's public gapi
+// helper may leave loopback; Google sign-in and Firestore stay on the emulators.
 export async function localOnly(context){
  await context.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
@@ -13,16 +12,18 @@ export async function localOnly(context){
   return route.abort();
  });
 }
-// The emulator serves the provider page and performs the real top-level redirect. No popup
-// and no substitute Google page are involved.
+// Wait for the actual popup before choosing the emulator's Google account.
 export async function googleSignIn(page,email){
  if(process.env.FIREBASE_AUTH_EMULATOR_HOST!=='127.0.0.1:9099')throw new Error('Local Auth emulator required');
- await page.locator('#ad-google').click();
- await page.waitForURL(url=>url.pathname==='/emulator/auth/handler');
- await page.locator('#add-account-button').click();
- await page.locator('#email-input').fill(email);
- await page.locator('#sign-in').click();
- await page.waitForURL(/\/little-galaxy\/admin/u);
+ const pending=page.waitForEvent('popup');
+ await page.locator('#keeper-google').click();
+ const popup=await pending;
+ await popup.waitForURL(url=>url.pathname==='/emulator/auth/handler');
+ await popup.locator('#add-account-button').click();
+ await popup.locator('#email-input').fill(email);
+ const closed=popup.waitForEvent('close');
+ await popup.locator('#sign-in').click();
+ await closed;
 }
 // The same probe the admin page performs after sign-in, with the outsider's verified Google
 // claims. It reads the rules directly through the local emulator.

@@ -63,3 +63,24 @@ Object.assign(en, {
     'admin.freezeTitle':'¿Congelar “{name}”?',
     'admin.freezeConfirm':'“{name}” queda de solo lectura: nadie puede lanzar, editar ni retirar cuerpos hasta que la reabras. Luego se certifica su cielo. Los visitantes aún pueden mirarla.'
   });
+
+Object.assign(en, {
+ 'admin.checkingSession':'Checking your session. Please wait; the sign-in controls will appear here.',
+ 'admin.signingIn':'Complete Google sign-in in the popup. If it is closed, try again.',
+ 'admin.popupBlocked':'Your browser blocked the Google sign-in popup. Allow popups for this site, then try again.',
+ 'admin.popupClosed':'The Google sign-in popup was closed. Press Sign in with Google to try again.',
+ 'admin.networkError':'Google sign-in could not connect. Check your internet connection, then try again.',
+ 'admin.permissionDenied':'Administrator access was denied. Sign out and choose an invited Google account.',
+ 'admin.domainError':'Google sign-in is unavailable on this address. Open the admin on the game’s own address and try again.',
+ 'admin.retry':'Check your connection and try again, or sign out and choose an invited Google account.'
+});
+Object.assign(es, {
+ 'admin.checkingSession':'Comprobando tu sesión. Espera; los controles de acceso aparecerán aquí.',
+ 'admin.signingIn':'Completa el acceso con Google en la ventana emergente. Si se cierra, vuelve a intentarlo.',
+ 'admin.popupBlocked':'El navegador bloqueó la ventana de Google. Permite ventanas emergentes en este sitio y vuelve a intentarlo.',
+ 'admin.popupClosed':'Se cerró la ventana de Google. Pulsa Entrar con Google para volver a intentarlo.',
+ 'admin.networkError':'No se pudo conectar con Google. Comprueba tu conexión e inténtalo de nuevo.',
+ 'admin.permissionDenied':'Acceso de administrador denegado. Cierra sesión y elige una cuenta de Google invitada.',
+ 'admin.domainError':'Google no está disponible en esta dirección. Abre el administrador en la dirección del juego e inténtalo de nuevo.',
+ 'admin.retry':'Comprueba tu conexión e inténtalo de nuevo, o cierra sesión y elige una cuenta de Google invitada.'
+});

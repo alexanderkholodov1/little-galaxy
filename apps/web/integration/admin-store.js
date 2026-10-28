@@ -1,5 +1,5 @@
 import './uuid.js';
-import {GoogleAuthProvider,getRedirectResult,signOut,signInWithRedirect} from 'firebase/auth';
+import {GoogleAuthProvider,signOut,signInWithPopup} from 'firebase/auth';
 import {auth} from '../src/firebase.ts';
 import {initialGalaxy,canonicalHash,createGalaxyStore} from '@little-galaxy/shared';
 import {openSession} from './session.js';
@@ -39,7 +39,7 @@ export function createAdminStore(){
     backend=await openSession({admin:true});
     // This read is protected by bAdmin(), including verified provider/email + the private allowlist.
     try{await backend.driver.get(`galaxies/${backend.selection.activePublicGalaxyId}/adminActions/permission-probe`);}
-    catch(error){backend=null;throw new Error('This Google account is not on the keeper’s allowlist.',{cause:error});}
+    catch(error){backend=null;throw new Error(error.code==='permission-denied'?'This Google account is not on the keeper’s allowlist. Sign out and choose an invited Google account.':'Could not check administrator access. Check your connection and try signing in again.',{cause:error});}
     clear();stopCertifying();
     const session=backend;
     certifier=createCertifier({driver:session.driver,now:session.clock.now,load:(id,mode)=>session.store.loadGalaxy(id,mode)});
@@ -50,15 +50,15 @@ export function createAdminStore(){
   // Saves a verified sky up to the current tick, replaying only the time since the previous save.
   const certify=id=>certifier.certify(id);
   const S={
-    async signIn(){
+    signIn(){
       if(!auth)throw new Error('Connect this observatory to Firebase first.');
       provider.setCustomParameters({prompt:'select_account'});
-      return signInWithRedirect(auth,provider);
+      return signInWithPopup(auth,provider).then(()=>authorize());
     },
     async resume(){
       if(!auth)throw new Error('Connect this observatory to Firebase first.');
-      const result=await getRedirectResult(auth);
-      if(!result?.user&&!auth.currentUser)return false;
+      await auth.authStateReady();
+      if(!auth.currentUser||auth.currentUser.isAnonymous)return false;
       await authorize();return true;
     },
     async signOut(){stopCertifying();backend=null;certifier=null;clear();await signOut(auth);},
