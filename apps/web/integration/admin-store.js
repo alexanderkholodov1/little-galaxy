@@ -55,7 +55,12 @@ export function createAdminStore(){
       provider.setCustomParameters({prompt:'select_account'});
       return signInWithRedirect(auth,provider);
     },
-    async resume(){if(auth)await getRedirectResult(auth);return authorize();},
+    async resume(){
+      if(!auth)throw new Error('Connect this observatory to Firebase first.');
+      const result=await getRedirectResult(auth);
+      if(!result?.user&&!auth.currentUser)return false;
+      await authorize();return true;
+    },
     async signOut(){stopCertifying();backend=null;certifier=null;clear();await signOut(auth);},
     async listGalaxies(){
       if(!backend)throw new Error('Sign in to open the ledger.');

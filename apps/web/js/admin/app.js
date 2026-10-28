@@ -76,4 +76,4 @@ async function renderMetrics(){clearInterval(activityTimer);const galaxies=await
  activityTimer=setInterval(expireActivity,15000);
  document.querySelector('#ad-filters').onsubmit=safe(async e=>{e.preventDefault();filters=Object.fromEntries(new FormData(e.target));if(filters.from&&filters.to&&filters.from>filters.to)throw new Error(t('invalidRange'));await renderMetrics();});document.querySelector('#ad-refresh').onclick=safe(async()=>{await store.refresh();await renderMetrics();});
 }
-store.resume().then(()=>{unlocked=true;return render();}).catch(error=>render(error));
+store.resume().then(result=>{unlocked=result===true;return render();}).catch(error=>render(error));
