@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   connectAuth: vi.fn(), connectFirestore: vi.fn(),
 }));
 vi.mock('firebase/app', () => ({ initializeApp: mocks.initialize }));
-vi.mock('firebase/auth', () => ({ initializeAuth: () => mocks.auth, indexedDBLocalPersistence:{},browserLocalPersistence:{},browserSessionPersistence:{}, signInAnonymously: mocks.signIn, connectAuthEmulator: mocks.connectAuth }));
+vi.mock('firebase/auth', () => ({ initializeAuth: () => mocks.auth, indexedDBLocalPersistence:{},browserLocalPersistence:{},browserSessionPersistence:{}, browserPopupRedirectResolver:{}, signInAnonymously: mocks.signIn, connectAuthEmulator: mocks.connectAuth }));
 vi.mock('firebase/firestore', () => ({ getFirestore: () => ({}), connectFirestoreEmulator: mocks.connectFirestore }));
 
 beforeEach(() => {

@@ -1,7 +1,6 @@
 import './uuid.js';
-import {signOut} from 'firebase/auth';
+import {GoogleAuthProvider,getRedirectResult,signOut,signInWithRedirect} from 'firebase/auth';
 import {auth} from '../src/firebase.ts';
-import {createAdminAuth} from './admin-auth.js';
 import {initialGalaxy,canonicalHash,createGalaxyStore} from '@little-galaxy/shared';
 import {openSession} from './session.js';
 import {KERNEL} from './replay.js';
@@ -23,7 +22,7 @@ export function summarizeMembers(members,now,galaxyId){
   return out;
 }
 export function createAdminStore(){
-  const login=createAdminAuth(auth);
+  const provider=new GoogleAuthProvider();
   let backend=null,galaxies=null,certifier=null,stopCertifying=()=>{};const worlds=new Map(),exports=new Map();
   const clear=()=>{galaxies=null;worlds.clear();};
   const full=async id=>{
@@ -51,8 +50,12 @@ export function createAdminStore(){
   // Saves a verified sky up to the current tick, replaying only the time since the previous save.
   const certify=id=>certifier.certify(id);
   const S={
-    async signIn(){return login.signIn();},
-    async resume(){await login.resume();return authorize();},
+    async signIn(){
+      if(!auth)throw new Error('Connect this observatory to Firebase first.');
+      provider.setCustomParameters({prompt:'select_account'});
+      return signInWithRedirect(auth,provider);
+    },
+    async resume(){if(auth)await getRedirectResult(auth);return authorize();},
     async signOut(){stopCertifying();backend=null;certifier=null;clear();await signOut(auth);},
     async listGalaxies(){
       if(!backend)throw new Error('Sign in to open the ledger.');

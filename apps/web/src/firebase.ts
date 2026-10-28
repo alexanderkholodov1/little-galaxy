@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { connectAuthEmulator, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, signInAnonymously } from 'firebase/auth';
+import { connectAuthEmulator, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver, signInAnonymously } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { resolveFirebaseConfig } from './firebase-config';
 
@@ -11,7 +11,7 @@ const config = resolved.config;
 const emulators = resolved.emulators;
 export const sessionConfigured = config !== null;
 const app = config ? initializeApp(config) : null;
-export const auth = app ? initializeAuth(app, {persistence:[indexedDBLocalPersistence,browserLocalPersistence,browserSessionPersistence]}) : null;
+export const auth = app ? initializeAuth(app, {persistence:[indexedDBLocalPersistence,browserLocalPersistence,browserSessionPersistence],popupRedirectResolver:browserPopupRedirectResolver}) : null;
 export const firestore = app ? getFirestore(app) : null;
 
 const demoLoopback = config?.projectId === 'demo-little-galaxy' && ['127.0.0.1', 'localhost'].includes(browserLocation?.hostname ?? '') && new URLSearchParams(browserLocation?.search).get('emulators') === '1';
