@@ -23,7 +23,7 @@ commits are on `main`.
 | H12 | Fair-day releases | `v1.0.0-alpha.3` to `alpha.8` | released; production rolled back to `alpha.8` | PRs #14-#19, tags `v1.0.0-alpha.3`…`alpha.8`; post-mortem `~/caspian-kb/improvement/OBITUARY-2026-10-25-little-galaxy-fair.md` |
 | H13 | Close the database after the fair | `v1.0.0-alpha.9` | released | PR #20, `1c07d9e`, tag `v1.0.0-alpha.9` |
 | H14 | Welcome title and timelapse arrow | `v1.0.0-alpha.9.6` | released | PR #21, `4a20e85`, tag `v1.0.0-alpha.9.6` |
-| **H15** | **The whole game ready to show** | **`v1.0.0-alpha.10.0-rc1`** | **open** | **PR #22 (draft), branch `v1.0.0-alpha.10.0-rc1`** |
+| **H15** | **The whole game; admin visibility follow-up** | **`v1.0.0-alpha.10.0-rc2`** | **rc1 released; rc2 open** | **rc1 baseline `1105d05`; fix branch `v1.0.0-alpha.10.0-rc2`** |
 | H16 | Destructive galaxies (R22) | `v1.0.0-alpha.11` | future | owner order, `~/caspian-kb/agenda/HANDOFF-after-fair-2026-10-25.md:65-67` |
 | H17 | Planet surfaces for everyone (R19) | `v1.0.0-alpha.12` | future | same |
 | H18 | Player accounts shared with the portfolio (R19 sign-in, R23) | `v1.0.0-alpha.13` | future | same; `r3-operator-review.md:67-90` |
@@ -147,7 +147,16 @@ Each welcome-title word stays on one line; the timelapse arrow is drawn as an ic
 
 ## Current hito
 
-### H15. `v1.0.0-alpha.10.0-rc1` The whole game ready to show (PR #22, draft)
+### H15. `v1.0.0-alpha.10.0-rc2` Admin visibility follow-up
+
+The rc1 work below is released at `1105d05`. The operator’s 2026-10-28 follow-up
+is limited to the admin fix in [admin-sign-in.md](admin-sign-in.md): remove EasyList
+collisions, restore the game’s admin address and synchronous Google popup, retire data
+Hosting content and prove keeper/outsider journeys with blockers. No performance work,
+other features, console settings, rules changes or production operations belong to rc2.
+The captain reviews and pushes; release and real-phone checks follow separately.
+
+The rc1 package history and broader acceptance below remain as historical context.
 
 **Scope (owner, 2026-10-27; `~/caspian-kb/handoffs/2026-10-28T0200Z-beacon-captain.md` and `LG-whole-game.md`).** In one PR:
 an open shared sandbox anyone can play in; the original fair galaxy and its timelapse, intact; bodies that stay in the
@@ -172,15 +181,15 @@ simple, fast workflows.
 **Last verified state** (captain, 2026-10-28 ~02:30Z, head `eb743b7`): `pnpm check` PASS, `pnpm accept` PASS 13/13,
 rehearsal run 40605193504 success, deploy preflight PASS (`~/caspian-kb/handoffs/2026-10-28T0200Z-beacon-captain.md:44-46`).
 
-**Remaining, in order:**
+**Prior rc1 remaining list (only item 1 and final local verification are in this rc2 fix):**
 
 | # | Work | Who | Done when |
 | --- | --- | --- | --- |
-| 1 | Admin sign-in per `admin-sign-in.md`: P0 preflight, then P1-P3 (one builder, it owns `firebase.json` and `release.yml`), then P4 | captain (P0), one builder (P1-P4) | `admin-sign-in.md` § Implementation packages, "Done" |
+| 1 | rc2 admin visibility and popup sign-in per `admin-sign-in.md`, including release retirement/probes | one builder, captain reviews | `pnpm check` and `pnpm accept` pass on the final commit; blocker gate fails on rc1 and passes on rc2; captain then verifies deployment and phones |
 | 2 | Shorten `pnpm accept` (20 minutes, 84 screenshots). Keep deterministic checks: geometry, sizes, computed fonts, text equality, link destinations. Keep only screenshots that a review uses. | one builder (integrator) | `pnpm accept` passes with the same named checks in less time; the report lists each kept capture and the review that uses it |
 | 3 | Re-verify everything on the final head: `pnpm check`, `pnpm accept`, rehearsal, screenshots judged by the captain | captain | all pass on the same SHA; receipts in `.tmp/accept-<sha>.json` |
 | 4 | Mark PR #22 ready and tell the owner. The owner merges. | captain, then owner | PR merged |
-| 5 | Release and acceptance in real use | automatic, then captain and owner | README release steps 2-4; the owner signs in to the admin once at `https://little-galaxy.firebaseapp.com/little-galaxy/admin` |
+| 5 | Release and acceptance in real use | automatic, then captain and owner | README release steps 2-4; the owner signs in to the admin once at `https://alexanderkholodov.web.app/little-galaxy/admin` |
 
 **Acceptance (all, in production):**
 

@@ -35,6 +35,8 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install Chromium for the EasyList rendering gate
+        run: pnpm exec playwright install --with-deps chromium
       - run: pnpm check
       - name: Record rehearsal verdict
         if: ${{ always() && inputs.rehearsal }}

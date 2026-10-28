@@ -5,7 +5,7 @@ const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 
 it('runs the same fast local check in a single CI job, retaining rehearsal verdicts', async () => {
   const ci=await read('.github/workflows/ci.yml'), checks=await read('.github/workflows/checks.yml');
-  expect(ci).not.toContain('preview:');expect(checks).not.toContain('playwright');expect(checks).not.toContain('test:rules');
+  expect(ci).not.toContain('preview:');expect(checks).toContain('playwright install --with-deps chromium');expect(checks).not.toContain('test:rules');
   expect(checks).toContain('run: pnpm check');expect(checks).toContain('verdict.json');expect(ci).toContain("branches: ['rehearsal/**']");
 });
 
@@ -62,13 +62,16 @@ it('passes the release tag through Turbo to Vite and confirms production with th
 
 });
 
-it('deploys and probes the data project\'s admin Hosting before rules deployment',async()=>{
+it('disables data Hosting, preserves its auth helper and probes the admin after portfolio is live',async()=>{
  const workflow=await read('.github/workflows/release.yml');
  const deploy=workflow.split('\n  deploy-rules:')[1];
- expect(deploy).toContain('firebase deploy --only hosting --project');
- expect(deploy).toContain('node scripts/verify-admin-release.mjs');
- expect(deploy.indexOf('firebase deploy --only hosting')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
- expect(deploy.indexOf('node scripts/verify-admin-release.mjs')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
+ expect(workflow).not.toContain('firebase deploy --only hosting');
+ expect(deploy).toContain('firebase hosting:disable --site little-galaxy --project little-galaxy --force');
+ expect(deploy).toContain('node scripts/verify-disabled-hosting.mjs');
+ expect(deploy.indexOf('hosting:disable')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
+ const publish=workflow.split('\n  publish:')[1].split('\n  deploy-rules:')[0];
+ expect(publish.indexOf('node scripts/verify-admin-release.mjs')).toBeGreaterThan(publish.indexOf('node scripts/verify-live-version.js'));
+ expect(JSON.parse(await read('firebase.json'))).not.toHaveProperty('hosting');
 });
 it('selects a new-kernel sandbox only after its matching production client is live',async()=>{
  const workflow=await read('.github/workflows/release.yml');

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.0-alpha.10.0-rc2 — the admin on the game’s address, visible with blockers, 2026-10-28
+
+- Fix the empty admin and first-paint flash caused by EasyList hiding the old `ad-`
+  namespace. Rename every admin class and ID to `keeper-`; vendor EasyList’s generic
+  selectors and gate all shipped markup plus rendered admin states in `pnpm check`.
+- Revert the rc1 domain move. Keep the admin at
+  `https://alexanderkholodov.web.app/little-galaxy/admin` in the game’s account system.
+  Open Firebase Google sign-in synchronously in a popup; show session progress and
+  actionable errors. Preserve the server-side verified-Google allowlist unchanged.
+- Disable data-project Hosting content at release and require Firebase’s reserved
+  auth helper to remain available. Probe the admin after the portfolio release is live.
+- Exercise real Auth emulator popups and keeper/outsider journeys under EasyList styles.
+  Replace redirect and Hosting-deploy assertions with popup and content-retirement checks.
+
 ## 1.0.0-alpha.10.0-rc1 — an open shared sandbox and the original fair, ready to visit, 2026-10-27
 
 - Open active galaxies from canonical leased snapshots, verify history in the background and fall

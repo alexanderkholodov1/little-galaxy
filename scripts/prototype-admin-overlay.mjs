@@ -1,5 +1,6 @@
 import {replace} from './prototype-overlay.mjs';
 export function adminOverlay(file,source){
+  if(file==='admin.html'||file==='css/admin.css'||file.startsWith('js/admin/'))source=source.replaceAll(/\bad-/gu,'keeper-');
   if(file==='js/admin/store.js')return "export {default} from '../../integration/admin-store.js';\n";
   if(file==='js/admin/config.js')return '// Google Auth and Firestore rules protect the shared ledger.\n';
   if(file==='js/admin/app.js'){
