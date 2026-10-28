@@ -75,3 +75,27 @@ it('makes the screen follow the active galaxy even when the legacy booth selecti
   expect(selected).toContain('next-open');
  }finally{screen.stop();removeEventListener('galaxy:selection',listen);}
 });
+it('makes snapshot work yield while a launch is pending',async()=>{
+ const {adapter,backend}=await fixture();vi.spyOn(document,'hidden','get').mockReturnValue(false);
+ let release;const held=new Promise(resolve=>{release=resolve;}),launch=backend.store.launch.bind(backend.store);
+ vi.spyOn(backend.store,'launch').mockImplementation(async(...args)=>{await held;return launch(...args);});
+ const claim=vi.spyOn(backend.store,'claimSnapshotLease'),publish=vi.spyOn(backend.store,'publishSnapshot');
+ const pending=adapter.launch('g',{design:{type:'planet',seed:1,size:.5},origin:[7,0],velocity:[0,1.4],system:'0'});
+ await vi.waitFor(()=>expect(backend.store.launch).toHaveBeenCalled());
+ expect(await adapter.claimSnapshot('tab')).toBe(false);expect(await adapter.publishSnapshot({tick:1})).toBe(false);
+ expect(claim).not.toHaveBeenCalled();expect(publish).not.toHaveBeenCalled();
+ release();expect((await pending).sequence).toBe(1);
+ await adapter.claimSnapshot('tab');expect(claim).toHaveBeenCalledOnce();adapter.stop();
+});
+it('starts a launch after a snapshot already sending and stamps it when the way is clear',async()=>{
+ const {adapter,backend,advance}=await fixture();vi.spyOn(document,'hidden','get').mockReturnValue(false);
+ let release;const sending=new Promise(resolve=>{release=resolve;});
+ vi.spyOn(backend.store,'publishSnapshot').mockImplementation(()=>sending);
+ const launch=vi.spyOn(backend.store,'launch'),published=adapter.publishSnapshot({tick:1});
+ const pending=adapter.launch('g',{design:{type:'planet',seed:1,size:.5},origin:[7,0],velocity:[0,1.4],system:'0'});
+ await new Promise(resolve=>setTimeout(resolve,20));expect(launch).not.toHaveBeenCalled();
+ // A six-second upload on mobile data ends; the launch's time is taken after it.
+ advance(6000);const cleared=backend.clock.now();release(true);
+ expect(await published).toBe(true);const accepted=await pending;
+ expect(accepted.acceptedAt).toBe(cleared);adapter.stop();
+});

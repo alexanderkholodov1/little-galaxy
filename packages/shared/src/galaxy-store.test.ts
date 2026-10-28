@@ -452,6 +452,18 @@ it('refreshes the anchored clock and tick on every transaction attempt after slo
   expect(a.intent.effectiveTick).toBeGreaterThan(attempts[0].intent.effectiveTick);
   expect(a.intent.id).toBe(attempts[0].intent.id);
 });
+it('stamps again when the phone stalls between the stamp and the writes', async () => {
+  let clock=now, calls=0;
+  const d=new MemoryGalaxyDriver();
+  await d.seed('config/live',{seasonOpen:true,activePublicGalaxyId:'g'});
+  await d.seed('galaxies/g',galaxy); await d.seed('galaxies/g/control/head',initialHead(now));
+  // The second reading comes after the first attempt's hashes: model a six-second stall there.
+  const s=createGalaxyStore(d,{uid:'u',memberId:'m1',now:()=>{if(++calls===2)clock+=6000;return clock;}});
+  const a=await s.launch('g',launch);
+  expect(a.acceptedAt).toBe(now+6000);
+  expect(a.intent.effectiveTick).toBe(Math.ceil((now+6000-galaxy.epoch+2400)*.12));
+  expect((await d.get<import('./galaxy-store.js').Member>('galaxies/g/members/u'))?.lastSeen).toBe(now+6000);
+});
 it('keeps admission caches compact when head maps grow past 14K', async () => {
   const d=new MemoryGalaxyDriver(); const h=initialHead(now);
   for(let n=1;n<150;n++)h.systems[String(n)]={...h.systems['0']};

@@ -12,6 +12,11 @@ export const LIMITS = {
   activity: 300_000,
   page: 64,
 } as const;
+/** Clock budgets for admission. */
+export const TIMING = {
+  /** A stamp older than this when the writes are built is taken again. */
+  freshStamp: 250,
+} as const;
 export const MASSES = {
   planet: 1000,
   giant: 10_000,
@@ -736,12 +741,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
           ? await tx.get<Body>(`${p}/objects/${intent.parent}`)
           : null;
       check(old || g.writePolicy === 'public' || g.owner === options.uid, 'Invite required');
-      // Reads and contention backoff must finish before scheduling each attempt.
-      const now = options.now(), window = quotaWindow(now);
-      const scheduled = { ...intent, effectiveTick: Math.max(h.effectiveTick + 1,
-        Math.ceil((now - g.epoch + 2400) * 120 / 1000)) };
-      const m = old ?? initialMember(options.memberId, now);
-      if (!old && g.owner === options.uid) m.role = 'owner';
+      check((page?.entries.length ?? 0) === h.sequence % 64, 'Missing log page');
       if (cache)
         check(
           cache.baseSequence === h.sequence &&
@@ -750,21 +750,40 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
             (await canonicalHash(cache.state)) === cache.stateHash,
           'Stale or invalid prepared cache; recompute outside transaction',
         );
-      const r = await prepareMutation(
-        {
-          galaxy: g,
-          head: h,
-          member: m,
-          uid: options.uid,
-          now,
-          window,
-          body,
-          parent,
-          admin: options.admin,
-        },
-        scheduled,
-      );
-      check((page?.entries.length ?? 0) === h.sequence % 64, 'Missing log page');
+      // Every read, backoff and tick-independent check is done. Stamp the time and schedule the
+      // tick now; only this attempt's own hashes stand between the stamp and the writes.
+      const admit = async () => {
+        const now = options.now();
+        const scheduled = { ...intent, effectiveTick: Math.max(h.effectiveTick + 1,
+          Math.ceil((now - g.epoch + 2400) * 120 / 1000)) };
+        const m = old ?? initialMember(options.memberId, now);
+        if (!old && g.owner === options.uid) m.role = 'owner';
+        const r = await prepareMutation(
+          {
+            galaxy: g,
+            head: h,
+            member: m,
+            uid: options.uid,
+            now,
+            window: quotaWindow(now),
+            body,
+            parent,
+            admin: options.admin,
+          },
+          scheduled,
+        );
+        // Admission summaries are useful for comparison, never authority for physical trajectories.
+        const cacheState =
+          cache?.state ?? JSON.stringify({ kind: 'admission-v1', sequence: r.head.sequence, body: r.body });
+        check(cacheState.length <= 14000, 'Checkpoint byte limit');
+        const cacheHash = cache?.stateHash ?? (await canonicalHash(cacheState));
+        return { now, r, cacheState, cacheHash };
+      };
+      let admitted = await admit();
+      // A busy phone can pause between awaits; send a fresh stamp rather than one already old.
+      for (let again = 0; again < 3 && options.now() - admitted.now > TIMING.freshStamp; again++)
+        admitted = await admit();
+      const { r, cacheState, cacheHash } = admitted;
       const entries = [...(page?.entries ?? []), r.action];
       check(
         new TextEncoder().encode(JSON.stringify(entries)).length <= 131072,
@@ -781,11 +800,6 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
           moons: parent.moons + 1,
           lastAction: intent.id,
         });
-      // Admission summaries are useful for comparison, never authority for physical trajectories.
-      const cacheState =
-        cache?.state ?? JSON.stringify({ kind: 'admission-v1', sequence: r.head.sequence, body: r.body });
-      check(cacheState.length <= 14000, 'Checkpoint byte limit');
-      const cacheHash = cache?.stateHash ?? (await canonicalHash(cacheState));
       tx.set(`${p}/checkpoints/latest`, {
         schemaVersion: 1,
         generation: g.generation,
