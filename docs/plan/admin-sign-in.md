@@ -182,7 +182,9 @@ Order: P0, then P1 to P3 in one PR (they share the release), then P4. One builde
 `firebase.json` and `.github/workflows/release.yml` are shared files.
 
 **P0. Preflight (captain, before building; no production change).**
-With the existing `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY` credential, in a rehearsal run of the release workflow:
+With the existing `FIREBASE_SERVICE_ACCOUNT_LITTLE_GALAXY` credential. It exists only as a GitHub secret (Beacon has no
+key, `docs/RUNBOOK.md:574`), so the check runs in a temporary `workflow_dispatch` job on the hito branch that
+uses that secret, and the job is removed afterwards:
 `firebase hosting:sites:list --project little-galaxy`, then `firebase hosting:channel:deploy preflight --expires 1h`
 of a one-file directory. Preview channels do not touch the live site. Done when both succeed and the channel URL serves
 the file. If either returns a permission error (HTTP 403 on `firebasehosting.*`), use the conditional owner step below.
