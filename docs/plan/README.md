@@ -119,3 +119,5 @@ Rules for every hito:
   destructive mode first (`~/caspian-kb/agenda/HANDOFF-after-fair-2026-10-25.md:48-67`).
 - 2026-10-28: this folder replaces the plan branch. Admin sign-in decision added. Release policy: production on merge
   with no approval. Version scheme `v0.X.Y` / `v1.0.0-alpha.X.Y.Z` / `v1.0.0` restated.
+- 2026-10-28: the released `v1.0.0`/`v1.0.1` tags stay; alpha hitos, then beta hitos, toward the final goal `v1.1.0`
+  (owner).

@@ -32,7 +32,7 @@ commits are on `main`.
 | H21 | Perfect: the owner's review, the final goal | `v1.1.0` | future | owner, 2026-10-28 (README, Versions) |
 
 Order and dependencies: H0 → H1 → … → H15 strictly in sequence (each consumed the previous `main`). After H15:
-H16 → H17 → H18 → H19 → H20. This is the owner's order for C, "destructive mode first" (2026-10-25). Hard dependencies
+H16 → H17 → H18 → H19 → H20 → H21. This is the owner's order for C, "destructive mode first" (2026-10-25). Hard dependencies
 are listed per hito. H17 does not depend on H16 and may run in parallel only if their shared-file owners are distinct
 and the owner agrees.
 
