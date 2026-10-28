@@ -216,7 +216,10 @@ GitHub runs this same command in one job, retaining rehearsal verdicts on `rehea
 Run `pnpm accept` for the built-client phone/laptop and EN/ES journeys: public production reads
 for the original fair, isolated emulators for launches, current physics and keeper administration.
 Its private export and screenshots stay in `.tmp/`; results are `.tmp/accept-<sha>.json`.
-CI has no preview, browser or emulator jobs. Local acceptance is the journey evidence.
+The checked artifact is deployed to a seven-day `pr-<number>` preview for same-repository PRs.
+One updated PR comment links it and warns that it uses production data; Google admin sign-in
+is unavailable on preview domains. `pnpm accept:live <preview-url>` rehearses a real launch
+with server-side admin cleanup when authorized. Local acceptance remains the full journey evidence.
 
 On Windows the rules, UI and live-safety runners keep an emulator owner alive until the suite ends,
 then stop its full process tree with `taskkill /PID <pid> /T /F`, including after errors or Ctrl+C.
@@ -229,7 +232,10 @@ resumes the release; it never silently skips shipping changes. The guard verifie
 numeric milestone line, main first-parent history and increasing version precedence. The build passes `RELEASE_TAG` through Turbo into Vite to
 stamp the runtime and `version.json`, independently of package.json. It builds with the production
 public config and privacy gate, packs `galaxy-dist-<tag>.tar.gz`, and attaches `version.json` and
-`SHA256SUMS`. The `little-galaxy-rules` environment deploys rules and indexes with the current galaxy migration and season
+`SHA256SUMS`. First, a seven-day `release-<tag>` preview channel must serve that exact
+artifact and pass an anonymous launch observed by a second browser, followed by admin removal.
+Probe history remains in the production database. Only on pass does the
+`little-galaxy-rules` environment deploy rules and indexes with the current galaxy migration and season
 restoration directly after the merge: it only restricts deployment to `main` and `v*` tags and has no manual
 reviewer (owner decision 2026-10-27). No PR tests run again during release.
 

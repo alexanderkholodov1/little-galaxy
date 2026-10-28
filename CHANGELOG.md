@@ -17,11 +17,17 @@
 - Provision the acceptance sandbox 36 hours before its first real-client launch, across
   a quota-window boundary. Verify second-browser visibility and ownership-checked,
   history-preserving administrative removal of the test body.
-- Add `pnpm accept:live <url>` and a post-publication release launch proof with cleanup
+- Add `pnpm accept:live <url>` and a candidate-channel release launch proof with cleanup
   and a receipt. The visitor remains anonymous; the admin credential stays server-side.
 - Keep the reported production launch denial under investigation: the captured sequence-0
   documents accepted original-age and 36-hour-gap launches against the checked-in rules.
   No unsupported cause or rules relaxation is claimed.
+
+- Cover four returning-visitor storage/Auth states in the aged first-launch journey.
+  Wait on the first playback event before requiring its sequence at every speed.
+- Restore seven-day PR previews from the checked artifact with one updated PR comment.
+  Require the exact release candidate to pass the real launch and cleanup proof before
+  rules deployment or live portfolio dispatch; use existing credentials only.
 
 ## 1.0.0-alpha.10.0-rc1 — an open shared sandbox and the original fair, ready to visit, 2026-10-27
 

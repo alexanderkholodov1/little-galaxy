@@ -30,7 +30,7 @@ export async function observeLaunches(context,onDraft=async()=>{}){
 }
 export async function launchAcrossBrowsers(browser,url,{onDraft,onIdentity,prepareVisitor,profileName,afterLaunch}={}){
  const visitor=await browser.newContext({viewport:{width:390,height:844}}),observer=await browser.newContext({viewport:{width:390,height:844}});
- let receipt;
+ let receipt;const browserErrors=[];
  try{
   if(['localhost','127.0.0.1'].includes(new URL(url).hostname)){
    for(const context of [visitor,observer])await context.route('**/*',route=>{
@@ -40,10 +40,12 @@ export async function launchAcrossBrowsers(browser,url,{onDraft,onIdentity,prepa
   }
   await observeLaunches(visitor,onDraft);await observeLaunches(observer);
   const page=await visitor.newPage(),second=await observer.newPage();
+  page.on('pageerror',error=>browserErrors.push(error.message));
   const identities=[];
   page.on('response',response=>{
-   if(onIdentity&&!response.fromServiceWorker()&&new URL(response.url()).pathname.endsWith('/accounts:signUp')){
-    identities.push(response.json().then(data=>{if(!data.localId)throw new Error('Anonymous Auth response has no identity');return onIdentity(data.localId);}));
+   const authURL=new URL(response.url()),localAuth=['localhost','127.0.0.1'].includes(new URL(url).hostname)&&['localhost','127.0.0.1'].includes(authURL.hostname)&&authURL.port==='9099';
+   if(onIdentity&&!response.fromServiceWorker()&&(authURL.origin==='https://identitytoolkit.googleapis.com'||localAuth)&&authURL.pathname.endsWith('/accounts:signUp')){
+    identities.push(response.json().then(data=>{if(!data.localId)throw new Error('Anonymous Auth response has no identity');return onIdentity(data.localId,data.idToken);}));
    }
   });
   for(const tab of [page,second]){
@@ -61,6 +63,7 @@ export async function launchAcrossBrowsers(browser,url,{onDraft,onIdentity,prepa
   if(onIdentity&&identities.length!==1)throw new Error('A fresh anonymous Auth identity was not observed; no launch was attempted');
   const galaxyId=await page.locator('body').getAttribute('data-galaxy');
   expect(await second.locator('body').getAttribute('data-galaxy')).toBe(galaxyId);
+  await page.bringToFront();
   await page.locator('#btnCreate').click();await page.locator('#types [data-type="planet"]').click();
   await page.locator('#btnToPad').click();
   if(await page.locator('.pu-card').isVisible()){
@@ -83,6 +86,6 @@ export async function launchAcrossBrowsers(browser,url,{onDraft,onIdentity,prepa
  }catch(error){
   const tab=visitor.pages()[0];
   const toasts=tab?await tab.locator('#toasts').innerText().catch(()=>''):'';
-  throw new Error(`Anonymous launch proof failed. ${toasts} ${error.message}`,{cause:error});
+  throw new Error(`Anonymous launch proof failed. ${toasts} ${error.message} Browser errors: ${browserErrors.join('; ')}`,{cause:error});
  }finally{await visitor.close();await observer.close();}
 }

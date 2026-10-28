@@ -42,33 +42,45 @@ refuses other visitors' bodies and host objects, and appends a shared-store admi
 removal rather than deleting history. A private journal retains the Auth UID for
 failure cleanup; the uploaded public receipt excludes it.
 
-Release runs this proof after the exact client is live and its sandbox is selected.
-An always-run cleanup step precedes credential deletion, including when the browser
-step fails. Production proof failure fails the release; local tests do not certify
-live Google, real phones or the owner's previously failing browser session.
+Release deploys the exact checksummed artifact to a seven-day portfolio-project
+channel named `release-<tag>` (dots become hyphens for the channel ID). It pins
+`version.json` to the release SHA and tag, then runs the proof against the existing
+active production galaxy. Only a passing proof and cleanup unlock rules deployment
+and the exact-tag portfolio live dispatch. The candidate never provisions or changes
+the active selection. Failure leaves live Hosting, rules and selection untouched;
+the requested probe still appends immutable launch/removal history in production.
+An always-run cleanup precedes credential deletion, including on browser failure.
 
-## PR preview dependency
+## Seven-day PR previews
 
-The requested preview architecture is a Little Galaxy PR build dispatched to the
-portfolio, which assembles the complete site and deploys a seven-day channel. The
-Little Galaxy PR comment must identify the exact build and state that the preview
-uses production data. No game-repository Hosting deployment is allowed.
+Operator decision (2026-10-28, lead steer): restore Little Galaxy's own preview-only
+Hosting channel deployment using the existing
+`FIREBASE_SERVICE_ACCOUNT_ALEXANDERKHOLODOV`. The portfolio repository stays unchanged.
+The single `pnpm check` job prepares frozen records and uploads its checked client;
+a same-repository PR job downloads that artifact without rebuilding and deploys
+`pr-<number>` on project `alexanderkholodov`, expiring after seven days. Root
+`firebase.json` still has no Hosting target; generated preview-only configuration
+serves the artifact at `/little-galaxy/` and never deploys the live channel.
 
-The portfolio has `FIREBASE_SERVICE_ACCOUNT`, but lacks a token for downloading the
-Little Galaxy Actions artifact and commenting on its PR. This requires a portfolio
-secret such as `LITTLE_GALAXY_PREVIEW_TOKEN` with Actions read and Pull requests write
-on `alexanderkholodov1/little-galaxy`, or equivalent GitHub App access. Its built-in
-`GITHUB_TOKEN` is scoped to portfolio. The existing Little Galaxy
-`PORTFOLIO_DISPATCH_TOKEN` covers the outward dispatch, not this portfolio-side access.
-The credential-dependent preview item is stopped per the operator's instruction.
-The portfolio checkout is also outside this session's writable roots; a separate
-portfolio branch/commit set cannot be created with the current sandbox permissions.
+The job uses `GITHUB_TOKEN` with `pull-requests: write` to create or update one bot
+comment with the exact checked SHA and playable URL. It explicitly says the channel
+uses the production database and admin Google sign-in is unavailable there because
+preview domains are not Firebase Auth authorized domains. Fork PRs receive no secret
+preview deployment. A real PR run must prove the existing credential's Hosting access,
+comment permission and deployed browser behavior; no deployment ran during this work.
+
+`pnpm accept:live <channel-root-or-game-url>` accepts `*.web.app` channel addresses.
+Before privileged cleanup, the stand verifies the anonymous Firebase ID token against
+the data project. Browser Auth identities are accepted only from the official Auth
+endpoint (or the isolated emulator), and neither tokens nor Auth UIDs enter public
+receipts. A deployed proof requires separate operator authorization outside release.
 
 ## Change log
 
 - 2026-10-28: record the operator's extension, the successful aged production-fixture
   reproductions, the still-unresolved denial, the long-gap/live launch proofs and the
-  precise preview credential/workspace blockers. No visitor content or rules changed.
+  initial preview credential/workspace blockers, superseded by the lead’s preview-only
+  decision above. No visitor content or rules changed.
 
 ## Returning-visitor investigation (lead steer, 2026-10-28)
 

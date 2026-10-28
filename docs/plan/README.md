@@ -90,10 +90,10 @@ Rules for every hito:
   not separate PRs to `main`.
 - Commits are authored `alexanderkholodov1 <kholodov.alexander1@gmail.com>`, with no AI attribution. Each message
   starts with its version and states what it delivers.
-- GitHub CI runs one fast job, `pnpm check` (lint, typecheck, unit, physics, build with privacy gate, rendered EasyList gate). Before a PR is
+- GitHub CI checks in one fast job, `pnpm check` (lint, typecheck, unit, physics, build with privacy gate, rendered EasyList gate). Before a PR is
   marked ready, the builder runs `pnpm accept` locally: rules, emulator and real browser journeys. The captain re-runs
   it and verifies screenshots.
-- This repository never deploys the portfolio's Hosting. Production Hosting for `alexanderkholodov.web.app` happens only
+- This repository deploys only seven-day PR/release preview channels on the portfolio project. Production Hosting for `alexanderkholodov.web.app` happens only
   through the portfolio's `galaxy-release` receiver, including the admin. The data site's content is disabled;
   Firebase's reserved auth helper remains available for Google popups (`admin-sign-in.md`).
 - Secrets are never printed, committed or bundled (`AGENTS.md` rule 6).
@@ -132,3 +132,11 @@ Rules for every hito:
   after a release probe. Restore PR preview delivery through portfolio, pending its
   cross-repository artifact/comment token. Visitor-facing wording and visuals are
   reserved for the separate Opus pass; this extension changes no such content.
+
+- 2026-10-28, lead steer (~17:15Z): restore preview-only channel deployment from the
+  checked artifact using the existing portfolio-project service account and one PR
+  comment via GITHUB_TOKEN. No portfolio change or new secret is needed. Gate rules
+  and live dispatch on the exact candidate's two-browser launch and admin cleanup.
+  Add four returning-visitor regressions; their real-client reproductions do not
+  reach the proposed named-first-member denial. Correct the playback assertion to
+  wait for its event before requiring the same sequence.

@@ -749,8 +749,9 @@ An oversized import fails preflight before deployment. See the executable quota 
 ## 14. Alpha.2 P2 — prototype game and keeper’s ledger
 
 Before using the admin, enable **Google** in `little-galaxy` Firebase Authentication → Sign-in
-method (if disabled). Add `alexanderkholodov.web.app` and the actual preview/LAN test domains to
-Authentication → Settings → Authorized domains. Provision the captain's verified Google email
+method (if disabled). Production uses `alexanderkholodov.web.app` in
+Authentication → Settings → Authorized domains. Preview channels are not authorized
+for admin Google sign-in; their visitor launch journey remains available. Provision the captain's verified Google email
 in the existing private `config/admins.emails` allowlist. No client-side password or admin key
 is used. This change does not deploy rules or enable providers automatically.
 
@@ -820,7 +821,10 @@ or device-to-device exact floating-point agreement without the phone rehearsal.
 
 ## Anonymous launch proof on a deployed client
 
-The release now requires one anonymous visitor to drag a planet from the workshop,
+Before any live Hosting dispatch or rules deployment, the release deploys its exact
+artifact to a seven-day `release-<tag>` channel on `alexanderkholodov` (dots become
+hyphens). This channel uses the existing production database and active galaxy;
+its version metadata must match the release SHA and tag. The release requires one anonymous visitor to drag a planet from the workshop,
 receive an accepted action, and see that exact logical body in a second browser's
 rendered replay. The stand then appends an administrative removal through the shared
 store, preserving the launch and hash chain. Both browsers must observe the body’s
@@ -836,7 +840,7 @@ The captain can run the same journey against a PR preview or production:
 # then removes the probe through the admin path. Use only when authorized.
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/the/server-side/data-project-key.json
 export FIREBASE_PROJECT_ID=little-galaxy
-pnpm accept:live https://approved-preview.web.app/little-galaxy/
+pnpm accept:live https://alexanderkholodov--pr-9-y1nrib3j.web.app
 ```
 
 The preview uses the production database. The command refuses to open a browser
@@ -845,3 +849,15 @@ Firestore emulators instead. `pnpm accept` provisions its sandbox 36 hours befor
 the launch, across a quota-window boundary; it verifies real-client first admission,
 second-browser visibility, foreign-body cleanup refusal, history retention and
 idempotent removal. No production launch proof was run during implementation.
+
+
+Same-repository PRs deploy the single `pnpm check` artifact to a seven-day `pr-<n>`
+channel with the existing portfolio-project service account. The PR bot updates one
+comment per PR with the checked SHA, link, production-database warning and the fact
+that admin Google sign-in is unavailable on unauthorized preview domains. Fork PRs
+are checked without a secret preview deployment. The portfolio repository is unchanged.
+A failed candidate proof prevents rules deployment and live portfolio dispatch; the
+probe's launch/removal history remains, while its body must be absent from both skies.
+Only a real PR/release run can prove channel IAM and comment permission. Never run
+`accept:live` against a deployed address without authorization: it writes production
+history even when cleanup succeeds.
