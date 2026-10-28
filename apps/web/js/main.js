@@ -1037,14 +1037,14 @@ function closeCredits(){
 }
 
 /* ================================================================== avisos */
-function toast(msg, kind){
+function toast(msg, kind, ms = 2600){
   const t = document.createElement('div');
   t.className = 'toast glass' + (kind ? ' ' + kind : '');
   t.textContent = msg;
   $('#toasts').append(t);
   while($('#toasts').children.length > 2) $('#toasts').firstChild.remove();
-  setTimeout(() => t.classList.add('out'), 2600);
-  setTimeout(() => t.remove(), 3000);
+  setTimeout(() => t.classList.add('out'), ms);
+  setTimeout(() => t.remove(), ms + 400);
 }
 
 /* ================================================================== por cuadro */

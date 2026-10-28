@@ -52,3 +52,14 @@ Additional rc2.1 authorization recovery copy in `integration/admin-store.js`:
 - New network/permission-probe fallback: “Could not check administrator access. Check your connection and try signing in again.”
 
 The session-clock launch fix adds no visible wording.
+
+## Refused launch (rc2.11)
+
+A refused launch now names no internal cause, keeps the body in hand and asks for another throw. The
+notice stays nine seconds instead of three. Only connection failures keep `launch.voice.offline`;
+every other refusal, which before fell through to the connection wording, now uses `launch.voice.denied`.
+
+| Catalog / language / key | Before | After |
+| --- | --- | --- |
+| core / en / `launch.voice.denied` | The sky could not accept this launch because of its permissions. Your design is safe; reload and try again. | The sky could not take this launch. Your body is still in your hand; throw it again. |
+| core / es / `launch.voice.denied` | El cielo no pudo aceptar este lanzamiento por sus permisos. Tu diseño está guardado; recarga y vuelve a intentarlo. | El cielo no pudo recibir este lanzamiento. Tu astro sigue en tu mano; vuelve a lanzarlo. |

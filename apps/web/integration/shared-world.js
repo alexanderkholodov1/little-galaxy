@@ -10,6 +10,8 @@ function say(key, vars){
   if(getLang()!==page)setLang(page);
   return t(key, vars);
 }
+// A refused launch is explained long enough to read on a phone, then the visitor throws again.
+const LAUNCH_NOTICE_MS=9000;
 export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft}){
   const worker=new Worker(new URL('./replay-worker.js',import.meta.url),{type:'module'});
   const replayMode=location.pathname.replace(/\/$/,'').endsWith('/timelapse');
@@ -122,7 +124,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
       if(rerouted)toast(say(reserved&&launch.system==='0'?'sky.fire.young':'sky.fire.other'));
       pending.set(accepted.intent.id,raw);
       worker.postMessage({actions:[accepted],tick:target()});
-    }catch(error){world.failSharedLaunch();toast(launchVoice(error));}
+    }catch(error){world.failSharedLaunch();toast(launchVoice(error),undefined,LAUNCH_NOTICE_MS);}
   };
   const onActions=({detail})=>{worker.postMessage({actions:detail,tick:target()});};
   const onManifest=({detail})=>{saveDraft();S.galaxy=detail;readonly();visits.render();worker.postMessage({tick:target()});};

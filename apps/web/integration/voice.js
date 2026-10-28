@@ -16,5 +16,8 @@ export function launchVoice(error){
  if(/Launch rate limit/i.test(message))return say('launch.voice.pace');
  if(/Galaxy capacity/i.test(message))return say('launch.voice.full');
  if(/read.only|frozen|resting/i.test(message))return say('launch.voice.resting');
- return say('launch.voice.offline');
+ const network=causes.some(cause=>/^(firestore\/)?(unavailable|deadline-exceeded|cancelled)$/i.test(cause.code||''))
+  ||/offline|network|fetch|Clock synchronization|could not reach/i.test(message);
+ // Any other refusal keeps the body in hand with a plain retry.
+ return say(network?'launch.voice.offline':'launch.voice.denied');
 }
