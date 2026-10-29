@@ -96,8 +96,9 @@ jobs:
           retention-days: 7
 
   candidate:
-    # Test the exact artifact before changing live Hosting, rules or galaxy selection.
-    needs: [guard, build]
+    # Test the exact artifact against the rules being released, before live Hosting or galaxy selection change.
+    # Rules deploy first; a release's rules must keep the client already live working.
+    needs: [guard, build, deploy-rules]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: little-galaxy-rules
@@ -287,7 +288,7 @@ jobs:
 
   deploy-rules:
     # Credentials stay in this environment. It only allows main and v* tags; the merge is the approval, so there is no manual reviewer.
-    needs: [guard, build, candidate]
+    needs: [guard, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: little-galaxy-rules

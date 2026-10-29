@@ -82,7 +82,7 @@ it('selects a new-kernel sandbox only after its matching production client is li
  expect(workflow.split('\n  deploy-rules:')[1]).not.toContain('open-sandbox');
 });
 
-it('gates rules and live publication on the exact candidate launch and always cleans before dropping credentials',async()=>{
+it('deploys the released rules, then gates live publication on the exact candidate launch and always cleans before dropping credentials',async()=>{
  const workflow=await read('.github/workflows/release.yml');
  const candidate=workflow.split('\n  candidate:')[1].split('\n  publish:')[0];
  expect(candidate).toContain('node scripts/verify-preview-version.mjs');
@@ -92,6 +92,7 @@ it('gates rules and live publication on the exact candidate launch and always cl
  expect(candidate.indexOf('scripts/cleanup-live-probe.mjs')).toBeLessThan(candidate.indexOf('Remove probe credentials'));
  expect(candidate).not.toContain('path: .tmp/live-launch-private.json');expect(candidate).not.toContain('open-sandbox');
  expect(candidate).not.toContain('pnpm run build');expect(candidate).toContain('sha256sum --check SHA256SUMS');
- expect(workflow.split('\n  deploy-rules:')[1]).toContain('needs: [guard, build, candidate]');
+ expect(workflow.split('\n  deploy-rules:')[1]).toContain('needs: [guard, build]');
+ expect(candidate).toContain('needs: [guard, build, deploy-rules]');
  expect(workflow.split('\n  publish:')[1]).toContain('needs: [guard, build, candidate, deploy-rules]');
 });
