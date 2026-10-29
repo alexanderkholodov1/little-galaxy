@@ -124,25 +124,29 @@ export const NOISE = /* glsl */`
                mix(mix(vhash(i+vec3(0.,0.,1.)), vhash(i+vec3(1.,0.,1.)), f.x),
                    mix(vhash(i+vec3(0.,1.,1.)), vhash(i+vec3(1.,1.,1.)), f.x), f.y), f.z);
   }
+  #ifndef FBM_OCTAVES
+  #define FBM_OCTAVES 4
+  #endif
   float fbm(vec3 p){
     float a = 0.5; float s = 0.0;
-    for(int i=0;i<4;i++){ s += a*vnoise(p); p = p*2.03 + 11.5; a *= 0.5; }
+    for(int i=0;i<FBM_OCTAVES;i++){ s += a*vnoise(p); p = p*2.03 + 11.5; a *= 0.5; }
     return s/0.9375;
   }
 `;
 
 /* altura del terreno sobre la esfera unidad: la misma función mueve la malla (vértices) y la luz (píxeles) */
 const HEIGHT = /* glsl */`
-  uniform float uKind, uSeed, uSea, uRelief, uLumps;
+  uniform float uSeed, uSea, uRelief, uLumps;
+  const float uKind = float(CLAY_KIND);
   float ridged(vec3 p){
     float s = 0.0, a = 0.5;
-    for(int i=0;i<3;i++){ float n = 1.0 - abs(vnoise(p)*2.0 - 1.0); s += n*n*a; p = p*2.1 + 7.3; a *= 0.5; }
+    for(int i=0;i<uRidged;i++){ float n = 1.0 - abs(vnoise(p)*2.0 - 1.0); s += n*n*a; p = p*2.1 + 7.3; a *= 0.5; }
     return s/0.875;
   }
   float craters(vec3 p){
     vec3 i = floor(p); vec3 f = fract(p);
     float res = 0.0;
-    for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) for(int z=-1;z<=1;z++){
+    for(int x=-uCell;x<=uCell;x++) for(int y=-uCell;y<=uCell;y++) for(int z=-uCell;z<=uCell;z++){
       vec3 g = vec3(float(x),float(y),float(z));
       vec3 o = vec3(vhash(i+g), vhash(i+g+17.1), vhash(i+g+31.7));
       vec3 d = g + o - f;
@@ -191,6 +195,10 @@ const HEIGHT = /* glsl */`
 
 /* arcilla: un solo shader para planeta / gigante / luna / núcleo de cometa / asteroide */
 const CLAY_V = /* glsl */`
+  // Loop counts are uniforms, so Direct3D's shader compiler (Windows) keeps real loops instead of unrolling every
+  // noise and crater loop: the shared one-kind-for-all shader took 13 s to compile there; one kind per program, <1 s.
+  uniform int uOctaves, uRidged, uCell;
+  #define FBM_OCTAVES uOctaves
   uniform float uDisp;
   varying vec3 vOP; varying vec3 vWP; varying vec3 vSN; varying vec3 vM0; varying vec3 vM1; varying vec3 vM2;
   ${NOISE}
@@ -206,6 +214,10 @@ const CLAY_V = /* glsl */`
     gl_Position = projectionMatrix * viewMatrix * wp;
   }`;
 const CLAY_F = /* glsl */`
+  // Loop counts are uniforms, so Direct3D's shader compiler (Windows) keeps real loops instead of unrolling every
+  // noise and crater loop: the shared one-kind-for-all shader took 13 s to compile there; one kind per program, <1 s.
+  uniform int uOctaves, uRidged, uCell;
+  #define FBM_OCTAVES uOctaves
   uniform vec3 uA, uB, uC, uW, uLight, uLightCol;
   uniform float uTime, uIce, uBands, uTurb, uMaria, uStorm, uAurora, uGlow, uDisp, uBump;
   varying vec3 vOP; varying vec3 vWP; varying vec3 vSN; varying vec3 vM0; varying vec3 vM1; varying vec3 vM2;
@@ -312,12 +324,13 @@ function clayMaterial(kind, pal, d){
     uniforms:{
       uA:{value:new THREE.Color(pal[0])}, uB:{value:new THREE.Color(pal[1])}, uC:{value:new THREE.Color(pal[2])}, uW:{value:new THREE.Color(pal[3] || pal[0])},
       uLight:{value:new THREE.Vector3()}, uLightCol:{value:new THREE.Color('#ffd9bf')},
-      uKind:{value:kind}, uSeed:{value:seedOf(d)}, uTime:{value:0},
+      uSeed:{value:seedOf(d)}, uTime:{value:0}, uOctaves:{value:4}, uRidged:{value:3}, uCell:{value:1},
       uSea:{value:d.sea}, uRelief:{value:kind===2 || kind===4 ? d.craters : d.relief}, uIce:{value:d.ice},
       uBands:{value:d.bands}, uTurb:{value:d.turb}, uMaria:{value:d.maria}, uLumps:{value:d.lumps},
       uStorm:{value:d.storm ? 1 : 0}, uDisp:{value:dispOf(kind, d)}, uBump:{value:kind===4 ? 1.0 : 1.3},
       uAurora:{value:0}, uGlow:{value:0},
     },
+    defines:{CLAY_KIND:kind},
     vertexShader:CLAY_V, fragmentShader:CLAY_F,
   });
 }

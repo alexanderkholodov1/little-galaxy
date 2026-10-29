@@ -1,7 +1,7 @@
 {
   "size": 512,
   "format": "RGBA8, no colour conversion",
-  "sourceSHA256": "0ed07cdaad3d869cabbfb586d5c7b6795ed1d8f6d058d04a7dc88d531f81b991",
+  "sourceSHA256": "74d9368645f57cc1d8358127350cb2baa15045a4ea0c0ff278defd925f1d882f",
   "files": {
     "px.png": "cad5ed58a5c020444adced02383fa68b416460ad0246ebd40a3693ecd0f5522c",
     "nx.png": "cd033da99e45b9e34b9a0cf89a96d15b059bd657771f9bdea6a1eb71a0d02552",
