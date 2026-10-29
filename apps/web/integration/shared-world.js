@@ -60,6 +60,9 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   function readonly(){
     const frozen=S.galaxy.status!=='active'||S.galaxy.writePolicy==='frozen';
     world.readOnly=frozen||store.readOnly;S.frozen=frozen;document.body.dataset.recorded=String(frozen);
+    // A frozen galaxy keeps turning on the synchronized clock; its record does not change.
+    world.frozenSky=frozen&&!replayMode;
+    world.galacticClock=world.frozenSky?()=>(store.now()-S.galaxy.epoch)/1000:null;
     for(const id of ['btnCreate','btnToss','btnToPad']){
       const button=document.getElementById(id);button.disabled=world.readOnly;
       button.title=frozen?say('sky.resting.title'):'';
@@ -85,7 +88,11 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
       }finally{if(key===seekKey&&boundary===loadKey)seekPending=false;}
     }else if(!seekPending)worker.postMessage({tick,seekKey,loadKey});
   }
-  if(replayMode)playback=setupTimelapse({loaded,now:store.now,request:requestTick});
+  if(replayMode){
+    playback=setupTimelapse({loaded,now:store.now,request:requestTick});
+    // The renderer draws the playback moment at display rate, between the frames the worker publishes.
+    world.replayClock=()=>({tick:playback.at(),speed:playback.playing?playback.speed:0});
+  }
   worker.onmessage=({data})=>{
     if(data.loadKey!==undefined && data.loadKey!==loadKey)return;
     if(replayMode && (seekPending || (data.seekKey??0)!==seekKey))return;
