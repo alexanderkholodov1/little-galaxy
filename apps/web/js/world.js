@@ -1124,10 +1124,21 @@ export function createWorld(canvas, opts = {}){
   // estelas: muestreo en tiempo de simulación
   const _tq = new THREE.Vector3();
   function sampleTrails(dt){
+    // at timelapse speed the sky moves faster than one sample per TRAIL_EVERY can follow: sample as densely as it moves
+    const every = TRAIL_EVERY/(W.replay ? Math.max(1, replay().speed) : 1);
     for(const e of W.entries){
       const tr = e.trail;
+      // a system's own trail is its recent arc around the core, exact at any speed (never a polygon of chords)
+      if(!tr.local && e.anchorId === e.id && !e.toy){
+        const a = plan.byId.get(e.id);
+        if(a){
+          const n = Math.min(TRAIL_K, tr.n + 1);
+          for(let i = 0; i < n; i++){ anchorAt(a, galT - (n - 1 - i)*TRAIL_EVERY, _ga); tr.buf[i*3] = _ga[0]; tr.buf[i*3+1] = _ga[1]; tr.buf[i*3+2] = _ga[2]; }
+          tr.head = n % TRAIL_K; tr.n = n; continue;
+        }
+      }
       tr.acc += dt;
-      if(tr.acc >= TRAIL_EVERY || tr.n === 0){
+      if(tr.acc >= every || tr.n === 0){
         tr.acc = 0;
         const q = e.body.root.position;
         // a member's trail is kept in its system's frame: it draws the local orbit, not the galactic drift

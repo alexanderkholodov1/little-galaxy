@@ -203,7 +203,9 @@ async function boot(){
       if(r.width < 1 || r.height < 1 || r.height > h*0.32) continue;
       if(el.checkVisibility && !el.checkVisibility({opacityProperty:true, visibilityProperty:true})) continue;
       const mid = (r.top + r.bottom)/2;
-      if(mid < h*0.4) top = Math.max(top, r.bottom); else if(mid > h*0.6) bottom = Math.min(bottom, r.top);
+      // above: only the header's controls (an opened card there must not move the galaxy); below: controls and panels
+      if(mid < h*0.4){ if(r.height <= 64) top = Math.max(top, r.bottom); }
+      else if(mid > h*0.6) bottom = Math.min(bottom, r.top);
     }
     return {top:top/h, bottom:bottom/h};
   });
