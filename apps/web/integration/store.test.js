@@ -75,3 +75,26 @@ it('makes the screen follow the active galaxy even when the legacy booth selecti
   expect(selected).toContain('next-open');
  }finally{screen.stop();removeEventListener('galaxy:selection',listen);}
 });
+
+for(const replay of [false,true])it(`opens an already verified frozen endpoint without a redundant timeline read (replay=${replay})`,async()=>{
+ const galaxy={id:'fair',status:'frozen',writePolicy:'frozen',epoch:1000,frozenAt:2000};
+ const checkpoint={sequence:21,state:'{"entries":[],"sim":{"steps":120}}'};
+ const loaded={galaxy,head:{sequence:21,effectiveTick:120},checkpoint,player:null};
+ const driver={get:vi.fn(async()=>null)},backend={driver,memberId:'public-member',selection:{activePublicGalaxyId:'fair'},
+  store:{loadGalaxy:async()=>loaded,subscribeToSelection:()=>()=>{},subscribeToGalaxy:()=>()=>{}}};
+ const adapter=createSharedStore({readOnly:true,replay,session:async()=>backend});
+ try{
+  const opened=await adapter.loadGalaxy();expect(opened.checkpoint).toEqual(checkpoint);
+  // Playback still obtains its timeline; an ordinary frozen visit keeps the identical endpoint.
+  expect(driver.get.mock.calls).toEqual(replay?[['galaxies/fair/control/certified']]:[]);
+ }finally{adapter.stop();}
+});
+it('still seeks the certified endpoint when an opening snapshot has not reached the frozen end',async()=>{
+ const galaxy={id:'fair',status:'frozen',writePolicy:'frozen',epoch:1000,frozenAt:2000};
+ const loaded={galaxy,head:{sequence:21,effectiveTick:120},checkpoint:{sequence:21,state:'{"sim":{"steps":119}}'},player:null};
+ const driver={get:vi.fn(async()=>null)},backend={driver,memberId:'public-member',selection:{activePublicGalaxyId:'fair'},
+  store:{loadGalaxy:async()=>loaded,subscribeToSelection:()=>()=>{},subscribeToGalaxy:()=>()=>{}}};
+ const adapter=createSharedStore({readOnly:true,session:async()=>backend});
+ try{await adapter.loadGalaxy();expect(driver.get).toHaveBeenCalledWith('galaxies/fair/control/certified');}
+ finally{adapter.stop();}
+});

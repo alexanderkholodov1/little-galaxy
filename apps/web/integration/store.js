@@ -12,7 +12,7 @@ import {observeAction} from './homes.js';
 const openSession=async options=>(await import('./session.js')).openSession(options);
 import {launchIntent} from './replay.js';
 import {unpackLoaded} from './checkpoint.js';
-import {loadCertifiedTimeline,loadRecordedMoment} from './certified-timeline.js';
+import {loadCertifiedTimeline,loadRecordedMoment,recordedEnd} from './certified-timeline.js';
 export function createSharedStore({galaxyId=null,booth=false,readOnly=false,replay=false,session=openSession}={}){
   let backend,loaded,stops=[],member='',selection,stopped=false;
   const emit=(name,detail)=>{if(name==='actions'&&loaded)for(const action of detail)observeAction(loaded.head,action);return dispatchEvent(new CustomEvent(`galaxy:${name}`,{detail}));};
@@ -34,7 +34,14 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
         if(next&&loaded?.galaxy.id===next.id){loaded.galaxy=next;emit('manifest',next);}
       },error=>emit('error',error)));
       loaded=await unpackLoaded(await backend.store.loadGalaxy(S.galaxyId));
-      if(loaded.galaxy.status!=='active'){
+      // The shared loader already verifies this endpoint. Ordinary visits do not need the
+      // scrubbing index or another restoration of the same state before their first frame.
+      let atEndpoint=false;
+      if(!replay&&loaded.galaxy.status!=='active'&&loaded.checkpoint?.sequence===loaded.head.sequence){
+        // Certifications identify their tick in the state, not in optional wire metadata.
+        try{atEndpoint=JSON.parse(loaded.checkpoint.state).sim?.steps===recordedEnd(loaded.galaxy,loaded.head);}catch{ /* Retain the verified timeline fallback. */ }
+      }
+      if(loaded.galaxy.status!=='active'&&(replay||!atEndpoint)){
         try{loaded.timeline=await loadCertifiedTimeline(backend.driver,loaded);if(loaded.timeline)loaded.checkpoint=loaded.timeline.final;}catch{loaded.timeline=null;}
       }
       member=loaded.player?.memberId??backend.memberId;

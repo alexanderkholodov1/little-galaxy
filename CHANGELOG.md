@@ -7,12 +7,21 @@
   audio on demand, cap pixel ratio and skip unchanged drawing-buffer resets.
   Bake the identical procedural sky (six-direction comparison: 0/255 difference)
   and disable production shader diagnostics while warming programs asynchronously.
-- Gate cold Open Galaxy/BAD performance in `accept` and candidate `accept:live`, with
-  unchanged laptop budgets 2000/200/50 ms and phone budgets 3000/300/70 ms for
-  interactive/task/frame p95. Beacon SwiftShader's latest complete trial remains
-  over budget: laptop Open 4330/414/767, BAD 3194/339/450; phone Open 4766/442/150,
-  BAD 4761/441/183. A later Open-only loading trial measured 3358/455/417 on laptop.
-  See `docs/plan/performance.md` for the baseline, retained changes and limitations.
+- Calibrate the SwiftShader regression gate from three cold rounds of `790d952`:
+  longest task ≤700 ms laptop (worst 492 ms), ≤400 ms phone (worst 293 ms).
+  All four `eeee1d1` cases fail: 1504/834 ms laptop and 837/1065 ms phone.
+  Keep measuring startup/frame p95 but remove their overlapping software limits;
+  hardware targets remain 2000/200/50 ms laptop and 3000/300/70 ms phone.
+  Add repeatable `pnpm perf:calibrate` proposals and guard per-kind clay defines
+  and uniform shader loop bounds against the Windows compiler freeze.
+  See `docs/plan/performance.md` for all rounds and the separate hardware rehearsal.
+
+- Avoid a duplicate frozen-endpoint restoration and scrubbing-index read on ordinary
+  visits; parallelize direct-galaxy public reads with selection and remove repeated
+  frame-helper array allocations with exactly equal output. Phone SwiftShader
+  before→after: BAD 6555/277/217→5623/309/283 ms, Open
+  4495/240/150→4610/245/133 ms (interactive/task/frame p95). Hardware phone targets
+  remain unproven; renderer findings are recorded for the lead without visual changes.
 
 - Fix the empty admin and first-paint flash caused by EasyList hiding the old `ad-`
   namespace. Rename every admin class and ID to `keeper-`; vendor EasyList’s generic

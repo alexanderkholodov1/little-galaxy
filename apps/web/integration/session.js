@@ -25,8 +25,9 @@ export async function openSession({readOnly=false,admin=false,history=false,gala
     ...(emulator?{emulatorOrigin:`http://${location.hostname}:8080`}:{})};
   const source=firestoreGalaxyDriver(firestore,clockOptions);
   // Public config and opening documents need no membership. Overlap them with persisted Auth.
-  const selection=await source.get('config/live');
-  const id=galaxyId||selection.activePublicGalaxyId,root=`galaxies/${id}`;
+  const selecting=source.get('config/live');
+  // A direct recorded visit already names its galaxy; do not serialize its public read on config.
+  const id=galaxyId||(await selecting).activePublicGalaxyId,root=`galaxies/${id}`;
   const paths=admin?[]:[root,root+'/control/head',root+'/checkpoints/latest',root+'/liveSnapshots/latest',root+'/control/certified'];
   const opening=paths.length?readPublicDocuments(firestore,paths,clockOptions).then(values=>{const manifest=values.get(root);if(manifest)onManifest(manifest);return values;}).catch(()=>new Map()):Promise.resolve(new Map());
   const cached={...source,async get(path){
@@ -34,7 +35,7 @@ export async function openSession({readOnly=false,admin=false,history=false,gala
     return source.get(path);
   }};
   const transport=publishedRecords(cached,{preload:Boolean(galaxyId)});
-  await authentication;
+  const [,selection]=await Promise.all([authentication,selecting]);
   // Public viewers do not bootstrap private membership or create an Auth account.
   const ownMember=`${root}/members/${auth.currentUser?.uid}`;let firstMember=!admin;
   const driver=readOnly?{...transport,get:path=>path.includes('/members/')?Promise.resolve(null):transport.get(path)}:
