@@ -27,7 +27,7 @@ const TOY_MAX = 12;           // juguetes (lanzar por lanzar) vivos a la vez
 // a nebula is the widest and faint). Multiplies GALAXY_SCALE. FLOOR: the smallest drawn radius in CSS pixels, so a
 // body seen from across the galaxy stays a readable finding-chart symbol of its kind.
 const TYPE_SCALE = {blackhole:1.6, star:1.35, binary:1.3, pulsar:1.15, giant:0.95, planet:0.72, moon:0.5, asteroid:0.42, comet:0.6, nebula:4.2};
-const TYPE_FLOOR = {blackhole:12, star:9.5, binary:9.5, pulsar:6, giant:6.2, planet:4.8, moon:4.2, asteroid:4, comet:4.8, nebula:16};
+const TYPE_FLOOR = {blackhole:12, star:9.5, binary:9.5, pulsar:6, giant:6.4, planet:5, moon:4.6, asteroid:4.3, comet:5, nebula:16};
 const FIRE_FLOOR = 10.5;
 const LIVE_K = LAYER.systemRadius/LAYER.liveRadius;
 const SEC = 1/120;            // one simulation tick in seconds (both kernels)

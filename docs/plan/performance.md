@@ -37,7 +37,15 @@ five seconds of camera use, and frame p95 during use. Missing readiness, unanswe
 input or missing metrics always fails. Live acceptance performs this before the
 launch/cleanup journey, so the existing candidate job refuses publication on failure.
 
-By the lead's calibration decision, automated admission on SwiftShader enforces
+**Reported, not refused (lead, 2026-10-29).** Software-GPU timings depend on the machine: the same build
+(`e93ec8c`) measured a 289 ms longest phone task on Beacon and 736 ms on the owner's laptop under `pnpm accept`,
+while it opens in 2.7 s on his real GPU. A limit that refuses a good release on another runner is the class the
+owner rejected for launch timing. So `pnpm accept` and the release candidate's `accept:live` fail only when a
+case does not open, draw or answer input; budget overruns are printed and stored as `overBudget`. The 30-second
+freeze class is guarded deterministically by `apps/web/integration/clay-shader.test.js`, and the lead measures real
+hardware before a PR is ready. `pnpm accept:perf` (a deliberate calibration tool) still exits non-zero on an overrun.
+
+The calibrated software budget, reported on SwiftShader, is
 **longest task ≤700 ms on laptop and ≤400 ms on phone**. Interactive and frame p95
 remain in reports but do not gate software admission: neither separates this build
 from the old one reliably. These are regression limits, not hardware targets.

@@ -32,6 +32,6 @@ if(process.env.PERFORMANCE_EMULATORS!=='1'){
  }catch(error){result={pass:false,error:error.message};}
  finally{await browser?.close();await server?.close();await db.terminate();await deleteApp(app);}
  await writeFile(report,JSON.stringify({sha,baseline:process.env.PERFORMANCE_BASELINE==='1',...result},null,2));
- if(!result.pass)process.exitCode=1;
- console.log(`${result.pass?'PASS':'FAIL'} Performance budgets; report ${report}`);
+ const within=result.pass&&!result.overBudget?.length;if(!within)process.exitCode=1;
+ console.log(`${within?'PASS':'FAIL'} Performance budgets; report ${report}`);
 }

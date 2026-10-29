@@ -18,7 +18,8 @@ startStand('launch-probe');const db=getFirestore();let browser,draft,uid,cleaned
 try{
  browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
  performanceResult=await measurePerformance(browser,url.href);
- if(!performanceResult.pass)throw new Error('Candidate exceeds performance budgets: '+performanceResult.profiles.filter(p=>!p.pass).map(p=>`${p.profile}/${p.galaxy}: ${p.failures.join(', ')}`).join('; '));
+ if(!performanceResult.pass)throw new Error('Candidate did not open and answer input: '+performanceResult.profiles.filter(p=>!p.pass).map(p=>`${p.profile}/${p.galaxy}: ${p.failures.join(', ')||'not drawn or no input answer'}`).join('; '));
+ for(const line of performanceResult.overBudget)console.log('PERFORMANCE over software budget (reported): '+line);
  await writeFile(journal,JSON.stringify({pending:true}),{mode:0o600});
  result=await launchAcrossBrowsers(browser,url.href,{
   onIdentity:async(value,token)=>{
