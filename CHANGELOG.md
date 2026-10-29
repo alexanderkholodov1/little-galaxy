@@ -2,6 +2,18 @@
 
 ## 1.0.0-alpha.10.0-rc2 — the admin on the game’s address, visible with blockers, 2026-10-28
 
+- Reduce opening and interaction work: batch public reads, defer private membership
+  and initial trails, share geometry and trail buffers, cache glass bounds, start
+  audio on demand, cap pixel ratio and skip unchanged drawing-buffer resets.
+  Bake the identical procedural sky (six-direction comparison: 0/255 difference)
+  and disable production shader diagnostics while warming programs asynchronously.
+- Gate cold Open Galaxy/BAD performance in `accept` and candidate `accept:live`, with
+  unchanged laptop budgets 2000/200/50 ms and phone budgets 3000/300/70 ms for
+  interactive/task/frame p95. Beacon SwiftShader's latest complete trial remains
+  over budget: laptop Open 4330/414/767, BAD 3194/339/450; phone Open 4766/442/150,
+  BAD 4761/441/183. A later Open-only loading trial measured 3358/455/417 on laptop.
+  See `docs/plan/performance.md` for the baseline, retained changes and limitations.
+
 - Fix the empty admin and first-paint flash caused by EasyList hiding the old `ad-`
   namespace. Rename every admin class and ID to `keeper-`; vendor EasyList’s generic
   selectors and gate all shipped markup plus rendered admin states in `pnpm check`.

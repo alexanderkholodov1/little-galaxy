@@ -1,3 +1,4 @@
+import {measurePerformance} from './performance.mjs';
 import {launchAcrossBrowsers} from './launch-probe.mjs';
 import {removeProbeBody} from '../../apps/stand/src/probe-cleanup.ts';
 import {withDatabase} from '../../tests/ui/galaxy-fixture.js';
@@ -64,6 +65,12 @@ async function authorReachable(page,name){
  await screenshot(page,name);
  await page.locator('#creditsClose').click();await expect(page.locator('#credits')).toBeHidden();
 }
+test('cold opening and camera performance in both device profiles',async({browser})=>{
+ const result=await measurePerformance(browser,process.env.ACCEPT_URL+'/little-galaxy/?emulators=1');
+ evidence.performance=result.profiles;
+ for(const row of result.profiles)await check(`${row.profile} ${row.galaxy} performance budgets`,()=>expect(row.failures).toEqual([]));
+ expect(result.pass).toBe(true);
+});
 for(const returning of ['saved-name','older-membership','legacy-global','legacy-scoped','stale-clock'])test(`0 returning visitor ${returning} launches into a sandbox provisioned 36 hours ago`,async({browser})=>{
  let uid;const clockReads={stale:0,fresh:0};
  const receipt=await launchAcrossBrowsers(browser,process.env.ACCEPT_URL+'/little-galaxy/?emulators=1',{
