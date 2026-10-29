@@ -70,10 +70,10 @@ body[data-mode="workshop"] .name-layer{opacity:0}
 }
 
 /* ------------------------------------------------------------------ botones (mochi) */
-:is(.cta,.pill,.icon-btn,.round,.chip,.tchip,.tg,.sw,.name-btn,.x-btn,.credits-link){
+:is(.cta,.pill,.icon-btn,.round,.chip,.tchip,.tg,.sw,.name-btn,.x-btn,.credits-link,.lang-switch,.galaxyVisit){
   transition:transform .42s var(--spring),background-color .25s,box-shadow .35s,opacity .3s,color .25s;
 }
-.cta:active,.pill:active,.icon-btn:active,.round:active,.chip:active,.tchip:active,.tg:active,.name-btn:active,.x-btn:active{
+.cta:active,.pill:active,.icon-btn:active,.round:active,.chip:active,.tchip:active,.tg:active,.name-btn:active,.x-btn:active,.credits-link:active,.lang-switch:active,.galaxyVisit:active{
   transform:scale(1.05,.9);transition-duration:.09s;
 }
 .sw:active{transform:scale(1.12,.86);transition-duration:.09s}
@@ -447,7 +447,7 @@ body.tossing .result{display:none !important}
 /* ------------------------------------------------------------------ movimiento reducido: calma */
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001s !important;animation-iteration-count:1 !important;transition-duration:.18s !important;transition-delay:0s !important}
-  .cta:active,.pill:active,.icon-btn:active,.round:active,.chip:active,.tchip:active,.tg:active,.name-btn:active,.x-btn:active,.sw:active{transform:none}
+  .cta:active,.pill:active,.icon-btn:active,.round:active,.chip:active,.tchip:active,.tg:active,.name-btn:active,.x-btn:active,.sw:active,.credits-link:active,.lang-switch:active,.galaxyVisit:active{transform:none}
   .round.cooling .ring circle{animation:none;stroke-dashoffset:0;opacity:.5}
 }
 
@@ -475,14 +475,14 @@ html[data-motion="reduce"] *,html[data-motion="reduce"] *::before,html[data-moti
 /* systems: one button, a small glass list */
 .sys-btn{position:absolute;top:calc(122px + var(--st));left:14px;z-index:2}
 .sys-btn[hidden],.sys-list[hidden]{display:none}
-.sys-list{position:absolute;top:calc(174px + var(--st));left:14px;z-index:3;width:min(280px,calc(100vw - 28px));max-height:min(320px,50vh);overflow:auto;padding:16px 8px 8px;border-radius:20px}
+.sys-list{position:absolute;top:calc(144px + var(--st));left:14px;z-index:3;width:min(280px,calc(100vw - 28px));max-height:min(320px,50vh);overflow:auto;padding:16px 8px 8px;border-radius:20px}
 .sys-list-title{display:block;padding:0 56px 8px 12px;font-size:.86rem;color:var(--crema-2)}
 .sys-list ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
 .sys-item{width:100%;min-height:44px;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;color:var(--crema);text-align:left}
 .sys-item span{flex:1}
 .sys-item small{color:var(--lav-t);font-size:.74rem}
 .sys-item:hover,.sys-item:focus-visible{background:rgba(255,241,222,.08)}
-@media (min-width:720px){ .sys-btn{top:calc(84px + var(--st));left:28px} .sys-list{top:calc(136px + var(--st));left:28px} }
+
 
 /* welcome: one calm moment over the live galaxy; its tap is the gesture that lets the music start */
 .welcome{position:fixed;inset:0;z-index:19;display:grid;place-items:center;padding:24px;

@@ -114,6 +114,8 @@ async function boot(){
   try{world=createWorld(canvas,{renderer,rm:RM,Simulation:simulationFor(galaxy)});}
   catch(err){console.error(err);window.__FOG_FAIL?.('webgl');return;}
   performance.mark('galaxy-world');
+  // measurable from the first drawn sky, which can come before the deferred shader work finishes
+  window.__galaxyDiscs = () => world.discPixels();
   world.shared=true;world.frame(0);
   const warming=world.prepare();
   const loaded=await loading;
@@ -192,7 +194,19 @@ async function boot(){
   requestAnimationFrame(loop);
 
   window.__FOG_OK = true;
-  window.__galaxyDiscs = () => world.discPixels();
+  // The galaxy is framed in the band the chrome leaves free: below the header and its controls, above the bottom
+  // actions and panels, as they are on screen right now (layers and panels change it).
+  world.setBandProbe(() => {
+    const h = innerHeight; let top = 0, bottom = h;
+    for(const el of document.querySelectorAll('#hud button, #hud .pill, #hud .chip, .glass')){
+      const r = el.getBoundingClientRect();
+      if(r.width < 1 || r.height < 1 || r.height > h*0.32) continue;
+      if(el.checkVisibility && !el.checkVisibility({opacityProperty:true, visibilityProperty:true})) continue;
+      const mid = (r.top + r.bottom)/2;
+      if(mid < h*0.4) top = Math.max(top, r.bottom); else if(mid > h*0.6) bottom = Math.min(bottom, r.top);
+    }
+    return {top:top/h, bottom:bottom/h};
+  });
   if(import.meta.env.DEV) window.__fog = {world, S, audio, labels, prefs:prefsPanel, store};
   requestAnimationFrame(() => $('#veil').classList.add('is-done'));
   // pantalla de título: el nombre del juego aparece grande y se retira a la esquina
@@ -931,6 +945,8 @@ function updateSystems(force){
     $('.layer[data-layer="home"]').append(btn);
     addEventListener('keydown', e => { if(e.key === 'Escape' && $('#sysList') && !$('#sysList').hidden){ e.stopPropagation(); closeSystems(); btn.focus(); } }, true);
   }
+  // first in the top-left row, before the author
+  const row = $('#openNav'); if(row && btn.parentElement !== row) row.prepend(btn);
   btn.setAttribute('aria-label', t('systems.aria')); btn.title = t('systems.aria');
   btn.hidden = list.length < 2;
   if(btn.hidden) closeSystems();

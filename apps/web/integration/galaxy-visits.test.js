@@ -29,6 +29,6 @@ it('updates recorded navigation and preserves the author across freeze, language
  expect(document.querySelector('#backToSandbox').getAttribute('aria-label')).toBe('Volver a la Galaxia abierta para crear un astro');
  expect(new URL(document.querySelector('#openTimelapse').href).searchParams.get('lang')).toBe('es');
  galaxy.status='active';nav.render();
- expect(document.querySelector('.home-footer > #btnCredits')).not.toBeNull();
+ expect(document.querySelector('#openNav > #btnCredits')).not.toBeNull();
  expect(document.querySelector('#backToSandbox')).toBeNull();nav.dispose();history.replaceState(null,'',previous);
 });
