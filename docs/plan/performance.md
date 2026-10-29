@@ -111,3 +111,72 @@ with authentication and early renderer setup; private membership follows the fir
 drawn frame. Audio starts on demand, glass bounds are cached, and pixel ratio is
 capped at 1.5 (1 on coarse pointers). Physics, names, layout and animation durations
 are unchanged by calibration.
+
+## Phone loading follow-up, 2026-10-29
+
+Profiled the fair first, then Open, using a local production build, the same public
+fixture, SwiftShader, CPU 6×, 390×844 touch and fresh contexts. The profiler was
+active in both runs. Values below are **interactive / longest task / frame p95**;
+they are not the owner's `sky-ready` measurements or proof of hardware compliance.
+
+| Phone case | `790d952` before | After loading/helper fixes |
+| --- | ---: | ---: |
+| BAD | 6555 / 277 / 217 ms | 5623 / 309 / 283 ms |
+| Open | 4495 / 240 / 150 ms | 4610 / 245 / 133 ms |
+
+The fair's bodies-drawn mark improved 4256→3963 ms; opening data finished
+2428→2353 ms. Open's bodies-drawn mark was 2932→2745 ms. End-to-end times remain
+above the hardware targets, and the fair's frame p95 worsened in this software run.
+These short comparisons establish specific removed work, not a universal speedup.
+Both cases pass the reviewed software task limits. Raw CPU profiles, request and
+worker traces, and reports are `.tmp/perf/phone-before*` and `.tmp/perf/phone-final*`.
+
+The fair reads its release-pinned sequence-21 endpoint (2802241 ticks, 21 visitor
+bodies plus the fire), not a replay from zero. The endpoint asset took 25 ms before
+and 21 ms after; scripts/fonts/sky images transferred in 2–18 ms locally. A normal
+visit previously fetched the 45 KB scrubbing index and restored the same verified
+endpoint again. It now keeps that exact checkpoint; playback still loads the index,
+and an earlier or malformed opening state still follows the existing fallback.
+The direct visit's public opening reads now start alongside `config/live`, removing
+one sequential request dependency. Auth still completes before the store is used.
+No nickname, account or checkpoint-verification policy changed.
+
+`galaxyFrame` was allocating temporary body/vector arrays for each trail point.
+Its equivalent loop keeps exact centre/radius results, tested against the previous
+calculation with empty, invalid, compact and distant sets up to 600 bodies. A local
+100000-call microbenchmark improved 559→112 ms. Sampled inclusive CPU time in the
+fair fell 247→127 ms; orbit-trail construction fell 297→177 ms. Total sampling
+windows differ (11.9→10.9 s), so these are directional profiling evidence, not a
+controlled hardware benchmark.
+
+### Findings reserved for the lead
+
+No `world.js`, galactic-layer, timelapse, names, layout, styles, rules or workflow
+semantics were changed. The owner's 17.5 s fair / 3.1 s task was not reproduced by
+SwiftShader; repeat the real GPU phone run after the galaxy merge.
+
+- `world.js:prepare` remains on the first-frame path. It compiled 22 programs for
+  BAD versus 11 for Open, with 453→467 ms sampled inclusive main-thread time in
+  BAD; the second warm-up phase occupied 3352–4072 ms before and 3198–3880 ms
+  after. Keep pixel-identical programs, but investigate redundant material variants
+  and move any non-opening work beyond the first interactive frame. Shader query
+  self time was 136→150 ms and texture upload 157→143 ms in BAD.
+- `world.js:paintSkyPoint` calls `galaxyFrame` for every trail point. Cache the
+  derived frame once per coherent simulation state and viewport instead. The
+  helper is now cheaper, but this call pattern still repeats the same body scan.
+- `world.js:frame` used 1836→1402 ms sampled inclusive CPU across the captures;
+  `writeTrails` used 152→94 ms. BAD still issued about 80–81 draws per frame
+  versus Open's 34. The lead can share/merge trail submissions while preserving
+  their appearance; no rendering change was made here.
+- `js/ui/labels.js:update` used 154→136 ms inclusive in BAD, much less than the
+  multi-second freeze. Preserve all names and their current behavior.
+- `audio.js:fillReverb` used 219→203 ms sampled CPU in BAD (319→283 ms in Open).
+  The native `conv.buffer=ir` assignment alone cost 156→127 ms in BAD and
+  202→171 ms in Open. It follows the welcome gesture and does not explain the
+  pre-gesture loading delay. No sound output or timing was changed.
+- The worker received the existing final checkpoint and answered after 739→686 ms,
+  including module startup. Its answer preceded shader completion, while the
+  checkpoint was already available for drawing; this is not a blocking replay of
+  the full fair. The drawn-to-input interval was 2299→1660 ms and includes welcome
+  interaction and probe routing. Do not attribute that whole interval to replay
+  or change welcome behavior based on this profile alone.

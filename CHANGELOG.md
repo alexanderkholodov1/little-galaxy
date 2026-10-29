@@ -16,6 +16,13 @@
   and uniform shader loop bounds against the Windows compiler freeze.
   See `docs/plan/performance.md` for all rounds and the separate hardware rehearsal.
 
+- Avoid a duplicate frozen-endpoint restoration and scrubbing-index read on ordinary
+  visits; parallelize direct-galaxy public reads with selection and remove repeated
+  frame-helper array allocations with exactly equal output. Phone SwiftShader
+  before→after: BAD 6555/277/217→5623/309/283 ms, Open
+  4495/240/150→4610/245/133 ms (interactive/task/frame p95). Hardware phone targets
+  remain unproven; renderer findings are recorded for the lead without visual changes.
+
 - Fix the empty admin and first-paint flash caused by EasyList hiding the old `ad-`
   namespace. Rename every admin class and ID to `keeper-`; vendor EasyList’s generic
   selectors and gate all shipped markup plus rendered admin states in `pnpm check`.
