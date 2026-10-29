@@ -8,7 +8,8 @@ function say(key, vars){
   return t(key, vars);
 }
 import {observeAction} from './homes.js';
-import {openSession} from './session.js';
+// Load the account SDK in its own task while the renderer and public assets initialise.
+const openSession=async options=>(await import('./session.js')).openSession(options);
 import {launchIntent} from './replay.js';
 import {unpackLoaded} from './checkpoint.js';
 import {loadCertifiedTimeline,loadRecordedMoment} from './certified-timeline.js';
@@ -17,9 +18,9 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
   const emit=(name,detail)=>{if(name==='actions'&&loaded)for(const action of detail)observeAction(loaded.head,action);return dispatchEvent(new CustomEvent(`galaxy:${name}`,{detail}));};
   const stop=()=>{stopped=true;stops.splice(0).forEach(fn=>fn());};
   const S={galaxyId:galaxyId||'',readOnly,owner:()=>member,loaded:()=>loaded,backend:()=>backend,
-    async loadGalaxy(){
+    async loadGalaxy({onManifest}={}){
       stop();stopped=false;
-      backend??=await session({readOnly,history:replay});
+      backend??=await session({readOnly,history:replay,galaxyId,onManifest});
       selection=backend.selection;
       stops.push(backend.store.subscribeToSelection(next=>{
         if(stopped||!next)return;selection=next;
@@ -40,6 +41,12 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       if(!readOnly)stops.push(backend.store.subscribeToActions(S.galaxyId,loaded.head.sequence,actions=>emit('actions',actions),error=>emit('error',error)));
       else if(booth)stops.push(backend.store.subscribeToActions(S.galaxyId,loaded.head.sequence,actions=>emit('actions',actions),error=>emit('error',error)));
       return {...loaded,player:loaded.player?{...loaded.player,anonymous:loaded.player.displayName==='Anonymous'}:null,state:null};
+    },
+    async restorePlayer(){
+      if(!backend.restorePlayer)return loaded.player;
+      const player=await backend.restorePlayer();
+      if(!loaded.player&&player){loaded.player=player;member=player.memberId;}
+      return loaded.player?{...loaded.player,anonymous:loaded.player.displayName==='Anonymous'}:null;
     },
     async setName(id,name){
       if(readOnly||loaded.galaxy.status!=='active'||loaded.galaxy.writePolicy==='frozen')throw new Error(say('sky.resting.title'));

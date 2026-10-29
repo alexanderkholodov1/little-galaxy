@@ -43,7 +43,8 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   // The verified opening prefix is already in memory. Paint it before starting any worker
   // turn, rather than exposing an empty fire while the worker module loads.
   if(loaded.checkpoint){
-    try{const state=JSON.parse(loaded.checkpoint.state);world.applySharedState(state,normDesign,store.owner());updateCount();document.body.dataset.openingFrame='snapshot';}
+    try{const state=JSON.parse(loaded.checkpoint.state);world.applySharedState(state,normDesign,store.owner());updateCount();document.body.dataset.openingFrame='snapshot';
+      document.body.dataset.skyReady='true';document.body.dataset.galaxy=store.galaxyId;document.body.dataset.sequence=String(state.sequence);document.body.dataset.tick=String(state.sim.steps);}
     catch{ /* The worker's verified replay/fallback remains authoritative. */ }
   }
   function target(){
@@ -105,6 +106,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     if(data.state.sim.bodies.some(b=>!b.settled))unsettledTick=data.state.sim.steps;
     needsSnapshot=data.state.sequence!==snapshotSequence || snapshotTick<=unsettledTick;
 
+    if(!ready)performance.mark?.('galaxy-worker');
     ready=data.ready;document.body.dataset.skyReady=String(ready);
     document.body.dataset.tick=String(data.state.sim.steps);document.body.dataset.sequence=String(data.state.sequence);
     document.body.dataset.galaxy=store.galaxyId;

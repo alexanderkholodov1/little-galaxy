@@ -4,6 +4,13 @@
 // silueta) y además doblan la luz (relieve por derivadas, una sola evaluación por píxel).
 import * as THREE from 'three';
 
+// Sphere buffers are immutable: body shape and design variation live in uniforms and transforms.
+const spheres=new Map(),sharedGeometry=new WeakSet();
+function sphere(radius,width,height){
+ const key=`${radius}/${width}/${height}`;
+ if(!spheres.has(key)){const geometry=new THREE.SphereGeometry(radius,width,height);spheres.set(key,geometry);sharedGeometry.add(geometry);}
+ return spheres.get(key);
+}
 const TAU = Math.PI * 2;
 export const GALAXY_SCALE = 0.68;
 
@@ -380,7 +387,7 @@ function ringMaterial(pal){
         vec3 col = mix(uA, uB, 0.5 + 0.5*sin(vR*26.0)) * lit;
         gl_FragColor = vec4(col, a*0.85*uK);
       }`,
-    transparent:true, side:THREE.DoubleSide, depthWrite:false,
+    transparent:true, side:THREE.DoubleSide, forceSinglePass:true, depthWrite:false,
   });
 }
 
@@ -484,7 +491,7 @@ export function makeTail(colHead, colEnd, len, width){
         vec3 c = mix(uA, uB, smoothstep(0.0, 0.8, vT));
         gl_FragColor = vec4(c, a*0.75*uK);
       }`,
-    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide,
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide, forceSinglePass:true,
   });
   const m = new THREE.Mesh(geo, mat);
   m.renderOrder = 2;
@@ -508,7 +515,7 @@ function makeBeam(color, len, width){
         vec3 c = mix(vec3(1.0, 0.97, 0.92), uA, smoothstep(0.0, 0.5, vT));
         gl_FragColor = vec4(c, a*0.7*uK);
       }`,
-    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide,
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide, forceSinglePass:true,
   });
   const m = new THREE.Mesh(geo, mat);
   m.renderOrder = 2;
@@ -540,7 +547,7 @@ function diskMaterial(pal, seed){
         a *= 1.0 + 0.6*vDop;
         gl_FragColor = vec4(c, clamp(a, 0.0, 1.0)*0.9*uK);
       }`,
-    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide,
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide, forceSinglePass:true,
   });
 }
 
@@ -647,7 +654,7 @@ export class Body {
       const seg = hi ? (type==='moon' || type==='comet' ? 56 : type==='asteroid' ? 72 : 80) : (type==='asteroid' ? 40 : 32);
       const mat = clayMaterial(kind, pal, d);
       if(!hi) mat.uniforms.uBump.value = 0;   // en la galaxia el astro mide pocos píxeles: basta la normal suave
-      P.core = new THREE.Mesh(new THREE.SphereGeometry(1, seg, Math.round(seg*0.72)), mat);
+      P.core = new THREE.Mesh(sphere(1, seg, Math.round(seg*0.72)), mat);
       if(type==='giant') P.core.scale.y = 0.93;
       if(type==='comet') P.core.scale.set(1, 0.82, 0.9);
       if(type==='asteroid'){ const r = mulberry(d.seed + 5); P.core.scale.set(1.1 + r()*0.3, 0.78 + r()*0.12, 0.92 + r()*0.1); }
@@ -656,13 +663,13 @@ export class Body {
       P.mat = mat; P.kind = kind;
       P.palGoal = pal.map(c => new THREE.Color(c));
       if(type==='planet' || type==='giant'){
-        P.atmo = new THREE.Mesh(new THREE.SphereGeometry(1.12, hi ? 40 : 24, hi ? 30 : 16), atmoMaterial(pal[2]));
+        P.atmo = new THREE.Mesh(sphere(1.12, hi ? 40 : 24, hi ? 30 : 16), atmoMaterial(pal[2]));
         this.deform.add(P.atmo);
         this.uLights.push(P.atmo.material.uniforms.uLight);
       }
       if(type==='planet'){
         const cm = cloudMaterial((d.seed%31)*0.7);
-        P.clouds = new THREE.Mesh(new THREE.SphereGeometry(1.075, hi ? 48 : 28, hi ? 36 : 20), cm);
+        P.clouds = new THREE.Mesh(sphere(1.075, hi ? 48 : 28, hi ? 36 : 20), cm);
         this.spin.add(P.clouds);
         this.uLights.push(cm.uniforms.uLight); this.uTimes.push(cm.uniforms.uTime);
         P.cloudK = d.cloud > 0.02 ? 1 : 0; cm.uniforms.uK.value = P.cloudK; cm.uniforms.uAmt.value = d.cloud;
@@ -692,7 +699,7 @@ export class Body {
       this.baseR = type==='asteroid' ? 1.25 : 1;
     } else if(type==='star'){
       const c = starColor(d.temp);
-      P.core = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 36), starMaterial(c));
+      P.core = new THREE.Mesh(sphere(1, 48, 36), starMaterial(c));
       this.spin.add(P.core);
       this.uTimes.push(P.core.material.uniforms.uTime);
       P.glow = sprite(glowTex(), c, .6, 4.4);
@@ -705,7 +712,7 @@ export class Body {
       for(let i=0;i<2;i++){
         const c = new THREE.Color(pal[i]);
         const g = new THREE.Group();
-        const core = new THREE.Mesh(new THREE.SphereGeometry(i ? 0.48 : 0.62, 40, 30), starMaterial(c));
+        const core = new THREE.Mesh(sphere(i ? 0.48 : 0.62, 40, 30), starMaterial(c));
         const glow = sprite(glowTex(), c, .6, i ? 2.4 : 2.9);
         g.add(core, glow);
         this.spin.add(g);
@@ -728,7 +735,7 @@ export class Body {
       // estrella de neutrones: chiquita, muy brillante, con dos haces que barren como un faro
       const pal = (PALETTES.pulsar[d.pal % PALETTES.pulsar.length] || PALETTES.pulsar[0]).c;
       const c = new THREE.Color(pal[0]);
-      P.core = new THREE.Mesh(new THREE.SphereGeometry(0.42, 40, 30), starMaterial(c.clone().lerp(new THREE.Color(pal[1]), .5)));
+      P.core = new THREE.Mesh(sphere(0.42, 40, 30), starMaterial(c.clone().lerp(new THREE.Color(pal[1]), .5)));
       this.uTimes.push(P.core.material.uniforms.uTime);
       P.axis = new THREE.Group();
       P.mag = new THREE.Group(); P.mag.rotation.z = 0.5;
@@ -746,7 +753,7 @@ export class Body {
     } else if(type==='blackhole'){
       // horizonte negro, anillo de fotones y un disco de acreción que gira más rápido por dentro
       const pal = (PALETTES.blackhole[d.pal % PALETTES.blackhole.length] || PALETTES.blackhole[0]).c;
-      P.core = new THREE.Mesh(new THREE.SphereGeometry(0.5, 40, 30), new THREE.MeshBasicMaterial({color:'#060309'}));
+      P.core = new THREE.Mesh(sphere(0.5, 40, 30), new THREE.MeshBasicMaterial({color:'#060309'}));
       P.tilt = new THREE.Group(); P.tilt.rotation.set(-Math.PI/2 + 0.32, 0, 0.12);
       P.disk = new THREE.Mesh(ringGeometry(0.62, 2.4, 160), diskMaterial(pal, (d.seed%41)*0.3));
       P.tilt.add(P.disk);
@@ -995,7 +1002,7 @@ export class Body {
 
 export function disposeTree(o){
   o.traverse(ch => {
-    if(ch.geometry) ch.geometry.dispose();
+    if(ch.geometry&&!sharedGeometry.has(ch.geometry)) ch.geometry.dispose();
     if(ch.material){ (Array.isArray(ch.material) ? ch.material : [ch.material]).forEach(m => m.dispose()); }
   });
 }

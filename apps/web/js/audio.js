@@ -34,15 +34,24 @@ export function createAudio(){
     music = ctx.createGain(); music.gain.value = 1; music.connect(master);
     // reverb generada: ruido estéreo con caída exponencial y paso bajo
     const len = Math.floor(ctx.sampleRate*2.8), ir = ctx.createBuffer(2, len, ctx.sampleRate);
-    for(let ch=0; ch<2; ch++){
-      const d = ir.getChannelData(ch); let lp = 0;
-      for(let i=0;i<len;i++){
-        const t = i/len, n = Math.random()*2-1;
-        lp += (n - lp) * (0.22 - t*0.17);
-        d[i] = lp * Math.pow(1 - t, 2.6) * (i < 400 ? i/400 : 1);
+    let channel=0,index=0,lp=0;
+    function fillReverb(){
+      const deadline=performance.now()+4;
+      while(channel<2){
+        const d=ir.getChannelData(channel);
+        while(index<len){
+          const t=index/len,n=Math.random()*2-1;
+          lp+=(n-lp)*(.22-t*.17);
+          d[index]=lp*Math.pow(1-t,2.6)*(index<400?index/400:1);index++;
+          if(index%512===0&&performance.now()>=deadline)break;
+        }
+        if(index<len){setTimeout(fillReverb,0);return;}
+        channel++;index=0;lp=0;
       }
+      const started=performance.now();conv.buffer=ir;performance.measure('galaxy-reverb',{start:started,end:performance.now()});
     }
-    const conv = ctx.createConvolver(); conv.buffer = ir;
+    setTimeout(fillReverb,0);
+    const conv = ctx.createConvolver();
     verbIn = ctx.createGain(); verbIn.gain.value = 1;
     const verbOut = ctx.createGain(); verbOut.gain.value = 0.9;
     verbIn.connect(conv); conv.connect(verbOut); verbOut.connect(master);
@@ -66,6 +75,7 @@ export function createAudio(){
     document.addEventListener('visibilitychange', () => document.hidden ? quiet() : wake());
     addEventListener('pagehide', quiet);
     addEventListener('pageshow', wake);
+    if(A.unlocked&&A.musicOn)musicEngine.start();
     return true;
   }
   const now = () => A.ctx.currentTime;
@@ -102,7 +112,7 @@ export function createAudio(){
     if(wet > 0){ const w = ctx.createGain(); w.gain.value = wet; g.connect(w); w.connect(verbIn); }
     s.start(t, Math.random()*1.5); s.stop(t + dur + .05);
   }
-  const ok = () => A.sfxOn && ensure();
+  const ok = () => A.unlocked && A.sfxOn && ensure();
 
   /* ---------------------------------------------------------- base heredada de C */
   // pentatónica menor en La — cualquier combinación suena afinada (C: note/chord/rise)
@@ -176,8 +186,7 @@ export function createAudio(){
   /* ---------------------------------------------------------- efectos con alma */
   const S = {
     unlock(){
-      if(!ensure()) return;
-      if(!A.unlocked){ A.unlocked = true; if(A.musicOn) startMusic(); }
+      if(!A.unlocked){A.unlocked=true;if(A.musicOn)startMusic();}
       notify();
     },
     tap(i = 0){ if(!ok()) return; kalimba(5 + (i % 5), {gain:.05, dur:.5, wet:.2}); click(); },
@@ -245,13 +254,13 @@ export function createAudio(){
       for(let i=0;i<16;i++) kalimba(10 + ((Math.random()*8)|0), {gain:.012 + Math.random()*.014, when:.8 + i*.45 + Math.random()*.3, dur:.9, wet:.7, pan:Math.random()*1.6 - .8});
       noise({dur:5, gain:.018, f0:3000, f1:5200, q:.4, wet:.8, attack:2}); },
     credits(open){ if(!ok()) return; open ? (kalimba(7, {gain:.03}), kalimba(9, {gain:.03, when:.06})) : kalimba(4, {gain:.03}); },
-    setSfx(on){ A.sfxOn = on; if(on && ensure()) kalimba(7, {gain:.04}); },
+    setSfx(on){ A.sfxOn = on; if(on && A.unlocked && ensure()) kalimba(7, {gain:.04}); },
     debug(){ return {ctx: A.ctx ? A.ctx.state : 'none', creak:!!creak, generative: !!musicEngine?.state().running, music: musicEngine?.state() || null}; },
     status(){ return !A.musicOn ? 'off' : A.unlocked && A.ctx && A.ctx.state === 'running' ? 'playing' : 'waiting'; },
     onState(fn){ stateFns.push(fn); },
     setMusic(on){
       A.musicOn = on; notify();
-      if(!A.unlocked || !ensure()) return;
+      if(!A.unlocked || (!on&&!A.ctx) || !ensure()) return;
       if(on) musicEngine.start(); else musicEngine.stop(.6);
     },
     // R16: volúmenes 0–1 desde las preferencias (0.7 música y 0.8 sonidos son el nivel de siempre)
@@ -278,7 +287,7 @@ export function createAudio(){
   }
 
   /* ---------------------------------------------------------- música (js/music.js: cinco piezas que nunca se acaban) */
-  function startMusic(){ musicEngine?.start(); }
+  function startMusic(){ if(ensure())musicEngine.start(); }
 
   return S;
 }

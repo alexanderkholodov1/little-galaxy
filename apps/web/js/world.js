@@ -30,22 +30,29 @@ const ease = t => t*t*t*(t*(t*6 - 15) + 10);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const angDiff = (a, b) => { let d = (b - a) % TAU; if(d > Math.PI) d -= TAU; if(d < -Math.PI) d += TAU; return d; };
 
+export function createRenderer(canvas){
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'high-performance'});
+  renderer.debug.checkShaderErrors = !import.meta.env.PROD;
+  renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+  renderer.setClearColor('#0d1018', 1);
+  return renderer;
+}
+
 export function createWorld(canvas, opts = {}){
   let RM = !!opts.rm;               // R16: 'movimiento' se cambia en vivo (setMotion)
   const rmU = [];                  // uniformes que dependen de RM: [uniforme, valor con calma, valor completo]
   const rmUni = (calm, full) => { const u = {value:RM ? calm : full}; rmU.push([u, calm, full]); return u; };
-  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
-  renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-  renderer.setClearColor('#0d1018', 1);
+  const renderer=opts.renderer??createRenderer(canvas);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 1200);
   const sim = new (opts.Simulation ?? Sim)({seed: opts.seed ?? 1});
   const toySim = new Sim({seed:1});
   const listeners = {};let homeAuto=true;
-  const emit = (ev, ...a) => {if(ev==='camera-user')homeAuto=false;(listeners[ev] || []).forEach(fn => fn(...a));};
+  const emit = (ev, ...a) => {if(ev==='camera-user'){homeAuto=false;if(document.body.dataset.galaxyDrawn==='true'){if(document.body.dataset.galaxyInteractive!=='true')performance.mark('galaxy-input');document.body.dataset.galaxyInteractive='true';}}(listeners[ev] || []).forEach(fn => fn(...a));};
   const W = {renderer, scene, camera, sim, entries:[], mode:'home', t:0, px:1, rm:RM, fps:60, owner:'local'};
   sim.budget.galaxyBodies = MAX_BODIES - TOY_MAX - 2;
-  let dprCap = Math.min(window.devicePixelRatio || 1, 1.75);
+  const pixelCap=matchMedia('(pointer: coarse)').matches?1:1.5;
+  let dprCap=Math.min(window.devicePixelRatio||1,pixelCap);
 
   /* ------------------------------------------------------------ el fondo: profundidad sin superficie (R1)
      Antes era una esfera de 700 con textura (BackSide): de lejos se leía como cúpula, con costura y polos.
@@ -60,7 +67,7 @@ export function createWorld(canvas, opts = {}){
   const BAND_WARM = new THREE.Vector3(0, 0, 1).cross(BAND_N).normalize();
   const SKY = {base:'#0d1018', warm:'#ff8a5b', cool:'#56ccf2', rose:'#f4a261'};   // M6 (R2): tinta, brasa, celeste, miel (sin lavanda)
   const skyRT = new THREE.WebGLCubeRenderTarget(512, {generateMipmaps:false, minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter});
-  function paintSky(colors = SKY){
+  async function paintSky(colors = SKY){
     Object.assign(SKY, colors);
     const gen = new THREE.Scene();
     const mat = new THREE.ShaderMaterial({
@@ -91,10 +98,54 @@ export function createWorld(canvas, opts = {}){
     const box = new THREE.Mesh(new THREE.SphereGeometry(5, 64, 32), mat);
     gen.add(box);
     const cc = new THREE.CubeCamera(0.5, 20, skyRT);
-    cc.update(renderer, gen);
+    cc.coordinateSystem=renderer.coordinateSystem;cc.updateCoordinateSystem();cc.updateMatrixWorld();
+    await renderer.compileAsync(gen,cc);
+    const target=renderer.getRenderTarget();
+    // Keep the same cubemap and shader, yielding between its six independent faces.
+    for(let face=0;face<6;face++){
+      renderer.setRenderTarget(skyRT,face);renderer.render(gen,cc.children[face]);
+      renderer.setRenderTarget(target);
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+    }
     box.geometry.dispose(); mat.dispose();
+    if(W.sky)W.sky.material.uniforms.uSky.value=skyRT.texture;
+    return skyRT;
   }
-  paintSky();
+  const skyReady=paintSky();
+  let preparation=0,renderReady=false,drawingStarted=false;
+  const warmed=new Set(),warmTarget=new THREE.WebGLRenderTarget(1,1);
+  function programKey(object){
+    const m=object.material;
+    return JSON.stringify([object.type,m.type,m.vertexShader,m.fragmentShader,m.defines,m.side,m.vertexColors,!!m.map,m.map?.colorSpace,m.sizeAttenuation,m.dithering,m.toneMapped,m.transparent,m.alphaTest,m.alphaHash,m.premultipliedAlpha]);
+  }
+  async function prepare(){
+    const key=++preparation;renderReady=false;
+    await skyReady;
+    const objects=[];
+    scene.traverseVisible(object=>{
+      if((object.isMesh||object.isPoints||object.isLine||object.isSprite)&&!warmed.has(programKey(object)))objects.push(object);
+    });
+    // compileAsync submits programs together when the driver supports parallel compilation.
+    const visible=new THREE.Scene();for(const object of objects)visible.add(object.clone(false));
+    await renderer.compileAsync(visible,camera,scene);
+    performance.mark('galaxy-programs-submitted');
+    for(const object of objects){
+      if(warmed.has(programKey(object)))continue;
+      await new Promise(resolve=>setTimeout(resolve,0));
+      const warm=new THREE.Scene(),copy=object.clone(false);copy.frustumCulled=false;warm.add(copy);
+      const previous=renderer.getRenderTarget();renderer.setRenderTarget(warmTarget);
+      // Uniform reflection and buffer uploads happen on first use, even after compileAsync.
+      // Warm one material per task into one pixel, never the whole scene in one blocking draw.
+      const geometry=copy.geometry,range={...geometry.drawRange};
+      geometry.setDrawRange(0,3);
+      const started=performance.now();
+      try{renderer.render(warm,camera);}finally{geometry.setDrawRange(range.start,range.count);renderer.setRenderTarget(previous);}
+      performance.measure('galaxy-warm-'+(object.material.fragmentShader?.includes('heightOf')?'clay':object.material.type),{start:started,end:performance.now()});
+      warmed.add(programKey(object));
+    }
+    if(key===preparation){renderReady=true;}
+  }
+
   {
     // un triángulo que cubre la pantalla; cada píxel mira el cubemap en su dirección
     const geo = new THREE.BufferGeometry();
@@ -342,10 +393,10 @@ export function createWorld(canvas, opts = {}){
   bench.position.copy(BENCH);
   {
     const wheel = new THREE.Mesh(new THREE.RingGeometry(1.7, 1.78, 96), new THREE.MeshBasicMaterial({
-      color:CELESTE, transparent:true, opacity:.28, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+      color:CELESTE, transparent:true, opacity:.28, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, forceSinglePass:true}));
     wheel.rotation.x = -Math.PI/2; wheel.position.y = -1.9;
     const wheel2 = new THREE.Mesh(new THREE.RingGeometry(2.3, 2.33, 96), new THREE.MeshBasicMaterial({
-      color:BRASA, transparent:true, opacity:.22, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+      color:BRASA, transparent:true, opacity:.22, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, forceSinglePass:true}));
     wheel2.rotation.x = -Math.PI/2; wheel2.position.y = -1.9;
     const back = sprite(glowTex(), '#1e6896', .26, 9);
     back.position.set(0, 0, -3);
@@ -362,10 +413,10 @@ export function createWorld(canvas, opts = {}){
   pad.position.copy(anchor);
   {
     const ring = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.34, 72), new THREE.MeshBasicMaterial({
-      color:BRASA, transparent:true, opacity:.8, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+      color:BRASA, transparent:true, opacity:.8, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, forceSinglePass:true}));
     ring.rotation.x = -Math.PI/2;
     const ring2 = new THREE.Mesh(new THREE.RingGeometry(1.62, 1.68, 72), new THREE.MeshBasicMaterial({
-      color:CREMA, transparent:true, opacity:.25, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+      color:CREMA, transparent:true, opacity:.25, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, forceSinglePass:true}));
     ring2.rotation.x = -Math.PI/2;
     const glow = sprite(glowTex(), '#ff8a5b', .3, 5.5);
     pad.add(ring, ring2, glow);
@@ -866,7 +917,17 @@ export function createWorld(canvas, opts = {}){
     }
     tr.head = n % TRAIL_K; tr.n = n;
   }
+  const trailQueue=new Set();let trailTimer=0;
+  function queueTrail(entry){
+    trailQueue.add(entry);if(trailTimer)return;
+    trailTimer=setTimeout(function buildTrail(){
+      const entry=trailQueue.values().next().value;trailQueue.delete(entry);
+      if(W.entries.includes(entry))orbitTrail(entry);
+      trailTimer=trailQueue.size?setTimeout(buildTrail,0):0;
+    },0);
+  }
   function applySharedState(state, norm, owner){
+    let materialsChanged=false;
     const ids = new Set(state.entries.map(e=>e.id));
     for(const e of [...W.entries]) if(!e.toy && !ids.has(e.id)) removeEntry(e);
     sim.restore(state.sim);restoreCoordinates(sim,state.sim);
@@ -874,21 +935,22 @@ export function createWorld(canvas, opts = {}){
     for(const m of state.entries){
       let e = W.entries.find(e=>!e.toy && e.id===m.id);
       const design = norm(m.design);
-      if(!e){ e = makeEntry(sim.byId(m.id), {...m, design, mine:m.owner===owner}); }
+      if(!e){ materialsChanged=true; e = makeEntry(sim.byId(m.id), {...m, design, mine:m.owner===owner}); }
       else {
         e.sb = sim.byId(m.id);
-        if(JSON.stringify(e.design)!==JSON.stringify(design)){ e.body.setDesign(design); e.design=design; }
+        if(JSON.stringify(e.design)!==JSON.stringify(design)){ materialsChanged=true;e.body.setDesign(design); e.design=design; }
       }
-      e.logical=m.logical; e.home=m.home;
+      e.logical=m.logical; e.home=m.home;e.owner=m.owner;e.mine=m.owner===owner;
     }
     const firstSky = skyState.k < 0;
     const jump=noteSkyState(state.sim.steps);
-    if(jump) for(const e of W.entries) if(!e.toy) orbitTrail(e);
+    if(jump) for(const e of W.entries) if(!e.toy)queueTrail(e);
     if((firstSky || (W.replay && jump && homeAuto)) && W.mode === 'home' && !rig.follow) flyTo(views().home,firstSky?0:(RM?0:0.25));
     else if(homeAuto && W.mode==='home' && !rig.follow && !rig.keep){
       const view=views().home;
       if(view.dist>rig.goal.dist*1.03 || view.target.distanceTo(rig.goal.target)>view.dist*.05)flyTo(view,RM?0:0.25);
     }
+    if(materialsChanged){renderReady=false;if(drawingStarted)void prepare();}
     return W.entries.filter(e=>!e.toy);
   }
   function completeSharedLaunch(entry,res){
@@ -940,8 +1002,10 @@ export function createWorld(canvas, opts = {}){
     }
     return gap;
   }
-  const _c = new THREE.Color();
+  const _c = new THREE.Color(),fadeRamps=new Map();let trailColourKey='';
   function writeTrails(){
+    const colourKey=W.entries.map(e=>`${e.trail.n}/${e.mine}/${e.sb.comet}/${e.toy}/${e.dying}`).join('|');
+    const writeColours=colourKey!==trailColourKey;trailColourKey=colourKey;
     let o = 0, oc = 0;
     for(const e of W.entries){
       const tr = e.trail; if(tr.n < 2) continue;
@@ -951,6 +1015,8 @@ export function createWorld(canvas, opts = {}){
       _c.copy(mine ? BRASA : (isComet || e.toy) ? MENTA : CELESTE);
       const base = (mine ? 0.85 : e.toy ? 0.55 : isComet ? 0.5 : 0.36) * (e.dying ? Math.max(0, 1 - e.dying*1.4) : 1);
       const n = tr.n;
+      if(!fadeRamps.has(n))fadeRamps.set(n,Array.from({length:n+1},(_,i)=>Math.pow(i/n,1.6)));
+      const fade=fadeRamps.get(n);
       const idx = i => ((tr.head - n + i) % TRAIL_K + TRAIL_K) % TRAIL_K;
       for(let i=0;i<n;i++){
         const a = idx(i);
@@ -960,14 +1026,15 @@ export function createWorld(canvas, opts = {}){
         else { const q = e.body.root.position; bx = q.x; by = q.y; bz = q.z; }
         trailPos[o++] = ax; trailPos[o++] = ay; trailPos[o++] = az;
         trailPos[o++] = bx; trailPos[o++] = by; trailPos[o++] = bz;
-        const fa = Math.pow(i/n, 1.6)*base, fb = Math.pow((i+1)/n, 1.6)*base;
+        if(!writeColours){oc+=8;continue;}
+        const fa=fade[i]*base,fb=fade[i+1]*base;
         trailCol[oc++] = _c.r*fa; trailCol[oc++] = _c.g*fa; trailCol[oc++] = _c.b*fa; trailCol[oc++] = fa;
         trailCol[oc++] = _c.r*fb; trailCol[oc++] = _c.g*fb; trailCol[oc++] = _c.b*fb; trailCol[oc++] = fb;
       }
     }
     trailGeo.setDrawRange(0, o/3);
-    trailGeo.attributes.position.needsUpdate = true;
-    trailGeo.attributes.aCol.needsUpdate = true;
+    if(o){trailGeo.attributes.position.addUpdateRange(0,o);trailGeo.attributes.position.needsUpdate=true;}
+    if(writeColours&&oc){trailGeo.attributes.aCol.addUpdateRange(0,oc);trailGeo.attributes.aCol.needsUpdate=true;}
   }
 
   /* ================================================================ banco: tu astro */
@@ -1409,8 +1476,8 @@ export function createWorld(canvas, opts = {}){
   function resize(){
     const w = canvas.clientWidth || innerWidth, h = canvas.clientHeight || innerHeight;
     W.vw = w; W.vh = h;
-    renderer.setPixelRatio(dprCap);
-    renderer.setSize(w, h, false);
+    const size=renderer.getSize(new THREE.Vector2());
+    if(size.x!==w||size.y!==h||renderer.getPixelRatio()!==dprCap)renderer.setDrawingBufferSize(w,h,dprCap);
     camera.aspect = w/h;
     camera.fov = w/h < 0.9 ? 52 : 46;
     camera.updateProjectionMatrix();
@@ -1455,6 +1522,7 @@ export function createWorld(canvas, opts = {}){
   const ctxBody = {dt:0, light:new THREE.Vector3(), sun:SUN, mode:'galaxy', rm:RM, aurora:0, px:1};
   let frames = 0, slowAcc = 0, slowN = 0;
   function frame(dtRaw){
+
     document.body.dataset.benchState=W.benchState;
     const dt = Math.min(dtRaw, 0.05);
     W.t += dt; timeU.value = W.t;
@@ -1579,14 +1647,15 @@ export function createWorld(canvas, opts = {}){
       if(entry.marker.visible){entry.marker.position.copy(pos);entry.marker.scale.setScalar(marker.scale);entry.marker.material.opacity=marker.opacity;}
     }
     placeSkyLayers();
-    renderer.render(scene, camera);
+    if(renderReady){renderer.render(scene,camera);drawingStarted=true;}
+    if(renderReady&&document.body.dataset.skyReady==='true'){if(document.body.dataset.galaxyDrawn!=='true')performance.mark('galaxy-drawn');document.body.dataset.galaxyDrawn='true';}
 
     // presupuesto: si el teléfono sufre, bajamos resolución (una vez por escalón)
     frames++;
-    if(dtRaw > 0 && dtRaw < 0.25){ slowAcc += dtRaw; slowN++; }
+    if(dtRaw > 0 && !document.hidden){ slowAcc += dtRaw; slowN++; }
     if(slowN >= 90){
       const avg = slowAcc/slowN; slowAcc = 0; slowN = 0;
-      if(avg > 0.026 && dprCap > 1 && quality !== 'high'){ dprCap = Math.max(1, dprCap - 0.35); resize(); }
+      if(avg > 0.026 && dprCap > 1 && quality === 'auto'){ dprCap = Math.max(1, dprCap - .25); resize(); }
     }
     W.fps += ((dtRaw > 0 ? 1/dtRaw : 60) - W.fps)*0.05;
     emit('frame', dt);
@@ -1603,12 +1672,12 @@ export function createWorld(canvas, opts = {}){
     RM = W.rm = ctxBody.rm = !!rm;
     for(const [u, calm, full] of rmU) u.value = RM ? calm : full;
   }
-  // calidad: 'low' = resolución 1× y sin estelas largas; 'high' = hasta 2× y sin bajar sola; 'auto' = 1.75× y baja si sufre
+  // Fixed device caps apply to every quality setting; auto can reduce a high-density display.
   let quality = 'auto';
   function setQuality(q){
     quality = q === 'low' || q === 'high' ? q : 'auto';
     const dpr = window.devicePixelRatio || 1;
-    dprCap = quality === 'low' ? 1 : quality === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1.75);
+    dprCap=Math.min(dpr,quality==='low'?1:pixelCap);
     resize();
   }
 
@@ -1651,7 +1720,7 @@ export function createWorld(canvas, opts = {}){
     on:(ev, fn) => ((listeners[ev] ||= []).push(fn)),
     viewState: () => ({az:rig.goal.az,el:rig.goal.el,dist:rig.goal.dist,target:rig.goal.target.toArray()}),
     restoreView: o => {if([o.az,o.el,o.dist,...(o.target||[])].every(Number.isFinite) && o.target?.length===3) snapTo({...views().home,...o,target:new THREE.Vector3(...o.target)});},
-    frame, resize, setMode, recenter, homeFocus, isOffHome, focus, project, pxRadius,
+    prepare, frame, resize, setMode, recenter, homeFocus, isOffHome, focus, project, pxRadius,
     discPixels: () => W.entries.filter(e => !e.toy).map(e => pxRadius(e.body.root.position, e.body.visR)),
     applySharedState, completeSharedLaunch, failSharedLaunch,
     addEntry, removeEntry, orbitOf, systemsInfo, flyToSystem, serialize, loadGalaxy, setBenchDesign, moveBenchToPad, moveBenchBack, startAurora, sparks, warm,

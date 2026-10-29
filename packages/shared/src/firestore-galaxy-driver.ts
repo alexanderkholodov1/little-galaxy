@@ -136,10 +136,11 @@ function restValue(value: Record<string, unknown>): unknown {
 function restFields(fields: Record<string, Record<string, unknown>>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, restValue(value)]));
 }
-async function clockConfig<T extends Document>(
+export async function readPublicDocuments(
   database: Firestore,
+  paths: string[],
   options: FirestoreClockOptions,
-): Promise<T | null> {
+): Promise<Map<string, Document | null>> {
   const root = `projects/${database.app.options.projectId}/databases/(default)/documents`;
   const token = await options.getToken();
   const started = options.clock.started();
@@ -151,15 +152,26 @@ async function clockConfig<T extends Document>(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ documents: [`${root}/config/live`] }),
+      body: JSON.stringify({ documents: paths.map(path => `${root}/${path}`) }),
     },
   );
   if (!response.ok) throw new Error(`Clock synchronization failed (${response.status})`);
   const rows = (await response.json()) as {
     readTime: string;
-    found?: { fields: Record<string, Record<string, unknown>> };
+    found?: { name: string; fields: Record<string, Record<string, unknown>> };
+    missing?: string;
   }[];
   if (!rows[0]?.readTime) throw new Error('Missing server readTime');
   options.clock.observe(Date.parse(rows[0].readTime), started);
-  return rows[0].found ? (restFields(rows[0].found.fields) as T) : null;
+  const values = new Map<string, Document | null>();
+  for (const row of rows) {
+    const name = row.found?.name ?? row.missing;
+    if (name?.startsWith(root + '/')) values.set(name.slice(root.length + 1), row.found ? decode<Document>(restFields(row.found.fields)) : null);
+  }
+  if (paths.some(path => !values.has(path))) throw new Error('Incomplete public opening');
+  return values;
+}
+
+async function clockConfig<T extends Document>(database: Firestore, options: FirestoreClockOptions): Promise<T | null> {
+  return (await readPublicDocuments(database, ['config/live'], options)).get('config/live') as T | null;
 }
