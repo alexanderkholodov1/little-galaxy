@@ -81,9 +81,11 @@ receipts. A deployed proof requires separate operator authorization outside rele
   reproductions, the still-unresolved denial, the long-gap/live launch proofs and the
   initial preview credential/workspace blockers, superseded by the lead’s preview-only
   decision above. No visitor content or rules changed.
-- 2026-10-28: widen the action rule's late-tick window from 1.5 s to 10 s and move the
-  keeper's certification lag from 2 s to 12 s, after the production late-commit denial
-  below (lead brief; the owner's principle of few limits and a working launch).
+- 2026-10-28: remove every freshness window on client-stamped times from the launch path
+  (action acceptedAt ±30 s, launch tick -1.5 s/+15 s, member lastSeen ±30 s), after the
+  production late-commit denial below. Owner, 2026-10-29: "DEJA ESAS REGLAS EN PAZ Y NO
+  COMPLIQUES LAS COSAS". An interim 10 s window with a 12 s certification lag (rc2.9-rc2.10)
+  was reverted in rc2.15.
 
 ## Returning-visitor investigation (lead steer, 2026-10-28)
 
@@ -168,20 +170,14 @@ queue until the commit returns. A launch that stamped while the page's snapshot
 transaction was still reading could therefore wait behind a snapshot upload of up to
 900 KB, and every await after the stamp let a busy phone run other work.
 
-The launch transaction now finishes every read and tick-independent check, then stamps,
-schedules and hashes. It re-reads the synchronized clock right before the writes and
-stamps again when more than 250 ms passed. Snapshot lease claims and publishes yield
-while a launch is pending; a launch starts after a snapshot already sending.
-
-Owner's principle: few limits and a launch that works. The rule now accepts a tick up to
-10 s behind the server (12.4 s from stamp to server), which covers the observed gap, a
-slow mid-range phone and a slow uplink, and still bounds backdating; replay rewinds late
-actions from its once-a-second marks. The keeper certifies 12 s behind its clock, so a
-commit its read missed, whose tick the rule admits no more than 10 s back, is never
-covered. Both numbers live in the shared `TIMING`; emulator rules tests prove 9.6 s is
-accepted, 10.6 s refused and the accepted tick stays ahead of an earlier certification,
-and fail against the 1.5 s rule. Live snapshots keep their 2 s lag: they are provisional
-and loaders already replay full history when a later action falls at or before their tick.
+rc2.15 removes the cause instead of tuning around it. The rules no longer compare a
+client-stamped time (the action's acceptedAt, the launch tick, the member's lastSeen) with
+the server clock, so a launch is accepted however long the phone or the network took to
+deliver it. The tick still has to follow the previous action's tick, and the sequence, hash,
+shape, ownership and frozen-galaxy checks are unchanged. The interim mechanism of rc2.9-rc2.10
+(late stamping, snapshot yielding, a 10 s window, a 12 s certification lag) was reverted.
+Accepted trade-off: a commit delivered very late carries an older tick. The replay rewinds
+late actions from its once-a-second marks, and the keeper's certification keeps its 2 s lag.
 
 Acceptance journey 3 runs a phone at 6x CPU throttling, holds the launch commit six
 seconds in the browser and requires acceptance with a tick more than 1.5 s behind the

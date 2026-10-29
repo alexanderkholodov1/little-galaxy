@@ -35,14 +35,14 @@
   hosts (BAD: 21). Remove fair-display selection; the screen follows the active galaxy.
   Use the approved Open Galaxy / Galaxia abierta name without changing layout or styles.
 
-- Fix production launch refusals caused by a stale effective tick. The client stamped
-  a launch, then on a busy phone (or behind the page's own live-snapshot upload) sent the
+- Fix production launch refusals caused by a stale effective tick. The client stamped a
+  launch and, on a busy phone or behind the page's own live-snapshot upload, sent the
   commit seconds later; the action rule allowed only 1.5 s and Firestore reported a
-  permissions error. Launches now stamp after every read and check, stamp again if more
-  than 250 ms pass before the writes, and never queue behind snapshot work. The rule
-  accepts a tick up to 10 s behind the server; the keeper certifies 12 s behind so a
-  certification never covers a tick a late commit can still claim. A 6x-throttled phone
-  journey proves a commit six seconds late is accepted (it is refused on rc2.8).
+  permissions error. By the owner's decision (few limits, launches that always work), the
+  rules no longer compare any client-stamped time with the server clock on the launch path:
+  removed are the action's acceptedAt within 30 s, the launch tick within -1.5 s/+15 s and
+  the member's lastSeen within 30 s. Shape, ownership, sequence, hash and frozen-galaxy
+  checks stay. A 6x-throttled phone journey proves a commit six seconds late is accepted.
 - Explain every non-connection refusal plainly ("The sky could not take this launch…")
   for nine seconds below the aim reading on phones; the body stays in hand to throw again.
 
