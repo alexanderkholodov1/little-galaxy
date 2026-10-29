@@ -1649,6 +1649,16 @@ export function createWorld(canvas, opts = {}){
     _p.copy(v).project(camera);
     return {x:(_p.x*0.5 + 0.5)*W.vw, y:(-_p.y*0.5 + 0.5)*W.vh, behind:_p.z > 1};
   }
+  // seen from afar, a body keeps a readable symbol of its kind (finding-chart floor, in CSS pixels)
+  function floorScale(e, symbols, tanH){
+    let scale = e.scaleBase;
+    if(symbols){
+      const unit = (e.body.sizeNow || 1)*e.body.baseR;
+      const need = (TYPE_FLOOR[e.design.type] ?? 4)*2*camera.position.distanceTo(e.body.root.position)*tanH/W.vh;
+      scale = Math.max(scale, need/unit);
+    }
+    e.body.root.scale.setScalar(scale);
+  }
   function pxRadius(pos, r){
     const d = camera.position.distanceTo(pos);
     return r/(d*Math.tan(vfov()/2)) * W.vh/2;
@@ -1740,14 +1750,7 @@ export function createWorld(canvas, opts = {}){
       else { const q = drawn.get(e.id); if(q) e.body.root.position.set(q[0], q[1], q[2]); }
       // recién lanzado: se encoge despacio de la escala de la plataforma a la de la galaxia
       if(Math.abs(e.scaleBase - e.scaleGoal) > 1e-3) e.scaleBase += (e.scaleGoal - e.scaleBase)*(1 - Math.exp(-dt*1.1));
-      // seen from afar, a body keeps a readable symbol of its kind (finding-chart floor, in CSS pixels)
-      let scale = e.scaleBase;
-      if(symbols){
-        const unit = (e.body.sizeNow || 1)*e.body.baseR;
-        const need = (TYPE_FLOOR[e.design.type] ?? 4)*2*camera.position.distanceTo(e.body.root.position)*tanH/W.vh;
-        scale = Math.max(scale, need/unit);
-      }
-      e.body.root.scale.setScalar(scale);
+      floorScale(e, symbols, tanH);
       if(e.toy){
         e.body.vel = e.sb.v;
         if(e.dieAt && W.t > e.dieAt) retire(e);
@@ -1842,6 +1845,9 @@ export function createWorld(canvas, opts = {}){
     writeTrails();
     readBand(dtRaw);
     updateRig(dt);
+    // the readable size depends on the camera this frame is drawn from, so it is set again once the camera has moved
+    // (the first frame of a visit is drawn before the loop starts and would otherwise show pinpricks)
+    for(const e of W.entries) floorScale(e, symbols, tanH);
     placeSkyLayers();
     if(renderReady){renderer.render(scene,camera);drawingStarted=true;}
     if(renderReady&&document.body.dataset.skyReady==='true'){if(document.body.dataset.galaxyDrawn!=='true')performance.mark('galaxy-drawn');document.body.dataset.galaxyDrawn='true';}
