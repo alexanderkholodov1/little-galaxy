@@ -14,15 +14,6 @@ import {unpackLoaded} from './checkpoint.js';
 import {loadCertifiedTimeline,loadRecordedMoment} from './certified-timeline.js';
 export function createSharedStore({galaxyId=null,booth=false,readOnly=false,replay=false,session=openSession}={}){
   let backend,loaded,stops=[],member='',selection,stopped=false;
-  // Firestore sends one transaction commit at a time per page. A pending launch must not queue behind
-  // a snapshot upload: snapshot work yields while a launch is pending, and a launch starts after one
-  // that is already sending, so its time is stamped once the way is clear.
-  let launching=0;const snapshotWork=new Set();
-  const yieldToLaunch=run=>{
-    if(launching)return false;
-    const work=run();snapshotWork.add(work);
-    work.then(()=>snapshotWork.delete(work),()=>snapshotWork.delete(work));return work;
-  };
   const emit=(name,detail)=>{if(name==='actions'&&loaded)for(const action of detail)observeAction(loaded.head,action);return dispatchEvent(new CustomEvent(`galaxy:${name}`,{detail}));};
   const stop=()=>{stopped=true;stops.splice(0).forEach(fn=>fn());};
   const S={galaxyId:galaxyId||'',readOnly,owner:()=>member,loaded:()=>loaded,backend:()=>backend,
@@ -70,9 +61,7 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
       let draft;try{draft=JSON.parse(localStorage.getItem(key));}catch{ /* A new intent is safe after an unreadable draft. */ }
       if(draft?.signature!==signature)draft={signature,intent:{...launchIntent({...raw,id:crypto.randomUUID()},loaded.galaxy,loaded.galaxy.epoch,-1),effectiveTick:0}};
       localStorage.setItem(key,JSON.stringify(draft));
-      launching++;
       try{
-        await Promise.allSettled([...snapshotWork]);
         // Re-anchor a long-lived session before deriving timestamps and the scheduled tick.
         // Keep the saved nonce if synchronization or admission fails.
         await backend.driver.get('config/live');
@@ -81,13 +70,12 @@ export function createSharedStore({galaxyId=null,booth=false,readOnly=false,repl
         loaded.head.effectiveTick=Math.max(loaded.head.effectiveTick,accepted.intent.effectiveTick);
         localStorage.removeItem(key);emit('actions',[accepted]);return accepted;
       }catch(error){throw new Error(`Your star is still in your hand. ${error.message}`,{cause:error});}
-      finally{launching--;}
     },
     async recordings(){return (await backend.store.listGalaxies()).filter(g=>g.visibility==='public'&&g.status!=='active'&&g.writePolicy==='frozen');},
     async recordedMoment(entry){return loadRecordedMoment(backend.driver,loaded,entry);},
     async history(){return unpackLoaded(await backend.store.loadGalaxy(S.galaxyId,{history:true}));},
-    async claimSnapshot(holder){return !readOnly && !document.hidden && yieldToLaunch(()=>backend.store.claimSnapshotLease(S.galaxyId,holder));},
-    async publishSnapshot(snapshot){return !readOnly && !document.hidden && yieldToLaunch(()=>backend.store.publishSnapshot(S.galaxyId,snapshot));},
+    async claimSnapshot(holder){return !readOnly && !document.hidden && backend.store.claimSnapshotLease(S.galaxyId,holder);},
+    async publishSnapshot(snapshot){return !readOnly && !document.hidden && backend.store.publishSnapshot(S.galaxyId,snapshot);},
     async save(){return false;},async legacy(){return [];},
     touch(){if(!readOnly&&!document.hidden&&loaded?.galaxy.status==='active'&&member)return backend.store.touch(S.galaxyId).catch(()=>false);},
     now:()=>backend.clock.now(),stop,

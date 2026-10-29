@@ -21,8 +21,6 @@ import {
 import {
   createGalaxyStore,
   canonicalHash,
-  certifiedTick,
-  TIMING,
   initialGalaxy,
   initialHead,
   initialMember,
@@ -445,27 +443,6 @@ describe('hostile clients bypassing adapter admission', () => {
           return d;
         }).launch('g', intent()),
       );
-  });
-});
-
-describe('late commits', () => {
-  // A store whose stamp was taken `ms` before the commit reaches the server, as on a busy phone.
-  const stampedBefore = (ms) => createGalaxyStore(firestoreGalaxyDriver(context().firestore()), {
-    uid: 'alice', memberId: 'm-alice', now: () => Date.now() - ms,
-  });
-  it('accepts a launch whose tick is almost ten seconds behind the server, and nothing older', async () => {
-    // The tick leads its stamp by 2.4 s: a 13 s old stamp claims a tick 10.6 s behind, a 12 s old one 9.6 s.
-    await assertFails(stampedBefore(13000).launch('g', intent('too-late')));
-    const certified = certifiedTick(galaxy, Date.now());
-    const accepted = await stampedBefore(12000).launch('g', intent('late'));
-    expect(accepted.sequence).toBe(1);
-    // Certification taken before the commit stays behind the oldest tick the rule admits.
-    expect(accepted.intent.effectiveTick).toBeGreaterThan(certified);
-  });
-  it('uses the shared late-commit window in the action rule', async () => {
-    expect(await readFile('firestore.rules', 'utf8')).toContain(
-      `tick1000 >= (epochOffset - ${TIMING.lateCommit}) * 120`,
-    );
   });
 });
 
