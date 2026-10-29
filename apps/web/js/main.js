@@ -5,7 +5,7 @@ import {simulationFor} from '../integration/kernel-routing.js';
 import {setupScreen} from '../integration/screen.js';
 import {recoverWorkshop} from '../integration/draft.js';
 // main.js — Little Galaxy · "Fogata". Orquesta el mundo 3D, el sonido y el vidrio.
-import {createWorld,createRenderer} from './world.js';
+import {createWorld,createRenderer,preloadSky} from './world.js';
 import {TYPES, TYPE_INFO, PALETTES, defaultDesign, normDesign, starColor} from './bodies.js';
 import {createAudio} from './audio.js';
 import {createGlass} from './glass.js';
@@ -108,7 +108,7 @@ async function boot(){
   const manifest=new Promise(resolve=>{manifestReady=resolve;});
   const loading=store.loadGalaxy({onManifest:manifestReady});
   let renderer;
-  try{renderer=createRenderer(canvas);}
+  try{renderer=createRenderer(canvas);void preloadSky().then(texture=>renderer.initTexture(texture)).catch(()=>{});}
   catch(err){console.error(err);window.__FOG_FAIL?.('webgl');return;}
   const galaxy=await Promise.race([manifest,loading.then(loaded=>loaded.galaxy)]);
   try{world=createWorld(canvas,{renderer,rm:RM,Simulation:simulationFor(galaxy)});}

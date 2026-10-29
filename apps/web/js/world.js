@@ -30,6 +30,15 @@ const ease = t => t*t*t*(t*(t*6 - 15) + 10);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const angDiff = (a, b) => { let d = (b - a) % TAU; if(d > Math.PI) d -= TAU; if(d < -Math.PI) d += TAU; return d; };
 
+const skyFaces=['px','nx','py','ny','pz','nz'].map(face=>new URL(`../src/assets/sky/${face}.png`,import.meta.url).href);
+let skyAssets;
+export function preloadSky(){
+  return skyAssets??=new THREE.CubeTextureLoader().loadAsync(skyFaces).then(texture=>{
+    texture.colorSpace=THREE.LinearSRGBColorSpace;texture.generateMipmaps=false;
+    texture.minFilter=texture.magFilter=THREE.LinearFilter;return texture;
+  });
+}
+
 export function createRenderer(canvas){
   const renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'high-performance'});
   renderer.debug.checkShaderErrors = !import.meta.env.PROD;
@@ -111,7 +120,7 @@ export function createWorld(canvas, opts = {}){
     if(W.sky)W.sky.material.uniforms.uSky.value=skyRT.texture;
     return skyRT;
   }
-  const skyReady=paintSky();
+  const skyReady=preloadSky().then(texture=>{W.sky.material.uniforms.uSky.value=texture;}).catch(()=>paintSky());
   let preparation=0,renderReady=false,drawingStarted=false;
   const warmed=new Set(),warmTarget=new THREE.WebGLRenderTarget(1,1);
   function programKey(object){

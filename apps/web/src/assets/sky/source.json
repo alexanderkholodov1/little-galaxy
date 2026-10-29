@@ -1,0 +1,14 @@
+{
+  "size": 512,
+  "format": "RGBA8, no colour conversion",
+  "sourceSHA256": "0ed07cdaad3d869cabbfb586d5c7b6795ed1d8f6d058d04a7dc88d531f81b991",
+  "files": {
+    "px.png": "cad5ed58a5c020444adced02383fa68b416460ad0246ebd40a3693ecd0f5522c",
+    "nx.png": "cd033da99e45b9e34b9a0cf89a96d15b059bd657771f9bdea6a1eb71a0d02552",
+    "py.png": "dc75255593cdd4ee047b755301bfb3b0f95ebcb0912c6ffa67292333041b208d",
+    "ny.png": "0db47c78c23c0ad44920bff71edd45029e5c811aa79800d5b6ec451dba5c838d",
+    "pz.png": "a3db6b724aeb2f622f25594df8de89c77ec7c23f9015d42efd141a2a8999900d",
+    "nz.png": "e9566eac5a51782634a6302a2e38eb3321990c814d2619f8550f140ec69ec85f"
+  },
+  "comparisonMaxChannelError": 0
+}
