@@ -1,84 +1,113 @@
 # Opening and interaction performance
 
-Operator decision (2026-10-29): opening and interaction are release gates. Measure the
-Open Galaxy and BAD 2026 from a cold browser context, with HTTP cache disabled, in
-1440×900 at 4× CPU throttling and 390×844 at 6× with touch. The page marks
-`data-galaxy-drawn` after rendering the opening state and `data-galaxy-interactive`
-after its camera handler answers a drag. Record the browser's input timestamp,
-longest main-thread task during opening and five seconds of camera use, and frame p95.
+## Hardware check before a ready PR
+
+Operator decision (2026-10-29): opening and interaction must be light on real devices.
+The lead verifies these unchanged targets on the owner's laptop before each ready PR,
+and repeats the phone profile. CI's software GPU cannot certify real-device performance.
 
 | Profile | Interactive | Longest task | Frame p95 |
 | --- | ---: | ---: | ---: |
-| Laptop | ≤2000 ms | ≤200 ms | ≤50 ms |
-| Phone | ≤3000 ms | ≤300 ms | ≤70 ms |
+| Laptop, 1440×900, CPU 4× | ≤2000 ms | ≤200 ms | ≤50 ms |
+| Phone, 390×844, CPU 6×, touch | ≤3000 ms | ≤300 ms | ≤70 ms |
 
-`pnpm accept` and `pnpm accept:live <url>` use the same measurement and limits. A
-missing readiness signal, failed input, missing metric or exceeded limit fails the
-journey. Live acceptance measures performance before attempting its launch and
-cleanup proof, so the existing candidate job refuses publication on a failure.
-`pnpm accept:perf` measures an already built production client in isolated emulators;
-it reads the public export and never writes production. Its JSON report defaults to
-`.tmp/performance-<commit>.json`. `--baseline-build=<directory>` measures an older
-build without the new readiness attributes; this diagnostic option is never used by
-the acceptance or release gates. Run browsers serially on Beacon with its required
-wrapper; the lead explicitly requested the final `pnpm check` plainly.
+The lead's Windows Chrome / Iris Xe / Direct3D11 measurements at 1440×900 without
+CPU throttling were: `eeee1d1` Open cold 35.9 s with a 29.8 s task; `790d952` Open
+cold 2.7 s / 147 ms, reload 1.0 s / 73 ms; BAD cold 2.8 s / 361 ms, reload
+1.7 s / 243 ms. Orbiting frame p95 was 17 ms. These ready times measure
+`data-sky-ready`, not the input acknowledgment below, and do not prove the throttled
+hardware targets pass. The reported phone-profile figures still exceed them:
+Open 6700 / 1200 / 83 ms and BAD 17500 / 3100 / 200 ms (ready / task / frame p95).
 
-The renderer disables synchronous shader diagnostics only in production. Visible
-programs are compiled asynchronously and warmed with one triangle per distinct
-program. It shares immutable sphere buffers, caches trail fade ramps, uploads active
-trail ranges, and queues initial orbit trails. No physics equations changed. Public
-opening documents are batched while authentication proceeds; private membership is
-recovered after the first drawn frame. Renderer setup and shader preparation can
-start when the public manifest arrives, before the complete opening finishes.
+The Windows freeze came from the Direct3D compiler unrolling constant-bound clay
+loops for all five kinds: one clay compile took 13.5 s. Commit `790d952` keeps a
+`CLAY_KIND` define per material and uniform loop bounds, reducing that compile to
+under a second without changing pixels. The clay shader unit guard checks both
+stages, every kind and both LODs against regression. SwiftShader did not reproduce
+the 29.8 s task; the hardware rehearsal remains essential.
 
-Six baked 512px linear cubemap faces replace runtime procedural sky generation.
-`scripts/bake-sky.mjs` regenerates them without a game or Auth session and compares
-six rendered directions against the procedural source. The retained bake has a
-maximum channel difference of **0/255**. Its source and asset hashes are gated by a
-unit test. The original procedural fallback remains available if an asset fails.
+## Automated software-GPU regression gate
 
-Other changes delay audio until a requested sound after a gesture, generate its
-unchanged impulse in short tasks, cache glass rectangles, use viewport coordinates
-for the fixed name layer, and avoid resetting an unchanged drawing buffer. Pixel
-ratio is capped at 1.5, and at 1 on coarse pointers. Multisample antialiasing is off;
-the phone trial improved frame p95 from 250/300 ms to 150/183 ms. No layout, text,
-galaxy physics or animation duration changed.
+`pnpm accept`, `pnpm accept:live <url>` and `pnpm accept:perf` share the same cold
+measurement. Each context disables HTTP caching and visits Open Galaxy and BAD.
+`data-galaxy-drawn` acknowledges drawing the opening bodies;
+`data-galaxy-interactive` acknowledges a camera drag. The measurement records time
+from navigation to answered input, the longest main-thread task during loading and
+five seconds of camera use, and frame p95 during use. Missing readiness, unanswered
+input or missing metrics always fails. Live acceptance performs this before the
+launch/cleanup journey, so the existing candidate job refuses publication on failure.
 
-## Beacon measurements, 2026-10-29
+By the lead's calibration decision, automated admission on SwiftShader enforces
+**longest task ≤700 ms on laptop and ≤400 ms on phone**. Interactive and frame p95
+remain in reports but do not gate software admission: neither separates this build
+from the old one reliably. These are regression limits, not hardware targets.
 
-These are software-renderer measurements, not a claim about the owner's Windows GPU.
-All four cases used a fresh context and the same captured public documents, including
-the Open Galaxy's sequence-7 leased snapshot and BAD's 21 visitor bodies. The browser
-reported ANGLE/SwiftShader and **no `KHR_parallel_shader_compile` extension**.
+Calibration uses the worst of three cold rounds across both galaxies in each
+profile, multiplied by 1.25 and rounded upward to 100 ms (interactive/task) or
+10 ms (frames). Retain a metric only when both old-build cases exceed the proposed
+limit by another 10%; overlap is not evidence of a reliable gate.
 
-Values below are interactive / longest task / frame p95, in milliseconds. The
-unchanged `eeee1d1` build is preserved locally in `.tmp/perf/baseline-dist`.
+| Profile | Worst interactive → proposed | Worst task → retained limit | Worst frame p95 → proposed |
+| --- | ---: | ---: | ---: |
+| Laptop | 7515 → 9400 (drop) | 492 → **700** | 1033 → 1300 (drop) |
+| Phone | 5287 → 6700 (drop) | 293 → **400** | 200 → 250 (drop) |
 
-| Profile and galaxy | Unchanged `eeee1d1` | Latest complete four-case trial |
-| --- | ---: | ---: |
-| Laptop, Open Galaxy | 4234 / 743 / 1200 | 4330 / 414 / 767 |
-| Laptop, BAD | 4420 / 809 / 550 | 3194 / 339 / 450 |
-| Phone, Open Galaxy | 4665 / 810 / 217 | 4766 / 442 / 150 |
-| Phone, BAD | 4766 / 985 / 283 | 4761 / 441 / 183 |
+All measurements below are interactive / longest task / frame p95, milliseconds.
+Round 1 predates the owner's stop; rounds 2–3 were completed after resuming. The
+first slow cold case is retained. Each round used a fresh Chromium process and fresh
+contexts, the same public fixture (Open sequence-7 leased snapshot and BAD's 21
+visitor bodies), ANGLE/SwiftShader, and no `KHR_parallel_shader_compile` extension.
 
-Reports: `.tmp/perf/baseline-current.json` and `.tmp/perf/aa.json`. A later single-case
-trial overlapping manifest setup and loading measured laptop Open Galaxy at
-**3358 / 455 / 417**, in `.tmp/perf/overlap.json`. Programs were 12→11 in Open Galaxy
-and 19→18 in BAD during the complete trial; a later opening compiled a twelfth
-program. The body kinds already shared one clay program before this work.
+| Profile and galaxy | Round 1 | Round 2 | Round 3 | Old `eeee1d1` |
+| --- | ---: | ---: | ---: | ---: |
+| Laptop, Open | 7515 / 492 / 1033 | 3722 / 275 / 967 | 3716 / 187 / 900 | 4118 / 1504 / 2167 |
+| Laptop, BAD | 3267 / 196 / 400 | 3169 / 212 / 317 | 3288 / 180 / 317 | 4314 / 834 / 600 |
+| Phone, Open | 5200 / 292 / 150 | 4554 / 271 / 167 | 4608 / 293 / 133 | 4808 / 837 / 217 |
+| Phone, BAD | 5287 / 282 / 183 | 5031 / 280 / 200 | 5181 / 273 / 150 | 4959 / 1065 / 300 |
 
-The load profile identified shader first-use queries, texture upload, audio setup
-and drawing-buffer resizing. An aggressive resize trial stalled for 1290–1875 ms
-and was removed. GPU fence polling kept individual warm-up calls short but delayed
-opening; that trial was removed too. Runtime shader-loop and deferred-Auth trials
-were unfinished and removed. An empty-draw control, suppressing all WebGL draws but
-retaining JS, DOM, clears and composition, still measured laptop frame p95 at
-117/167 ms (`.tmp/perf/empty-control.json`). This establishes a software/composition
-floor above the requested frame budget, rather than proving that every delay is GPU
-only. No allowance has been applied; all three budgets remain unchanged.
+Thus all twelve candidate cases pass the retained limits; all four old cases fail
+(task 1504/834 >700 and 837/1065 >400). Startup and frame values overlap, so they
+were removed from software admission. The committed sanitized evidence is
+`tests/fixtures/performance-calibration.json`; the regression test reapplies the
+actual gate to every recorded case. Full local reports and provenance are under
+`.tmp/performance-calibration/790d952a12925db11b15435f2d0a04131078521a/`.
 
-The lead stopped measurements at 02:25Z and requested immediate commits and a plain
-`pnpm check`. There is no fresh performance run after trial cleanup, and no full
-acceptance run in this performance round. The retained performance gate still fails
-on Beacon. The lead owns the next hardware measurement, any software allowance and
-the full acceptance rehearsal on the owner's laptop.
+## Recalibrating after the galaxy merge
+
+Build the exact candidate first with the public Firebase environment. On Beacon use
+the required browser wrapper, one browser/emulator job at a time:
+
+```sh
+TMPDIR=$PWD/.tmp/t ~/bad/tools/with-browser.sh pnpm perf:calibrate \
+  --baseline-build=.tmp/perf/baseline-dist
+```
+
+The command captures public documents read-only, then runs three cold four-case
+rounds and the preserved old build. It prints worst values, rounded proposals and
+KEEP/DROP decisions. It writes `proposal.json`, full reports and sanitized
+`calibration.json` under `.tmp/performance-calibration/<built-commit>/`. It never
+changes committed limits. All rounds must use the same built commit and fixture
+hash; incomplete measurements, non-SwiftShader renderers and missing input fail
+calibration. An exceeded old limit does not discard a valid calibration sample.
+
+For short shared-wrapper slots, retain one public fixture and pass
+`GALAXY_PUBLIC_EXPORT=$PWD/<fixture>` on every invocation. Run `--round=1`,
+`--round=2`, `--round=3` separately, then `--baseline-only
+--baseline-build=.tmp/perf/baseline-dist`. `--summarize` recomputes proposals without
+a browser. `--build=<directory>` selects a preserved candidate; `--output=<directory>`
+selects the report directory. Without a baseline, proposals are printed but no
+metric is selected for admission. Review the proposal, replace
+`tests/fixtures/performance-calibration.json` with the sanitized `calibration.json`,
+and run `pnpm check`; release limits are derived from that reviewed fixture.
+
+## Retained loading improvements
+
+The production renderer disables synchronous shader diagnostics, warms programs
+asynchronously, shares immutable sphere buffers, queues initial orbit trails and
+avoids unchanged drawing-buffer resets. Six baked 512px linear cubemap faces
+replace procedural sky generation; source and asset hashes are unit-gated, and the
+retained bake differs by 0/255 in six-direction comparisons. Public reads overlap
+with authentication and early renderer setup; private membership follows the first
+drawn frame. Audio starts on demand, glass bounds are cached, and pixel ratio is
+capped at 1.5 (1 on coarse pointers). Physics, names, layout and animation durations
+are unchanged by calibration.

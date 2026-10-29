@@ -1,15 +1,22 @@
 /* global window, document, WebGLRenderingContext, WebGL2RenderingContext, requestAnimationFrame, PointerEvent */
 import {expect} from '@playwright/test';
+import calibration from '../../tests/fixtures/performance-calibration.json' with {type:'json'};
+import {performanceMetrics,proposeSoftwareBudgets} from './performance-calibration.mjs';
 export const performanceProfiles=[
  {name:'laptop',width:1440,height:900,rate:4,touch:false,interactive:2000,task:200,frame:50},
  {name:'phone',width:390,height:844,rate:6,touch:true,interactive:3000,task:300,frame:70},
 ];
+// These remain the real-device targets, verified by the lead on actual hardware.
+export const realDevicePerformanceBudgets=Object.fromEntries(performanceProfiles.map(p=>[p.name,{interactiveMs:p.interactive,longestTaskMs:p.task,frameP95Ms:p.frame}]));
+export const softwareCalibration=proposeSoftwareBudgets(calibration.rounds,calibration.baseline);
+export const softwarePerformanceBudgets=Object.fromEntries(Object.entries(softwareCalibration.profiles).map(([profile,metrics])=>[profile,Object.fromEntries(Object.entries(metrics).filter(([,m])=>m.retained).map(([key,m])=>[key,m.limit]))]));
 export function performanceFailures(row){
- const p=performanceProfiles.find(p=>p.name===row.profile),errors=[];
- if(!p)throw new Error('Unknown performance profile');
- if(!Number.isFinite(row.interactiveMs)||row.interactiveMs>p.interactive)errors.push(`interactive ${row.interactiveMs} > ${p.interactive} ms`);
- if(!Number.isFinite(row.longestTaskMs)||row.longestTaskMs>p.task)errors.push(`longest task ${row.longestTaskMs} > ${p.task} ms`);
- if(!Number.isFinite(row.frameP95Ms)||row.frameP95Ms>p.frame)errors.push(`frame p95 ${row.frameP95Ms} > ${p.frame} ms`);
+ const limits=softwarePerformanceBudgets[row.profile],errors=[];
+ if(!limits)throw new Error('Unknown performance profile');
+ for(const[metric,{label}]of Object.entries(performanceMetrics)){
+  if(!Number.isFinite(row[metric])||row[metric]<0)errors.push(`${label} measurement missing or invalid`);
+  else if(limits[metric]!==undefined&&row[metric]>limits[metric])errors.push(`${label} ${row[metric]} > ${limits[metric]} ms`);
+ }
  return errors;
 }
 export async function measurePerformance(browser,base,{legacy=false,emptyScene=false,profiles=performanceProfiles,pages=['open','fair']}={}){
@@ -75,5 +82,5 @@ export async function measurePerformance(browser,base,{legacy=false,emptyScene=f
   }catch(error){const row={profile:profile.name,galaxy,pass:false,failures:[error.message]};rows.push(row);console.log('PERFORMANCE '+JSON.stringify(row));}
   finally{await context.close();}
  }
- return {name:'cold opening and camera performance',pass:rows.every(r=>r.pass),profiles:rows};
+ return {name:'software-GPU opening and camera regression',layer:'software-GPU',calibratedBuild:calibration.sourceCommit,budgets:softwarePerformanceBudgets,pass:rows.every(r=>r.pass),profiles:rows};
 }
