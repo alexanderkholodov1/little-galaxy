@@ -1,6 +1,23 @@
 # Changelog
 
-## 1.0.0-alpha.10.0-rc2 — the admin on the game’s address, visible with blockers, 2026-10-28
+## 1.0.0-alpha.10.0-rc2 — the galaxy turns, opens fast, launches work, the admin on the game’s address, 2026-10-29
+
+- A real galaxy that turns. Every stellar body and the fire anchor their own system on
+  two logarithmic spiral arms around a galactic core, on a flat rotation curve (inner
+  system ~3.5 min per turn, outermost ~15), as a pure function of the synchronized
+  clock: every screen shows the same sky and the frozen fair keeps turning. Small
+  bodies stay in the system they were launched into; systems never overlap. Sizes read
+  by type (black hole > star > giant > planet > moon > asteroid; nebula widest). The
+  timelapse uses the same layer and draws the playback moment at display rate,
+  interpolated between published frames. Frozen kernels, records and replay proofs are
+  unchanged.
+- The galaxy is framed in the band the page's chrome leaves free (on a phone it no
+  longer leaves the bottom half empty). The Author control sits in the same top-left
+  row on the Open Galaxy, the fair and the timelapse. The launch pad ring shows only
+  while a body is on it or being placed (the floating “halo”). Author, language and
+  fair-visit controls share the press animation (reduced motion unchanged).
+- The disc-measuring hook exists from the first drawn sky, so the fair and timelapse
+  acceptance no longer measure before deferred shader work ends.
 
 - Reduce opening and interaction work: batch public reads, defer private membership
   and initial trails, share geometry and trail buffers, cache glass bounds, start
