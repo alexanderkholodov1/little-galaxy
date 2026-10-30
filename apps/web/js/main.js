@@ -202,7 +202,8 @@ async function boot(){
     const h = innerHeight; let top = 0, bottom = h;
     for(const el of document.querySelectorAll('#hud button, #hud .cta, #hud .pill, #hud .chip, .glass')){
       const r = el.getBoundingClientRect();
-      if(r.width < 1 || r.height < 1 || r.height > h*0.32) continue;
+      // a tall element is a card or dialog over the galaxy, unless it is a sheet anchored to the bottom edge
+      if(r.width < 1 || r.height < 1 || (r.height > h*0.32 && r.bottom < h - 1)) continue;
       if(el.checkVisibility && !el.checkVisibility({opacityProperty:true, visibilityProperty:true})) continue;
       const mid = (r.top + r.bottom)/2;
       // above: only the header's controls (an opened card there must not move the galaxy); below: controls and panels

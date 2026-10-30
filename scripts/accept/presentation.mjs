@@ -164,6 +164,8 @@ export async function assertBodiesInBand(page, state) {
     if (!frame) return 'bodies cannot be measured';
     if (frame.flying) return 'camera still flying';
     const top = frame.band.top*frame.band.vh, bottom = frame.band.bottom*frame.band.vh;
+    const main = [...document.querySelectorAll('#openTimelapse, #timeRuler')].filter(el => el.checkVisibility()).map(el => el.getBoundingClientRect().top);
+    if (main.length && bottom > Math.min(...main) + 1) return `the band ends at ${Math.round(bottom)}px, below the main control at ${Math.round(Math.min(...main))}px`;
     const outside = frame.discs.filter(d => d.y - d.r < top || d.y + d.r > bottom).map(d => `${Math.round(d.y)}±${Math.round(d.r)}px`);
     return outside.length ? `outside ${Math.round(top)}-${Math.round(bottom)}px: ${outside.join(', ')}` : 'inside';
   }), {message: `${state}: every body inside the free band`, timeout: 15000}).toBe('inside');
