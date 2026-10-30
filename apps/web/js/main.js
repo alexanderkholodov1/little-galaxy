@@ -116,6 +116,7 @@ async function boot(){
   performance.mark('galaxy-world');
   // measurable from the first drawn sky, which can come before the deferred shader work finishes
   window.__galaxyDiscs = () => world.discPixels();
+  window.__galaxyFrame = () => ({discs:world.discBoxes(), band:world.freeBand(), flying:world.isFlying()});
   world.shared=true;world.frame(0);
   const warming=world.prepare();
   const loaded=await loading;

@@ -1934,6 +1934,9 @@ export function createWorld(canvas, opts = {}){
     prepare, frame, resize, setMode, recenter, homeFocus, isOffHome, focus, project, pxRadius,
     setBandProbe: fn => { bandProbe = fn; bandAge = 1; },
     discPixels: () => W.entries.filter(e => !e.toy).map(e => pxRadius(e.body.root.position, e.body.visR)),
+    // where each body is drawn (CSS pixels) and the free band it is framed in (fractions of the canvas height)
+    discBoxes: () => W.entries.filter(e => !e.toy).map(e => { const p = project(e.body.root.position); return {x:p.x, y:p.y, r:pxRadius(e.body.root.position, e.body.visR)}; }),
+    freeBand: () => ({...W.band, vh:W.vh}),
     applySharedState, completeSharedLaunch, failSharedLaunch,
     addEntry, removeEntry, orbitOf, systemsInfo, flyToSystem, serialize, loadGalaxy, setBenchDesign, moveBenchToPad, moveBenchBack, startAurora, sparks, warm,
     enterToss, exitToss, loadToy,
