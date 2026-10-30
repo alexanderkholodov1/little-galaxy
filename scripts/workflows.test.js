@@ -62,6 +62,12 @@ it('passes the release tag through Turbo to Vite and confirms production with th
 
 });
 
+it('checks out the release tag by its full ref, never a branch with the same name', async () => {
+  const release = await read('.github/workflows/release.yml');
+  expect(release).toContain('ref: refs/tags/${{ env.RELEASE_TAG }}');
+  expect(release).not.toMatch(/ref: \$\{\{ env\.RELEASE_TAG \}\}/u);
+});
+
 it('disables data Hosting, preserves its auth helper and probes the admin after portfolio is live',async()=>{
  const workflow=await read('.github/workflows/release.yml');
  const deploy=workflow.split('\n  deploy-rules:')[1];

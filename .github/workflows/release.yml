@@ -28,9 +28,10 @@ jobs:
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
+      # The full ref: a merged PR branch may share the tag's name, and a bare name checks out the branch.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
