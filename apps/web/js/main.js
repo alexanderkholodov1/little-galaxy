@@ -116,6 +116,7 @@ async function boot(){
   performance.mark('galaxy-world');
   // measurable from the first drawn sky, which can come before the deferred shader work finishes
   window.__galaxyDiscs = () => world.discPixels();
+  window.__galaxyFrame = () => ({discs:world.discBoxes(), band:world.freeBand(), flying:world.isFlying()});
   world.shared=true;world.frame(0);
   const warming=world.prepare();
   const loaded=await loading;
@@ -195,12 +196,14 @@ async function boot(){
 
   window.__FOG_OK = true;
   // The galaxy is framed in the band the chrome leaves free: below the header and its controls, above the bottom
-  // actions and panels, as they are on screen right now (layers and panels change it).
+  // actions and panels, as they are on screen right now (layers and panels change it). A recorded sky's primary
+  // action is a link styled as the main button, so it counts by its class.
   world.setBandProbe(() => {
     const h = innerHeight; let top = 0, bottom = h;
-    for(const el of document.querySelectorAll('#hud button, #hud .pill, #hud .chip, .glass')){
+    for(const el of document.querySelectorAll('#hud button, #hud .cta, #hud .pill, #hud .chip, .glass')){
       const r = el.getBoundingClientRect();
-      if(r.width < 1 || r.height < 1 || r.height > h*0.32) continue;
+      // a tall element is a card or dialog over the galaxy, unless it is a sheet anchored to the bottom edge
+      if(r.width < 1 || r.height < 1 || (r.height > h*0.32 && r.bottom < h - 1)) continue;
       if(el.checkVisibility && !el.checkVisibility({opacityProperty:true, visibilityProperty:true})) continue;
       const mid = (r.top + r.bottom)/2;
       // above: only the header's controls (an opened card there must not move the galaxy); below: controls and panels

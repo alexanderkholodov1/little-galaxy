@@ -632,9 +632,10 @@ export function createWorld(canvas, opts = {}){
     const benchType = W.benchBody ? W.benchBody.d.type : 'planet';
     const bd = (TYPE_INFO[benchType] || TYPE_INFO.planet).bench * (portrait ? 1.85 : 1.4);
     const R = W.galR;
-    // The whole galaxy fits the free band: a tilted disc is as tall as 2R·sin(el) and as wide as 2R.
+    // The whole galaxy fits the free band, its near and far rims at equal margins from the band's edges.
     const bandH = Math.max(0.35, W.band.bottom - W.band.top);
-    const home = {target:new THREE.Vector3(0, 0, 0), az:0.42, el:elHome, dist:fitDisc(R, elHome, bandH), shift:{x:0, y:bandShift()}};
+    const dist = fitDisc(R, elHome, bandH);
+    const home = {target:new THREE.Vector3(0, 0, 0), az:0.42, el:elHome, dist, shift:{x:0, y:bandShift() + rimShift(R, elHome, dist)}};
     W.homeDist = home.dist; rig.lim.dMax = Math.max(rig.lim.dMax, home.dist*1.6);
     return {
       home,
@@ -649,6 +650,14 @@ export function createWorld(canvas, opts = {}){
     const byWidth = R*1.04/th + R*Math.cos(el)*0.5;
     const byHeight = (R*Math.sin(el) + 3)/(tv*bandH) + R*Math.cos(el)*0.5;
     return Math.max(byWidth, byHeight);
+  }
+  // Seen from above, the disc's near rim is R·cos(el) closer to the camera than its centre, so it is drawn lower and
+  // larger than the far rim: h/(2·tv·(d∓c)) of the canvas height from the centre, h = R·sin(el) (+3 for bodies and
+  // names). Centring the centre left all the spare room above the far rim and none below the near one; this lift (a
+  // fraction of the canvas height) centres the rims instead.
+  function rimShift(R, el, d){
+    const tv = Math.tan(vfov()/2), h = R*Math.sin(el) + 3, c = Math.min(R*Math.cos(el), d*0.95);
+    return (h/(2*tv*(d - c)) - h/(2*tv*(d + c)))/2;
   }
   // a view of one system (its local frame), riding with it as it orbits the core
   function systemView(id){
@@ -1925,6 +1934,9 @@ export function createWorld(canvas, opts = {}){
     prepare, frame, resize, setMode, recenter, homeFocus, isOffHome, focus, project, pxRadius,
     setBandProbe: fn => { bandProbe = fn; bandAge = 1; },
     discPixels: () => W.entries.filter(e => !e.toy).map(e => pxRadius(e.body.root.position, e.body.visR)),
+    // where each body is drawn (CSS pixels) and the free band it is framed in (fractions of the canvas height)
+    discBoxes: () => W.entries.filter(e => !e.toy).map(e => { const p = project(e.body.root.position); return {x:p.x, y:p.y, r:pxRadius(e.body.root.position, e.body.visR)}; }),
+    freeBand: () => ({...W.band, vh:W.vh}),
     applySharedState, completeSharedLaunch, failSharedLaunch,
     addEntry, removeEntry, orbitOf, systemsInfo, flyToSystem, serialize, loadGalaxy, setBenchDesign, moveBenchToPad, moveBenchBack, startAurora, sparks, warm,
     enterToss, exitToss, loadToy,

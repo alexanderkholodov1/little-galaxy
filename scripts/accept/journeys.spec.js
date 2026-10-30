@@ -6,7 +6,7 @@ import {initialMember} from '../../packages/shared/src/index.ts';
 import {applyEasyList,blockerMatches} from '../../tests/ui/blockers.js';
 /* global CSSTransition, MutationObserver, document, getComputedStyle, requestAnimationFrame, window */
 import {expectLayout} from '../../tests/ui/layout-geometry.js';
-import {assertFairReturn, assertHeaderIcons, assertProductType, assertReadableBodies, assertScrubTracksThumb, assertShotSize} from './presentation.mjs';
+import {assertBodiesInBand, assertFairReturn, assertHeaderIcons, assertProductType, assertReadableBodies, assertScrubTracksThumb, assertShotSize} from './presentation.mjs';
 import {expect,test} from '@playwright/test';
 import {completeJourney} from './report.mjs';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
@@ -36,6 +36,7 @@ async function screenshot(page,name){
  await expectLayout(page,name);
  await check(`product typefaces: ${name}`,()=>assertProductType(page,name));
  if(/^(sandbox-home|observer-from|fair|timelapse-end)-/u.test(name))await check(`readable bodies: ${name}`,()=>assertReadableBodies(page,name));
+ if(/^(fair|timelapse-end)-(?!info|author)/u.test(name))await check(`bodies inside the free band: ${name}`,()=>assertBodiesInBand(page,name));
  if(name.startsWith('timelapse-'))await check(`scrub fill: ${name}`,()=>assertScrubTracksThumb(page,name));
  if(await page.locator('.top-actions .icon-btn:visible, #panelTheme:visible').count())await assertHeaderIcons(page,name);
  const buffer=await page.screenshot({path}),size=assertShotSize(name,buffer);evidence.screenshots.push(path);

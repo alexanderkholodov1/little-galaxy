@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.0.0-alpha.10.0-rc3 — every body inside the free band, a release that cannot check out a branch, 2026-10-30
+
+- The galaxy is centred by its drawn rims. Seen from above, the disc's near rim is
+  closer to the camera and drawn larger than its far rim; centring the core left all
+  the spare room above the galaxy and none below it, so on a laptop the timelapse
+  panel covered a fair body. The fitting distance is unchanged; the picture is lifted
+  by the difference of the two rims.
+- The band counts every main button and the bottom sheet: the fair's "Watch the
+  timelapse" is a link styled as the main button and was not counted (the band ran to
+  the screen's edge, 86 px below it), and the phone timelapse panel (272 px, taller than
+  the card limit) was skipped.
+- Acceptance requires every fair and timelapse body inside the free band at rest, and
+  the band to end above the main control. It fails on rc2 (a body at 709 px under a
+  708 px panel; a fair band ending 86 px below the button) and passes now.
+- The release checks out its tag by full ref. The rc2 release stopped at its guard:
+  the merged PR branch had the tag's name, and a bare name checks out the branch.
+- Local checks read the deployed web configuration from lazily imported chunks
+  (a template-literal `import()`; the old pattern also skipped chunk names with
+  `x`, `6` or `0`).
+
 ## 1.0.0-alpha.10.0-rc2 — the galaxy turns, opens fast, launches work, the admin on the game’s address, 2026-10-29
 
 - A real galaxy that turns. Every stellar body and the fire anchor their own system on

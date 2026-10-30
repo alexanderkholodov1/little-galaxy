@@ -156,6 +156,21 @@ export async function assertReadableBodies(page, state) {
   return {count: detail.count, minRadiusPx: smallest};
 }
 
+// At rest the galaxy is framed in the band the chrome leaves free (world.js views().home), so every body is drawn inside
+// it at every turn of the galaxy (2026-10-30: the timelapse panel and the fair's main button covered fair bodies).
+export async function assertBodiesInBand(page, state) {
+  await expect.poll(() => page.evaluate(() => {
+    const frame = window.__galaxyFrame?.();
+    if (!frame) return 'bodies cannot be measured';
+    if (frame.flying) return 'camera still flying';
+    const top = frame.band.top*frame.band.vh, bottom = frame.band.bottom*frame.band.vh;
+    const main = [...document.querySelectorAll('#openTimelapse, #timeRuler')].filter(el => el.checkVisibility()).map(el => el.getBoundingClientRect().top);
+    if (main.length && bottom > Math.min(...main) + 1) return `the band ends at ${Math.round(bottom)}px, below the main control at ${Math.round(Math.min(...main))}px`;
+    const outside = frame.discs.filter(d => d.y - d.r < top || d.y + d.r > bottom).map(d => `${Math.round(d.y)}±${Math.round(d.r)}px`);
+    return outside.length ? `outside ${Math.round(top)}-${Math.round(bottom)}px: ${outside.join(', ')}` : 'inside';
+  }), {message: `${state}: every body inside the free band`, timeout: 15000}).toBe('inside');
+}
+
 export async function assertFairReturn(page) {
   await page.locator('#backToFair').click();
   await expect(page).toHaveURL(url => url.searchParams.get('g') === 'bad-2026' && url.searchParams.get('view') === 'recorded' && !url.pathname.endsWith('/timelapse'));
