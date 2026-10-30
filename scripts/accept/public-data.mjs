@@ -20,6 +20,7 @@ export async function publicExport(project='little-galaxy'){
  for(const row of rows){
   if(!row.document)continue;const g=decodeFields(row.document.fields),p=`galaxies/${g.id}`;docs.set(p,g);
   const h=await get(`${p}/control/head`);if(!h)throw new Error('Missing public head');
+  if(g.status==='active')await get(`${p}/liveSnapshots/latest`);
   for(let page=0;page<Math.ceil(h.sequence/64);page++)await get(`${p}/logPages/${page}`);
   for(const chunk of g.genesis??[])await get(`${p}/genesis/${chunk.id}`);
  }

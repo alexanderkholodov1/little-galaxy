@@ -5,7 +5,7 @@ import {simulationFor} from '../integration/kernel-routing.js';
 import {setupScreen} from '../integration/screen.js';
 import {recoverWorkshop} from '../integration/draft.js';
 // main.js — Little Galaxy · "Fogata". Orquesta el mundo 3D, el sonido y el vidrio.
-import {createWorld} from './world.js';
+import {createWorld,createRenderer,preloadSky} from './world.js';
 import {TYPES, TYPE_INFO, PALETTES, defaultDesign, normDesign, starColor} from './bodies.js';
 import {createAudio} from './audio.js';
 import {createGlass} from './glass.js';
@@ -32,7 +32,8 @@ let RM = motionOf(PREFS.motion);
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const fmt = (n, d = 0) => n.toLocaleString(getLang(), {minimumFractionDigits:d, maximumFractionDigits:d});
+const numberFormats=new Map();
+const fmt=(n,d=0)=>{const key=getLang()+':'+d;if(!numberFormats.has(key))numberFormats.set(key,new Intl.NumberFormat(getLang(),{minimumFractionDigits:d,maximumFractionDigits:d}));return numberFormats.get(key).format(n);};
 const DEBUG = import.meta.env.DEV && /[?&]debug\b/.test(location.search);
 window.__FOG_OK = false;
 
@@ -102,9 +103,24 @@ async function boot(){
   document.documentElement.dataset.motion = RM ? 'reduce' : 'full';
   translateDom();
   const canvas = $('#world');
-  const loaded = await store.loadGalaxy();
-  try{ world = createWorld(canvas, {rm:RM,Simulation:simulationFor(loaded.galaxy)}); }
-  catch(err){ console.error(err); window.__FOG_FAIL && window.__FOG_FAIL('webgl'); return; }
+  performance.mark('galaxy-load-start');
+  let manifestReady;
+  const manifest=new Promise(resolve=>{manifestReady=resolve;});
+  const loading=store.loadGalaxy({onManifest:manifestReady});
+  let renderer;
+  try{renderer=createRenderer(canvas);void preloadSky().then(texture=>renderer.initTexture(texture)).catch(()=>{});}
+  catch(err){console.error(err);window.__FOG_FAIL?.('webgl');return;}
+  const galaxy=await Promise.race([manifest,loading.then(loaded=>loaded.galaxy)]);
+  try{world=createWorld(canvas,{renderer,rm:RM,Simulation:simulationFor(galaxy)});}
+  catch(err){console.error(err);window.__FOG_FAIL?.('webgl');return;}
+  performance.mark('galaxy-world');
+  // measurable from the first drawn sky, which can come before the deferred shader work finishes
+  window.__galaxyDiscs = () => world.discPixels();
+  world.shared=true;world.frame(0);
+  const warming=world.prepare();
+  const loaded=await loading;
+  performance.mark('galaxy-data');
+  await new Promise(resolve=>setTimeout(resolve,0));
   world.setQuality(PREFS.quality);
   audio = createAudio();
   audio.state.musicOn = S.musicOn; audio.state.sfxOn = S.sfxOn;
@@ -123,11 +139,17 @@ async function boot(){
 
 
   splitSplash();
-  setupHome(); setupWorkshop(); setupLaunch(); setupSound(); setupCredits(); setupPrefs(); setupLabels();
+  for(const setup of [setupHome,setupWorkshop,setupLaunch,setupSound,setupCredits,setupPrefs,setupLabels]){setup();await new Promise(resolve=>setTimeout(resolve,0));}
   resetAim();
   translateDom();
   onLang(relang);
   world.on('frame', onFrame);
+  const openingPlayer=S.player;let recoveringPlayer=false;
+  async function recoverPlayer(){
+    try{const player=await store.restorePlayer?.();if(player&&S.player===openingPlayer){S.player=player;world.owner=store.owner();prefsPanel?.refresh();}}
+    catch{setTimeout(recoverPlayer,5000);}
+  }
+  world.on('frame',()=>{if(!recoveringPlayer&&document.body.dataset.galaxyDrawn==='true'){recoveringPlayer=true;setTimeout(recoverPlayer,0);}});
   wireWorldEvents();
   startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft:saveSky});
   world.on('shared-pending', () => {audio.aimEnd(); $('#outcomeTag').classList.remove('show'); aimTitle(() => t('launch.pending.title')); aimStats(() => t('launch.pending.stats'));});
@@ -159,17 +181,37 @@ async function boot(){
   setupShake();
   setupScreen({world,labels});
 
+  document.body.classList.add('splashing');
+  if(!welcome()){ $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }
+  await new Promise(resolve=>setTimeout(resolve,0));
+  performance.mark('galaxy-setup');
+  world.frame(0);
+  await warming;
+  await world.prepare();
+  performance.mark('galaxy-shaders');
   let last = performance.now();
   const loop = now => { const dt = (now - last)/1000; last = now; world.frame(dt); requestAnimationFrame(loop); };
   requestAnimationFrame(loop);
 
   window.__FOG_OK = true;
-  window.__galaxyDiscs = () => world.discPixels();
+  // The galaxy is framed in the band the chrome leaves free: below the header and its controls, above the bottom
+  // actions and panels, as they are on screen right now (layers and panels change it).
+  world.setBandProbe(() => {
+    const h = innerHeight; let top = 0, bottom = h;
+    for(const el of document.querySelectorAll('#hud button, #hud .pill, #hud .chip, .glass')){
+      const r = el.getBoundingClientRect();
+      if(r.width < 1 || r.height < 1 || r.height > h*0.32) continue;
+      if(el.checkVisibility && !el.checkVisibility({opacityProperty:true, visibilityProperty:true})) continue;
+      const mid = (r.top + r.bottom)/2;
+      // above: only the header's controls (an opened card there must not move the galaxy); below: controls and panels
+      if(mid < h*0.4){ if(r.height <= 64) top = Math.max(top, r.bottom); }
+      else if(mid > h*0.6) bottom = Math.min(bottom, r.top);
+    }
+    return {top:top/h, bottom:bottom/h};
+  });
   if(import.meta.env.DEV) window.__fog = {world, S, audio, labels, prefs:prefsPanel, store};
   requestAnimationFrame(() => $('#veil').classList.add('is-done'));
   // pantalla de título: el nombre del juego aparece grande y se retira a la esquina
-  document.body.classList.add('splashing');
-  if(!welcome()){ $('#splash').classList.add('gone'); document.body.classList.remove('splashing'); }
   setInterval(saveSky, 8000);
 
   addEventListener('pagehide', () => { saveSky(); flush(); });
@@ -232,6 +274,7 @@ function indexLayers(){ $$('.layer').forEach(l => [...l.children].forEach((c, i)
 function setMode(mode, opts = {}){
   S.mode = mode;
   document.body.dataset.mode = mode;
+  glass?.invalidate();
   $$('.layer').forEach(l => l.classList.toggle('is-on', l.dataset.layer === mode));
   world.setMode(mode, opts);
   requestAnimationFrame(() => glass.scan());
@@ -904,6 +947,8 @@ function updateSystems(force){
     $('.layer[data-layer="home"]').append(btn);
     addEventListener('keydown', e => { if(e.key === 'Escape' && $('#sysList') && !$('#sysList').hidden){ e.stopPropagation(); closeSystems(); btn.focus(); } }, true);
   }
+  // first in the top-left row, before the author
+  const row = $('#openNav'); if(row && btn.parentElement !== row) row.prepend(btn);
   btn.setAttribute('aria-label', t('systems.aria')); btn.title = t('systems.aria');
   btn.hidden = list.length < 2;
   if(btn.hidden) closeSystems();
@@ -994,7 +1039,9 @@ function applyPref(p, key){
 function setupLabels(){
   labels = createLabels({root:$('#nameLayer'), t});
   labels.setMode(PREFS.names);
-  const cv = $('#world'), r0 = () => $('#nameLayer').getBoundingClientRect();
+  const cv = $('#world');
+  // The fixed, inset:0 label layer uses viewport coordinates, just like pointer events.
+  const r0=()=>({left:0,top:0});
   let touching = false;
   cv.addEventListener('pointermove', e => {
     const r = r0();
@@ -1037,14 +1084,14 @@ function closeCredits(){
 }
 
 /* ================================================================== avisos */
-function toast(msg, kind){
+function toast(msg, kind, ms = 2600){
   const t = document.createElement('div');
   t.className = 'toast glass' + (kind ? ' ' + kind : '');
   t.textContent = msg;
   $('#toasts').append(t);
   while($('#toasts').children.length > 2) $('#toasts').firstChild.remove();
-  setTimeout(() => t.classList.add('out'), 2600);
-  setTimeout(() => t.remove(), 3000);
+  setTimeout(() => t.classList.add('out'), ms);
+  setTimeout(() => t.remove(), ms + 400);
 }
 
 /* ================================================================== por cuadro */

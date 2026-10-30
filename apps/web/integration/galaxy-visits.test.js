@@ -6,7 +6,7 @@ it('explains a recorded fair and offers an accessible return to the open sandbox
   const store={galaxyId:'bad-2026',loaded:()=>({galaxy:{id:'bad-2026',name:'BAD 2026',status:'frozen'}})};
   HTMLDialogElement.prototype.showModal=vi.fn(function(){this.open=true;});HTMLDialogElement.prototype.close=vi.fn(function(){this.open=false;});
   const nav=galaxyVisits({store,replayMode:true,base:'/little-galaxy/'});
-  expect(document.querySelector('#backToSandbox').textContent).toMatch(/sandbox/iu);
+  expect(document.querySelector('#backToSandbox').textContent).toBe(lang==='es'?'Galaxia abierta':'Open Galaxy');
   expect(document.querySelector('#backToFair').textContent).toMatch(/fair|feria/iu);
   expect(document.querySelector('#backToFair svg')).not.toBeNull();
   document.querySelector('#aboutRecordedGalaxy').click();const dialog=document.querySelector('#recordInformation');
@@ -26,9 +26,9 @@ it('updates recorded navigation and preserves the author across freeze, language
  expect(document.querySelector('#openTimelapse')).not.toBeNull();
  expect(document.querySelector('#galaxyVisits #btnCredits')).not.toBeNull();
  document.documentElement.lang='es';nav.render();
- expect(document.querySelector('#backToSandbox').getAttribute('aria-label')).toBe('Volver al sandbox para crear un astro');
+ expect(document.querySelector('#backToSandbox').getAttribute('aria-label')).toBe('Volver a la Galaxia abierta para crear un astro');
  expect(new URL(document.querySelector('#openTimelapse').href).searchParams.get('lang')).toBe('es');
  galaxy.status='active';nav.render();
- expect(document.querySelector('.home-footer > #btnCredits')).not.toBeNull();
+ expect(document.querySelector('#openNav > #btnCredits')).not.toBeNull();
  expect(document.querySelector('#backToSandbox')).toBeNull();nav.dispose();history.replaceState(null,'',previous);
 });

@@ -1,5 +1,89 @@
 # Changelog
 
+## 1.0.0-alpha.10.0-rc2 — the galaxy turns, opens fast, launches work, the admin on the game’s address, 2026-10-29
+
+- A real galaxy that turns. Every stellar body and the fire anchor their own system on
+  two logarithmic spiral arms around a galactic core, on a flat rotation curve (inner
+  system ~3.5 min per turn, outermost ~15), as a pure function of the synchronized
+  clock: every screen shows the same sky and the frozen fair keeps turning. Small
+  bodies stay in the system they were launched into; systems never overlap. Sizes read
+  by type (black hole > star > giant > planet > moon > asteroid; nebula widest). The
+  timelapse uses the same layer and draws the playback moment at display rate,
+  interpolated between published frames. Frozen kernels, records and replay proofs are
+  unchanged.
+- The galaxy is framed in the band the page's chrome leaves free (on a phone it no
+  longer leaves the bottom half empty). The Author control sits in the same top-left
+  row on the Open Galaxy, the fair and the timelapse. The launch pad ring shows only
+  while a body is on it or being placed (the floating “halo”). Author, language and
+  fair-visit controls share the press animation (reduced motion unchanged).
+- The disc-measuring hook exists from the first drawn sky, so the fair and timelapse
+  acceptance no longer measure before deferred shader work ends.
+
+- Reduce opening and interaction work: batch public reads, defer private membership
+  and initial trails, share geometry and trail buffers, cache glass bounds, start
+  audio on demand, cap pixel ratio and skip unchanged drawing-buffer resets.
+  Bake the identical procedural sky (six-direction comparison: 0/255 difference)
+  and disable production shader diagnostics while warming programs asynchronously.
+- Calibrate the SwiftShader regression gate from three cold rounds of `790d952`:
+  longest task ≤700 ms laptop (worst 492 ms), ≤400 ms phone (worst 293 ms).
+  All four `eeee1d1` cases fail: 1504/834 ms laptop and 837/1065 ms phone.
+  Keep measuring startup/frame p95 but remove their overlapping software limits;
+  hardware targets remain 2000/200/50 ms laptop and 3000/300/70 ms phone.
+  Add repeatable `pnpm perf:calibrate` proposals and guard per-kind clay defines
+  and uniform shader loop bounds against the Windows compiler freeze.
+  See `docs/plan/performance.md` for all rounds and the separate hardware rehearsal.
+
+- Avoid a duplicate frozen-endpoint restoration and scrubbing-index read on ordinary
+  visits; parallelize direct-galaxy public reads with selection and remove repeated
+  frame-helper array allocations with exactly equal output. Phone SwiftShader
+  before→after: BAD 6555/277/217→5623/309/283 ms, Open
+  4495/240/150→4610/245/133 ms (interactive/task/frame p95). Hardware phone targets
+  remain unproven; renderer findings are recorded for the lead without visual changes.
+
+- Fix the empty admin and first-paint flash caused by EasyList hiding the old `ad-`
+  namespace. Rename every admin class and ID to `keeper-`; vendor EasyList’s generic
+  selectors and gate all shipped markup plus rendered admin states in `pnpm check`.
+- Revert the rc1 domain move. Keep the admin at
+  `https://alexanderkholodov.web.app/little-galaxy/admin` in the game’s account system.
+  Open Firebase Google sign-in synchronously in a popup; show session progress and
+  actionable errors. Preserve the server-side verified-Google allowlist unchanged.
+- Disable data-project Hosting content at release and require Firebase’s reserved
+  auth helper to remain available. Probe the admin after the portfolio release is live.
+- Exercise real Auth emulator popups and keeper/outsider journeys under EasyList styles.
+  Replace redirect and Hosting-deploy assertions with popup and content-retirement checks.
+
+- Provision the acceptance sandbox 36 hours before its first real-client launch, across
+  a quota-window boundary. Verify second-browser visibility and ownership-checked,
+  history-preserving administrative removal of the test body.
+- Add `pnpm accept:live <url>` and a candidate-channel release launch proof with cleanup
+  and a receipt. The visitor remains anonymous; the admin credential stays server-side.
+- Fix a reproduced returning-session denial caused by a stale server-time anchor:
+  refresh server time before profile and launch writes. Add a fifth long-gap regression
+  that fails with the stale anchor and requires real admission-time synchronization.
+  Original-age, saved/legacy-name, older-membership and persisted-Google cases pass.
+  Retain all rules; the original historical request still lacks a browser receipt.
+
+- Cover four returning-visitor storage/Auth states in the aged first-launch journey.
+  Wait on the first playback event before requiring its sequence at every speed.
+- Restore seven-day PR previews from the checked artifact with one updated PR comment.
+  Require the exact release candidate to pass the real launch and cleanup proof before
+  rules deployment or live portfolio dispatch; use existing credentials only.
+
+- Count visitor bodies in admin cards, metrics and backup summaries, excluding generated
+  hosts (BAD: 21). Remove fair-display selection; the screen follows the active galaxy.
+  Use the approved Open Galaxy / Galaxia abierta name without changing layout or styles.
+
+- Fix production launch refusals caused by a stale effective tick. The client stamped a
+  launch and, on a busy phone or behind the page's own live-snapshot upload, sent the
+  commit seconds later; the action rule allowed only 1.5 s and Firestore reported a
+  permissions error. By the owner's decision (few limits, launches that always work), the
+  rules no longer compare any client-stamped time with the server clock on the launch path:
+  removed are the action's acceptedAt within 30 s, the launch tick within -1.5 s/+15 s and
+  the member's lastSeen within 30 s. Shape, ownership, sequence, hash and frozen-galaxy
+  checks stay. A 6x-throttled phone journey proves a commit six seconds late is accepted.
+- Explain every non-connection refusal plainly ("The sky could not take this launch…")
+  for nine seconds below the aim reading on phones; the body stays in hand to throw again.
+
 ## 1.0.0-alpha.10.0-rc1 — an open shared sandbox and the original fair, ready to visit, 2026-10-27
 
 - Open active galaxies from canonical leased snapshots, verify history in the background and fall

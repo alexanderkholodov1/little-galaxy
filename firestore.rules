@@ -363,18 +363,12 @@ service cloud.firestore {
       let h = bHead(g);
       let galaxy = bGalaxy(g);
       let m = bMember(g);
-      let reqMs = request.time.toMillis();
-      let epochOffset = reqMs - galaxy.epoch;
-      let tick1000 = d.intent.effectiveTick * 1000;
       return signed() && h.updatedTime == request.time && d.schemaVersion == 1 && h.lastAction == a
         && d.sequence == h.sequence && d.hash == h.hash && d.memberId == m.memberId && d.displayName == m.displayName
         && d.generation == galaxy.generation && d.acceptedAt is int
-        && d.acceptedAt >= reqMs - 30000 && d.acceptedAt <= reqMs + 30000
         && d.previousHash is string && d.hash is string && d.hash.matches('^[a-f0-9]{64}$')
         && bIntent(d.intent) && d.intent.id == a && d.intent.effectiveTick == h.effectiveTick
-        // Later commits stay newer than the keeper's two-second certification lag.
-        && tick1000 >= (epochOffset - 1500) * 120
-        && tick1000 <= (epochOffset + 15000) * 120
+        // No freshness window on client-stamped times (owner, 2026-10-28: few limits and launches that always work).
         && d.keys().hasOnly(['schemaVersion','generation','sequence','previousHash','hash','memberId','displayName','acceptedAt','intent']);
     }
     function bSystem(old,s,i,cost) {
@@ -439,7 +433,6 @@ service cloud.firestore {
         && d.keys().hasOnly(['sequence','hash','effectiveTick','bodies','mass','blackholes','lastBlackholeAt','window','dayLaunches','dayMutations','contributors','tokens','bucketSlot','systems','reserves','lastAction','updatedTime']);
     }
     function bMemberSchema(d) {
-      let reqMs = request.time.toMillis();
       return d.updatedTime == request.time
         && intRange(d.launches, 0, 9007199254740991)
         && intRange(d.get('lastLaunchAt',0), 0, 9007199254740991)
@@ -452,7 +445,6 @@ service cloud.firestore {
         && d.role in ['owner','editor','viewer']
         && d.window is string && d.lastMutationAt is int
         && d.firstSeen is int && d.lastSeen is int && d.firstSeen <= d.lastSeen
-        && d.lastSeen >= reqMs - 30000 && d.lastSeen <= reqMs + 30000
         && id(d.memberId) && bName(d.displayName)
         && d.keys().hasOnly(['memberId','role','displayName','firstSeen','lastSeen','lastMutationAt','launches','window','dayLaunches','mass','blackholes','stellar','bodyIds','updatedTime','mutationTime','lastLaunchAt']);
     }

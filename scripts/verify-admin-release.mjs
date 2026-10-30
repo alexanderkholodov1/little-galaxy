@@ -3,8 +3,8 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { validateReleaseTag } from './release-version.js';
 
-export const adminURL = 'https://little-galaxy.firebaseapp.com/little-galaxy/admin';
-export const adminVersionURL = 'https://little-galaxy.firebaseapp.com/little-galaxy/version.json';
+export const adminURL = 'https://alexanderkholodov.web.app/little-galaxy/admin';
+export const adminVersionURL = 'https://alexanderkholodov.web.app/little-galaxy/version.json';
 export const googleClientId = '582862355672-os40u5nj70iok1cbtttjmif2nm9gu2pp.apps.googleusercontent.com';
 export const googleRedirectURI = 'https://little-galaxy.firebaseapp.com/__/auth/handler';
 
@@ -24,6 +24,19 @@ export async function verifyAdminRelease(tag, { fetchImpl = fetch, now = Date.no
   const options = { cache: 'no-store', signal: AbortSignal.timeout(20000) };
   const admin = await fetchImpl(adminURL, options);
   if (admin.status !== 200) throw new Error(`ADMIN NOT LIVE: ${adminURL} returned HTTP ${admin.status}.`);
+  const html = await admin.text();
+  const button = /<button\b[^>]*\bid=["']keeper-google["']/u.test(html);
+  const entry = html.match(/<script\b[^>]*src=["']([^"']+)["'][^>]*>/gu) || [];
+  let signInPresent = button;
+  for (const script of entry) {
+    const source = script.match(/src=["']([^"']+)/u)?.[1];
+    if (!source) continue;
+    const assetURL = new URL(source, adminURL);
+    if (assetURL.origin !== new URL(adminURL).origin) continue;
+    const asset = await fetchImpl(assetURL.href, options);
+    if (asset.ok && /keeper-google/u.test(await asset.text())) signInPresent = true;
+  }
+  if (!signInPresent) throw new Error('ADMIN SIGN-IN MISSING: the page and its entry scripts contain no Google sign-in button.');
   const version = await fetchImpl(adminVersionURL + '?t=' + now(), options);
   if (!version.ok) throw new Error(`ADMIN VERSION MISSING: ${adminVersionURL} returned HTTP ${version.status}.`);
   const metadata = await version.json();

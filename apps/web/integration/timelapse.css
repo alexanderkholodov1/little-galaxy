@@ -48,8 +48,9 @@ body[data-replay="true"] #galaxyVisits{
 }
 body[data-recorded="true"] #galaxyVisits .credits-link,
 body[data-replay="true"] #galaxyVisits .credits-link{position:static;margin:0}
-body[data-recorded="true"] .home-footer .credits,
-body[data-replay="true"] .home-footer .credits{
+#openNav{position:absolute;z-index:2;top:calc(88px + var(--st));left:14px;display:flex;gap:8px;align-items:center;pointer-events:auto}
+#openNav .credits-link,#openNav .sys-btn{position:static;margin:0}
+.home-footer .credits{
   position:fixed;z-index:40;top:calc(144px + var(--st));left:14px;right:auto;bottom:auto;
   width:min(480px, calc(100% - 28px));margin:0;
 }

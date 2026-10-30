@@ -5,7 +5,7 @@ Collective Galaxy (Galaxia Colectiva) is a shared 3D galaxy that visitors build 
 **[Open the galaxy](https://alexanderkholodov.web.app/galaxy/)** ·
 **[Create an object](https://alexanderkholodov.web.app/galaxy/create)** ·
 **[Booth screen](https://alexanderkholodov.web.app/galaxy/screen)** ·
-**[Keeper admin](https://little-galaxy.firebaseapp.com/little-galaxy/admin)**
+**[Keeper admin](https://alexanderkholodov.web.app/little-galaxy/admin)**
 
 ## Try it at the fair
 
@@ -14,7 +14,7 @@ Collective Galaxy (Galaxia Colectiva) is a shared 3D galaxy that visitors build 
 3. Find your object on the shared screen. Edit it live, try the aurora/comet/shooting-star controls when enabled, and tap **Enable sound** to hear it.
 4. Open your object record and create a postcard to keep its return link. The hangar retains your earlier objects for relaunch.
 
-Visitors land in an open shared sandbox: design a body, pull back and release it, and everyone sees it join the sky. A separate link explains and opens the original Be A Dragon 2026 fair galaxy and its timelapse. A normal browser tab preserves your workshop draft when storage is available.
+Visitors land in the shared Open Galaxy: design a body, pull back and release it, and everyone sees it join the sky. A separate link explains and opens the original Be A Dragon 2026 fair galaxy and its timelapse. A normal browser tab preserves your workshop draft when storage is available.
 
 ## Views from the application
 
@@ -38,7 +38,7 @@ flowchart LR
   Portfolio --> Hosting["Firebase Hosting · /galaxy/"]
 ```
 
-The phone and screen share deterministic orbital math and validated schemas. Phones maintain 16 live sky shards atomically with their object writes. Home and Screen listen directly, even with both stands off. A leased stand on Beacon or its laptop backup maintains archives and legacy snapshots without Cloud Functions; the project uses Firebase’s Spark tier. Deny-by-default rules enforce ownership, write budgets and operator switches. Only the portfolio deploys the complete public site; the data project Hosting serves only the keeper admin.
+The phone and screen share deterministic orbital math and validated schemas. Phones maintain 16 live sky shards atomically with their object writes. Home and Screen listen directly, even with both stands off. A leased stand on Beacon or its laptop backup maintains archives and legacy snapshots without Cloud Functions; the project uses Firebase’s Spark tier. Deny-by-default rules enforce ownership, write budgets and operator switches. Only the portfolio deploys the complete public site; the data project Hosting serves no game content and retains only Firebase’s reserved authentication helper. The keeper signs in through a Google popup using the game’s Firebase Auth instance.
 
 ## Quality evidence
 
@@ -216,7 +216,10 @@ GitHub runs this same command in one job, retaining rehearsal verdicts on `rehea
 Run `pnpm accept` for the built-client phone/laptop and EN/ES journeys: public production reads
 for the original fair, isolated emulators for launches, current physics and keeper administration.
 Its private export and screenshots stay in `.tmp/`; results are `.tmp/accept-<sha>.json`.
-CI has no preview, browser or emulator jobs. Local acceptance is the journey evidence.
+The checked artifact is deployed to a seven-day `pr-<number>` preview for same-repository PRs.
+One updated PR comment links it and warns that it uses production data; Google admin sign-in
+is unavailable on preview domains. `pnpm accept:live <preview-url>` rehearses a real launch
+with server-side admin cleanup when authorized. Local acceptance remains the full journey evidence.
 
 On Windows the rules, UI and live-safety runners keep an emulator owner alive until the suite ends,
 then stop its full process tree with `taskkill /PID <pid> /T /F`, including after errors or Ctrl+C.
@@ -229,7 +232,10 @@ resumes the release; it never silently skips shipping changes. The guard verifie
 numeric milestone line, main first-parent history and increasing version precedence. The build passes `RELEASE_TAG` through Turbo into Vite to
 stamp the runtime and `version.json`, independently of package.json. It builds with the production
 public config and privacy gate, packs `galaxy-dist-<tag>.tar.gz`, and attaches `version.json` and
-`SHA256SUMS`. The `little-galaxy-rules` environment deploys rules and indexes with the current galaxy migration and season
+`SHA256SUMS`. First, a seven-day `release-<tag>` preview channel must serve that exact
+artifact and pass an anonymous launch observed by a second browser, followed by admin removal.
+Probe history remains in the production database. Only on pass does the
+`little-galaxy-rules` environment deploy rules and indexes with the current galaxy migration and season
 restoration directly after the merge: it only restricts deployment to `main` and `v*` tags and has no manual
 reviewer (owner decision 2026-10-27). No PR tests run again during release.
 
@@ -238,8 +244,8 @@ with the exact tag to the portfolio using `PORTFOLIO_DISPATCH_TOKEN`. Publicatio
 `https://alexanderkholodov.web.app/little-galaxy/version.json` with cache bypass, every five seconds
 for at most eight minutes. Only the exact released commit and stamped version succeed; HTTP errors,
 stale metadata and missing dispatch/deployment fail with **RELEASE NOT LIVE** and a recovery message.
-After that client is verified live, the release idempotently creates/selects an open current-kernel
-sandbox. Frozen histories and identities remain unchanged. Only the portfolio deploys the public production Hosting and performs Hosting rollback; see the
+After that client is verified live, the release idempotently creates/selects a current-kernel
+Open Galaxy. Frozen histories and identities remain unchanged. Only the portfolio deploys the public production Hosting and performs Hosting rollback; see the
 [release/rollback runbook](docs/RUNBOOK.md#7-emergency-rollback-procedure).
 
 The privacy gate is part of `pnpm run build`. It scans every output file, gunzips `.gz` output, decodes

@@ -20,7 +20,12 @@ export async function seedAcceptance(docs){
   await db.doc('config/admins').set({emails:['captain@example.test',...['phone','laptop'].flatMap(profile=>['en','es'].map(lang=>`captain-${profile}-${lang}@example.test`))]});
   const window=quotaWindow(Date.now());await db.doc(`quotaWindows/${window.id}`).set(window);
   const before=JSON.stringify((await db.doc('galaxies/bad-2026').get()).data());
-  const id=await ensureOpenSandbox(db),again=await ensureOpenSandbox(db);if(id!==again)throw new Error('Release setup is not idempotent');
+  // Force actual provisioning rather than reusing an exported production sandbox.
+  await db.doc('config/live').update({activePublicGalaxyId:'bad-2026'});
+  const provisionedAt=Date.now()-36*3600000;
+  const id=await ensureOpenSandbox(db,provisionedAt),again=await ensureOpenSandbox(db);if(id!==again)throw new Error('Release setup is not idempotent');
+  const head=(await db.doc(`galaxies/${id}/control/head`).get()).data();
+  if(head.sequence!==0||head.window===window.id||Date.now()-head.bucketSlot*2000<35*3600000)throw new Error('Long-gap sandbox fixture is not aged across a quota window');
   if(before!==JSON.stringify((await db.doc('galaxies/bad-2026').get()).data()))throw new Error('Release setup changed the record');
   const physics=await proveCurrentGalaxy(db,docs);return {id,physics};
  }finally{await db.terminate();await deleteApp(app);}

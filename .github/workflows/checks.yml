@@ -35,7 +35,18 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install Chromium for the EasyList rendering gate
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Prepare verified frozen records for the checked build
+        run: pnpm prepare:records
       - run: pnpm check
+      - name: Upload the checked client for preview
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: galaxy-dist
+          path: apps/web/dist
+          if-no-files-found: error
+          retention-days: 7
       - name: Record rehearsal verdict
         if: ${{ always() && inputs.rehearsal }}
         run: |

@@ -9,7 +9,7 @@ export const liveVersionURL = 'https://alexanderkholodov.web.app/little-galaxy/v
 export async function waitForLiveVersion(commit, {
   fetchVersion = fetch, sleep = delay, now = Date.now,
   timeoutMs = 480000, intervalMs = 5000, log = console.log,
-  tag,
+  tag, versionURL = liveVersionURL, label = 'Production',
 } = {}) {
   if (!/^[a-f0-9]{40}$/u.test(commit || '')) throw new Error('A full released commit SHA is required.');
   if (tag) validateReleaseTag(tag);
@@ -17,7 +17,7 @@ export async function waitForLiveVersion(commit, {
   let last;
   do {
     try {
-      const response = await fetchVersion(liveVersionURL + '?released=' + commit + '&t=' + now(), {
+      const response = await fetchVersion(versionURL + '?released=' + commit + '&t=' + now(), {
         cache: 'no-store', headers: { 'Cache-Control': 'no-cache' },
         signal: AbortSignal.timeout(Math.max(1, Math.min(10000, deadline - now()))),
       });
@@ -25,18 +25,18 @@ export async function waitForLiveVersion(commit, {
       else {
         const metadata = await response.json();
         if (metadata.commit === commit && (!tag || metadata.version === tag.slice(1))) {
-          log('Production confirms ' + (tag ? tag + ' at ' : 'released commit ') + commit + '.');
+          log(label + ' confirms ' + (tag ? tag + ' at ' : 'released commit ') + commit + '.');
           return;
         }
         last = 'served commit ' + String(metadata.commit ?? 'missing') + ', version ' + String(metadata.version ?? 'missing');
       }
     } catch (error) { last = error.message; }
-    log('Waiting for production: ' + last);
+    log('Waiting for ' + label + ': ' + last);
     const remaining = deadline - now();
     if (remaining <= 0) break;
     await sleep(Math.min(intervalMs, remaining));
   } while (now() < deadline);
-  throw new Error('RELEASE NOT LIVE: ' + liveVersionURL + ' did not report ' + commit + ' within ' + timeoutMs / 1000 + 's (' + last + '). Inspect the portfolio galaxy-release workflow and re-run the release after recovery.');
+  throw new Error('RELEASE NOT LIVE: ' + versionURL + ' did not report ' + commit + ' within ' + timeoutMs / 1000 + 's (' + last + '). Inspect the portfolio galaxy-release workflow and re-run the release after recovery.');
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {

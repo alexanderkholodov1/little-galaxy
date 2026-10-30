@@ -5,13 +5,13 @@ const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 
 it('runs the same fast local check in a single CI job, retaining rehearsal verdicts', async () => {
   const ci=await read('.github/workflows/ci.yml'), checks=await read('.github/workflows/checks.yml');
-  expect(ci).not.toContain('preview:');expect(checks).not.toContain('playwright');expect(checks).not.toContain('test:rules');
+  expect(ci).toContain('preview:');expect(ci).toContain('needs: check');expect(ci).toContain('pull-requests: write');expect(ci).toContain('channelId: pr-${{ github.event.pull_request.number }}');expect(checks).toContain('name: galaxy-dist');expect(checks).toContain('playwright install --with-deps chromium');expect(checks).not.toContain('test:rules');
   expect(checks).toContain('run: pnpm check');expect(checks).toContain('verdict.json');expect(ci).toContain("branches: ['rehearsal/**']");
 });
 
 it('publishes alpha releases as prereleases then dispatches the exact tag to portfolio', async () => {
   const workflow = await read('.github/workflows/release.yml');
-  expect(workflow).toContain('needs: [guard, build, deploy-rules]');
+  expect(workflow).toContain('needs: [guard, build, candidate, deploy-rules]');
   expect(workflow).toContain('options+=(--prerelease --latest=false)');
   expect(workflow).toContain('--arg tag "$RELEASE_TAG"');
   expect(workflow).toContain('{event_type: "galaxy-release", client_payload: {tag: $tag}}');
@@ -62,13 +62,16 @@ it('passes the release tag through Turbo to Vite and confirms production with th
 
 });
 
-it('deploys and probes the data project\'s admin Hosting before rules deployment',async()=>{
+it('disables data Hosting, preserves its auth helper and probes the admin after portfolio is live',async()=>{
  const workflow=await read('.github/workflows/release.yml');
  const deploy=workflow.split('\n  deploy-rules:')[1];
- expect(deploy).toContain('firebase deploy --only hosting --project');
- expect(deploy).toContain('node scripts/verify-admin-release.mjs');
- expect(deploy.indexOf('firebase deploy --only hosting')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
- expect(deploy.indexOf('node scripts/verify-admin-release.mjs')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
+ expect(workflow).not.toContain('firebase deploy --only hosting');
+ expect(deploy).toContain('firebase hosting:disable --site little-galaxy --project little-galaxy --force');
+ expect(deploy).toContain('node scripts/verify-disabled-hosting.mjs');
+ expect(deploy.indexOf('hosting:disable')).toBeLessThan(deploy.indexOf('src/index.ts release-sky'));
+ const publish=workflow.split('\n  publish:')[1].split('\n  deploy-rules:')[0];
+ expect(publish.indexOf('node scripts/verify-admin-release.mjs')).toBeGreaterThan(publish.indexOf('node scripts/verify-live-version.js'));
+ expect(JSON.parse(await read('firebase.json'))).not.toHaveProperty('hosting');
 });
 it('selects a new-kernel sandbox only after its matching production client is live',async()=>{
  const workflow=await read('.github/workflows/release.yml');
@@ -77,4 +80,19 @@ it('selects a new-kernel sandbox only after its matching production client is li
  expect(publish.indexOf('Confirm the released commit')).toBeLessThan(publish.indexOf('src/index.ts open-sandbox'));
  expect(publish).toContain('Remove sandbox credentials');
  expect(workflow.split('\n  deploy-rules:')[1]).not.toContain('open-sandbox');
+});
+
+it('deploys the released rules, then gates live publication on the exact candidate launch and always cleans before dropping credentials',async()=>{
+ const workflow=await read('.github/workflows/release.yml');
+ const candidate=workflow.split('\n  candidate:')[1].split('\n  publish:')[0];
+ expect(candidate).toContain('node scripts/verify-preview-version.mjs');
+ expect(candidate.indexOf('node scripts/verify-preview-version.mjs')).toBeLessThan(candidate.indexOf('pnpm accept:live'));
+ expect(candidate).toContain('pnpm accept:live "$PREVIEW_URL"');expect(candidate).toContain('LIVE_PROBE_REPORT: .tmp/release-launch.json');
+ expect(candidate).toContain("if: always() && steps.credentials.outcome == 'success'");
+ expect(candidate.indexOf('scripts/cleanup-live-probe.mjs')).toBeLessThan(candidate.indexOf('Remove probe credentials'));
+ expect(candidate).not.toContain('path: .tmp/live-launch-private.json');expect(candidate).not.toContain('open-sandbox');
+ expect(candidate).not.toContain('pnpm run build');expect(candidate).toContain('sha256sum --check SHA256SUMS');
+ expect(workflow.split('\n  deploy-rules:')[1]).toContain('needs: [guard, build]');
+ expect(candidate).toContain('needs: [guard, build, deploy-rules]');
+ expect(workflow.split('\n  publish:')[1]).toContain('needs: [guard, build, candidate, deploy-rules]');
 });

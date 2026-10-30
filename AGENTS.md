@@ -14,9 +14,10 @@
 3. **Commits authored as the operator; no AI co-author trailers.** History states what the change
    delivers — no process narration, no "as requested", no apologies.
 4. **English** in code, comments, docs, commits. English is the primary UI language; Spanish secondary.
-5. **This repo never deploys the portfolio's Hosting; it deploys only the data project's own Hosting
-   site (the admin).** Portfolio production goes through an exact-tag `galaxy-release` dispatch (a
-   Hosting deploy replaces the whole site).
+5. **This repo never deploys live portfolio Hosting or game content to the data project's Hosting.**
+   Seven-day portfolio-project preview channels are allowed for PRs and release candidates (operator decision 2026-10-28).
+   Portfolio production, including the admin, goes through an exact-tag `galaxy-release` dispatch.
+   Release disables data-site content and verifies Firebase's reserved auth helper remains available.
 6. **Secrets:** the data project's admin key is server-side only (`apps/stand`), used by path via
    `GOOGLE_APPLICATION_CREDENTIALS`; never printed, committed or bundled. A privacy test gates the
    build. The web Firebase config is public by design.

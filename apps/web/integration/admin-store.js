@@ -1,5 +1,7 @@
 import './uuid.js';
-import {GoogleAuthProvider,getRedirectResult,signOut,signInWithRedirect} from 'firebase/auth';
+import {visitorBodies,visitorBodyCount} from './admin-bodies.js';
+import {displayGalaxyName} from './galaxy-name.js';
+import {GoogleAuthProvider,signOut,signInWithPopup} from 'firebase/auth';
 import {auth} from '../src/firebase.ts';
 import {initialGalaxy,canonicalHash,createGalaxyStore} from '@little-galaxy/shared';
 import {openSession} from './session.js';
@@ -39,7 +41,7 @@ export function createAdminStore(){
     backend=await openSession({admin:true});
     // This read is protected by bAdmin(), including verified provider/email + the private allowlist.
     try{await backend.driver.get(`galaxies/${backend.selection.activePublicGalaxyId}/adminActions/permission-probe`);}
-    catch(error){backend=null;throw new Error('This Google account is not on the keeper’s allowlist.',{cause:error});}
+    catch(error){backend=null;throw new Error(error.code==='permission-denied'?'This Google account is not on the keeper’s allowlist. Sign out and choose an invited Google account.':'Could not check administrator access. Check your connection and try signing in again.',{cause:error});}
     clear();stopCertifying();
     const session=backend;
     certifier=createCertifier({driver:session.driver,now:session.clock.now,load:(id,mode)=>session.store.loadGalaxy(id,mode)});
@@ -50,15 +52,15 @@ export function createAdminStore(){
   // Saves a verified sky up to the current tick, replaying only the time since the previous save.
   const certify=id=>certifier.certify(id);
   const S={
-    async signIn(){
+    signIn(){
       if(!auth)throw new Error('Connect this observatory to Firebase first.');
       provider.setCustomParameters({prompt:'select_account'});
-      return signInWithRedirect(auth,provider);
+      return signInWithPopup(auth,provider).then(()=>authorize());
     },
     async resume(){
       if(!auth)throw new Error('Connect this observatory to Firebase first.');
-      const result=await getRedirectResult(auth);
-      if(!result?.user&&!auth.currentUser)return false;
+      await auth.authStateReady();
+      if(!auth.currentUser||auth.currentUser.isAnonymous)return false;
       await authorize();return true;
     },
     async signOut(){stopCertifying();backend=null;certifier=null;clear();await signOut(auth);},
@@ -66,7 +68,7 @@ export function createAdminStore(){
       if(!backend)throw new Error('Sign in to open the ledger.');
       if(!galaxies)galaxies=await backend.store.listGalaxies();
       return Promise.all(galaxies.map(async g=>{
-        const loaded=await full(g.id);return {...g,state:g.status==='active'?'open':g.status,lore:g.id,bodies:loaded.head.bodies,players:'—'};
+        const loaded=await full(g.id);return {...g,name:displayGalaxyName(g.name,typeof document==='undefined'?'en':document.documentElement.lang),state:g.status==='active'?'open':g.status,lore:g.id,bodies:visitorBodyCount(loaded),players:'—'};
       }));
     },
     async canCreate(){const account=await backend.driver.get(`galaxyAccounts/${auth.currentUser.uid}`);return (account?.ids.length??0)<3;},
@@ -78,7 +80,7 @@ export function createAdminStore(){
     async freeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'frozen'});clear();await certify(id);return 'status.frozenCertified';},
     async unfreeze(id){const g=(await full(id)).galaxy;await backend.store.admin.update(id,g.generation,{status:'active',writePolicy:'public'});clear();},
     async archive(id){const g=(await full(id)).galaxy;await S.backup(id);await backend.store.admin.update(id,g.generation,{status:'archived'});clear();return 'status.historyRetained';},
-    admin:{async select(id,target){await backend.store.admin.select(id,target);backend.selection={...backend.selection,[target]:id};}},
+    admin:{async select(id,target){if(target!=='activePublicGalaxyId')throw new Error('Invalid target');await backend.store.admin.select(id,target);backend.selection={...backend.selection,[target]:id};}},
     async backup(id){
       const payload=await full(id),sha256=await canonicalHash(payload);
       const text=JSON.stringify({schemaVersion:1,payload,sha256},null,2);
@@ -86,13 +88,12 @@ export function createAdminStore(){
       const filename=`${id}-${sha256.slice(0,12)}.json`;
       const link=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type:'application/json'}));
       link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-      exports.set(id,[{id:sha256,createdAt:backend.clock.now(),bodies:payload.head.bodies}]);return sha256;
+      exports.set(id,[{id:sha256,createdAt:backend.clock.now(),bodies:visitorBodyCount(payload)}]);return sha256;
     },
     async listBackups(id){return exports.get(id)||[];},
     async listBodies(id,{query='',offset=0,limit=40}={}){
-      const loaded=await full(id),bodies=new Map(loaded.genesis.map(b=>[b.id,{...b,name:b.id,byName:b.displayName}]));
-      for(const a of loaded.actions){const i=a.intent;if(i.type==='launch')bodies.set(i.id,{id:i.id,name:i.id,kind:i.kind,design:i.design,byName:a.displayName});else if(i.type==='remove')bodies.delete(i.bodyId);else if(bodies.has(i.bodyId))bodies.get(i.bodyId).design=i.design;}
-      const items=[...bodies.values()].filter(b=>JSON.stringify(b).toLowerCase().includes(query.toLowerCase()));return {items:items.slice(offset,offset+limit),total:items.length};
+      const loaded=await full(id);
+      const items=visitorBodies(loaded).filter(b=>JSON.stringify(b).toLowerCase().includes(query.toLowerCase()));return {items:items.slice(offset,offset+limit),total:items.length};
     },
     async deleteBody(id,bodyId){return S.deleteBodies(id,[bodyId]);},
     async deleteBodies(id,ids){
@@ -109,7 +110,7 @@ export function createAdminStore(){
       const out=summarizeMembers(records,now,galaxyId);out.members=records.map(m=>({...m,active:m.lastSeen>=now-300000&&m.lastSeen<=now}));
       const days=new Map();out.hours=Array(24).fill(0);out.types={};
       for(const g of chosen){
-        const loaded=await full(g.id);out.bodiesByGalaxy.push({id:g.id,name:g.name,bodies:loaded.head.bodies});
+        const loaded=await full(g.id);out.bodiesByGalaxy.push({id:g.id,name:g.name,bodies:visitorBodyCount(loaded)});
         for(const a of loaded.actions){if(a.intent.type!=='launch')continue;const date=new Date(a.acceptedAt).toISOString().slice(0,10);
           if(from&&date<from||to&&date>to)continue;days.set(date,(days.get(date)||0)+1);out.types[a.intent.kind]=(out.types[a.intent.kind]||0)+1;out.hours[new Date(a.acceptedAt).getUTCHours()]++;}
       }

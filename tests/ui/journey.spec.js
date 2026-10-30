@@ -106,9 +106,9 @@ test('Google sign-in refuses an account outside the keeper allowlist', async ({ 
   await localOnly(context);
   await page.goto('/little-galaxy/admin');
   await googleSignIn(page, 'visitor@example.test');
-  await expect(page.locator('.ad-gate [role="alert"]')).toContainText('This Google account is not on the keeper’s allowlist.');
-  await expect(page.locator('#ad-google')).toBeVisible();
-  await expect(page.locator('#ad-tab-galaxies')).toHaveCount(0);
+  await expect(page.locator('.keeper-gate [role="alert"]')).toContainText('This Google account is not on the keeper’s allowlist.');
+  await expect(page.locator('#keeper-google')).toBeVisible();
+  await expect(page.locator('#keeper-tab-galaxies')).toHaveCount(0);
 });
 
 test('an allowlisted keeper sees the galaxy and membership dashboard', async ({ page, context }) => {
@@ -117,15 +117,15 @@ test('an allowlisted keeper sees the galaxy and membership dashboard', async ({ 
   await page.goto('/little-galaxy/admin');
   await googleSignIn(page, 'captain@example.test');
   await expect(page.locator('[data-galaxy="' + id + '"]')).toBeVisible();
-  await page.locator('#ad-tab-metrics').click();
-  await expect(page.locator('.ad-readings')).toContainText('Players');
-  await expect(page.locator('.ad-note').filter({ hasText: 'Visits and cosmetic throws are not collected' })).toBeVisible();
+  await page.locator('#keeper-tab-metrics').click();
+  await expect(page.locator('.keeper-readings')).toContainText('Players');
+  await expect(page.locator('.keeper-note').filter({ hasText: 'Visits and cosmetic throws are not collected' })).toBeVisible();
 });
 
-test('the booth renders the selected galaxy, follows a new selection and shows its join QR', async ({ page, context }) => {
+test('the screen renders the active public galaxy, follows a new selection and shows its join QR', async ({ page, context }) => {
   const first = await seedGalaxy();
   const second = await seedGalaxy();
-  await withDatabase(db => db.doc('config/live').update({ boothGalaxyId: first }));
+  await withDatabase(db => db.doc('config/live').update({ activePublicGalaxyId: first, boothGalaxyId: second }));
   await localOnly(context);
   const writes = [];
   page.on('request', request => {
@@ -137,7 +137,7 @@ test('the booth renders the selected galaxy, follows a new selection and shows i
   await expect(page.locator('#boothJoin')).toHaveAttribute('href', /\/little-galaxy\/$/u);
   await expect(page.locator('#boothJoin svg')).toBeVisible();
   await expect(page.locator('#boothJoin svg path')).toHaveAttribute('d', /M/u);
-  await withDatabase(db => db.doc('config/live').update({ boothGalaxyId: second }));
+  await withDatabase(db => db.doc('config/live').update({ activePublicGalaxyId: second }));
   await expect(page.locator('body')).toHaveAttribute('data-galaxy', second);
   await expect(page.locator('body')).toHaveAttribute('data-sky-ready', 'true');
   await expect(page.locator('#boothJoin svg')).toBeVisible();

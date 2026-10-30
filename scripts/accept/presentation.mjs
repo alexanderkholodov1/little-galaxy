@@ -1,4 +1,4 @@
-/* global document, getComputedStyle, NodeFilter, window */
+/* global document, getComputedStyle, NodeFilter, requestAnimationFrame, window */
 import {inflateSync} from 'node:zlib';
 import {expect} from '@playwright/test';
 import core from '../../apps/web/js/strings/core.js';
@@ -138,6 +138,10 @@ export async function assertProductType(page, state) {
 
 // A disc under 4px is the finding-chart pinprick. Sandbox bodies already clear this.
 export async function assertReadableBodies(page, state) {
+  // Measure what is on screen: bodies created by a state that arrived before the first drawn frame have no drawn
+  // size yet (2026-10-29: an un-drawn timelapse state measured 1.2 px; two frames later every body was >= 4.3 px).
+  await page.waitForFunction(() => document.body.dataset.galaxyDrawn === 'true', null, {timeout: 30000});
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   const detail = await page.evaluate(() => {
     const count = Number(document.querySelector('#countN')?.textContent || 0);
     const radii = typeof window.__galaxyDiscs === 'function' ? window.__galaxyDiscs() : null;

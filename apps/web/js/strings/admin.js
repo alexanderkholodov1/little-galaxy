@@ -3,8 +3,8 @@ export const es = {
  'admin.gate':'Administrar las galaxias', 'admin.pass':'Frase de acceso', 'admin.enter':'Abrir observatorio', 'admin.wrong':'La frase no coincide.',
  'admin.galaxies':'Galaxias', 'admin.bodies':'Cuerpos', 'admin.metrics':'Métricas', 'admin.logout':'Cerrar sesión', 'admin.lang.en':'EN', 'admin.lang.es':'ES', 'admin.lang.en.aria':'English', 'admin.lang.es.aria':'Español', 'admin.create':'Nueva galaxia',
  'admin.intro':'Cada encuentro, su propia galaxia.', 'admin.introText':'Empieza una galaxia nueva para la feria. La anterior conserva sus astros y su historia.',
- 'admin.name':'Nombre', 'admin.lore':'Historia', 'admin.cancel':'Cancelar', 'admin.save':'Crear galaxia', 'admin.active':'Juego público', 'admin.booth':'Pantalla de feria',
- 'admin.setActive':'Abrir al público', 'admin.setBooth':'Mostrar en feria', 'admin.freeze':'Congelar', 'admin.unfreeze':'Reabrir', 'admin.archive':'Archivar', 'admin.backup':'Respaldar', 'admin.restore':'Restaurar', 'admin.clear':'Vaciar',
+ 'admin.name':'Nombre', 'admin.lore':'Historia', 'admin.cancel':'Cancelar', 'admin.save':'Crear galaxia', 'admin.active':'Juego público',
+ 'admin.setActive':'Abrir al público', 'admin.freeze':'Congelar', 'admin.unfreeze':'Reabrir', 'admin.archive':'Archivar', 'admin.backup':'Respaldar', 'admin.restore':'Restaurar', 'admin.clear':'Vaciar',
  'admin.open':'Abierta', 'admin.frozen':'Congelada', 'admin.archived':'Archivada', 'admin.players':'Jugadores', 'admin.backups':'Respaldos', 'admin.noBackups':'Sin respaldos',
  'admin.search':'Buscar nombre, autor, tipo o ID', 'admin.selectGalaxy':'Elige una galaxia', 'admin.delete':'Retirar', 'admin.deleteSelected':'Retirar selección', 'admin.selected':'seleccionados', 'admin.all':'Seleccionar página',
  'admin.previous':'Anterior', 'admin.next':'Siguiente', 'admin.empty':'Todavía no hay registros.', 'admin.author':'Autor', 'admin.type':'Tipo', 'admin.anonymous':'Anónimos',
@@ -23,7 +23,7 @@ export const en = {
  'admin.title':'Little Galaxy', 'admin.subtitle':'Observatory · local administration', 'admin.local':'Local prototype · this gate does not protect a real database.',
  'admin.gate':'Galaxy administration', 'admin.pass':'Passphrase', 'admin.enter':'Open observatory', 'admin.wrong':'That passphrase does not match.',
  'admin.galaxies':'Galaxies', 'admin.bodies':'Bodies', 'admin.metrics':'Metrics', 'admin.logout':'Sign out', 'admin.lang.en':'EN', 'admin.lang.es':'ES', 'admin.lang.en.aria':'English', 'admin.lang.es.aria':'Español', 'admin.create':'New galaxy', 'admin.intro':'A galaxy for every gathering.', 'admin.introText':'Start a new galaxy for the fair. The previous one keeps its bodies and its history.',
- 'admin.name':'Name', 'admin.lore':'Story', 'admin.cancel':'Cancel', 'admin.save':'Create galaxy', 'admin.active':'Public play', 'admin.booth':'Fair display', 'admin.setActive':'Open to public', 'admin.setBooth':'Show at fair', 'admin.freeze':'Freeze', 'admin.unfreeze':'Reopen', 'admin.archive':'Archive', 'admin.backup':'Back up', 'admin.restore':'Restore', 'admin.clear':'Empty',
+ 'admin.name':'Name', 'admin.lore':'Story', 'admin.cancel':'Cancel', 'admin.save':'Create galaxy', 'admin.active':'Public play', 'admin.setActive':'Open to public', 'admin.freeze':'Freeze', 'admin.unfreeze':'Reopen', 'admin.archive':'Archive', 'admin.backup':'Back up', 'admin.restore':'Restore', 'admin.clear':'Empty',
  'admin.open':'Open', 'admin.frozen':'Frozen', 'admin.archived':'Archived', 'admin.players':'Players', 'admin.backups':'Backups', 'admin.noBackups':'No backups', 'admin.search':'Search name, author, type or ID', 'admin.selectGalaxy':'Choose a galaxy', 'admin.delete':'Remove', 'admin.deleteSelected':'Remove selection', 'admin.selected':'selected', 'admin.all':'Select page', 'admin.previous':'Previous', 'admin.next':'Next', 'admin.empty':'No records yet.', 'admin.author':'Author', 'admin.type':'Type', 'admin.anonymous':'Anonymous', 'admin.undo':'Undo', 'admin.removed':'Bodies removed. Undo is available for 30 s.', 'admin.expired':'The undo window has ended.', 'admin.backupId':'Verified backup', 'admin.done':'Done.',
  'admin.danger':'Before changing this galaxy', 'admin.warning':'A local backup will be taken and verified before proceeding. The source is retained; a backup in this browser is not an external copy.', 'admin.clearExplain':'All {count} bodies in “{name}” ({id}) will be removed. The galaxy will be empty. You can create another galaxy to start fresh.', 'admin.restoreExplain':'The {count} current bodies in “{name}” ({id}) will be replaced with backup {backup}. Current lifecycle and selections will be kept.', 'admin.archiveExplain':'“{name}” ({id}), with {count} bodies, will be archived and closed to new launches. Bodies will remain stored.', 'admin.deleteExplain':'{count} bodies in “{name}” ({id}) will receive reversible removal marks. Their data is retained. Undo is available for 30 s.', 'admin.typeName':'Type the exact galaxy name', 'admin.hold':'Hold 3 s and release to confirm', 'admin.holding':'Keep holding…', 'admin.release':'Release to confirm', 'admin.holdHelp':'Mouse or touch: hold and release. Keyboard: hold Space and release. Enter does not confirm.', 'admin.stale':'The galaxy changed. Open confirmation again.',
  'admin.metricIntro':'Footprints around the fire.', 'admin.metricNote':'Approximate visits and galaxy memberships, not unique people. Activity sampled over 5 min. UTC hours. Player and activity totals are current; the range filters visits, launches and tosses.', 'admin.invalidRange':'The start date must be on or before the end date.', 'admin.from':'From', 'admin.to':'To', 'admin.apply':'Apply', 'admin.everyGalaxy':'All galaxies', 'admin.visits':'Visits', 'admin.registered':'Players · named + anonymous', 'admin.now':'Active · 5 min', 'admin.today':'Active today', 'admin.week':'Active this week', 'admin.launches':'Launches', 'admin.tosses':'Tosses', 'admin.named':'Named', 'admin.last14':'Launches · last 14 days', 'admin.byType':'By type', 'admin.byHour':'By hour · UTC', 'admin.top':'Top launchers · grouped names', 'admin.busy':'Busiest hour', 'admin.alive':'Bodies present', 'admin.playerList':'Players · first and last activity', 'admin.first':'First seen', 'admin.last':'Last seen', 'admin.activity':'Activity', 'admin.online':'Active', 'admin.offline':'Inactive', 'admin.refresh':'Refresh', 'admin.limit':'Maximum 3 local galaxies. Gentle mode. Destructive simulation and timelapse are not available on this page.', 'admin.error':'Could not complete: {message}'
@@ -63,3 +63,24 @@ Object.assign(en, {
     'admin.freezeTitle':'¿Congelar “{name}”?',
     'admin.freezeConfirm':'“{name}” queda de solo lectura: nadie puede lanzar, editar ni retirar cuerpos hasta que la reabras. Luego se certifica su cielo. Los visitantes aún pueden mirarla.'
   });
+
+Object.assign(en, {
+ 'admin.checkingSession':'Checking your session. Please wait; the sign-in controls will appear here.',
+ 'admin.signingIn':'Complete Google sign-in in the popup. If it is closed, try again.',
+ 'admin.popupBlocked':'Your browser blocked the Google sign-in popup. Allow popups for this site, then try again.',
+ 'admin.popupClosed':'The Google sign-in popup was closed. Press Sign in with Google to try again.',
+ 'admin.networkError':'Google sign-in could not connect. Check your internet connection, then try again.',
+ 'admin.permissionDenied':'Administrator access was denied. Sign out and choose an invited Google account.',
+ 'admin.domainError':'Google sign-in is unavailable on this address. Open the admin on the game’s own address and try again.',
+ 'admin.retry':'Check your connection and try again, or sign out and choose an invited Google account.'
+});
+Object.assign(es, {
+ 'admin.checkingSession':'Comprobando tu sesión. Espera; los controles de acceso aparecerán aquí.',
+ 'admin.signingIn':'Completa el acceso con Google en la ventana emergente. Si se cierra, vuelve a intentarlo.',
+ 'admin.popupBlocked':'El navegador bloqueó la ventana de Google. Permite ventanas emergentes en este sitio y vuelve a intentarlo.',
+ 'admin.popupClosed':'Se cerró la ventana de Google. Pulsa Entrar con Google para volver a intentarlo.',
+ 'admin.networkError':'No se pudo conectar con Google. Comprueba tu conexión e inténtalo de nuevo.',
+ 'admin.permissionDenied':'Acceso de administrador denegado. Cierra sesión y elige una cuenta de Google invitada.',
+ 'admin.domainError':'Google no está disponible en esta dirección. Abre el administrador en la dirección del juego e inténtalo de nuevo.',
+ 'admin.retry':'Comprueba tu conexión e inténtalo de nuevo, o cierra sesión y elige una cuenta de Google invitada.'
+});

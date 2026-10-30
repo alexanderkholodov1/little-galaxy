@@ -59,13 +59,13 @@ export function createCertifier({driver,now,load}){
   const certify=id=>{const next=queue.then(()=>run(id).catch(error=>{skies.delete(id);throw error;}));queue=next.catch(()=>{});return next;};
   return {certify};
 }
-/** While the keeper page is open, saves the active public and booth skies every ten minutes. */
+/** While the keeper page is open, saves the active public sky every ten minutes. */
 export function scheduleCertification({certify,selection,onError,every=CERTIFY_EVERY}){
   let busy=false;
   const timer=setInterval(async()=>{
     if(busy)return;busy=true;
-    const {activePublicGalaxyId,boothGalaxyId}=selection()??{};
-    for(const id of new Set([activePublicGalaxyId,boothGalaxyId].filter(Boolean))){
+    const {activePublicGalaxyId}=selection()??{};
+    for(const id of [activePublicGalaxyId].filter(Boolean)){
       try{await certify(id);}catch(error){onError(error,id);}
     }
     busy=false;

@@ -1,3 +1,4 @@
+import {displayGalaxyName} from './galaxy-name.js';
 import {recordedStory} from './recorded-stories.js';
 import {getLang, register, setLang, t} from '../js/i18n.js';
 import galaxyStrings from '../js/strings/galaxy.js';
@@ -18,7 +19,7 @@ export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
   scrim=document.createElement('div');scrim.id='recordScrim';
   dialog=document.createElement('dialog');dialog.id='recordInformation';dialog.setAttribute('aria-labelledby','recordInformationTitle');
   const g=store.loaded().galaxy,story=recordedStory(g.id,say);
-  const title=document.createElement('h2');title.id='recordInformationTitle';title.textContent=story?.title??g.name;dialog.append(title);
+  const title=document.createElement('h2');title.id='recordInformationTitle';title.textContent=story?.title??displayGalaxyName(g.name,getLang());dialog.append(title);
   for(const text of story?.paragraphs??[say('record.fallback')]){const p=document.createElement('p');p.textContent=text;dialog.append(p);}
   const close=document.createElement('button');close.type='button';close.id='recordInformationClose';close.className='pill glass';close.textContent=say('record.close');close.onclick=()=>dialog.close();dialog.append(close);
   const shut=()=>{scrim?.remove();nav.hidden=false;};
@@ -29,6 +30,11 @@ export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
   const a=document.createElement('a');a.className='pill glass sky-back';a.id=id;a.href=href;a.setAttribute('aria-label',aria);
   a.innerHTML='<svg aria-hidden="true"><use href="#i-back"/></svg>';
   const span=document.createElement('span');span.textContent=label;a.append(span);return a;
+ }
+ function openRow(){
+  let row=document.getElementById('openNav');
+  if(!row){row=document.createElement('nav');row.id='openNav';(document.querySelector('.layer[data-layer="home"]')||document.getElementById('hud')).append(row);}
+  return row;
  }
  function render(){
   const author=document.getElementById('btnCredits');
@@ -51,14 +57,15 @@ export function galaxyVisits({store,replayMode,base=import.meta.env.BASE_URL}){
    }
    nav.append(primary);
   }else{
-   if(author)document.querySelector('.home-footer')?.append(author);
+   // the author sits where the recorded skies show it: the top-left row, after the galaxy's own controls
+   if(author)openRow().append(author);
    for(const g of recordings){
     const a=document.createElement('a');a.className='galaxyVisit';a.href=url('',{g:g.id,view:'recorded'});
-    a.textContent=recordedStory(g.id,say)?.visit??say('record.visit',{name:g.name});
+    a.textContent=recordedStory(g.id,say)?.visit??say('record.visit',{name:displayGalaxyName(g.name,getLang())});
     nav.append(a);
    }
   }
  }
  render();store.recordings?.().then(rows=>{recordings=rows;render();}).catch(()=>{});
- return {render,dispose:()=>{dialog?.remove();scrim?.remove();const author=document.getElementById('btnCredits');if(author)document.querySelector('.home-footer')?.append(author);nav.hidden=false;nav.remove();}};
+ return {render,dispose:()=>{dialog?.remove();scrim?.remove();const author=document.getElementById('btnCredits');if(author)document.querySelector('.home-footer')?.append(author);document.getElementById('openNav')?.remove();nav.hidden=false;nav.remove();}};
 }

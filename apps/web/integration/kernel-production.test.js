@@ -12,7 +12,7 @@ import {fairGalaxy,fairActions,fairEpoch} from './fair-fixture.js';
 const session=vi.hoisted(()=>({backend:null}));
 vi.mock('./session.js',()=>({openSession:async()=>session.backend}));
 vi.mock('../src/firebase.ts',()=>({auth:{currentUser:{uid:'operator',email:'captain@example.test',emailVerified:true,providerData:[{providerId:'google.com'}]},authStateReady:async()=>{}}}));
-vi.mock('firebase/auth',()=>({GoogleAuthProvider:class{setCustomParameters(){}},getRedirectResult:vi.fn(async()=>null),signInWithRedirect:vi.fn(),signInWithCredential:vi.fn(),signOut:vi.fn()}));
+vi.mock('firebase/auth',()=>({GoogleAuthProvider:class{setCustomParameters(){}},signInWithPopup:vi.fn(),signInWithCredential:vi.fn(),signOut:vi.fn()}));
 import {createAdminStore} from './admin-store.js';
 afterEach(()=>vi.restoreAllMocks());
 async function fair(driver){

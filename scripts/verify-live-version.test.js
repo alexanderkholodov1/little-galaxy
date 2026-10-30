@@ -38,3 +38,10 @@ it('requires the stamped release version as well as the exact commit when a tag 
   await waitForLiveVersion(commit, { ...options, tag: 'v1.0.0-alpha.20' });
   expect(options.fetchVersion).toHaveBeenCalledTimes(2);
 });
+
+it('pins the candidate channel metadata before allowing the production gate',async()=>{
+ const options=fixture([{commit:'old'},{commit,version:'1.0.0-alpha.20'}]);
+ const versionURL='https://alexanderkholodov--release-v1.web.app/little-galaxy/version.json';
+ await waitForLiveVersion(commit,{...options,tag:'v1.0.0-alpha.20',versionURL,label:'Release preview'});
+ expect(options.fetchVersion.mock.calls.every(([url])=>url.startsWith(versionURL+'?released='))).toBe(true);
+});

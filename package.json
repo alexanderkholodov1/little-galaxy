@@ -23,6 +23,10 @@
     "test:physics": "node tests/prototype/physics.mjs",
     "prepare:records": "node scripts/run-tsx.mjs scripts/prepare-records.mjs",
     "accept": "node scripts/run-tsx.mjs scripts/accept.mjs",
+    "perf:calibrate": "node scripts/calibrate-performance.mjs",
+    "accept:perf": "node scripts/run-tsx.mjs scripts/accept-performance.mjs",
+    "accept:live": "node scripts/run-tsx.mjs scripts/accept-live.mjs",
+    "test:blockers": "node scripts/test-blockers.mjs",
     "check": "node scripts/check.mjs"
   },
   "devDependencies": {

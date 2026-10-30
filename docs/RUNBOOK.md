@@ -426,10 +426,14 @@ to main's first-parent history.
    rerun or later release leaves both config and shards untouched while still
    deploying rules/indexes. The marker is admin-only; clients cannot read or write
    it. Existing objects and seeds remain the source for the first backfill.
-4. Before rules/migration, CI publishes the keeper admin to the data project's own
-   Hosting site and probes it. After rules/migration succeed, CI publishes the
-   checked artifact as a GitHub Release and dispatches its exact tag to portfolio.
-   Portfolio owns the public production Hosting.
+4. Before rules/migration, CI disables content on the data project's Hosting with
+   `firebase hosting:disable --site little-galaxy --project little-galaxy --force`.
+   It requires the old admin URL to return 404/410 without Little Galaxy content and
+   `https://little-galaxy.firebaseapp.com/__/auth/handler` to answer 200. If the helper
+   fails, stop loudly; do not redeploy content there. After rules/migration succeed,
+   CI publishes the artifact and dispatches its exact tag to portfolio. Once that
+   client is live, it probes the admin page, sign-in entry and Google's acceptance
+   of the popup's Firebase return address. Portfolio owns all public game content.
 5. Verify the deployed preview and production Home/Screen on real phones before
    accepting the rollout. Old pre-alpha transactions omit reciprocal shards and
    will be rejected after the new rules; their saved drafts and version watcher
@@ -531,7 +535,7 @@ cover some permissions; the builder has not inspected live IAM.
 | Firebase Rules Admin | `roles/firebaserules.admin` | Compile and publish Firestore rulesets/releases; keep the existing reviewed rules deployment permission. |
 | Firebase Viewer | `roles/firebase.viewer` | Firebase CLI project discovery (`firebase.projects.get`) and read-only API/service checks for the existing Firebase project. |
 | Service Usage Consumer | `roles/serviceusage.serviceUsageConsumer` | Use the data project as the quota project (`serviceusage.services.use`) for the pinned CLI's API checks, which send `x-goog-user-project`. |
-| Firebase Hosting deploy | `firebasehosting.*` (covered by `roles/firebase.sdkAdminServiceAgent`) | Create Hosting releases and deploy the data project's own site, which serves the keeper admin. P0 on 2026-10-28 proved the existing release identity can list sites and deploy a preview channel. |
+| Firebase Hosting deploy | `firebasehosting.*` (covered by `roles/firebase.sdkAdminServiceAgent`) | Disable the data project’s content site during release; verify the reserved auth helper still answers 200. Never publish game content to this site. |
 
 No Owner, Editor, billing upgrade or separate Hosting Admin grant is needed; the existing service-agent grant already covers Hosting deploy.
 The data project's Firestore and Rules APIs/database already exist; deployment
@@ -745,15 +749,22 @@ An oversized import fails preflight before deployment. See the executable quota 
 ## 14. Alpha.2 P2 — prototype game and keeper’s ledger
 
 Before using the admin, enable **Google** in `little-galaxy` Firebase Authentication → Sign-in
-method (if disabled). Add `alexanderkholodov.web.app` and the actual preview/LAN test domains to
-Authentication → Settings → Authorized domains. Provision the captain's verified Google email
+method (if disabled). Production uses `alexanderkholodov.web.app` in
+Authentication → Settings → Authorized domains. Preview channels are not authorized
+for admin Google sign-in; their visitor launch journey remains available. Provision the captain's verified Google email
 in the existing private `config/admins.emails` allowlist. No client-side password or admin key
 is used. This change does not deploy rules or enable providers automatically.
 
-The release game mounts at `/little-galaxy/`; admin at `/little-galaxy/admin`. The admin retains
+The release game mounts at `/little-galaxy/`; the admin stays at
+`https://alexanderkholodov.web.app/little-galaxy/admin`. Google sign-in opens a popup
+synchronously from the button, on the same Firebase Auth instance as visitors.
+Allow popups for this site if the browser blocks it. A closed popup or network error
+shows recovery instructions on the page. An uninvited account must choose an invited
+Google account; Firestore's unchanged `bAdmin()` is the authority. EasyList previously
+hid the `ad-` controls after first paint; the `keeper-` namespace and `pnpm check`
+blocker gate prevent that regression. The rc1 domain move is reverted. The admin retains
 the prototype's ledger layout, with Google identity checked independently by Firestore rules.
-Start fresh by creating another galaxy, then select **Open to public** and **Show at fair**
-independently. **Open to public** and **Freeze** first show a sheet saying what happens (every
+Start fresh by creating another galaxy, then select **Open to public**. **Open to public** and **Freeze** first show a sheet saying what happens (every
 playing phone reloads into the newly opened galaxy; a frozen galaxy becomes read-only); one tap
 confirms, Esc cancels. Only allowlisted keepers can create galaxies; the account limit is three.
 Freeze retains accepted future launches, closes writes and publishes a verified, pinned-kernel
@@ -789,7 +800,7 @@ cosmetic throws display an unavailable value because they are not collected. Imp
 have no accepted launch-time history. **Refresh** explicitly rereads bounded data; the dashboard
 does not poll private members or add per-visit writes. Large repeated refreshes consume quota.
 
-Booth: `/little-galaxy/screen` follows `config/live.boothGalaxyId` independently of public play.
+Screen: `/little-galaxy/screen` follows `config/live.activePublicGalaxyId`, the same active galaxy as public play. The retired booth selection is ignored.
 Its QR always points to `/little-galaxy/`. Press **F** or the fullscreen button after loading.
 The camera survives reloads. Names use the prototype's bounded label overlay. This public viewer
 creates no Auth identity and performs no Firestore writes; `config/live` is public read-only.
@@ -806,3 +817,53 @@ This reader loads the full accepted history from genesis so earlier times remain
 when a certified checkpoint exists. It never authenticates a new player or writes to Firestore.
 Long, interacting histories rebuild in bounded worker batches; do not claim a cold-replay latency
 or device-to-device exact floating-point agreement without the phone rehearsal.
+
+## Anonymous launch proof on a deployed client
+
+Before any live Hosting dispatch or rules deployment, the release deploys its exact
+artifact to a seven-day `release-<tag>` channel on `alexanderkholodov` (dots become
+hyphens). This channel uses the existing production database and active galaxy;
+its version metadata must match the release SHA and tag. The release requires one anonymous visitor to drag a planet from the workshop,
+receive an accepted action, and see that exact logical body in a second browser's
+rendered replay. The stand then appends an administrative removal through the shared
+store, preserving the launch and hash chain. Both browsers must observe the body’s
+removal. An `always()` cleanup step also handles an interrupted browser proof. The
+cleanup checks the body belongs to the fresh anonymous probe account and refuses
+other visitors' bodies or host objects. Firebase credentials stay in the Node stand
+process and are never passed into a page. The uploaded receipt excludes Auth UIDs.
+
+The captain can run the same journey against a PR preview or production:
+
+```sh
+# This writes one real anonymous launch into the production active galaxy,
+# then removes the probe through the admin path. Use only when authorized.
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/the/server-side/data-project-key.json
+export FIREBASE_PROJECT_ID=little-galaxy
+pnpm accept:live https://alexanderkholodov--pr-9-y1nrib3j.web.app
+```
+
+The preview uses the production database. The command refuses to open a browser
+without the cleanup credential. A local rehearsal uses only the demo Auth and
+Firestore emulators instead. `pnpm accept` provisions its sandbox 36 hours before
+the launch, across a quota-window boundary; it verifies real-client first admission,
+second-browser visibility, foreign-body cleanup refusal, history retention and
+idempotent removal. No production launch proof was run during implementation.
+
+
+Same-repository PRs deploy the single `pnpm check` artifact to a seven-day `pr-<n>`
+channel with the existing portfolio-project service account. The PR bot updates one
+comment per PR with the checked SHA, link, production-database warning and the fact
+that admin Google sign-in is unavailable on unauthorized preview domains. Fork PRs
+are checked without a secret preview deployment. The portfolio repository is unchanged.
+A failed candidate proof prevents rules deployment and live portfolio dispatch; the
+probe's launch/removal history remains, while its body must be absent from both skies.
+Only a real PR/release run can prove channel IAM and comment permission. Never run
+`accept:live` against a deployed address without authorization: it writes production
+history even when cleanup succeeds.
+
+
+Returning-tab clock regression: the long-gap acceptance now includes a server-time
+anchor two hours old, saved name and older membership. A fresh server read before
+profile/launch writes prevents the previously reproduced timestamp/tick permission
+denial. The regression leaves Date and monotonic time intact and requires accepted
+visibility and cleanup in both browsers. No rule or pacing limit is relaxed.

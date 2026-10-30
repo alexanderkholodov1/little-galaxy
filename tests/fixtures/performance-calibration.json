@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "790d952a12925db11b15435f2d0a04131078521a",
+  "baselineCommit": "eeee1d10c3bed22f4d962e07422395ce0ec71574",
+  "fixtureSHA256": "1ed373f64d9092b871d089325a237a59420bb31c0b6f9f4beed423aa5bcca5df",
+  "rounds": [
+    {
+      "profiles": [
+        {
+          "profile": "laptop",
+          "galaxy": "open",
+          "interactiveMs": 7515,
+          "longestTaskMs": 492,
+          "frameP95Ms": 1033,
+          "frames": 18,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        },
+        {
+          "profile": "laptop",
+          "galaxy": "fair",
+          "interactiveMs": 3267,
+          "longestTaskMs": 196,
+          "frameP95Ms": 400,
+          "frames": 22,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        },
+        {
+          "profile": "phone",
+          "galaxy": "open",
+          "interactiveMs": 5200,
+          "longestTaskMs": 292,
+          "frameP95Ms": 150,
+          "frames": 56,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        },
+        {
+          "profile": "phone",
+          "galaxy": "fair",
+          "interactiveMs": 5287,
+          "longestTaskMs": 282,
+          "frameP95Ms": 183,
+          "frames": 51,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        }
+      ]
+    },
+    {
+      "profiles": [
+        {
+          "profile": "laptop",
+          "galaxy": "open",
+          "interactiveMs": 3722,
+          "longestTaskMs": 275,
+          "frameP95Ms": 967,
+          "frames": 20,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        },
+        {
+          "profile": "laptop",
+          "galaxy": "fair",
+          "interactiveMs": 3169,
+          "longestTaskMs": 212,
+          "frameP95Ms": 317,
+          "frames": 28,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        },
+        {
+          "profile": "phone",
+          "galaxy": "open",
+          "interactiveMs": 4554,
+          "longestTaskMs": 271,
+          "frameP95Ms": 167,
+          "frames": 58,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        },
+        {
+          "profile": "phone",
+          "galaxy": "fair",
+          "interactiveMs": 5031,
+          "longestTaskMs": 280,
+          "frameP95Ms": 200,
+          "frames": 52,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        }
+      ]
+    },
+    {
+      "profiles": [
+        {
+          "profile": "laptop",
+          "galaxy": "open",
+          "interactiveMs": 3716,
+          "longestTaskMs": 187,
+          "frameP95Ms": 900,
+          "frames": 18,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        },
+        {
+          "profile": "laptop",
+          "galaxy": "fair",
+          "interactiveMs": 3288,
+          "longestTaskMs": 180,
+          "frameP95Ms": 317,
+          "frames": 26,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        },
+        {
+          "profile": "phone",
+          "galaxy": "open",
+          "interactiveMs": 4608,
+          "longestTaskMs": 293,
+          "frameP95Ms": 133,
+          "frames": 66,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        },
+        {
+          "profile": "phone",
+          "galaxy": "fair",
+          "interactiveMs": 5181,
+          "longestTaskMs": 273,
+          "frameP95Ms": 150,
+          "frames": 62,
+          "drawn": true,
+          "inputAnswered": true,
+          "gpu": {
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+            "parallelCompile": false
+          }
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "profiles": [
+      {
+        "profile": "laptop",
+        "galaxy": "open",
+        "interactiveMs": 4118,
+        "longestTaskMs": 1504,
+        "frameP95Ms": 2167,
+        "frames": 12,
+        "drawn": false,
+        "inputAnswered": false,
+        "gpu": {
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+          "parallelCompile": false
+        }
+      },
+      {
+        "profile": "laptop",
+        "galaxy": "fair",
+        "interactiveMs": 4314,
+        "longestTaskMs": 834,
+        "frameP95Ms": 600,
+        "frames": 21,
+        "drawn": false,
+        "inputAnswered": false,
+        "gpu": {
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+          "parallelCompile": false
+        }
+      },
+      {
+        "profile": "phone",
+        "galaxy": "open",
+        "interactiveMs": 4808,
+        "longestTaskMs": 837,
+        "frameP95Ms": 217,
+        "frames": 43,
+        "drawn": false,
+        "inputAnswered": false,
+        "gpu": {
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+          "parallelCompile": false
+        }
+      },
+      {
+        "profile": "phone",
+        "galaxy": "fair",
+        "interactiveMs": 4959,
+        "longestTaskMs": 1065,
+        "frameP95Ms": 300,
+        "frames": 33,
+        "drawn": false,
+        "inputAnswered": false,
+        "gpu": {
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+          "parallelCompile": false
+        }
+      }
+    ]
+  }
+}

@@ -10,6 +10,8 @@ function say(key, vars){
   if(getLang()!==page)setLang(page);
   return t(key, vars);
 }
+// A refused launch is explained long enough to read on a phone, then the visitor throws again.
+const LAUNCH_NOTICE_MS=9000;
 export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCount,saveDraft}){
   const worker=new Worker(new URL('./replay-worker.js',import.meta.url),{type:'module'});
   const replayMode=location.pathname.replace(/\/$/,'').endsWith('/timelapse');
@@ -41,7 +43,8 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   // The verified opening prefix is already in memory. Paint it before starting any worker
   // turn, rather than exposing an empty fire while the worker module loads.
   if(loaded.checkpoint){
-    try{const state=JSON.parse(loaded.checkpoint.state);world.applySharedState(state,normDesign,store.owner());updateCount();document.body.dataset.openingFrame='snapshot';}
+    try{const state=JSON.parse(loaded.checkpoint.state);world.applySharedState(state,normDesign,store.owner());updateCount();document.body.dataset.openingFrame='snapshot';
+      document.body.dataset.skyReady='true';document.body.dataset.galaxy=store.galaxyId;document.body.dataset.sequence=String(state.sequence);document.body.dataset.tick=String(state.sim.steps);}
     catch{ /* The worker's verified replay/fallback remains authoritative. */ }
   }
   function target(){
@@ -57,6 +60,9 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
   function readonly(){
     const frozen=S.galaxy.status!=='active'||S.galaxy.writePolicy==='frozen';
     world.readOnly=frozen||store.readOnly;S.frozen=frozen;document.body.dataset.recorded=String(frozen);
+    // A frozen galaxy keeps turning on the synchronized clock; its record does not change.
+    world.frozenSky=frozen&&!replayMode;
+    world.galacticClock=world.frozenSky?()=>(store.now()-S.galaxy.epoch)/1000:null;
     for(const id of ['btnCreate','btnToss','btnToPad']){
       const button=document.getElementById(id);button.disabled=world.readOnly;
       button.title=frozen?say('sky.resting.title'):'';
@@ -82,7 +88,11 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
       }finally{if(key===seekKey&&boundary===loadKey)seekPending=false;}
     }else if(!seekPending)worker.postMessage({tick,seekKey,loadKey});
   }
-  if(replayMode)playback=setupTimelapse({loaded,now:store.now,request:requestTick});
+  if(replayMode){
+    playback=setupTimelapse({loaded,now:store.now,request:requestTick});
+    // The renderer draws the playback moment at display rate, between the frames the worker publishes.
+    world.replayClock=()=>({tick:playback.at(),speed:playback.playing?playback.speed:0});
+  }
   worker.onmessage=({data})=>{
     if(data.loadKey!==undefined && data.loadKey!==loadKey)return;
     if(replayMode && (seekPending || (data.seekKey??0)!==seekKey))return;
@@ -103,6 +113,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
     if(data.state.sim.bodies.some(b=>!b.settled))unsettledTick=data.state.sim.steps;
     needsSnapshot=data.state.sequence!==snapshotSequence || snapshotTick<=unsettledTick;
 
+    if(!ready)performance.mark?.('galaxy-worker');
     ready=data.ready;document.body.dataset.skyReady=String(ready);
     document.body.dataset.tick=String(data.state.sim.steps);document.body.dataset.sequence=String(data.state.sequence);
     document.body.dataset.galaxy=store.galaxyId;
@@ -122,7 +133,7 @@ export function startSharedWorld({world,store,S,loaded,normDesign,toast,updateCo
       if(rerouted)toast(say(reserved&&launch.system==='0'?'sky.fire.young':'sky.fire.other'));
       pending.set(accepted.intent.id,raw);
       worker.postMessage({actions:[accepted],tick:target()});
-    }catch(error){world.failSharedLaunch();toast(launchVoice(error));}
+    }catch(error){world.failSharedLaunch();toast(launchVoice(error),undefined,LAUNCH_NOTICE_MS);}
   };
   const onActions=({detail})=>{worker.postMessage({actions:detail,tick:target()});};
   const onManifest=({detail})=>{saveDraft();S.galaxy=detail;readonly();visits.render();worker.postMessage({tick:target()});};

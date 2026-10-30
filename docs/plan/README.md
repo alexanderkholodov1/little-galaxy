@@ -61,8 +61,8 @@ alphas de v1.0.0 si eran la produccion ... lo que queremos alcanzar como meta fi
 | Feature-complete, only fixes and polish | `v1.0.0-beta.X.Y.Z` | Same levels as alpha; the first beta hito extends the release tooling, which today compares only alpha tags (`scripts/release-version.js`) |
 | Reviewed by the owner and called perfect | `v1.1.0` | Only the owner names it |
 
-Little Galaxy is in the alpha stage: it is complete and in use. A release-candidate suffix (`-rc1`) is used by the
-current hito. The owner has not yet decided between `-rc` and `-release` for future hitos (2026-10-28).
+Little Galaxy is in the alpha stage: it is complete and in use. A release-candidate suffix (`-rc2`) is used by the
+current admin fix hito. The owner has not yet decided between `-rc` and `-release` for future hitos (2026-10-28).
 Versions are allocated automatically from the PR head branch (`docs/automatic-releases.md`). Nobody edits a version by
 hand, and nothing requires a PR title to repeat a version written elsewhere (owner, 2026-10-28: manual version updates
 "must be purged").
@@ -78,7 +78,7 @@ not renamed (owner, 2026-10-28).
 | Step | Who | What happens | Evidence that it worked |
 | --- | --- | --- | --- |
 | 1. Merge the hito's PR into `main` | The owner. A captain merges only on his explicit instruction for that PR (D-30, 2026-10-25, `HANDOFF-after-fair…:20-21`). | — | PR state "merged" |
-| 2. Release on merge | GitHub Actions `release-on-merge.yml` → `release.yml`, automatically | Allocates the exact tag from the head branch. Builds once, with the privacy gate. Deploys Firestore rules and indexes to project `little-galaxy` (environment `little-galaxy-rules`: branches `main` and `v*`, no reviewer). Publishes the GitHub release with `galaxy-dist-<tag>.tar.gz`. Dispatches `galaxy-release` with that tag to the portfolio, which deploys Hosting for `alexanderkholodov.web.app`. Then it provisions and selects the open sandbox. | Workflow green; `docs/automatic-releases.md`; `docs/RUNBOOK.md` § Release path |
+| 2. Release on merge | GitHub Actions `release-on-merge.yml` → `release.yml`, automatically | Allocates the exact tag from the head branch. Builds once, with the privacy gate. Disables data-site content and verifies the reserved auth helper. Deploys Firestore rules and indexes to project `little-galaxy` (environment `little-galaxy-rules`: branches `main` and `v*`, no reviewer). Publishes the GitHub release with `galaxy-dist-<tag>.tar.gz`. Dispatches `galaxy-release` with that tag to the portfolio, which deploys Hosting for `alexanderkholodov.web.app`. Then it probes the admin on the game’s address, verifies the Google popup return and provisions the open sandbox. | Workflow green; `docs/automatic-releases.md`; `docs/RUNBOOK.md` § Release path |
 | 3. Live check | The release workflow, then the captain | Production `little-galaxy/version.json` reports the tag and commit | `version.json` equals the tag |
 | 4. Acceptance in real use | The captain, then the owner | Play the hito's journeys in production at phone and desktop sizes (EN/ES, both themes) | The hito's acceptance list in `milestones.md` |
 | Rollback | The captain, on the owner's word or a broken production | The portfolio's Hosting rollback (`rollback.yml` in the portfolio repository) or `pnpm run rollback` (`docs/RUNBOOK.md:227`). Rules roll back by merging a fix. | Live `version.json` shows the previous tag |
@@ -90,12 +90,12 @@ Rules for every hito:
   not separate PRs to `main`.
 - Commits are authored `alexanderkholodov1 <kholodov.alexander1@gmail.com>`, with no AI attribution. Each message
   starts with its version and states what it delivers.
-- GitHub CI runs one fast job, `pnpm check` (lint, typecheck, unit, physics, build with privacy gate). Before a PR is
+- GitHub CI checks in one fast job, `pnpm check` (lint, typecheck, unit, physics, build with privacy gate, rendered EasyList gate). Before a PR is
   marked ready, the builder runs `pnpm accept` locally: rules, emulator and real browser journeys. The captain re-runs
   it and verifies screenshots.
-- This repository never deploys the portfolio's Hosting. Production Hosting for `alexanderkholodov.web.app` happens only
-  through the portfolio's `galaxy-release` receiver. Admin sign-in adds one exception: the data project's own Hosting
-  site (`admin-sign-in.md`, P2/P3).
+- This repository deploys only seven-day PR/release preview channels on the portfolio project. Production Hosting for `alexanderkholodov.web.app` happens only
+  through the portfolio's `galaxy-release` receiver, including the admin. The data site's content is disabled;
+  Firebase's reserved auth helper remains available for Google popups (`admin-sign-in.md`).
 - Secrets are never printed, committed or bundled (`AGENTS.md` rule 6).
 
 ## How this plan changes
@@ -121,3 +121,30 @@ Rules for every hito:
   with no approval. Version scheme `v0.X.Y` / `v1.0.0-alpha.X.Y.Z` / `v1.0.0` restated.
 - 2026-10-28: the released `v1.0.0`/`v1.0.1` tags stay; alpha hitos, then beta hitos, toward the final goal `v1.1.0`
   (owner).
+
+- 2026-10-28, rc2: operator decision keeps the admin on the game’s own address and account system.
+  EasyList was the empty-page cause; replace its matching namespace and add a blocker gate. Revert the
+  rc1 domain move, use synchronous Firebase Google popups and disable data Hosting content while
+  preserving the reserved auth helper. Update the release probes and keeper/outsider acceptance.
+- 2026-10-28, rc2 extension (operator, 16:05Z): require a first launch into a sandbox
+  provisioned hours earlier across a quota-window boundary; add the same real-client
+  two-browser journey for deployed addresses, with credentialed administrative cleanup
+  after a release probe. Restore PR preview delivery through portfolio, pending its
+  cross-repository artifact/comment token. Visitor-facing wording and visuals are
+  reserved for the separate Opus pass; this extension changes no such content.
+
+- 2026-10-28, lead steer (~17:15Z): restore preview-only channel deployment from the
+  checked artifact using the existing portfolio-project service account and one PR
+  comment via GITHUB_TOKEN. No portfolio change or new secret is needed. Gate rules
+  and live dispatch on the exact candidate's two-browser launch and admin cleanup.
+  Add four returning-visitor regressions; their real-client reproductions do not
+  reach the proposed named-first-member denial. Correct the playback assertion to
+  wait for its event before requiring the same sequence.
+- 2026-10-28, lead-approved logic: admin counts exclude generated hosts; retire booth
+  selection and make the screen follow the active galaxy. Rename the visible default
+  to Open Galaxy / Galaxia abierta. Keep layout, styles, physics and animations unchanged.
+- 2026-10-28, returning-session investigation: saved/legacy names, old membership and
+  persisted Google Auth all admitted successfully. A two-hour stale clock anchor
+  reproduced the permissions denial in the emulator. Re-anchor before profile/launch
+  writes and add a fifth long-gap regression; retain all rules and the draft nonce.
+  The original owner's request has no receipt, so historical attribution stays explicit.

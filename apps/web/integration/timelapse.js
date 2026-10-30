@@ -1,3 +1,4 @@
+import {displayGalaxyName} from './galaxy-name.js';
 import './timelapse.css';
 import {recordedStory} from './recorded-stories.js';
 import {getLang, register, setLang, t} from '../js/i18n.js';
@@ -15,6 +16,8 @@ export class Playback {
     if(tick>=this.duration){this.position=this.duration;this.playing=false;return this.duration;}
     return Math.floor(tick);
   }
+  // the continuous playback moment (ticks), for drawing between published frames
+  at(){return Math.min(this.duration,this.position+(this.playing?(this.now()-this.anchor)*.12*this.speed:0));}
   play(){if(this.position>=this.duration)this.position=0;this.anchor=this.now();this.playing=true;}
   pause(){this.position=this.tick();this.anchor=this.now();this.playing=false;}
   setSpeed(speed){if(!(speed>0&&speed<=120))throw new Error('Invalid playback speed');this.position=this.tick();this.anchor=this.now();this.speed=speed;}
@@ -69,7 +72,7 @@ export function setupTimelapse({loaded,request,now}){
   };
   function render(){
     const story=recordedStory(g.id,say);
-    const title=story?.shortTitle??g.name;
+    const title=story?.shortTitle??displayGalaxyName(g.name,getLang());
     if(name.textContent!==title){
       name.replaceChildren(...title.split(/(\s+)/u).map(word=>{
         if(/^\s+$/u.test(word))return document.createTextNode(word);
