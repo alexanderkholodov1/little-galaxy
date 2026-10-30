@@ -195,10 +195,11 @@ async function boot(){
 
   window.__FOG_OK = true;
   // The galaxy is framed in the band the chrome leaves free: below the header and its controls, above the bottom
-  // actions and panels, as they are on screen right now (layers and panels change it).
+  // actions and panels, as they are on screen right now (layers and panels change it). A recorded sky's primary
+  // action is a link styled as the main button, so it counts by its class.
   world.setBandProbe(() => {
     const h = innerHeight; let top = 0, bottom = h;
-    for(const el of document.querySelectorAll('#hud button, #hud .pill, #hud .chip, .glass')){
+    for(const el of document.querySelectorAll('#hud button, #hud .cta, #hud .pill, #hud .chip, .glass')){
       const r = el.getBoundingClientRect();
       if(r.width < 1 || r.height < 1 || r.height > h*0.32) continue;
       if(el.checkVisibility && !el.checkVisibility({opacityProperty:true, visibilityProperty:true})) continue;
