@@ -3,8 +3,8 @@
  *
  * Every stellar body (and the fire) anchors its own system. Anchors sit on two trailing logarithmic arms in
  * founding order (body id order), the fire innermost, and turn around the galactic core on a flat rotation curve,
- * ω(r) = V / r. Small bodies are drawn in the local frame of the system that captured them in the simulation (their
- * admission home only before any capture): their simulated position relative to that anchor, scaled so a system never
+ * ω(r) = V / r. Small bodies are drawn in the local frame of the system that holds them in the simulation (see
+ * physicalHosts; their admission home only when the simulation names none): their simulated position relative to that anchor, scaled so a system never
  * exceeds a third of the radial spacing. Admission homes are capacity budgets: every star launched inside the fire's
  * home shares home 0, so membership by home alone draws every small body at the fire. Nebulae are not members; they
  * drift between the arms with the arm pattern. Every value is a pure function of (record, time).
@@ -78,17 +78,21 @@ export function planGalaxy(bodies, entries = new Map(), homes = new Map(), hosts
 }
 
 /**
- * The simulated system each small body belongs to: the system that last captured it onto a rail (the simulation's
- * recorded host, kept while it drifts or flies again). Membership changes only when the simulation captures a body
- * somewhere else, never while it wanders. A body never captured has no physical system here; planGalaxy then uses its
- * admission home. A pure function of the simulated state. sim: {bodies, systems:[{id, prim}]}.
- * Returns Map body id → that system's primary ids.
+ * The simulated system each small body belongs to, from the simulation's own state, in this order: the system the
+ * simulation is settling it into (calmHost, live kernel); the system that last captured it onto a rail (its recorded
+ * host, kept while it drifts or flies again); while it is young (its first `young` seconds), the system that pulls it
+ * hardest (μ/r²), which is the one it was launched from. Membership therefore changes when the simulation captures or
+ * settles a body somewhere else, never while an old body wanders. Any other body has no physical system here and
+ * planGalaxy uses its admission home. A pure function of the simulated state.
+ * sim: {bodies, systems:[{id, prim, p, mu}], steps}. Returns Map body id → that system's primary ids.
  */
-export function physicalHosts(sim){
-  const hosts = new Map(), byId = new Map((sim.systems ?? []).map(s => [s.id, s]));
+export function physicalHosts(sim, {young = LAYER.mature[1], dt = 1/120} = {}){
+  const hosts = new Map(), systems = sim.systems ?? [], byId = new Map(systems.map(s => [s.id, s]));
+  const pull = (s, p) => s.mu/Math.max(1e-6, (p[0] - s.p[0])**2 + (p[1] - s.p[1])**2 + (p[2] - s.p[2])**2);
   for(const b of sim.bodies){
     if(b.toy || isStellar(b.kind) || b.kind === 'nebula') continue;
-    const s = byId.get(b.host);
+    let s = byId.get(b.calmHost) ?? byId.get(b.host);
+    if(!s && ((sim.steps ?? 0) - (b.bornStep ?? 0))*dt < young) for(const c of systems) if(!s || pull(c, b.p) > pull(s, b.p)) s = c;
     if(s) hosts.set(b.id, s.prim);
   }
   return hosts;

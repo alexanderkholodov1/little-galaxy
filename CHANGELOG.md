@@ -2,12 +2,14 @@
 
 ## 1.0.0-alpha.10.0-rc4 — every body is drawn in the system it orbits, 2026-11-08
 
-- Small bodies are drawn in the system the simulation captured them in. They were
-  drawn in their admission home, a capacity budget: every star launched inside the
-  fire's home shares home 0, so every body launched around those stars was drawn at
-  the fire. The fair showed ten bodies at the fire, two at one star and seven stellar
-  systems empty; it now shows them where the record holds them (fire 3, and 2, 3, 1,
-  1 and 2 in five other systems). A body never captured still uses its admission home.
+- Small bodies are drawn in the system the simulation holds them in: the one settling
+  them, else the one that captured them, else, for their first two minutes, the one
+  they were launched from. They were drawn in their admission home, a capacity budget:
+  every star launched inside the fire's home shares home 0, so every body launched
+  around those stars was drawn at the fire, from its first frame. The fair showed ten
+  bodies at the fire, two at one star and seven stellar systems empty; it now shows
+  them where the record holds them (fire 3, and 2, 3, 1, 1 and 2 in five other
+  systems). An old body the simulation never captured still uses its admission home.
 - A body whose system changes glides there from where it was shown instead of
   jumping; a timelapse seek moves it at once.
 - The fair's record, kernel and names are unchanged; only where bodies are drawn changes.
