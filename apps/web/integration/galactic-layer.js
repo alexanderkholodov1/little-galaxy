@@ -80,21 +80,28 @@ export function planGalaxy(bodies, entries = new Map(), homes = new Map(), hosts
 /**
  * The simulated system each small body belongs to, from the simulation's own state, in this order: the system the
  * simulation is settling it into (calmHost, live kernel); the system that last captured it onto a rail (its recorded
- * host, kept while it drifts or flies again); while it is young (its first `young` seconds), the system that pulls it
- * hardest (μ/r²), which is the one it was launched from. Membership therefore changes when the simulation captures or
- * settles a body somewhere else, never while an old body wanders. Any other body has no physical system here and
- * planGalaxy uses its admission home. A pure function of the simulated state.
+ * host, kept while it drifts or flies again); while it is young (its first `young` seconds), the system it was launched
+ * from: the one pulling it hardest (μ/r²) when first seen, kept in `previous` (Map body id → system id, updated in place)
+ * so a launch falling between two systems is not drawn hopping between them. Membership therefore changes when the
+ * simulation captures or settles a body somewhere else, never while an old body wanders. Any other body has no physical
+ * system here and planGalaxy uses its admission home. A pure function of the simulated state and `previous`.
  * sim: {bodies, systems:[{id, prim, p, mu}], steps}. Returns Map body id → that system's primary ids.
  */
-export function physicalHosts(sim, {young = LAYER.mature[1], dt = 1/120} = {}){
+export function physicalHosts(sim, {young = LAYER.mature[1], dt = 1/120, previous = new Map()} = {}){
   const hosts = new Map(), systems = sim.systems ?? [], byId = new Map(systems.map(s => [s.id, s]));
   const pull = (s, p) => s.mu/Math.max(1e-6, (p[0] - s.p[0])**2 + (p[1] - s.p[1])**2 + (p[2] - s.p[2])**2);
+  const launched = new Set();
   for(const b of sim.bodies){
     if(b.toy || isStellar(b.kind) || b.kind === 'nebula') continue;
     let s = byId.get(b.calmHost) ?? byId.get(b.host);
-    if(!s && ((sim.steps ?? 0) - (b.bornStep ?? 0))*dt < young) for(const c of systems) if(!s || pull(c, b.p) > pull(s, b.p)) s = c;
+    if(!s && ((sim.steps ?? 0) - (b.bornStep ?? 0))*dt < young){
+      s = byId.get(previous.get(b.id));
+      if(!s) for(const c of systems) if(!s || pull(c, b.p) > pull(s, b.p)) s = c;
+      if(s){ previous.set(b.id, s.id); launched.add(b.id); }
+    }
     if(s) hosts.set(b.id, s.prim);
   }
+  for(const id of [...previous.keys()]) if(!launched.has(id)) previous.delete(id);
   return hosts;
 }
 

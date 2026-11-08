@@ -908,12 +908,14 @@ export function createWorld(canvas, opts = {}){
     r.set(q[0] + g[0], q[1] + g[1], q[2] + g[2]);
     if(g[0]*g[0] + g[1]*g[1] + g[2]*g[2] < 1e-4) e.glide = null;
   }
-  // Small bodies are drawn in the system the simulation captured them in (physicalHosts); a jump (a timelapse seek)
-  // moves them at once instead of gliding.
+  // Small bodies are drawn in the system the simulation holds them in (physicalHosts; launchedFrom remembers the
+  // system a young body left). A jump (a timelapse seek) moves them at once instead of gliding and starts afresh.
+  const launchedFrom = new Map();
   function replan(glide = true){
     const homes = W.sharedHomes || new Map();
     const meta = new Map(W.entries.filter(e => !e.toy).map(e => [e.id, {home:e.home}]));
-    plan = planGalaxy(sim.bodies.filter(b => !b.toy), meta, homes, physicalHosts(sim));
+    if(!glide) launchedFrom.clear();
+    plan = planGalaxy(sim.bodies.filter(b => !b.toy), meta, homes, physicalHosts(sim, {previous:launchedFrom}));
     scalesGoal = systemScales(plan, sim.bodies.filter(b => !b.toy), sim.t, SEC);
     for(const [id, k] of scalesGoal) if(!scales.has(id)) scales.set(id, k);
     for(const id of [...scales.keys()]) if(!scalesGoal.has(id)) scales.delete(id);

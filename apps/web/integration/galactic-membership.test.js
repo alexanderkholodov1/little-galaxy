@@ -22,6 +22,17 @@ it('draws a small body in the system the simulation holds it in, and in its admi
  expect([1,3,6,8,10,11,12].map(id=>plan.anchorOf.get(id))).toEqual([2,4,0,0,0,2,0]);expect(plan.anchorOf.get(7)).toBeNull();
  expect(planGalaxy(bodies,entries,homes).anchorOf.get(1)).toBe(0);
 });
+it('keeps a young launch in the system it left while it falls between two systems, until the simulation names one',()=>{
+ const systems=[{id:'0',prim:[0],p:[0,0,0],mu:15},{id:'8',prim:[8],p:[40,0,0],mu:30}];
+ const sky=(steps,x,extra={})=>({steps,systems,bodies:[{id:0,kind:'fogon'},{id:8,kind:'blackhole'},{id:13,kind:'planet',bornStep:0,p:[x,0,0],...extra}]});
+ const previous=new Map(),seen=[];
+ // launched beside the black hole, then pulled harder by the fire, then by the black hole again: still the black hole
+ for(const [t,x] of [[1,34],[15,10],[31,30],[45,12]])seen.push(physicalHosts(sky(t*120,x),{previous}).get(13)[0]);
+ expect(seen).toEqual([8,8,8,8]);
+ expect(physicalHosts(sky(15*120,10)).get(13)).toEqual([0]);   // without the memory it would hop to the fire
+ // captured by the fire: drawn there, and the memory of the launch is dropped
+ expect(physicalHosts(sky(55*120,9,{mode:'rail',host:'0'}),{previous}).get(13)).toEqual([0]);expect(previous.size).toBe(0);
+});
 it('spreads the fair\'s bodies over the systems that hold them instead of piling them on the fire',()=>{
  const galaxy={id:'recorded',generation:1,epoch:0,kernel:FAIR_KERNEL,status:'frozen',writePolicy:'frozen',frozenAt:fairDuration};
  const replay=createReplay({galaxy,actions:structuredClone(fairCopyActions),genesis:[]});
