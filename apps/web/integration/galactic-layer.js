@@ -4,10 +4,11 @@
  * Every stellar body (and the fire) anchors its own system. Anchors sit on two trailing logarithmic arms in
  * founding order (body id order), the fire innermost, and turn around the galactic core on a flat rotation curve,
  * ω(r) = V / r. Small bodies are drawn in the local frame of the system that holds them in the simulation (see
- * physicalHosts; their admission home only when the simulation names none): their simulated position relative to that anchor, scaled so a system never
- * exceeds a third of the radial spacing. Admission homes are capacity budgets: every star launched inside the fire's
- * home shares home 0, so membership by home alone draws every small body at the fire. Nebulae are not members; they
- * drift between the arms with the arm pattern. Every value is a pure function of (record, time).
+ * physicalHosts; their admission home only when the simulation names none): their simulated position relative to that
+ * anchor, scaled so a system never exceeds a third of the radial spacing. Admission homes are capacity budgets: every
+ * star launched inside the fire's home shares home 0, so membership by home alone draws every small body at the fire.
+ * Nebulae are not members; they drift between the arms with the arm pattern. Every value is a pure function of
+ * (record, time), except that a young launch keeps the system it was first drawn in (physicalHosts' `previous`).
  */
 const TAU = Math.PI*2;
 export const LAYER = Object.freeze({
