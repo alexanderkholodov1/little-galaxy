@@ -3,9 +3,11 @@
  *
  * Every stellar body (and the fire) anchors its own system. Anchors sit on two trailing logarithmic arms in
  * founding order (body id order), the fire innermost, and turn around the galactic core on a flat rotation curve,
- * ω(r) = V / r. Small bodies are drawn in the local frame of the system their launch was admitted to: their simulated
- * position relative to that anchor, scaled so a system never exceeds a third of the radial spacing. Nebulae are not
- * members; they drift between the arms with the arm pattern. Every value is a pure function of (record, time).
+ * ω(r) = V / r. Small bodies are drawn in the local frame of the system that captured them in the simulation (their
+ * admission home only before any capture): their simulated position relative to that anchor, scaled so a system never
+ * exceeds a third of the radial spacing. Admission homes are capacity budgets: every star launched inside the fire's
+ * home shares home 0, so membership by home alone draws every small body at the fire. Nebulae are not members; they
+ * drift between the arms with the arm pattern. Every value is a pure function of (record, time).
  */
 const TAU = Math.PI*2;
 export const LAYER = Object.freeze({
@@ -41,9 +43,10 @@ export const angularSpeed = r => SPEED/r;
 /**
  * Systems and membership from one recorded state.
  * bodies: simulation bodies ({id, kind, p, v, m, bornStep}); entries: Map id → {home} (admission home, the launch
- * intent's system); homes: Map primary id (string) → home. Toys are not part of the record and are ignored.
+ * intent's system); homes: Map primary id (string) → home; hosts: Map body id → primary ids of the simulated system the
+ * body orbits (see physicalHosts). Toys are not part of the record and are ignored.
  */
-export function planGalaxy(bodies, entries = new Map(), homes = new Map()){
+export function planGalaxy(bodies, entries = new Map(), homes = new Map(), hosts = new Map()){
   const stellar = bodies.filter(b => !b.toy && isStellar(b.kind)).sort((a, b) => a.id - b.id);
   const fire = stellar.find(b => b.kind === 'fogon') ?? null;
   const ordered = fire ? [fire, ...stellar.filter(b => b !== fire)] : stellar;
@@ -66,10 +69,29 @@ export function planGalaxy(bodies, entries = new Map(), homes = new Map()){
     if(b.toy) continue;
     if(byId.has(b.id)){ anchorOf.set(b.id, b.id); continue; }
     if(b.kind === 'nebula'){ nebulae.push(b.id); anchorOf.set(b.id, null); continue; }
+    const host = hosts.get(b.id)?.find(id => byId.has(id));
+    if(host !== undefined){ anchorOf.set(b.id, host); continue; }
     const home = entries.get(b.id)?.home;
     anchorOf.set(b.id, home !== undefined && home !== '0' && firstOfHome.has(String(home)) ? firstOfHome.get(String(home)) : fallback);
   }
   return {anchors, byId, anchorOf, nebulae, fireId:fire ? fire.id : null};
+}
+
+/**
+ * The simulated system each small body belongs to: the system that last captured it onto a rail (the simulation's
+ * recorded host, kept while it drifts or flies again). Membership changes only when the simulation captures a body
+ * somewhere else, never while it wanders. A body never captured has no physical system here; planGalaxy then uses its
+ * admission home. A pure function of the simulated state. sim: {bodies, systems:[{id, prim}]}.
+ * Returns Map body id → that system's primary ids.
+ */
+export function physicalHosts(sim){
+  const hosts = new Map(), byId = new Map((sim.systems ?? []).map(s => [s.id, s]));
+  for(const b of sim.bodies){
+    if(b.toy || isStellar(b.kind) || b.kind === 'nebula') continue;
+    const s = byId.get(b.host);
+    if(s) hosts.set(b.id, s.prim);
+  }
+  return hosts;
 }
 
 /** The anchor's place in the galaxy at T seconds after the galaxy's epoch. */

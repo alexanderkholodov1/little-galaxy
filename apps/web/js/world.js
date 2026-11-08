@@ -1,7 +1,7 @@
 // world.js — un solo mundo 3D: la galaxia, el banco del taller y la plataforma de lanzamiento
 // viven en la misma escena. Pasar de una pantalla a otra es mover la cámara, nunca cortar.
 import * as THREE from 'three';
-import {LAYER, planGalaxy, placeGalaxy, systemScales, anchorAt, galaxyRadius, mapLocal, unmapLocal, frozenOrbit, armAngle, patternAngle} from '../integration/galactic-layer.js';
+import {LAYER, planGalaxy, physicalHosts, placeGalaxy, systemScales, anchorAt, galaxyRadius, mapLocal, unmapLocal, frozenOrbit, armAngle, patternAngle} from '../integration/galactic-layer.js';
 import {restoreCoordinates} from '../integration/replay-coordinates.js';
 import {Sim, predict, elements, propagate} from './sim/index.js';
 import {Body, GALAXY_SCALE, TYPE_INFO, glowTex, raysTex, sprite, NOISE, mulberry} from './bodies.js';
@@ -898,16 +898,31 @@ export function createWorld(canvas, opts = {}){
     anchorAt(a, galT, _ga); return out.set(_ga[0], _ga[1], _ga[2]);
   }
   const scaleOf = id => scales.get(id) ?? LIVE_K;
-  function replan(){
+  // Small bodies are drawn in the system they orbit in the simulation; a body that changes system glides there.
+  // from where it was shown to its place in the new system, easing out over about two seconds
+  function placeDrawn(e, q, dt){
+    const r = e.body.root.position;
+    if(e.reanchored){ e.reanchored = false; e.glide = [r.x - q[0], r.y - q[1], r.z - q[2]]; }
+    const g = e.glide;
+    if(!g){ r.set(q[0], q[1], q[2]); return; }
+    const f = Math.exp(-dt*2.2); g[0] *= f; g[1] *= f; g[2] *= f;
+    r.set(q[0] + g[0], q[1] + g[1], q[2] + g[2]);
+    if(g[0]*g[0] + g[1]*g[1] + g[2]*g[2] < 1e-4) e.glide = null;
+  }
+  function replan(glide = true){
     const homes = W.sharedHomes || new Map();
     const meta = new Map(W.entries.filter(e => !e.toy).map(e => [e.id, {home:e.home}]));
-    plan = planGalaxy(sim.bodies.filter(b => !b.toy), meta, homes);
+    plan = planGalaxy(sim.bodies.filter(b => !b.toy), meta, homes, physicalHosts(sim));
     scalesGoal = systemScales(plan, sim.bodies.filter(b => !b.toy), sim.t, SEC);
     for(const [id, k] of scalesGoal) if(!scales.has(id)) scales.set(id, k);
     for(const id of [...scales.keys()]) if(!scalesGoal.has(id)) scales.delete(id);
     for(const e of W.entries){
       const id = e.toy ? undefined : plan.anchorOf.get(e.id);
-      if(id !== e.anchorId){ e.anchorId = id; if(e.trail.n) orbitTrail(e); }
+      if(!glide) e.glide = null;
+      if(id !== e.anchorId){
+        e.reanchored = glide && !RM && e.anchorId !== undefined && e.anchorId !== null && id !== undefined && id !== null;
+        e.anchorId = id; if(e.trail.n) orbitTrail(e);
+      }
     }
     if(launchFrame.anchor !== null && !plan.byId.has(launchFrame.anchor)) launchFrame.anchor = plan.fireId;
   }
@@ -1088,7 +1103,7 @@ export function createWorld(canvas, opts = {}){
     }
     const firstSky = skyState.k < 0;
     const jump=noteSkyState(state.sim.steps);
-    replan();
+    replan(!jump);
     if(firstSky){ W.galR = galaxyRadius(plan); placeAll(); }
     if(jump) for(const e of W.entries) if(!e.toy)queueTrail(e);
     if(firstSky && W.mode === 'home' && !rig.follow) opening();
@@ -1756,7 +1771,7 @@ export function createWorld(canvas, opts = {}){
     anchorDisplay(launchFrame.anchor ?? plan.fireId, _ad);
     for(const e of W.entries){
       if(e.toy){ mapLocal(e.sb.p, frameK(), _lo); e.body.root.position.set(_ad.x + _lo[0], _ad.y + _lo[1], _ad.z + _lo[2]); }
-      else { const q = drawn.get(e.id); if(q) e.body.root.position.set(q[0], q[1], q[2]); }
+      else { const q = drawn.get(e.id); if(q) placeDrawn(e, q, dt); }
       // recién lanzado: se encoge despacio de la escala de la plataforma a la de la galaxia
       if(Math.abs(e.scaleBase - e.scaleGoal) > 1e-3) e.scaleBase += (e.scaleGoal - e.scaleBase)*(1 - Math.exp(-dt*1.1));
       floorScale(e, symbols, tanH);
