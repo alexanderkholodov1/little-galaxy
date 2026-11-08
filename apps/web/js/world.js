@@ -898,8 +898,7 @@ export function createWorld(canvas, opts = {}){
     anchorAt(a, galT, _ga); return out.set(_ga[0], _ga[1], _ga[2]);
   }
   const scaleOf = id => scales.get(id) ?? LIVE_K;
-  // Small bodies are drawn in the system they orbit in the simulation; a body that changes system glides there.
-  // from where it was shown to its place in the new system, easing out over about two seconds
+  // a body whose system changed glides from where it was shown to its place in the new system (about two seconds)
   function placeDrawn(e, q, dt){
     const r = e.body.root.position;
     if(e.reanchored){ e.reanchored = false; e.glide = [r.x - q[0], r.y - q[1], r.z - q[2]]; }
@@ -909,6 +908,8 @@ export function createWorld(canvas, opts = {}){
     r.set(q[0] + g[0], q[1] + g[1], q[2] + g[2]);
     if(g[0]*g[0] + g[1]*g[1] + g[2]*g[2] < 1e-4) e.glide = null;
   }
+  // Small bodies are drawn in the system the simulation captured them in (physicalHosts); a jump (a timelapse seek)
+  // moves them at once instead of gliding.
   function replan(glide = true){
     const homes = W.sharedHomes || new Map();
     const meta = new Map(W.entries.filter(e => !e.toy).map(e => [e.id, {home:e.home}]));
