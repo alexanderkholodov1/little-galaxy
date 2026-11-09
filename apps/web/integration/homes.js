@@ -1,15 +1,22 @@
 import {MASSES,LIMITS} from '@little-galaxy/shared';
 export const compact=kind=>['star','binary','pulsar','blackhole'].includes(kind);
+export const LIGHTS_PER_HOME=4;
 export function homeBudget(){return {bodies:0,mass:0,compact:0,giants:0,blackholes:0,ordinaryMass:0};}
 export function chooseHome(head,kind,preferred){
  const count=kind==='binary'?2:1,heavy=compact(kind)?count:0,mass=MASSES[kind];
  const fits=s=>s&&s.bodies+count<=32&&s.mass+mass<=3200000&&s.compact+heavy<=2&&s.giants+Number(kind==='giant')<=6&&s.blackholes+Number(kind==='blackhole')<=1&&s.ordinaryMass+(heavy?0:mass)<=200000;
+ // A home's own star (the fire or its nursery) keeps LIGHTS_PER_HOME light bodies on distinct orbits (a star always has room for four);
+ // past that, a light launch prefers a home with orbits to spare, then a fresh home whose nursery star starts a
+ // new solar system, so the shared galaxy grows into many systems instead of crowding one.
+ const roomy=s=>fits(s)&&(heavy||s.bodies-s.compact+count<=LIGHTS_PER_HOME*Math.max(1,s.compact));
  if(head.bodies+count>LIMITS.bodies)throw new Error('Galaxy capacity');
- if(fits(head.systems[preferred]))return preferred;
- for(const [id,system] of Object.entries(head.systems))if(fits(system))return id;
+ if(roomy(head.systems[preferred]))return preferred;
+ for(const [id,system] of Object.entries(head.systems))if(roomy(system))return id;
  // Reserve cells are funded by existing bodies and never consume admission homes.
  if(head.bodies+count+(heavy?0:1)<=LIMITS.bodies)
   for(let i=0;i<LIMITS.systems;i++)if(!head.systems[String(i)])return String(i);
+ if(fits(head.systems[preferred]))return preferred;
+ for(const [id,system] of Object.entries(head.systems))if(fits(system))return id;
  // A final ordinary body can share a home instead of charging an unnecessary nursery.
  return head.systems[preferred]?preferred:Object.keys(head.systems)[0];
 }

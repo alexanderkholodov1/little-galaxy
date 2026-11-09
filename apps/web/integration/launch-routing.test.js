@@ -31,6 +31,14 @@ it('uses the deterministic nursery frame when every existing fire is full',()=>{
  const {head,world,raw}=fixture();head.systems['0']={...budget,bodies:32};
  expect(routeLaunch(world,head,raw)).toMatchObject({launch:{system:'1',anchor:0,origin:[-43,-2],velocity:[.2,1.1]}});
 });
+it('opens a new solar system when the fire\'s orbits are taken, and keeps a star in the frame it chose',()=>{
+ const {head,world,raw}=fixture();world.sharedHomes.set('2','0');
+ head.systems['0']={...budget,bodies:4,mass:1003000,ordinaryMass:3000};
+ expect(routeLaunch(world,head,raw).launch.system).toBe('0');
+ head.systems['0']={...budget,bodies:5,mass:1004000,ordinaryMass:4000};
+ expect(routeLaunch(world,head,raw)).toMatchObject({rerouted:true,launch:{system:'1',anchor:0}});
+ raw.design.type='star';expect(routeLaunch(world,head,raw).launch.system).toBe('0');
+});
 it('does not send a moon with a parent from the wrong admission home or a toy',()=>{
  const {head,world,raw}=fixture();raw.design.type='moon';
  world.entries=[{logical:'wrong',home:'founder',design:{type:'planet'}},{logical:'toy',home:'0',toy:true,design:{type:'giant'}}];

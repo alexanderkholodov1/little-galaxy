@@ -2,7 +2,7 @@ import {sin,cos,cube} from '../js/sim/math.js';
 import {compact} from './homes.js';
 import {encodeName,decodeName,legacyName} from './names.js';
 import {Sim, TYPE_RULES} from '../js/sim/index.js';
-import {canonicalBytes,PROTOTYPE_KERNEL} from '@little-galaxy/shared';
+import {canonicalBytes,PROTOTYPE_KERNEL,SUPERSEDED_KERNELS} from '@little-galaxy/shared';
 export const KERNEL = PROTOTYPE_KERNEL;
 const COMMON = {size:'size',pal:'palette'};
 const FIELDS = {
@@ -51,7 +51,9 @@ function legacyState(row,epoch){
 }
 export class Replay {
   constructor({galaxy,genesis=[],actions=[],checkpoint=null,trusted=false}){
-    if(galaxy.kernel !== KERNEL) throw new Error('Unsupported simulation kernel');
+    // A galaxy recorded on an earlier live kernel is re-simulated from its log; its stored states are not used.
+    if(galaxy.kernel !== KERNEL && !SUPERSEDED_KERNELS.includes(galaxy.kernel)) throw new Error('Unsupported simulation kernel');
+    if(checkpoint && galaxy.kernel !== KERNEL) throw new Error('Superseded kernels replay from their log');
     if(checkpoint && !trusted) throw new Error('Checkpoint must be verified');
     this.galaxy=clone(galaxy);this.genesis=clone(genesis);this.checkpoint=checkpoint;this.actions=[];this.skipped=new Set();
     this.reset();this.accept(actions);

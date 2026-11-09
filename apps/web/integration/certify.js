@@ -1,4 +1,4 @@
-import {canonicalHash,verifyTail} from '@little-galaxy/shared';
+import {canonicalHash,verifyTail,SUPERSEDED_KERNELS} from '@little-galaxy/shared';
 import {createReplay} from './kernel-routing.js';
 import {PACKED,packState,unpackLoaded} from './checkpoint.js';
 import {certifyFrozenTimeline} from './frozen-certifier.js';
@@ -18,6 +18,9 @@ export function createCertifier({driver,now,load}){
   }
   async function run(id){
     const manifest=await driver.get(`galaxies/${id}`);
+    // A galaxy recorded on an earlier live kernel is re-simulated by this one; certifying it would store a state
+    // under an identity that did not compute it.
+    if(SUPERSEDED_KERNELS.includes(manifest?.kernel))return null;
     if(manifest && manifest.status!=='active' && manifest.writePolicy==='frozen'){
       skies.delete(id);return certifyFrozenTimeline({id,driver,load});
     }

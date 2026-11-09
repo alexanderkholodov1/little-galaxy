@@ -1,5 +1,6 @@
 /** Versioned admission and persistence contract. Physics is supplied by the pinned simulation kernel. */
 import { isRudeName } from './rude.js';
+import { SUPERSEDED_KERNELS } from './prototype-kernel.js';
 export const GALAXY_SCHEMA = 1;
 export const LIMITS = {
   accounts: 3,
@@ -868,9 +869,12 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
             : Promise.resolve(null),
         ]);
       check(g && h, 'Missing galaxy/head');
+      // A galaxy recorded on an earlier live kernel is re-simulated from its whole log by the current one:
+      // no state stored under its identity is used.
+      const reuse = !SUPERSEDED_KERNELS.includes(g.kernel);
       let checkpoint: Checkpoint | null = null;
       let provisional = false;
-      if (liveSnapshot && options.verifyLiveSnapshot &&
+      if (reuse && liveSnapshot && options.verifyLiveSnapshot &&
         liveSnapshot.schemaVersion === 1 && liveSnapshot.generation === g.generation &&
         liveSnapshot.kernel === g.kernel && Number.isSafeInteger(liveSnapshot.sequence) &&
         liveSnapshot.sequence >= 0 && liveSnapshot.sequence <= h.sequence &&
@@ -884,7 +888,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
           }
         } catch { /* A bad acceleration document cannot hide accepted history. */ }
       }
-      if (!checkpoint && !mode.history && options.verifyCheckpoint) {
+      if (reuse && !checkpoint && !mode.history && options.verifyCheckpoint) {
         const pointer = await driver.get<{ sequence: number; tick?: number }>(
           `${p}/control/certified`,
         );
@@ -934,6 +938,7 @@ export function createGalaxyStore(driver: GalaxyDriver, options: StoreOptions): 
         return store.loadGalaxy(id, { history: true });
       await verifyTail(actions, covered, checkpoint?.logHash ?? '', false);
       if (
+        reuse &&
         !checkpoint &&
         !mode.history &&
         cache &&
