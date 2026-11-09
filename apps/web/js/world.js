@@ -23,12 +23,15 @@ const MAX_BODIES = 128;      // entradas a la vez (estelas y mallas); la simulac
 const BRASA = new THREE.Color('#ff8a5b'), LAVANDA = new THREE.Color('#a99bff'), CELESTE = new THREE.Color('#56ccf2'), CREMA = new THREE.Color('#fff1de'), MENTA = new THREE.Color('#7fe0c4');
 const PAD_SCALE = 1.05;       // en la plataforma tu astro se ve más grande; al volar se encoge a la escala de la galaxia
 const TOY_MAX = 12;           // juguetes (lanzar por lanzar) vivos a la vez
-// Sizes by type in the galaxy: a visual hierarchy, not real scale (black hole > star > giant > planet > moon > asteroid;
-// a nebula is the widest and faint). Multiplies GALAXY_SCALE. FLOOR: the smallest drawn radius in CSS pixels, so a
-// body seen from across the galaxy stays a readable finding-chart symbol of its kind.
-const TYPE_SCALE = {blackhole:1.6, star:1.35, binary:1.3, pulsar:1.15, giant:0.95, planet:0.72, moon:0.5, asteroid:0.42, comet:0.6, nebula:4.2};
+// Sizes by type in the galaxy, in proportion to the simulation's radii as a system is drawn (about 0.56 drawn units per
+// simulated unit): the fire's core about 0.7, a star 0.4-0.75, a black hole with its disc about 0.9, a giant about 0.4,
+// a planet 0.15-0.3, a moon or an asteroid about 0.1, so every orbit (lanes from 2.2 units) lies well outside its star.
+// Multiplies GALAXY_SCALE and the design's own size. FLOOR: the smallest drawn radius in CSS pixels, so a body seen from
+// across the galaxy stays a readable finding-chart symbol of its kind.
+const TYPE_SCALE = {blackhole:0.95, star:0.75, binary:0.7, pulsar:0.7, giant:0.42, planet:0.36, moon:0.26, asteroid:0.22, comet:0.3, nebula:4.2};
 const TYPE_FLOOR = {blackhole:12, star:9.5, binary:9.5, pulsar:6, giant:6.4, planet:5, moon:4.6, asteroid:4.3, comet:5, nebula:16};
 const FIRE_FLOOR = 10.5;
+const FIRE_CORE = 0.56;       // the fire's core (radius 1.25 at scale 1) drawn at the simulation's proportion
 const LIVE_K = LAYER.systemRadius/LAYER.liveRadius;
 const SEC = 1/120;            // one simulation tick in seconds (both kernels)
 
@@ -1849,13 +1852,14 @@ export function createWorld(canvas, opts = {}){
     const flick = RM ? 0 : (Math.sin(W.t*2.3)*0.5 + Math.sin(W.t*5.1 + 1)*0.3)*0.03;
     const k = clamp(f.sq.x, -0.4, 0.5);
     // the founding star keeps a readable symbol from across the galaxy too
-    const fk = Math.max(1, FIRE_FLOOR*2*camera.position.distanceTo(SUN)*tanH/W.vh/1.25);
+    const fk = Math.max(FIRE_CORE, FIRE_FLOOR*2*camera.position.distanceTo(SUN)*tanH/W.vh/1.25);
     f.core.scale.set((1 - k*0.4 + flick)*fk, (1 + k + flick)*fk, (1 - k*0.4 + flick)*fk);
     f.g1.material.opacity = 0.85 + flick*3;
-    // its glow and rays keep their proportion to the core, so from afar it still reads as the brightest star
-    const gk = Math.max(1, fk*0.7);
-    f.g1.scale.setScalar(8.5*gk*(1 + k*0.5 + flick));
-    f.g2.scale.setScalar(17*Math.max(1, fk*0.5)); f.g3.scale.setScalar(26*Math.max(1, fk*0.4)); f.rays.scale.setScalar(13*gk);
+    // its glow and rays keep their proportion to the core, so from afar it still reads as the brightest star; close
+    // up the bright glow stays inside the innermost orbit (2.2 units)
+    const gk = Math.max(FIRE_CORE, fk*0.7);
+    f.g1.scale.setScalar(6.4*gk*(1 + k*0.5 + flick));
+    f.g2.scale.setScalar(12.5*Math.max(FIRE_CORE, fk*0.5)); f.g3.scale.setScalar(19*Math.max(FIRE_CORE, fk*0.4)); f.rays.scale.setScalar(9.5*gk);
     if(!RM) f.rays.material.rotation += dt*0.03;
     // chispas
     let anyB = false;
