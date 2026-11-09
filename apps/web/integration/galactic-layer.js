@@ -3,9 +3,12 @@
  *
  * Every stellar body (and the fire) anchors its own system. Anchors sit on two trailing logarithmic arms in
  * founding order (body id order), the fire innermost, and turn around the galactic core on a flat rotation curve,
- * ω(r) = V / r. Small bodies are drawn in the local frame of the system their launch was admitted to: their simulated
- * position relative to that anchor, scaled so a system never exceeds a third of the radial spacing. Nebulae are not
- * members; they drift between the arms with the arm pattern. Every value is a pure function of (record, time).
+ * ω(r) = V / r. Small bodies are drawn in the local frame of the system that holds them in the simulation (see
+ * physicalHosts; their admission home only when the simulation names none): their simulated position relative to that
+ * anchor, scaled so a system never exceeds a third of the radial spacing. Admission homes are capacity budgets: every
+ * star launched inside the fire's home shares home 0, so membership by home alone draws every small body at the fire.
+ * Nebulae are not members; they drift between the arms with the arm pattern. Every value is a pure function of
+ * (record, time), except that a young launch keeps the system it was first drawn in (physicalHosts' `previous`).
  */
 const TAU = Math.PI*2;
 export const LAYER = Object.freeze({
@@ -41,9 +44,10 @@ export const angularSpeed = r => SPEED/r;
 /**
  * Systems and membership from one recorded state.
  * bodies: simulation bodies ({id, kind, p, v, m, bornStep}); entries: Map id → {home} (admission home, the launch
- * intent's system); homes: Map primary id (string) → home. Toys are not part of the record and are ignored.
+ * intent's system); homes: Map primary id (string) → home; hosts: Map body id → primary ids of the simulated system the
+ * body orbits (see physicalHosts). Toys are not part of the record and are ignored.
  */
-export function planGalaxy(bodies, entries = new Map(), homes = new Map()){
+export function planGalaxy(bodies, entries = new Map(), homes = new Map(), hosts = new Map()){
   const stellar = bodies.filter(b => !b.toy && isStellar(b.kind)).sort((a, b) => a.id - b.id);
   const fire = stellar.find(b => b.kind === 'fogon') ?? null;
   const ordered = fire ? [fire, ...stellar.filter(b => b !== fire)] : stellar;
@@ -66,10 +70,40 @@ export function planGalaxy(bodies, entries = new Map(), homes = new Map()){
     if(b.toy) continue;
     if(byId.has(b.id)){ anchorOf.set(b.id, b.id); continue; }
     if(b.kind === 'nebula'){ nebulae.push(b.id); anchorOf.set(b.id, null); continue; }
+    const host = hosts.get(b.id)?.find(id => byId.has(id));
+    if(host !== undefined){ anchorOf.set(b.id, host); continue; }
     const home = entries.get(b.id)?.home;
     anchorOf.set(b.id, home !== undefined && home !== '0' && firstOfHome.has(String(home)) ? firstOfHome.get(String(home)) : fallback);
   }
   return {anchors, byId, anchorOf, nebulae, fireId:fire ? fire.id : null};
+}
+
+/**
+ * The simulated system each small body belongs to, from the simulation's own state, in this order: the system the
+ * simulation is settling it into (calmHost, live kernel); the system that last captured it onto a rail (its recorded
+ * host, kept while it drifts or flies again); while it is young (its first `young` seconds), the system it was launched
+ * from: the one pulling it hardest (μ/r²) when first seen, kept in `previous` (Map body id → system id, updated in place)
+ * so a launch falling between two systems is not drawn hopping between them. Membership therefore changes when the
+ * simulation captures or settles a body somewhere else, never while an old body wanders. Any other body has no physical
+ * system here and planGalaxy uses its admission home. A pure function of the simulated state and `previous`.
+ * sim: {bodies, systems:[{id, prim, p, mu}], steps}. Returns Map body id → that system's primary ids.
+ */
+export function physicalHosts(sim, {young = LAYER.mature[1], dt = 1/120, previous = new Map()} = {}){
+  const hosts = new Map(), systems = sim.systems ?? [], byId = new Map(systems.map(s => [s.id, s]));
+  const pull = (s, p) => s.mu/Math.max(1e-6, (p[0] - s.p[0])**2 + (p[1] - s.p[1])**2 + (p[2] - s.p[2])**2);
+  const launched = new Set();
+  for(const b of sim.bodies){
+    if(b.toy || isStellar(b.kind) || b.kind === 'nebula') continue;
+    let s = byId.get(b.calmHost) ?? byId.get(b.host);
+    if(!s && ((sim.steps ?? 0) - (b.bornStep ?? 0))*dt < young){
+      s = byId.get(previous.get(b.id));
+      if(!s) for(const c of systems) if(!s || pull(c, b.p) > pull(s, b.p)) s = c;
+      if(s){ previous.set(b.id, s.id); launched.add(b.id); }
+    }
+    if(s) hosts.set(b.id, s.prim);
+  }
+  for(const id of [...previous.keys()]) if(!launched.has(id)) previous.delete(id);
+  return hosts;
 }
 
 /** The anchor's place in the galaxy at T seconds after the galaxy's epoch. */

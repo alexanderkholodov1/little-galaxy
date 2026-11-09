@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.0.0-alpha.10.0-rc4 — a shared galaxy of many solar systems, every body on its own orbit, 2026-11-09
+
+- The shared galaxy's simulation (a new live kernel, `proto4`). Light bodies settled on
+  orbits only 0.01 apart, clamped at 14 units, and every traveller a black hole did
+  not capture joined the fire: the Open Galaxy's eleven bodies sat around the fire,
+  four of them on one orbit. Now each system offers orbits 1.5 units apart from just
+  outside its star's guard (a star keeps them inside its share of the space between
+  sites); a captured body stays with its captor while it has room, and any other body
+  settles in the nearest system with a free orbit. When a home's star has four light
+  bodies, the next planet opens a new home whose nursery star starts a new solar
+  system, so the galaxy grows into many systems (20 planets: 5 systems; 40: 10).
+- What changes for recorded history. A galaxy keeps the kernel it was created on. The
+  Open Galaxy recorded on the previous live kernel keeps its identity and its accepted
+  launches; this kernel re-simulates it from its log (its eleven bodies: seven around
+  the fire and four around the black hole, each on its own orbit), and no state stored
+  under the old identity is used, published or certified for it. The release opens a
+  fresh Open Galaxy on the new kernel, as release provisioning does for any kernel
+  change; the previous one stays in the database unchanged. The fair is untouched.
+- Sizes in proportion to the simulation: the fire's core and glow, stars, black holes,
+  giants, planets, moons and asteroids are drawn at about their simulated radii, so
+  every orbit lies well outside its star and a planet is a fraction of its star.
+- CI and the release run on Ubuntu 24.04 (Playwright's Chromium does not support the
+  newer `ubuntu-latest` image).
+
+- Small bodies are drawn in the system the simulation holds them in: the one settling
+  them, else the one that captured them, else, for their first two minutes, the one
+  they were launched from. They were drawn in their admission home, a capacity budget:
+  every star launched inside the fire's home shares home 0, so every body launched
+  around those stars was drawn at the fire, from its first frame. The fair showed ten
+  bodies at the fire, two at one star and seven stellar systems empty; it now shows
+  them where the record holds them (fire 3, and 2, 3, 1, 1 and 2 in five other
+  systems). An old body the simulation never captured still uses its admission home.
+- A body whose system changes glides there from where it was shown instead of
+  jumping; a timelapse seek moves it at once.
+- The fair's record, kernel and names are unchanged; only where bodies are drawn changes.
+
 ## 1.0.0-alpha.10.0-rc3 — every body inside the free band, a release that cannot check out a branch, 2026-10-30
 
 - The galaxy is centred by its drawn rims. Seen from above, the disc's near rim is

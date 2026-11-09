@@ -1,7 +1,7 @@
 // world.js — un solo mundo 3D: la galaxia, el banco del taller y la plataforma de lanzamiento
 // viven en la misma escena. Pasar de una pantalla a otra es mover la cámara, nunca cortar.
 import * as THREE from 'three';
-import {LAYER, planGalaxy, placeGalaxy, systemScales, anchorAt, galaxyRadius, mapLocal, unmapLocal, frozenOrbit, armAngle, patternAngle} from '../integration/galactic-layer.js';
+import {LAYER, planGalaxy, physicalHosts, placeGalaxy, systemScales, anchorAt, galaxyRadius, mapLocal, unmapLocal, frozenOrbit, armAngle, patternAngle} from '../integration/galactic-layer.js';
 import {restoreCoordinates} from '../integration/replay-coordinates.js';
 import {Sim, predict, elements, propagate} from './sim/index.js';
 import {Body, GALAXY_SCALE, TYPE_INFO, glowTex, raysTex, sprite, NOISE, mulberry} from './bodies.js';
@@ -23,12 +23,15 @@ const MAX_BODIES = 128;      // entradas a la vez (estelas y mallas); la simulac
 const BRASA = new THREE.Color('#ff8a5b'), LAVANDA = new THREE.Color('#a99bff'), CELESTE = new THREE.Color('#56ccf2'), CREMA = new THREE.Color('#fff1de'), MENTA = new THREE.Color('#7fe0c4');
 const PAD_SCALE = 1.05;       // en la plataforma tu astro se ve más grande; al volar se encoge a la escala de la galaxia
 const TOY_MAX = 12;           // juguetes (lanzar por lanzar) vivos a la vez
-// Sizes by type in the galaxy: a visual hierarchy, not real scale (black hole > star > giant > planet > moon > asteroid;
-// a nebula is the widest and faint). Multiplies GALAXY_SCALE. FLOOR: the smallest drawn radius in CSS pixels, so a
-// body seen from across the galaxy stays a readable finding-chart symbol of its kind.
-const TYPE_SCALE = {blackhole:1.6, star:1.35, binary:1.3, pulsar:1.15, giant:0.95, planet:0.72, moon:0.5, asteroid:0.42, comet:0.6, nebula:4.2};
+// Sizes by type in the galaxy, in proportion to the simulation's radii as a system is drawn (about 0.56 drawn units per
+// simulated unit): the fire's core about 0.7, a star 0.4-0.75, a black hole with its disc about 0.9, a giant about 0.4,
+// a planet 0.15-0.3, a moon or an asteroid about 0.1, so every orbit (lanes from 2.2 units) lies well outside its star.
+// Multiplies GALAXY_SCALE and the design's own size. FLOOR: the smallest drawn radius in CSS pixels, so a body seen from
+// across the galaxy stays a readable finding-chart symbol of its kind.
+const TYPE_SCALE = {blackhole:0.95, star:0.75, binary:0.7, pulsar:0.7, giant:0.42, planet:0.36, moon:0.26, asteroid:0.22, comet:0.3, nebula:4.2};
 const TYPE_FLOOR = {blackhole:12, star:9.5, binary:9.5, pulsar:6, giant:6.4, planet:5, moon:4.6, asteroid:4.3, comet:5, nebula:16};
 const FIRE_FLOOR = 10.5;
+const FIRE_CORE = 0.56;       // the fire's core (radius 1.25 at scale 1) drawn at the simulation's proportion
 const LIVE_K = LAYER.systemRadius/LAYER.liveRadius;
 const SEC = 1/120;            // one simulation tick in seconds (both kernels)
 
@@ -898,16 +901,34 @@ export function createWorld(canvas, opts = {}){
     anchorAt(a, galT, _ga); return out.set(_ga[0], _ga[1], _ga[2]);
   }
   const scaleOf = id => scales.get(id) ?? LIVE_K;
-  function replan(){
+  // a body whose system changed glides from where it was shown to its place in the new system (about two seconds)
+  function placeDrawn(e, q, dt){
+    const r = e.body.root.position;
+    if(e.reanchored){ e.reanchored = false; e.glide = [r.x - q[0], r.y - q[1], r.z - q[2]]; }
+    const g = e.glide;
+    if(!g){ r.set(q[0], q[1], q[2]); return; }
+    const f = Math.exp(-dt*2.2); g[0] *= f; g[1] *= f; g[2] *= f;
+    r.set(q[0] + g[0], q[1] + g[1], q[2] + g[2]);
+    if(g[0]*g[0] + g[1]*g[1] + g[2]*g[2] < 1e-4) e.glide = null;
+  }
+  // Small bodies are drawn in the system the simulation holds them in (physicalHosts; launchedFrom remembers the
+  // system a young body left). A jump (a timelapse seek) moves them at once instead of gliding and starts afresh.
+  const launchedFrom = new Map();
+  function replan(glide = true){
     const homes = W.sharedHomes || new Map();
     const meta = new Map(W.entries.filter(e => !e.toy).map(e => [e.id, {home:e.home}]));
-    plan = planGalaxy(sim.bodies.filter(b => !b.toy), meta, homes);
+    if(!glide) launchedFrom.clear();
+    plan = planGalaxy(sim.bodies.filter(b => !b.toy), meta, homes, physicalHosts(sim, {previous:launchedFrom}));
     scalesGoal = systemScales(plan, sim.bodies.filter(b => !b.toy), sim.t, SEC);
     for(const [id, k] of scalesGoal) if(!scales.has(id)) scales.set(id, k);
     for(const id of [...scales.keys()]) if(!scalesGoal.has(id)) scales.delete(id);
     for(const e of W.entries){
       const id = e.toy ? undefined : plan.anchorOf.get(e.id);
-      if(id !== e.anchorId){ e.anchorId = id; if(e.trail.n) orbitTrail(e); }
+      if(!glide) e.glide = null;
+      if(id !== e.anchorId){
+        e.reanchored = glide && !RM && e.anchorId !== undefined && e.anchorId !== null && id !== undefined && id !== null;
+        e.anchorId = id; if(e.trail.n) orbitTrail(e);
+      }
     }
     if(launchFrame.anchor !== null && !plan.byId.has(launchFrame.anchor)) launchFrame.anchor = plan.fireId;
   }
@@ -1088,7 +1109,7 @@ export function createWorld(canvas, opts = {}){
     }
     const firstSky = skyState.k < 0;
     const jump=noteSkyState(state.sim.steps);
-    replan();
+    replan(!jump);
     if(firstSky){ W.galR = galaxyRadius(plan); placeAll(); }
     if(jump) for(const e of W.entries) if(!e.toy)queueTrail(e);
     if(firstSky && W.mode === 'home' && !rig.follow) opening();
@@ -1756,7 +1777,7 @@ export function createWorld(canvas, opts = {}){
     anchorDisplay(launchFrame.anchor ?? plan.fireId, _ad);
     for(const e of W.entries){
       if(e.toy){ mapLocal(e.sb.p, frameK(), _lo); e.body.root.position.set(_ad.x + _lo[0], _ad.y + _lo[1], _ad.z + _lo[2]); }
-      else { const q = drawn.get(e.id); if(q) e.body.root.position.set(q[0], q[1], q[2]); }
+      else { const q = drawn.get(e.id); if(q) placeDrawn(e, q, dt); }
       // recién lanzado: se encoge despacio de la escala de la plataforma a la de la galaxia
       if(Math.abs(e.scaleBase - e.scaleGoal) > 1e-3) e.scaleBase += (e.scaleGoal - e.scaleBase)*(1 - Math.exp(-dt*1.1));
       floorScale(e, symbols, tanH);
@@ -1831,13 +1852,14 @@ export function createWorld(canvas, opts = {}){
     const flick = RM ? 0 : (Math.sin(W.t*2.3)*0.5 + Math.sin(W.t*5.1 + 1)*0.3)*0.03;
     const k = clamp(f.sq.x, -0.4, 0.5);
     // the founding star keeps a readable symbol from across the galaxy too
-    const fk = Math.max(1, FIRE_FLOOR*2*camera.position.distanceTo(SUN)*tanH/W.vh/1.25);
+    const fk = Math.max(FIRE_CORE, FIRE_FLOOR*2*camera.position.distanceTo(SUN)*tanH/W.vh/1.25);
     f.core.scale.set((1 - k*0.4 + flick)*fk, (1 + k + flick)*fk, (1 - k*0.4 + flick)*fk);
     f.g1.material.opacity = 0.85 + flick*3;
-    // its glow and rays keep their proportion to the core, so from afar it still reads as the brightest star
-    const gk = Math.max(1, fk*0.7);
-    f.g1.scale.setScalar(8.5*gk*(1 + k*0.5 + flick));
-    f.g2.scale.setScalar(17*Math.max(1, fk*0.5)); f.g3.scale.setScalar(26*Math.max(1, fk*0.4)); f.rays.scale.setScalar(13*gk);
+    // its glow and rays keep their proportion to the core, so from afar it still reads as the brightest star; close
+    // up the bright glow stays inside the innermost orbit (2.2 units)
+    const gk = Math.max(FIRE_CORE, fk*0.7);
+    f.g1.scale.setScalar(6.4*gk*(1 + k*0.5 + flick));
+    f.g2.scale.setScalar(12.5*Math.max(FIRE_CORE, fk*0.5)); f.g3.scale.setScalar(19*Math.max(FIRE_CORE, fk*0.4)); f.rays.scale.setScalar(9.5*gk);
     if(!RM) f.rays.material.rotation += dt*0.03;
     // chispas
     let anyB = false;

@@ -1,12 +1,13 @@
 import {Replay,KERNEL} from './replay.js';
 import {restoreCoordinates} from './replay-coordinates.js';
 import {Sim} from '../js/sim/index.js';
+import {SUPERSEDED_KERNELS} from '@little-galaxy/shared';
 import {Replay as FairReplay,KERNEL as FAIR_KERNEL} from './kernels/fair-alpha8/replay.js';
 import {Sim as FairSim} from './kernels/fair-alpha8/sim/index.js';
 
 export {FAIR_KERNEL};
 function historical(galaxy){
-  if(galaxy.kernel===KERNEL)return false;
+  if(galaxy.kernel===KERNEL || SUPERSEDED_KERNELS.includes(galaxy.kernel))return false;
   if(galaxy.kernel===FAIR_KERNEL && ['frozen','archived'].includes(galaxy.status) && galaxy.writePolicy==='frozen')return true;
   throw new Error('Unsupported simulation kernel');
 }

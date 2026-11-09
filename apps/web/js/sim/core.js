@@ -605,40 +605,52 @@ export class Sim {
       b.settled=this.t-b.gStart>=SETTLING.duration;
     }
   }
+  // The orbits a system offers its light bodies: lanes SETTLING.laneGap apart, from its guard outward.
+  // Only the fire, a light body's own captor and systems already on their galactic sites receive bodies:
+  // a young compact is still bridging to its own site.
+  laneBounds(s,captor){
+    const mature=s.prim.every(id=>this.byId(id).gSlot!==undefined),fire=this.central && s.prim.includes(this.central.id);
+    if(!mature && !fire && s!==captor) return null;
+    // Any system but the fire ends on a site SETTLING.spacing from its neighbours: its orbits stay inside its share
+    // of that spacing even while it is still farther away, so two systems' orbits never cross.
+    const upper=fire&&mature?SETTLING.lightRadius:Math.min(SETTLING.lightRadius,s.railLimit*.8,SETTLING.spacing*RAIL_SPAN*.8);
+    const lower=(mature?Math.max(...s.prim.map(id=>TYPE_RULES[this.byId(id).kind].guard))+Math.max(...s.prim.map(id=>this.byId(id).gRadius))*.5:s.guard)+2;
+    return upper<lower?null:{lower,upper};
+  }
+  // Free orbits on the system's lane grid: SETTLING.laneGap apart, anchored on its first orbit (the first body keeps its
+  // own distance, so an orbit that is already circular stays exactly as it is), within the system's bounds.
+  freeLanes(s,b,bounds,d){
+    const taken=this.bodies.filter(o=>o!==b && o.calmHost===s.id && (o.calmStart!==undefined || o.settled));
+    const used=taken.map(o=>o.calmRadius),gap=SETTLING.laneGap;
+    const anchor=taken.length?taken[0].calmRadius:Math.max(bounds.lower,Math.min(bounds.upper,d));
+    const first=anchor-gap*Math.floor((anchor-bounds.lower)/gap+1e-9),free=[];
+    for(let r=first;r<=bounds.upper+1e-9;r+=gap)if(used.every(x=>Math.abs(x-r)>=gap-1e-9))free.push(zero(r));
+    return {free,used};
+  }
   beginLight(b){
     if(!this.settling || b.settled || b.calmStart!==undefined || (this.steps-b.bornStep)*DT<=SETTLING.grace) return false;
-    let host=null,distance=Infinity;
+    // A genuine bound capture keeps its captor while the captor has a free orbit. Any other light body
+    // settles in the nearest system with a free orbit, so bodies spread over the galaxy's systems instead
+    // of all joining the fire. When every orbit is taken, the captor (or the fire) makes room between them.
     const captured=b.mode==='rail'?this.sysById.get(b.host):null;
+    let host=null,distance=Infinity,lanes=null,crowded=null;
     for(const s of this.systems){
-      // Keep genuine bound captures as satellite systems within the fire-centred galaxy.
-      // Unbound travellers join the fire instead of choosing the nearest massive newcomer.
-      if(captured?s!==captured:(this.central && !s.prim.includes(this.central.id)))continue;
-      const matureFire=this.central && s.prim.includes(this.central.id) && s.prim.every(id=>this.byId(id).gSlot!==undefined);
-      const max=matureFire?SETTLING.lightRadius:Math.min(SETTLING.lightRadius,s.railLimit*.8);
-      const guard=matureFire?Math.max(...s.prim.map(id=>TYPE_RULES[this.byId(id).kind].guard))+Math.max(...s.prim.map(id=>this.byId(id).gRadius))*.5:s.guard;
-      if(max<guard+2)continue;
-      const d=hypot(...sub(b.p,s.p));if(d<distance){host=s;distance=d;}
+      const bounds=this.laneBounds(s,captured);if(!bounds)continue;
+      const d=hypot(...sub(b.p,s.p)),open=this.freeLanes(s,b,bounds,d);
+      const rank=s===captured?-1:d;
+      if(open.free.length && rank<distance){host=s;distance=rank;lanes={...open,...bounds,d};}
+      if(s===captured || (!captured && this.central && s.prim.includes(this.central.id)))crowded={s,...open,...bounds,d};
     }
+    if(!host && crowded){host=crowded.s;lanes=crowded;}
     if(!host)return false;
     if(b.mode==='rail')this.syncRail(b);
     const rel=sub(b.p,host.p),rv=sub(b.v,host.v);
-    // Once the fire is on its galactic site, a passing young compact cannot postpone
-    // everyone else's settling deadline. Its own bridge will take it to a distinct site.
-    const matureFire=this.central && host.prim.includes(this.central.id) && host.prim.every(id=>this.byId(id).gSlot!==undefined);
-    const outer=matureFire?SETTLING.lightRadius:Math.min(SETTLING.lightRadius,host.railLimit*.8);
-    const guard=matureFire?Math.max(...host.prim.map(id=>TYPE_RULES[this.byId(id).kind].guard))+Math.max(...host.prim.map(id=>this.byId(id).gRadius))*.5:host.guard;
-    b.calmRadius=Math.max(guard+2,Math.min(outer,distance));
-    // Reserve distinct radii in body-id order. Include bridges as well as finished rails.
-    const lower=guard+2,upper=outer;
-    const used=this.bodies.filter(o=>o!==b && o.calmHost===host.id && (o.calmStart!==undefined || o.settled)).map(o=>o.calmRadius);
-    const preferred=b.calmRadius,spacing=.01;
     let lane=null;
-    for(let i=0;i<=1024 && lane===null;i++)for(const r of i===0?[preferred]:[preferred+i*spacing,preferred-i*spacing]){
-      if(r>=lower && r<=upper && used.every(x=>Math.abs(x-r)>=spacing-1e-12)){lane=r;break;}
-    }
+    // the free orbit nearest to where the body already is
+    for(const r of lanes.free)if(lane===null || Math.abs(r-lanes.d)<Math.abs(lane-lanes.d))lane=r;
     if(lane===null){
-      // Subdivide a free radial gap instead of refusing dense galaxies a settled orbit.
-      const edges=[lower,...used.filter(r=>r>=lower&&r<=upper).sort((a,b)=>a-b),upper];
+      // Subdivide the widest radial gap instead of refusing dense galaxies a settled orbit.
+      const edges=[lanes.lower,...lanes.used.filter(r=>r>=lanes.lower&&r<=lanes.upper).sort((a,c)=>a-c),lanes.upper];
       let width=0;
       for(let i=1;i<edges.length;i++)if(edges[i]-edges[i-1]>width){width=edges[i]-edges[i-1];lane=(edges[i]+edges[i-1])/2;}
       if(!(width>0))return false;

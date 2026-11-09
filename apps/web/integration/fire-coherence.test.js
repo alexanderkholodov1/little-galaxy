@@ -5,7 +5,7 @@ import {Replay,KERNEL} from './replay.js';
 import {fairCopyActions,fairDuration} from './fair-intents.js';
 import {canonicalState} from './checkpoint.js';
 import {TYPE_RULES} from '../js/sim/index.js';
-it('keeps every fair launch in one mature galaxy anchored on the fire, including all three black holes',async()=>{
+it('keeps every fair launch in one mature galaxy anchored on the fire, including all three black holes, on distinct orbits',async()=>{
  const galaxy={id:'fair-copy',kernel:KERNEL,generation:1,epoch:0},r=new Replay({galaxy,actions:fairCopyActions});
  const end=Math.ceil(fairDuration*.12);r.advanceTo(end);
  const sim=r.sim,fire=sim.central,fireSystem=sim.systems.find(s=>s.prim.includes(fire.id));
@@ -21,7 +21,10 @@ it('keeps every fair launch in one mature galaxy anchored on the fire, including
   const rv=b.v.map((v,k)=>v-host.v[k]),r=Math.hypot(...b.p.map((p,k)=>p-host.p[k]));
   expect(rv.reduce((sum,v)=>sum+v*v,0)/2-host.mu/r).toBeLessThan(0);
  }
- expect(lights.filter(b=>b.host===fireSystem.id).length).toBeGreaterThanOrEqual(12);
+ // Light bodies spread over the galaxy's systems, each on its own orbit (SETTLING.laneGap apart), never one crowd.
+ const orbits=new Map();for(const b of lights){const h=sim.sysById.get(b.host);if(!orbits.has(h.id))orbits.set(h.id,[]);orbits.get(h.id).push(Math.hypot(...b.p.map((p,k)=>p-h.p[k])));}
+ expect(orbits.size).toBeGreaterThanOrEqual(2);expect(orbits.get(fireSystem.id)?.length).toBeGreaterThan(0);
+ for(const radii of orbits.values()){radii.sort((a,b)=>a-b);for(let i=1;i<radii.length;i++)expect(radii[i]-radii[i-1]).toBeGreaterThanOrEqual(1.5-1e-6);}
  expect(Math.max(...sim.bodies.map(b=>Math.hypot(...b.p.map((p,k)=>p-fire.p[k]))))).toBeLessThan(60);
  const restored=new Replay({galaxy,checkpoint:{sequence:r.sequence,state:canonicalState(r.state())},trusted:true});
  expect(await canonicalHash(JSON.parse(canonicalState(restored.state())))).toBe(await canonicalHash(JSON.parse(canonicalState(r.state()))));
