@@ -13,7 +13,7 @@ permissions:
 jobs:
   check:
     name: pnpm check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: ${{ inputs.rehearsal }}
     timeout-minutes: 10
     env:

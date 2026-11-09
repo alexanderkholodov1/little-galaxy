@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   guard:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
       tag: ${{ steps.version.outputs.tag }}
@@ -46,7 +46,7 @@ jobs:
 
   build:
     needs: guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -100,7 +100,7 @@ jobs:
     # Test the exact artifact against the rules being released, before live Hosting or galaxy selection change.
     # Rules deploy first; a release's rules must keep the client already live working.
     needs: [guard, build, deploy-rules]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: little-galaxy-rules
     permissions:
@@ -186,7 +186,7 @@ jobs:
     # A release appears only once the rules it relies on are live.
     needs: [guard, build, candidate, deploy-rules]
     environment: little-galaxy-rules
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
@@ -290,7 +290,7 @@ jobs:
   deploy-rules:
     # Credentials stay in this environment. It only allows main and v* tags; the merge is the approval, so there is no manual reviewer.
     needs: [guard, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: little-galaxy-rules
     concurrency:
